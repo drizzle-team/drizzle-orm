@@ -1,5 +1,5 @@
 // src/db/schema.ts
-import { sql } from 'orm044';
+import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	bigserial,
@@ -44,7 +44,7 @@ import {
 	uuid,
 	varchar,
 	vector,
-} from 'orm044/pg-core';
+} from 'drizzle-orm/pg-core';
 
 export const citext = customType<{ data: string }>({
 	dataType() {

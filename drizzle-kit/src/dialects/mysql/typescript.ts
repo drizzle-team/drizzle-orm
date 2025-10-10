@@ -333,8 +333,8 @@ const createTableColumns = (
 		const columnFKs = fks.filter((x) => !x.nameExplicit && x.columns.length === 1 && x.columns[0] === it.name);
 
 		for (const fk of columnFKs) {
-			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete : null;
-			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate : null;
+			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete?.toLowerCase() : null;
+			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate?.toLowerCase() : null;
 			const params = { onDelete, onUpdate };
 
 			const typeSuffix = isCyclic(fk) ? vendor === 'mysql' ? ': AnyMySqlColumn' : ': AnySinsgleStoreColumn' : '';
@@ -426,8 +426,8 @@ const createTableFKs = (
 		statement += `\t\tforeignColumns: [${columnsTo}],\n`;
 		statement += `\t\tname: "${it.name}"\n`;
 		statement += `\t})`;
-		statement += it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate?.toLowerCase()}")` : '';
+		statement += it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete?.toLowerCase()}")` : '';
 		statement += `,\n`;
 	}
 

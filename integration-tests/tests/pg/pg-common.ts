@@ -85,7 +85,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	uuid,
 	uuid as pgUuid,
 	varchar,
@@ -650,7 +649,7 @@ export function tests() {
 
 			const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-			expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+			expect(columnName?.uniqueName).toBe(undefined);
 			expect(columnName?.isUnique).toBe(true);
 
 			const columnState = tableConfig.columns.find((it) => it.name === 'state');

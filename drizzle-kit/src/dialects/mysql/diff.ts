@@ -1,10 +1,11 @@
+import { trimChar } from 'src/utils';
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { charSetAndCollationCommutative, defaultNameForFK, typesCommutative } from './grammar';
+import { charSetAndCollationCommutative, commutative, defaultNameForFK } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
@@ -289,14 +290,17 @@ export const ddlDiff = async (
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		/* 
+		/*
 			we can't do `create table a(id int auto_increment);`
-			but when you do `ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT`
-			database implicitly makes column a Primary Key
+			but we can do `ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT`
+			and database implicitly makes column a Primary Key
 		 */
-		.filter((it) =>
-			it.columns.length === 1 && !ddl2.columns.one({ table: it.table, name: it.columns[0] })?.autoIncrement
-		)
+		.filter((it) => {
+			if (it.columns.length === 1 && ddl2.columns.one({ table: it.table, name: it.columns[0] })?.autoIncrement) {
+				return false;
+			}
+			return true;
+		})
 		.map((it) => prepareStatement('drop_pk', { pk: it }));
 
 	const createCheckStatements = checksDiff.filter((it) => it.$diffType === 'create')
@@ -310,6 +314,7 @@ export const ddlDiff = async (
 	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create')
 		.filter((x) => createdTables.length >= 2 || !createdTables.some((it) => it.name === x.table))
 		.map((it) => prepareStatement('create_fk', { fk: it }));
+
 	const createPKStatements = pksDiff.filter((it) => it.$diffType === 'create')
 		.filter((it) => !createdTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('create_pk', { pk: it }));
@@ -337,8 +342,12 @@ export const ddlDiff = async (
 
 	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns')
 		.filter((it) => {
-			if (it.type && typesCommutative(it.type.from, it.type.to, mode)) {
+			if (it.type && commutative(it.type.from, it.type.to, mode)) {
 				delete it.type;
+			}
+
+			if (it.default && it.default.from && it.default.to && commutative(it.default.from, it.default.to, mode)) {
+				delete it.default;
 			}
 
 			if (it.autoIncrement && it.autoIncrement.to && it.$right.type === 'serial') delete it.autoIncrement;
@@ -349,6 +358,11 @@ export const ddlDiff = async (
 				deleteDefault ||= it.default.from === it.default.to;
 				deleteDefault ||= it.default.from === `(${it.default.to})`;
 				deleteDefault ||= it.default.to === `(${it.default.from})`;
+
+				// varbinary
+				deleteDefault ||= it.default.from === `(${it.default.to?.toLowerCase()})`;
+				deleteDefault ||= it.default.to === `(${it.default.from?.toLowerCase()})`;
+
 				if (deleteDefault) {
 					delete it.default;
 				}
@@ -361,9 +375,15 @@ export const ddlDiff = async (
 				delete it.generated;
 			}
 
-			// if there's a change in notnull but column is a part of a pk - we don't care
-			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
-				delete it.notNull;
+			if (
+				it.notNull
+			) {
+				const isPk = !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } });
+				const wasPk = !!ddl1.pks.one({ table: it.table, columns: { CONTAINS: it.name } });
+
+				// only if column is no longer pk, but new declaration is not not null, we need to set column not null
+				if (!isPk && wasPk) {}
+				else if (isPk || wasPk) delete it.notNull; // if there's a change in notnull but column is a part of a pk - we don't care
 			}
 
 			if (
@@ -377,8 +397,18 @@ export const ddlDiff = async (
 				delete it.collation;
 			}
 
+			if (
+				mode === 'push' && !it.type && it.default && it.default.from && it.default.to
+				&& (it.$right.type === 'datetime' || it.$right.type === 'timestamp')
+			) {
+				const c1 = Date.parse(trimChar(it.default.from, "'"));
+				const c2 = Date.parse(trimChar(it.default.to, "'"));
+				if (c1 === c2) delete it.default;
+			}
+
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
+			const { $diffType, $left, $right, entityType, table, ...rest } = it;
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const isPK = !!ddl2.pks.one({ table: it.table, columns: [it.name] });
 			const wasPK = !!ddl1.pks.one({ table: it.table, columns: [it.name] });
@@ -393,6 +423,20 @@ export const ddlDiff = async (
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
 		return prepareStatement('recreate_column', { column, isPK: isPK ?? false });
 	});
+
+	for (const pk of alters.filter((x) => x.entityType === 'pks')) {
+		if (pk.columns) {
+			dropPKStatements.push({ type: 'drop_pk', pk: pk.$left });
+			createPKStatements.push({ type: 'create_pk', pk: pk.$right });
+		}
+	}
+
+	for (const fk of alters.filter((x) => x.entityType === 'fks')) {
+		if (fk.onDelete || fk.onUpdate) {
+			dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name });
+			createFKsStatements.push({ type: 'create_fk', fk: fk.$right });
+		}
+	}
 
 	const statements = [
 		...createTableStatements,

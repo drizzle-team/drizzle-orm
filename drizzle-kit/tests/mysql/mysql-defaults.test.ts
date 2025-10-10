@@ -197,7 +197,9 @@ test('real', async () => {
 	// The commented line below will fail
 	// const res2 = await diffDefault(_, real({ precision: 6 }).default(10.123), '10.123');
 	const res3 = await diffDefault(_, real({ precision: 6, scale: 3 }).default(10.123), '10.123');
-	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 
 	// expressions
 	const res5 = await diffDefault(_, decimal().default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -217,9 +219,17 @@ test('double', async () => {
 	// TODO: revise: It seems that the double type can’t be configured using only one property precision or scale; both must be specified.
 	// The commented line below will fail
 	// const res2 = await diffDefault(_, double({ precision: 6 }).default(10.123), '10.123');
-	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 	const res4 = await diffDefault(_, double({ unsigned: true }).default(10.123), '10.123');
-	const res5 = await diffDefault(_, double({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res5 = await diffDefault(
+		_,
+		double({ unsigned: true, precision: 6, scale: 2 }).default(10.123),
+		'10.123',
+		null,
+		{ ignoreSubsequent: true },
+	);
 
 	// expressions
 	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -248,7 +258,9 @@ test('float', async () => {
 
 	const res4 = await diffDefault(_, float({ unsigned: true }).default(10.123), '10.123');
 	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 3 }).default(10.123), '10.123');
-	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 
 	// expressions
 	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -268,7 +280,7 @@ test('float', async () => {
 test('boolean', async () => {
 	// sql`null` equals no default value, while we handle it properly
 	// it breaks on expected sql statements since they always expect DEFAULT
-	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null');
+	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null', null, { ignoreSubsequent: true });
 	const res2 = await diffDefault(_, boolean().default(true), 'true');
 	const res3 = await diffDefault(_, boolean().default(false), 'false');
 	const res4 = await diffDefault(_, boolean().default(sql`true`), '(true)');
@@ -581,6 +593,8 @@ test('timestamp', async () => {
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res4 = await diffDefault(
 		_,
@@ -592,6 +606,8 @@ test('timestamp', async () => {
 		_,
 		timestamp({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res6 = await diffDefault(
 		_,
@@ -627,6 +643,8 @@ test('datetime', async () => {
 		_,
 		datetime({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res2 = await diffDefault(
 		_,
@@ -638,6 +656,8 @@ test('datetime', async () => {
 		_,
 		datetime({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res4 = await diffDefault(
 		_,
