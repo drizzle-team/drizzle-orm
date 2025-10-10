@@ -8,7 +8,6 @@ import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/s
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
-import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
 import { Journal } from '.';

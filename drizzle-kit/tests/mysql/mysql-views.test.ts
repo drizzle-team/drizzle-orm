@@ -75,7 +75,6 @@ test('create view #3', async () => {
 	// postpone
 	if (Date.now() < +new Date('10/10/2025')) return;
 
-	
 	const users = mysqlTable('users', {
 		id: int().primaryKey().notNull(),
 		name: text(),
