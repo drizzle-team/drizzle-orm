@@ -39,7 +39,7 @@ export class SQLiteD1Session<
 	private cache: Cache;
 
 	constructor(
-		private client: D1Database,
+		private client: D1Database | D1DatabaseSession,
 		dialect: SQLiteAsyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,

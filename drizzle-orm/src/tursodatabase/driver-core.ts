@@ -1,52 +1,38 @@
-/// <reference types="@cloudflare/workers-types" />
-import type { D1Database as MiniflareD1Database } from '@miniflare/d1';
+import type { DatabasePromise } from '@tursodatabase/database-common';
 import * as V1 from '~/_relations.ts';
-import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig, IfNotImported } from '~/utils.ts';
-import { SQLiteD1Session } from './session.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import { TursoDatabaseSession } from './session.ts';
 
-export type AnyD1Database = IfNotImported<
-	D1Database,
-	MiniflareD1Database,
-	| D1Database
-	| IfNotImported<D1DatabaseSession, never, D1DatabaseSession>
-	| IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
->;
+export type TursoDatabaseRunResult = Awaited<ReturnType<ReturnType<DatabasePromise['prepare']>['run']>>;
 
-export class DrizzleD1Database<
+export class TursoDatabaseDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'async', D1Result, TSchema, TRelations> {
-	static override readonly [entityKind]: string = 'D1Database';
+> extends BaseSQLiteDatabase<'async', TursoDatabaseRunResult, TSchema, TRelations> {
+	static override readonly [entityKind]: string = 'TursoDatabaseDatabase';
 
 	/** @internal */
-	declare readonly session: SQLiteD1Session<
+	declare readonly session: TursoDatabaseSession<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
 	>;
-
-	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
-		batch: T,
-	): Promise<BatchResponse<T>> {
-		return this.session.batch(batch) as Promise<BatchResponse<T>>;
-	}
 }
 
-export function drizzle<
+/** @internal */
+export function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends AnyD1Database = AnyD1Database,
 >(
-	client: TClient,
+	client: DatabasePromise,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): DrizzleD1Database<TSchema, TRelations> & {
-	$client: TClient;
+): TursoDatabaseDatabase<TSchema, TRelations> & {
+	$client: DatabasePromise;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
@@ -70,31 +56,28 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLiteD1Session(client as D1Database, dialect, relations, schema, {
-		logger,
-		cache: config.cache,
-	});
-	const db = new DrizzleD1Database(
+	const session = new TursoDatabaseSession(
+		client,
+		dialect,
+		relations,
+		schema,
+		{ logger, cache: config.cache },
+	);
+	const db = new TursoDatabaseDatabase(
 		'async',
 		dialect,
-		session as SQLiteD1Session<
+		session as TursoDatabaseSession<
 			TSchema,
 			TRelations,
 			V1.ExtractTablesWithRelations<TSchema>
 		>,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
-		undefined,
-		true,
-	) as DrizzleD1Database<
-		TSchema,
-		TRelations
-	>;
+	) as TursoDatabaseDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
 		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
 	}
-
 	return db as any;
 }

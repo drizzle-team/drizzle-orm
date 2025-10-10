@@ -234,7 +234,7 @@ export const Char: SqlType = {
 		if (!value) return { options, default: '' };
 		if (value.startsWith('(')) return { options, default: `sql\`${value}\`` };
 
-		const escaped = `"${escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")))}"`;
+		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
 	},
 };
@@ -268,7 +268,7 @@ export const TinyText: SqlType = {
 		if (value.startsWith('(') || !value.startsWith("'")) return { options, default: `sql\`${value}\`` };
 
 		const trimmed = trimChar(value, "'");
-		const escaped = value ? `"${escapeForTsLiteral(unescapeFromSqlDefault(trimmed))}"` : '';
+		const escaped = value ? escapeForTsLiteral(unescapeFromSqlDefault(trimmed)) : '';
 		return { options, default: escaped };
 	},
 };
@@ -355,7 +355,13 @@ export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
-	defaultFromIntrospect: TinyText.defaultFromIntrospect,
+	defaultFromIntrospect: (value) => {
+		// when you do `binary default 'text'` instead of `default ('text')`
+		if (value.startsWith('0x')) {
+			return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+		}
+		return value;
+	},
 	toTs: TinyText.toTs,
 };
 
@@ -533,7 +539,7 @@ export const Enum: SqlType = {
 	toTs: (_, def) => {
 		if (!def) return { default: '' };
 		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
-		return { default: `"${unescaped}"` };
+		return { default: unescaped };
 	},
 };
 
@@ -543,15 +549,15 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		return escapeForSqlDefault(value as string);
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return escapeForSqlDefault(value as string);
+		return value;
 	},
 	toTs: (type, def) => {
 		if (!def) return { default: '', customType: type };
 		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
-		return { default: `"${unescaped}"`, customType: type };
+		return { default: unescaped, customType: type };
 	},
 };
 
@@ -654,13 +660,17 @@ const commutativeTypes = [
 	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
 
-export const typesCommutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
+export const commutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
 		const rightIn = it.some((x) => x === right);
 
 		if (leftIn && rightIn) return true;
 	}
+
+	const leftPatched = left.replace(', ', ',');
+	const rightPatched = right.replace(', ', ',');
+	if (leftPatched === rightPatched) return true;
 
 	if (mode === 'push') {
 		if (left === 'double' && right === 'real') return true;

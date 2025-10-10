@@ -79,7 +79,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	uniqueKeyName,
 	varbinary,
 	varchar,
 	year,
@@ -580,21 +579,6 @@ describe('common', () => {
 		expect(tableConfig.foreignKeys[0]!.getName()).toStrictEqual('custom_fk');
 	});
 
-	test('table config: primary keys name', async () => {
-		const table = mysqlTable('cities', {
-			id: serial('id').primaryKey(),
-			name: text('name').notNull(),
-			state: text('state'),
-		}, (t) => ({
-			f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-		}));
-
-		const tableConfig = getTableConfig(table);
-
-		expect(tableConfig.primaryKeys).toHaveLength(1);
-		expect(tableConfig.primaryKeys[0]!.getName()).toStrictEqual('custom_pk');
-	});
-
 	test('table configs: unique third param', async () => {
 		const cities1Table = mysqlTable('cities1', {
 			id: serial('id').primaryKey(),
@@ -627,7 +611,7 @@ describe('common', () => {
 		const tableConfig = getTableConfig(cities1Table);
 
 		const columnName = tableConfig.columns.find((it) => it.name === 'name');
-		expect(columnName?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnName!.name]));
+		expect(columnName?.uniqueName).toStrictEqual(undefined);
 		expect(columnName?.isUnique).toBeTruthy();
 
 		const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -3869,7 +3853,7 @@ describe('common', () => {
 			id: int(),
 		}, (t) => [
 			index('name').on(t.id),
-			primaryKey({ columns: [t.id], name: 'custom' }),
+			primaryKey({ columns: [t.id] }),
 		]);
 
 		const { indexes, primaryKeys } = getTableConfig(table);
@@ -3882,7 +3866,7 @@ describe('common', () => {
 		const table = mysqlTable('name', {
 			id: int(),
 		}, (t) => [
-			[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
+			[index('name').on(t.id), primaryKey({ columns: [t.id] })],
 		]);
 
 		const { indexes, primaryKeys } = getTableConfig(table);

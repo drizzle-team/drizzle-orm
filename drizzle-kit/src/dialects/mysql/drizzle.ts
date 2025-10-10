@@ -6,6 +6,7 @@ import {
 	getViewConfig,
 	MySqlChar,
 	MySqlColumn,
+	MySqlCustomColumn,
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
@@ -25,19 +26,19 @@ export const defaultFromColumn = (
 	casing?: Casing,
 ): Column['default'] => {
 	if (typeof column.default === 'undefined') return null;
-	const value = column.default;
+	let value = column.default;
 
 	if (is(column.default, SQL)) {
-		'CURRENT_TIMESTAMP';
-		'now()'; //
-		'(now())'; // value: (now()) type unknown
-		'now()'; // value: now() type: unknown
 		let str = sqlToStr(column.default, casing);
-		// if (str === 'null') return null; should probably not do this
-
 		// we need to wrap unknown statements in () otherwise there's not enough info in Type.toSQL
 		if (!str.startsWith('(')) return `(${str})`;
 		return str;
+	}
+
+	if (is(column, MySqlCustomColumn)) {
+		const res = column.mapToDriverValue(column.default);
+		if (typeof res === 'string') value = res;
+		value = String(res);
 	}
 
 	const grammarType = typeFor(column.getSQLType().toLowerCase());
