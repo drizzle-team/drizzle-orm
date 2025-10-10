@@ -693,7 +693,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
-
+		
 		const i0: Record<string, unknown> = require(`${it}`);
 		const prepared = fromExports(i0);
 
