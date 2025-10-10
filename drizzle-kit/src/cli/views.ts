@@ -545,7 +545,7 @@ export class MigrateProgress extends TaskView {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
-		return `[${chalk.green('✓')}] migrations applied successfully!`;
+		return `[${chalk.green('✓')}] migrations applied successfully!\n`;
 	}
 }
 
