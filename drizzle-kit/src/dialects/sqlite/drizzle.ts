@@ -27,7 +27,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { Int, nameForForeignKey, nameForUnique, SqlType, sqlTypeFrom, typeFor } from './grammar';
+import { Int, nameForForeignKey, nameForPk, nameForUnique, typeFor } from './grammar';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
@@ -70,11 +70,12 @@ export const fromDrizzleSchema = (
 				: null;
 
 			const defalutValue = defaultFromColumn(column, casing);
-			const hasUniqueIndex = it.config.indexes.find((item) => {
+
+			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
 				return column && !is(column, SQL) && getColumnCasing(column, casing) === name;
-			}) !== null;
+			}));
 
 			return {
 				entityType: 'columns',
@@ -83,7 +84,8 @@ export const fromDrizzleSchema = (
 				type: column.getSQLType(),
 				default: defalutValue,
 				notNull: column.notNull && !primaryKey,
-				primaryKey,
+				pk: primaryKey,
+				pkName: null,
 				autoincrement: is(column, SQLiteBaseInteger)
 					? column.autoIncrement
 					: false,
@@ -99,9 +101,10 @@ export const fromDrizzleSchema = (
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 			return {
 				entityType: 'pks',
-				name: pk.name ?? '',
+				name: pk.name ?? nameForPk(getTableConfig(pk.table).name),
 				table: it.config.name,
 				columns: columnNames,
+				nameExplicit: pk.isNameExplicit,
 			} satisfies PrimaryKey;
 		});
 	}).flat();
@@ -120,7 +123,9 @@ export const fromDrizzleSchema = (
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			const name = nameForForeignKey({ table: tableFrom, columns: columnsFrom, tableTo, columnsTo });
+			const name = fk.isNameExplicit()
+				? fk.getName()
+				: nameForForeignKey({ table: tableFrom, columns: columnsFrom, tableTo, columnsTo });
 			return {
 				entityType: 'fks',
 				table: it.config.name,
@@ -130,6 +135,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onDelete,
 				onUpdate,
+				nameExplicit: fk.isNameExplicit(),
 			} satisfies ForeignKey;
 		});
 	}).flat();
@@ -168,13 +174,13 @@ export const fromDrizzleSchema = (
 	const uniques = tableConfigs.map((it) => {
 		return it.config.uniqueConstraints.map((unique) => {
 			const columnNames = unique.columns.map((c) => getColumnCasing(c, casing));
-			const name = unique.name ?? nameForUnique(it.config.name, columnNames);
+			const name = unique.isNameExplicit ? unique.name : nameForUnique(it.config.name, columnNames);
 			return {
 				entityType: 'uniques',
 				table: it.config.name,
 				name: name,
 				columns: columnNames,
-				origin: 'manual',
+				nameExplicit: unique.isNameExplicit,
 			} satisfies UniqueConstraint;
 		});
 	}).flat();

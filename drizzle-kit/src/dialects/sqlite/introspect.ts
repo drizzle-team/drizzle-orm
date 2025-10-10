@@ -1,5 +1,5 @@
 import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
-import { type DB } from '../../utils';
+import { areStringArraysEqual, type DB } from '../../utils';
 import {
 	type CheckConstraint,
 	type Column,
@@ -16,8 +16,11 @@ import {
 	extractGeneratedColumns,
 	Generated,
 	nameForForeignKey,
+	nameForPk,
 	nameForUnique,
 	parseDefault,
+	parseSqliteDdl,
+	parseSqliteFks,
 	parseTableSQL,
 	parseViewSQL,
 	sqlTypeFrom,
@@ -34,7 +37,6 @@ export const fromDatabaseForDrizzle = async (
 ) => {
 	const res = await fromDatabase(db, tablesFilter, progressCallback);
 	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
-	res.uniques = res.uniques.filter((it) => it.origin !== 'auto');
 
 	return res;
 };
@@ -291,6 +293,21 @@ export const fromDatabase = async (
 	type DBIndex = typeof dbIndexes[number];
 	// append primaryKeys by table
 
+	const tableToParsedFks = dbTableColumns.reduce((acc, it) => {
+		if (!(it.table in acc)) {
+			acc[it.table] = parseSqliteFks(it.sql);
+		}
+		return acc;
+	}, {} as {
+		[tname: string]: {
+			name: string | null;
+			toTable: string;
+			fromTable: string;
+			fromColumns: string[];
+			toColumns: string[];
+		}[];
+	});
+
 	const tableToPk = dbTableColumns.reduce((acc, it) => {
 		const isPrimary = it.pk !== 0;
 		if (isPrimary) {
@@ -350,9 +367,18 @@ export const fromDatabase = async (
 
 	const pks: PrimaryKey[] = [];
 	for (const [key, value] of Object.entries(tableToPk)) {
+		const tableSql = tablesToSQL[key];
+		const parsed = parseSqliteDdl(tableSql);
+
 		if (value.length === 1) continue;
-		// TODO: if we want to explicitely handle name - we need to parse SQL definition
-		pks.push({ entityType: 'pks', table: key, name: '', columns: value });
+
+		pks.push({
+			entityType: 'pks',
+			table: key,
+			name: parsed.pk.name ?? nameForPk(key),
+			columns: value,
+			nameExplicit: false,
+		});
 	}
 
 	const columns: InterimColumn[] = [];
@@ -382,11 +408,37 @@ export const fromDatabase = async (
 			? null // if pk, no UNIQUE
 			: tableIndexes.filter((it) => {
 				const idx = it.index;
+
 				// we can only safely define UNIQUE column when there is automatically(origin=u) created unique index on the column(only 1)
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				return { name: nameForUnique(column.table, it.columns.filter((x) => !x.isExpression).map((x) => x.value)) };
+				const parsed = parseSqliteDdl(it.index.sql);
+
+				const constraint = parsed.uniques.find((parsedUnique) =>
+					areStringArraysEqual(it.columns.map((indexCol) => indexCol.value), parsedUnique.columns)
+				);
+				if (!constraint) return null;
+
+				return { name: constraint.name };
+			})[0] || null;
+
+		const pkName = !primaryKey
+			? null // if pk, no UNIQUE
+			: tableIndexes.filter((it) => {
+				const idx = it.index;
+
+				// we can only safely define PRIMARY KEY column when there is automatically(origin=pk) created unique index on the column(only 1)
+				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
+					&& idx.column === column.name;
+			}).map((it) => {
+				const parsed = parseSqliteDdl(it.index.sql);
+				if (parsed.pk.columns.length > 1) return undefined;
+
+				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
+				if (!constraint) return { name: null };
+
+				return { name: constraint.name };
 			})[0] || null;
 
 		columns.push({
@@ -395,8 +447,9 @@ export const fromDatabase = async (
 			default: columnDefault,
 			autoincrement,
 			name,
+			pk: primaryKey,
+			pkName: pkName?.name ?? nameForPk(column.table),
 			type,
-			primaryKey,
 			notNull,
 			generated,
 			isUnique: !!unique,
@@ -413,6 +466,7 @@ export const fromDatabase = async (
 		from: string;
 		to: string;
 		onUpdate: string;
+		sql: string;
 		onDelete: string;
 		seq: number;
 		id: number;
@@ -423,6 +477,7 @@ export const fromDatabase = async (
 			f."table" as "tableTo", 
 			f."from", 
 			f."to",
+			m."sql" as sql,
 		  f."on_update" as "onUpdate", 
 			f."on_delete" as "onDelete", 
 			f.seq as "seq"
@@ -458,7 +513,17 @@ export const fromDatabase = async (
 		progressCallback('fks', foreignKeysCount, 'fetching');
 
 		const { columnsFrom, columnsTo } = fksToColumns[`${fk.tableFrom}:${fk.id}`]!;
-		const name = nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });
+
+		const parsedFk = tableToParsedFks[fk.tableFrom];
+		const constraint = parsedFk.find((it) =>
+			areStringArraysEqual(it.fromColumns, columnsFrom) && areStringArraysEqual(it.toColumns, columnsTo)
+			&& (it.toTable === fk.tableTo) && (it.fromTable === fk.tableFrom)
+		);
+		let name: string;
+		if (!constraint) {
+			name = nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });
+		} else {name = constraint.name
+				?? nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });}
 
 		fks.push({
 			entityType: 'fks',
@@ -467,6 +532,7 @@ export const fromDatabase = async (
 			tableTo: fk.tableTo,
 			columns: columnsFrom,
 			columnsTo,
+			nameExplicit: true,
 			onDelete: fk.onDelete ?? 'NO ACTION',
 			onUpdate: fk.onUpdate ?? 'NO ACTION',
 		});
@@ -548,13 +614,18 @@ export const fromDatabase = async (
 			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
 			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
 
-			const name = nameForUnique(table, columns.filter((it) => !it.isExpression).map((it) => it.value));
+			const parsed = parseSqliteDdl(index.sql);
+
+			const constraint = parsed.uniques.find((parsedUnique) =>
+				areStringArraysEqual(columns.map((it) => it.value), parsedUnique.columns)
+			);
+			if (!constraint) continue;
 
 			uniques.push({
 				entityType: 'uniques',
 				table,
-				name: name,
-				origin: origin,
+				name: constraint.name ?? nameForUnique(table, columns.map((it) => it.value)),
+				nameExplicit: true,
 				columns: columns.map((it) => it.value),
 			});
 		}

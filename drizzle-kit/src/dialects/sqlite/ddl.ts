@@ -1,5 +1,5 @@
 import { create } from '../dialect';
-import { nameForUnique } from './grammar';
+import { nameForPk, nameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
@@ -7,7 +7,6 @@ export const createDDL = () => {
 		columns: {
 			table: 'required',
 			type: 'string',
-			primaryKey: 'boolean',
 			notNull: 'boolean',
 			autoincrement: 'boolean?',
 			default: 'string?',
@@ -36,18 +35,17 @@ export const createDDL = () => {
 			columnsTo: 'string[]',
 			onUpdate: 'string',
 			onDelete: 'string',
+			nameExplicit: 'boolean',
 		},
 		pks: {
 			table: 'required',
 			columns: 'string[]',
+			nameExplicit: 'boolean',
 		},
 		uniques: {
 			table: 'required',
 			columns: 'string[]',
-			origin: [
-				'manual', // ='c' CREATE INDEX
-				'auto', // ='u' UNIQUE auto created
-			], // https://www.sqlite.org/pragma.html#pragma_index_list
+			nameExplicit: 'boolean',
 		},
 		checks: {
 			table: 'required',
@@ -172,7 +170,10 @@ const count = <T>(arr: T[], predicate: (it: T) => boolean) => {
 	return count;
 };
 
-export type InterimColumn = Column & { isUnique: boolean; uniqueName: string | null };
+export type InterimColumn = Column & {
+	pk: boolean;
+	pkName: string | null;
+} & { isUnique: boolean; uniqueName: string | null };
 export type InterimSchema = {
 	tables: Table[];
 	columns: InterimColumn[];
@@ -200,7 +201,7 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 	}
 
 	for (const column of schema.columns) {
-		const { isUnique, uniqueName, ...rest } = column;
+		const { isUnique, uniqueName, pk, pkName, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_column', table: column.table, column: column.name });
@@ -218,6 +219,19 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_pk', name: pk.name });
 		}
+	}
+
+	for (const column of schema.columns.filter((it) => it.pk)) {
+		const name = column.pkName !== null ? column.pkName : nameForPk(column.table);
+		const exists = ddl.pks.one({ table: column.table }) !== null;
+		if (exists) continue;
+
+		ddl.pks.push({
+			table: column.table,
+			name,
+			nameExplicit: column.pkName !== null,
+			columns: [column.name],
+		});
 	}
 
 	for (const index of schema.indexes) {
@@ -240,7 +254,7 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 			name: it.uniqueName ?? nameForUnique(it.table, [it.name]),
 			columns: [it.name],
 			table: it.table,
-			origin: 'manual',
+			nameExplicit: !!it.uniqueName,
 		} satisfies UniqueConstraint;
 
 		const res = ddl.uniques.push(u);
