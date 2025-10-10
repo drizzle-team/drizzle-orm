@@ -96,6 +96,14 @@ export const fromDatabase = async (
 		throw err;
 	});
 
+	const defaultCharSetAndCollation = await db.query<{ default_charset: string; default_collation: string }>(`
+		SELECT 
+			DEFAULT_CHARACTER_SET_NAME AS default_charset,
+			DEFAULT_COLLATION_NAME AS default_collation
+		FROM information_schema.SCHEMATA
+		WHERE SCHEMA_NAME = '${schema}';
+		`);
+
 	const filteredTablesAndViews = tablesAndViews.filter((it) => columns.some((x) => x['TABLE_NAME'] === it.name));
 	const tables = filteredTablesAndViews.filter((it) => it.type === 'BASE TABLE').map((it) => it.name);
 	for (const table of tables) {
@@ -120,8 +128,8 @@ export const fromDatabase = async (
 		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
 		const columnDefault: string = column['COLUMN_DEFAULT'] ?? null;
-		const collation: string = column['COLLATION_NAME'];
-		const charSet: string = column['CHARACTER_SET_NAME'];
+		const dbCollation: string = column['COLLATION_NAME'];
+		const dbCharSet: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
 		const extra = column['EXTRA'] ?? '';
@@ -154,7 +162,15 @@ export const fromDatabase = async (
 			}
 		}
 
-		const def = parseDefaultValue(changedType, columnDefault, charSet);
+		const def = parseDefaultValue(changedType, columnDefault, dbCharSet);
+
+		const { default_charset: defDbCharSet, default_collation: defDbCollation } = defaultCharSetAndCollation[0];
+		let charSet: string | null = dbCharSet;
+		let collation: string | null = dbCollation;
+		if (defDbCharSet === dbCharSet && defDbCollation === dbCollation) {
+			charSet = null;
+			collation = null;
+		}
 
 		res.columns.push({
 			entityType: 'columns',
@@ -164,8 +180,8 @@ export const fromDatabase = async (
 			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
-			collation,
-			charSet,
+			collation: collation,
+			charSet: charSet,
 			onUpdateNow,
 			onUpdateNowFsp,
 			default: def,
