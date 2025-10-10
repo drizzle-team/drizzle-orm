@@ -1,5 +1,4 @@
 import type { Simplify } from '../../utils';
-import { Column } from './ddl';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -45,13 +44,20 @@ const createTable = convertor('create_table', (st) => {
 			might break legacy applications. Hence, it has been decided to merely document the fact
 			that SQLite allows NULLs in most PRIMARY KEY columns.
 		 */
-		const omitNotNull = column.primaryKey && column.type.toLowerCase().startsWith('int');
+		const isColumnPk = pk && pk.columns.length === 1 && pk.columns[0] === column.name && pk.table === column.table;
+		const omitNotNull = isColumnPk && column.type.toLowerCase().startsWith('int');
 
-		// pk check is needed
-		const primaryKeyStatement = column.primaryKey || (pk && pk.columns.length === 1 && pk.columns[0] === column.name)
+		const primaryKeyStatement = isColumnPk && !pk.nameExplicit
 			? ' PRIMARY KEY'
 			: '';
 		const notNullStatement = column.notNull && !omitNotNull ? ' NOT NULL' : '';
+
+		const unique = uniqueConstraints.find((u) =>
+			u.columns.length === 1 && u.columns[0] === column.name && u.table === column.table
+		);
+		const unqiueConstraintPrefix = unique
+			? unique.nameExplicit ? ` CONSTRAINT \`${unique.name}\` UNIQUE` : ' UNIQUE'
+			: '';
 
 		// in SQLite we escape single quote by doubling it, `'`->`''`, but we don't do it here
 		// because it is handled by drizzle orm serialization or on drizzle studio side
@@ -65,14 +71,14 @@ const createTable = convertor('create_table', (st) => {
 
 		statement += '\t';
 		statement +=
-			`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}`;
+			`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${unqiueConstraintPrefix}`;
 
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && pk.columns.length > 1) {
+	if (pk && (pk.columns.length > 1 || pk.nameExplicit)) {
 		statement += ',\n\t';
-		statement += `PRIMARY KEY(${pk.columns.map((it) => `\`${it}\``).join(', ')})`;
+		statement += `CONSTRAINT \`${pk.name}\` PRIMARY KEY(${pk.columns.map((it) => `\`${it}\``).join(', ')})`;
 	}
 
 	for (let i = 0; i < referenceData.length; i++) {
@@ -94,12 +100,12 @@ const createTable = convertor('create_table', (st) => {
 		statement += ',';
 		statement += '\n\t';
 		statement +=
-			`FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onUpdateStatement}${onDeleteStatement}`;
+			`CONSTRAINT \`${name}\` FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onUpdateStatement}${onDeleteStatement}`;
 	}
 
-	for (const uniqueConstraint of uniqueConstraints) {
+	for (const uniqueConstraint of uniqueConstraints.filter((u) => u.columns.length > 1)) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT ${uniqueConstraint.name} UNIQUE(\`${uniqueConstraint.columns.join(`\`,\``)}\`)`;
+		statement += `\tCONSTRAINT \`${uniqueConstraint.name}\` UNIQUE(\`${uniqueConstraint.columns.join(`\`,\``)}\`)`;
 	}
 
 	if (
@@ -137,15 +143,17 @@ const dropView = convertor('drop_view', (st) => {
 
 const alterTableAddColumn = convertor('add_column', (st) => {
 	const { fk, column } = st;
-	const { table: tableName, name, type, notNull, primaryKey, generated } = st.column;
+	const { table: tableName, name, type, notNull, generated } = st.column;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default ?? ''}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
+
 	const referenceStatement = `${
 		fk
-			? ` REFERENCES ${fk.tableTo}(${fk.columnsTo})`
+			? !fk.nameExplicit
+				? ` REFERENCES ${fk.tableTo}(${fk.columnsTo})`
+				: ` CONSTRAINT \`${fk.name}\` REFERENCES ${fk.tableTo}(${fk.columnsTo})`
 			: ''
 	}`;
 
@@ -153,7 +161,7 @@ const alterTableAddColumn = convertor('add_column', (st) => {
 		? ` GENERATED ALWAYS AS ${generated.as} ${generated.type.toUpperCase()}`
 		: '';
 
-	return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
+	return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
 });
 
 const alterTableRenameColumn = convertor('rename_column', (st) => {

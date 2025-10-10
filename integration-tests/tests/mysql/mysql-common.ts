@@ -522,12 +522,11 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
+			}, (t) => [primaryKey({ columns: [t.id, t.name] })]);
 
 			const tableConfig = getTableConfig(table);
 
 			expect(tableConfig.primaryKeys).toHaveLength(1);
-			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 		});
 
 		test('table configs: unique third param', async () => {
@@ -4010,7 +4009,7 @@ export function tests(driver?: string) {
 				id: int(),
 			}, (t) => [
 				index('name').on(t.id),
-				primaryKey({ columns: [t.id], name: 'custom' }),
+				primaryKey({ columns: [t.id] }),
 			]);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
@@ -4025,7 +4024,7 @@ export function tests(driver?: string) {
 			const table = mysqlTable('name', {
 				id: int(),
 			}, (t) => [
-				[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
+				[index('name').on(t.id), primaryKey({ columns: [t.id] })],
 			]);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
@@ -6022,5 +6021,19 @@ export function tests(driver?: string) {
 
 		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+	});
+
+	test('contraint names config', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: int('id').unique(),
+			id1: int('id1').unique('custom_name'),
+		});
+
+		const tableConf = getTableConfig(users);
+
+		expect(tableConf.columns.find((it) => it.name === 'id')!.uniqueName).toBe(undefined);
+		expect(tableConf.columns.find((it) => it.name === 'id1')!.uniqueName).toBe('custom_name');
 	});
 }
