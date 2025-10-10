@@ -45,8 +45,8 @@ import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
-import { measure, tsc } from 'tests/utils';
 import { randomUUID } from 'crypto';
+import { measure, tsc } from 'tests/utils';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
