@@ -15,6 +15,10 @@ export const nameForUnique = (table: string, columns: string[]) => {
 	return `${table}_${columns.join('_')}_unique`;
 };
 
+export const nameForPk = (table: string) => {
+	return `${table}_pk`;
+};
+
 export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
 	drizzleImport(): Import;
@@ -395,3 +399,171 @@ export const omitSystemTables = () => {
 	['__drizzle_migrations', `'\\_cf\\_%'`, `'\\_litestream\\_%'`, `'libsql\\_%'`, `'sqlite\\_%'`];
 	return true;
 };
+
+interface IParseResult {
+	uniques: { name: string | null; columns: string[] }[];
+	pk: { name: string | null; columns: string[] };
+}
+
+/**
+ * Parses a SQLite DDL string to find primary key and unique constraints
+ * Handles quoted with [], ``, "", or no quotes
+ */
+export function parseSqliteDdl(ddl: string): IParseResult {
+	const result: IParseResult = {
+		pk: { name: null, columns: [] },
+		uniques: [],
+	};
+
+	const cleanIdentifier = (identifier: string): string => {
+		return identifier.trim().replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	};
+
+	const parseColumns = (columnsStr: string): string[] => {
+		return columnsStr.split(',').map((c) => cleanIdentifier(c));
+	};
+
+	const normalizedDdl = ddl.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ');
+	const bodyMatch = normalizedDdl.match(/CREATE\s+TABLE.*?\((.*)\)/i);
+	if (!bodyMatch) {
+		return result; // Not a valid CREATE TABLE statement
+	}
+	let tableBody = bodyMatch[1];
+
+	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+
+	// find table level UNIQUE constraints
+	const uniqueConstraintRegex = new RegExp(`CONSTRAINT\\s+(${ident})\\s+UNIQUE\\s*\\(([^)]+)\\)`, 'gi');
+	tableBody = tableBody.replace(uniqueConstraintRegex, (match, name, columns) => {
+		result.uniques.push({ name: cleanIdentifier(name), columns: parseColumns(columns) });
+		return ''; // remove the matched constraint from the string
+	});
+
+	// find table level PRIMARY KEY constraint
+	const pkConstraintRegex = new RegExp(`CONSTRAINT\\s+(${ident})\\s+PRIMARY\\s+KEY\\s*\\(([^)]+)\\)`, 'i');
+	tableBody = tableBody.replace(pkConstraintRegex, (match, name, columns) => {
+		result.pk = { name: cleanIdentifier(name), columns: parseColumns(columns) };
+		return ''; // remove the matched constraint from the string
+	});
+
+	// split the remaining body into individual definition parts
+	const definitions = tableBody.split(',').filter((def) => def.trim() !== '');
+
+	const inlineConstraintNameRegex = new RegExp(`CONSTRAINT\\s+(${ident})`, 'i');
+	for (const def of definitions) {
+		const trimmedDef = def.trim();
+
+		// find inline PRIMARY KEY
+		const inlinePkRegex = new RegExp(`^(${ident})\\s+.*\\bPRIMARY\\s+KEY\\b`, 'i');
+		const pkMatch = trimmedDef.match(inlinePkRegex);
+		if (pkMatch) {
+			const pkColumn = cleanIdentifier(pkMatch[1]);
+			// check for an inline constraint name -> `id INT CONSTRAINT pk_id PRIMARY KEY`
+			const pkNameMatch = trimmedDef.match(inlineConstraintNameRegex);
+			result.pk = { name: pkNameMatch ? cleanIdentifier(pkNameMatch[1]) : null, columns: [pkColumn] };
+		}
+
+		// find inline UNIQUE
+		const inlineUniqueRegex = new RegExp(`^(${ident})\\s+.*\\bUNIQUE\\b`, 'i');
+		const uniqueMatch = trimmedDef.match(inlineUniqueRegex);
+		if (uniqueMatch) {
+			const uqColumn = cleanIdentifier(uniqueMatch[1]);
+			const alreadyExists = result.uniques.some((u) => u.columns.length === 1 && u.columns[0] === uqColumn);
+			const uqNameMatch = trimmedDef.match(inlineConstraintNameRegex);
+			const uqName = uqNameMatch ? cleanIdentifier(uqNameMatch[1]) : null;
+			if (!alreadyExists) {
+				result.uniques.push({ name: uqName, columns: [uqColumn] });
+			}
+		}
+	}
+
+	return result;
+}
+
+interface IFkConstraint {
+	name: string | null;
+	fromTable: string; // The table where the FK is defined
+	toTable: string; // The table being referenced
+	fromColumns: string[]; // Columns in the current table
+	toColumns: string[]; // Columns in the referenced table
+}
+/**
+ * Parses a SQLite DDL string to find all foreign key constraints
+ */
+export function parseSqliteFks(ddl: string): IFkConstraint[] {
+	const results: IFkConstraint[] = [];
+
+	const cleanIdentifier = (identifier: string): string => {
+		return identifier.trim().replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	};
+
+	const parseColumns = (columnsStr: string): string[] => {
+		return columnsStr.split(',').map((c) => cleanIdentifier(c));
+	};
+
+	const normalizedDdl = ddl.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ');
+
+	// find the name of the table being created (the "from" table)
+	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+	const fromTableMatch = normalizedDdl.match(
+		new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${ident})`, 'i'),
+	);
+	if (!fromTableMatch) {
+		return results; // Not a valid CREATE TABLE statement
+	}
+	const fromTable = cleanIdentifier(fromTableMatch[1]);
+
+	const bodyMatch = normalizedDdl.match(/\((.*)\)/i);
+	if (!bodyMatch) {
+		return results;
+	}
+	let tableBody = bodyMatch[1];
+
+	// find and remove all table level FOREIGN KEY constraints
+	const tableFkRegex = new RegExp(
+		`(?:CONSTRAINT\\s+(${ident})\\s+)?FOREIGN\\s+KEY\\s*\\(([^)]+)\\)\\s+REFERENCES\\s+(${ident})(?:\\s*\\(([^)]+)\\))?`,
+		'gi',
+	);
+
+	tableBody = tableBody.replace(tableFkRegex, (match, name, fromCols, refTable, toCols) => {
+		results.push({
+			name: name ? cleanIdentifier(name) : null,
+			fromTable: fromTable,
+			toTable: cleanIdentifier(refTable),
+			fromColumns: parseColumns(fromCols),
+			toColumns: toCols ? parseColumns(toCols) : [],
+		});
+		return ''; // Remove from DDL body
+	});
+
+	// find inline REFERENCES on the cleaned string
+	const definitions = tableBody.split(',').filter((def) => def.trim() !== '');
+
+	for (const def of definitions) {
+		const trimmedDef = def.trim();
+
+		const inlineFkRegex = new RegExp(
+			`^(${ident}).*?\\s+REFERENCES\\s+(${ident})(?:\\s*\\(([^)]+)\\))?`,
+			'i',
+		);
+		const inlineMatch = trimmedDef.match(inlineFkRegex);
+
+		if (inlineMatch) {
+			const fromColumn = cleanIdentifier(inlineMatch[1]);
+			const toTable = cleanIdentifier(inlineMatch[2]);
+			const toColumn = inlineMatch[3] ? cleanIdentifier(inlineMatch[3]) : null;
+
+			const nameMatch = trimmedDef.match(new RegExp(`CONSTRAINT\\s+(${ident})`, 'i'));
+
+			results.push({
+				name: nameMatch ? cleanIdentifier(nameMatch[1]) : null,
+				fromTable: fromTable,
+				toTable: toTable,
+				fromColumns: [fromColumn],
+				toColumns: toColumn ? [toColumn] : [],
+			});
+		}
+	}
+
+	return results;
+}
