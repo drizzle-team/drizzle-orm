@@ -1,7 +1,7 @@
 import chalk from 'chalk';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { SQL } from 'orm044';
 import { CasingCache, toCamelCase, toSnakeCase } from 'orm044/casing';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
 import { CasingType } from './common';

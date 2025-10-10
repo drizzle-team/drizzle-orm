@@ -2,14 +2,14 @@ import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import getPort from 'get-port';
+import { Connection, createConnection } from 'mysql2/promise';
 import {
 	MySqlSchema as MySqlSchemaOld,
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
-import { Connection, createConnection } from 'mysql2/promise';
 import { introspect } from 'src/cli/commands/pull-mysql';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { upToV6 } from 'src/cli/commands/up-mysql';

@@ -99,7 +99,6 @@ export type PostgresSchemaOld = Record<
 	| unknown
 >;
 
-
 class MockError extends Error {
 	constructor(readonly errors: SchemaError[]) {
 		super();

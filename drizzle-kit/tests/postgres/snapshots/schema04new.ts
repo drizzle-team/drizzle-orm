@@ -237,7 +237,6 @@ export const allNumericsCustom = customSchema.table('all_numerics_custom', {
 	columnPrimary: numeric('column_primary').primaryKey().notNull(),
 });
 
-
 export const allCidrCustom = customSchema.table('all_cidr_custom', {
 	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),
 	column: cidr('column').default('0.0.0.0/0'),

@@ -280,9 +280,9 @@ test('create checks with same names', async (t) => {
 });
 
 test('create checks on serail or autoincrement', async (t) => {
-		// postpone
+	// postpone
 	if (Date.now() < +new Date('10/10/2025')) return;
-	
+
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: serial(),
