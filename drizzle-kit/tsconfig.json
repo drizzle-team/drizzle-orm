@@ -4,7 +4,6 @@
 		"module": "ES2020",
 		"moduleResolution": "node",
 		"lib": ["es2021"],
-		"types": ["node"],
 		"strictNullChecks": true,
 		"strictFunctionTypes": false,
 		"allowJs": true,
@@ -21,7 +20,9 @@
 		"baseUrl": ".",
 		"outDir": "dist",
 		"noEmit": true,
-		"typeRoots": ["node_modules/@types", "src/@types"]
+		"typeRoots": ["node_modules/@types", "src/@types"],
+		"allowImportingTsExtensions": true,
+		"types": ["node", "bun-types"],
 	},
 	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts"],
 	"exclude": ["node_modules"]

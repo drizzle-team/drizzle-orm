@@ -43,7 +43,7 @@ declare module 'vitest' {
 }
 
 beforeAll(async (ctx) => {
-	_ = await prepareTestDatabase(true);
+	_ = await prepareTestDatabase();
 });
 
 afterAll(async (ctx) => {
@@ -58,7 +58,7 @@ beforeEach(async (ctx) => {
 	});
 });
 
-test('int4', async (ctx) => {
+test.concurrent('int4', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, int4().default(10), '10');
 	const res2 = await diffDefault(ctx.db, int4().default(0), '0');
 	const res3 = await diffDefault(ctx.db, int4().default(-10), '-10');
@@ -72,7 +72,7 @@ test('int4', async (ctx) => {
 	expect(res5).toStrictEqual([]);
 });
 
-test('int4 arrays', async (ctx) => {
+test.concurrent('int4 arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, int4().array().default([]), "'{}'::int4[]");
 	const res2 = await diffDefault(ctx.db, int4().array().default([10]), "'{10}'::int4[]");
 
@@ -80,7 +80,7 @@ test('int4 arrays', async (ctx) => {
 	expect(res2).toStrictEqual([]);
 });
 
-test('smallint', async (ctx) => {
+test.concurrent('smallint', async (ctx) => {
 	// 2^15 - 1
 	const res1 = await diffDefault(ctx.db, smallint().default(32767), '32767');
 	// -2^15
@@ -90,7 +90,7 @@ test('smallint', async (ctx) => {
 	expect(res2).toStrictEqual([]);
 });
 
-test('smallint arrays', async (ctx) => {
+test.concurrent('smallint arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, smallint().array().default([]), "'{}'::int2[]");
 	const res2 = await diffDefault(ctx.db, smallint().array().default([32767]), "'{32767}'::int2[]");
 
@@ -98,7 +98,7 @@ test('smallint arrays', async (ctx) => {
 	expect(res2).toStrictEqual([]);
 });
 
-test('bigint', async (ctx) => {
+test.concurrent('bigint', async (ctx) => {
 	// 2^53
 	const res1 = await diffDefault(ctx.db, int8({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 	const res2 = await diffDefault(ctx.db, int8({ mode: 'number' }).default(-9007199254740991), '-9007199254740991');
@@ -121,7 +121,7 @@ test('bigint', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('bigint arrays', async (ctx) => {
+test.concurrent('bigint arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, bigint({ mode: 'number' }).array().default([]), "'{}'::int8[]");
 	const res2 = await diffDefault(ctx.db, bigint({ mode: 'bigint' }).array().default([]), "'{}'::int8[]");
 
@@ -172,7 +172,7 @@ test('bigint arrays', async (ctx) => {
 	expect(res15).toStrictEqual([]);
 });
 
-test('numeric', async (ctx) => {
+test.concurrent('numeric', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, numeric().default('10.123'), '10.123');
 
 	const res4 = await diffDefault(ctx.db, numeric({ mode: 'string' }).default('10.123'), '10.123');
@@ -236,7 +236,7 @@ test('numeric', async (ctx) => {
 	expect(res15).toStrictEqual([]);
 });
 
-test('numeric arrays', async (ctx) => {
+test.concurrent('numeric arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, numeric({ mode: 'number' }).array().default([]), "'{}'::decimal[]");
 	const res2 = await diffDefault(
 		ctx.db,
@@ -375,7 +375,7 @@ test('numeric arrays', async (ctx) => {
 	expect(res9_3).toStrictEqual([]);
 });
 
-test('decimal', async (ctx) => {
+test.concurrent('decimal', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, decimal().default('10.123'), '10.123');
 
 	const res4 = await diffDefault(ctx.db, decimal({ mode: 'string' }).default('10.123'), '10.123');
@@ -439,7 +439,7 @@ test('decimal', async (ctx) => {
 	expect(res15).toStrictEqual([]);
 });
 
-test('decimals arrays', async (ctx) => {
+test.concurrent('decimals arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, decimal({ mode: 'number' }).array().default([]), "'{}'::decimal[]");
 	const res2 = await diffDefault(
 		ctx.db,
@@ -578,7 +578,7 @@ test('decimals arrays', async (ctx) => {
 	expect(res9_3).toStrictEqual([]);
 });
 
-test('real', async (ctx) => {
+test.concurrent('real', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, real().default(1000.123), '1000.123');
 	const res2 = await diffDefault(ctx.db, real().default(1000), '1000');
 	const res3 = await diffDefault(ctx.db, real().default(1000.3), '1000.3');
@@ -588,7 +588,7 @@ test('real', async (ctx) => {
 	expect(res3).toStrictEqual([]);
 });
 
-test('real arrays', async (ctx) => {
+test.concurrent('real arrays', async (ctx) => {
 	const res2 = await diffDefault(ctx.db, real().array().default([]), `'{}'::real[]`);
 	const res3 = await diffDefault(ctx.db, real().array().default([1000.123, 10.2]), `'{1000.123,10.2}'::real[]`);
 	const res4 = await diffDefault(ctx.db, real().array().default([1000.2]), `'{1000.2}'::real[]`);
@@ -600,7 +600,7 @@ test('real arrays', async (ctx) => {
 	expect(res5).toStrictEqual([]);
 });
 
-test('float', async (ctx) => {
+test.concurrent('float', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, float().default(10000.123), '10000.123');
 	const res2 = await diffDefault(ctx.db, float().default(10000), '10000');
 	const res3 = await diffDefault(ctx.db, float().default(1000.3), '1000.3');
@@ -610,7 +610,7 @@ test('float', async (ctx) => {
 	expect(res3).toStrictEqual([]);
 });
 
-test('float arrays', async (ctx) => {
+test.concurrent('float arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, float().array().default([]), `'{}'::float[]`);
 	const res2 = await diffDefault(ctx.db, float().array().default([10000.123]), `'{10000.123}'::float[]`);
 	const res3 = await diffDefault(ctx.db, float().array().default([10000, 14]), `'{10000,14}'::float[]`);
@@ -622,7 +622,7 @@ test('float arrays', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('doublePrecision', async (ctx) => {
+test.concurrent('doublePrecision', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, doublePrecision().default(10000.123), '10000.123');
 	const res2 = await diffDefault(ctx.db, doublePrecision().default(10000), '10000');
 	const res3 = await diffDefault(ctx.db, doublePrecision().default(1000.3), '1000.3');
@@ -632,7 +632,7 @@ test('doublePrecision', async (ctx) => {
 	expect(res3).toStrictEqual([]);
 });
 
-test('doublePrecision arrays', async (ctx) => {
+test.concurrent('doublePrecision arrays', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, doublePrecision().array().default([]), `'{}'::float[]`);
 	const res2 = await diffDefault(ctx.db, doublePrecision().array().default([10000.123]), `'{10000.123}'::float[]`);
 	const res3 = await diffDefault(ctx.db, doublePrecision().array().default([10000, 14]), `'{10000,14}'::float[]`);
@@ -644,7 +644,7 @@ test('doublePrecision arrays', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('bool', async (ctx) => {
+test.concurrent('bool', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, bool().default(true), 'true');
 	const res2 = await diffDefault(ctx.db, bool().default(false), 'false');
 	const res3 = await diffDefault(ctx.db, bool().default(sql`true`), 'true');
@@ -654,7 +654,7 @@ test('bool', async (ctx) => {
 	expect(res3).toStrictEqual([]);
 });
 
-test('bool arrays', async (ctx) => {
+test.concurrent('bool arrays', async (ctx) => {
 	const res4 = await diffDefault(ctx.db, bool().array().default([]), `'{}'::bool[]`);
 	const res5 = await diffDefault(ctx.db, bool().array().default([true]), `'{true}'::bool[]`);
 	const res6 = await diffDefault(
@@ -670,7 +670,7 @@ test('bool arrays', async (ctx) => {
 	expect(res6).toStrictEqual([]);
 });
 
-test('char', async (ctx) => {
+test.concurrent('char', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, char({ length: 15 }).default('text'), `'text'`);
 	const res2 = await diffDefault(ctx.db, char({ length: 15 }).default("text'text"), `e'text\\'text'`);
 	const res3 = await diffDefault(ctx.db, char({ length: 15 }).default('text\'text"'), `e'text\\'text"'`);
@@ -701,7 +701,7 @@ test('char', async (ctx) => {
 	expect(res11).toStrictEqual([]);
 });
 
-test('char arrays', async (ctx) => {
+test.concurrent('char arrays', async (ctx) => {
 	const res7 = await diffDefault(ctx.db, char({ length: 15 }).array().default([]), `'{}'::char(15)[]`);
 	const res8 = await diffDefault(ctx.db, char({ length: 15 }).array().default(['text']), `'{text}'::char(15)[]`);
 	const res9 = await diffDefault(ctx.db, char().array().default(['text']), `'{text}'::char[]`);
@@ -749,7 +749,7 @@ test('char arrays', async (ctx) => {
 	expect(res19).toStrictEqual([]);
 });
 
-test('varchar', async (ctx) => {
+test.concurrent('varchar', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, varchar({ length: 255 }).default('text'), `'text'`);
 	const res1_0 = await diffDefault(ctx.db, varchar().default('text'), `'text'`);
 	const res2 = await diffDefault(ctx.db, varchar({ length: 255 }).default("text'text"), `e'text\\'text'`);
@@ -788,7 +788,7 @@ test('varchar', async (ctx) => {
 	expect(res11).toStrictEqual([]);
 });
 
-test('varchar arrays', async (ctx) => {
+test.concurrent('varchar arrays', async (ctx) => {
 	const res7 = await diffDefault(ctx.db, varchar({ length: 255 }).array().default([]), `'{}'::varchar(255)[]`);
 	const res8 = await diffDefault(
 		ctx.db,
@@ -848,7 +848,7 @@ test('varchar arrays', async (ctx) => {
 	expect(res19).toStrictEqual([]);
 });
 
-test('text', async (ctx) => {
+test.concurrent('text', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, text().default('text'), `'text'`);
 	const res2 = await diffDefault(ctx.db, text().default("text'text"), `e'text\\'text'`);
 	const res3 = await diffDefault(ctx.db, text().default('text\'text"'), `e'text\\'text"'`);
@@ -874,7 +874,7 @@ test('text', async (ctx) => {
 	expect(res6).toStrictEqual([]);
 });
 
-test('text arrays', async (ctx) => {
+test.concurrent('text arrays', async (ctx) => {
 	const res7 = await diffDefault(ctx.db, text().array().default([]), `'{}'::string[]`);
 	const res8 = await diffDefault(ctx.db, text().array().default(['text']), `'{text}'::string[]`);
 	const res12 = await diffDefault(ctx.db, text().array().default(['\\']), `'{"\\\\"}'::string[]`);
@@ -922,7 +922,7 @@ test('text arrays', async (ctx) => {
 	expect(res21).toStrictEqual([]);
 });
 
-test('string', async (ctx) => {
+test.concurrent('string', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, string({ length: 255 }).default('text'), `'text'`);
 	const res1_0 = await diffDefault(ctx.db, string().default('text'), `'text'`);
 	const res2 = await diffDefault(ctx.db, string({ length: 255 }).default("text'text"), `e'text\\'text'`);
@@ -961,7 +961,7 @@ test('string', async (ctx) => {
 	expect(res11).toStrictEqual([]);
 });
 
-test('string arrays', async (ctx) => {
+test.concurrent('string arrays', async (ctx) => {
 	const res7 = await diffDefault(ctx.db, string({ length: 255 }).array().default([]), `'{}'::string(255)[]`);
 	const res8 = await diffDefault(ctx.db, string({ length: 255 }).array().default(['text']), `'{text}'::string(255)[]`);
 	const res8_0 = await diffDefault(ctx.db, string().array().default(['text']), `'{text}'::string[]`);
@@ -1011,7 +1011,7 @@ test('string arrays', async (ctx) => {
 	expect(res22).toStrictEqual([]);
 });
 
-test('jsonb', async (ctx) => {
+test.concurrent('jsonb', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, jsonb().default({}), `'{}'`);
 	const res2 = await diffDefault(ctx.db, jsonb().default([]), `'[]'`);
 	const res3 = await diffDefault(ctx.db, jsonb().default([1, 2, 3]), `'[1,2,3]'`);
@@ -1030,7 +1030,7 @@ test('jsonb', async (ctx) => {
 });
 
 // tests were commented since there are too many of them
-test('timestamp', async (ctx) => {
+test.concurrent('timestamp', async (ctx) => {
 	// normal without timezone
 	const res1 = await diffDefault(
 		ctx.db,
@@ -1163,7 +1163,7 @@ test('timestamp', async (ctx) => {
 	expect(res25).toStrictEqual([]);
 });
 
-test('timestamp arrays', async (ctx) => {
+test.concurrent('timestamp arrays', async (ctx) => {
 	const res1_1 = await diffDefault(
 		ctx.db,
 		timestamp({ mode: 'date' }).array().default([new Date('2025-05-23T12:53:53.115Z')]),
@@ -1270,7 +1270,7 @@ test('timestamp arrays', async (ctx) => {
 	expect(res24_1).toStrictEqual([]);
 });
 
-test('timestamptz', async (ctx) => {
+test.concurrent('timestamptz', async (ctx) => {
 	// all dates variations
 
 	// normal with timezone
@@ -1408,7 +1408,7 @@ test('timestamptz', async (ctx) => {
 	expect(res25).toStrictEqual([]);
 });
 
-test('timestamptz arrays', async (ctx) => {
+test.concurrent('timestamptz arrays', async (ctx) => {
 	const res5_1 = await diffDefault(
 		ctx.db,
 		timestamp({ mode: 'date', withTimezone: true }).array().default([new Date('2025-05-23T12:53:53.115Z')]),
@@ -1529,7 +1529,7 @@ test('timestamptz arrays', async (ctx) => {
 });
 
 // tests were commented since there are too many of them
-test('time', async (ctx) => {
+test.concurrent('time', async (ctx) => {
 	// normal time without precision
 	const res1 = await diffDefault(ctx.db, time().default('15:50:33'), `'15:50:33'`);
 	// const res1_1 = await diffDefault(ctx.db, time().default('15:50:33Z'), `'15:50:33Z'`);
@@ -1839,7 +1839,7 @@ test('time', async (ctx) => {
 	expect(res4_15).toStrictEqual([]);
 });
 
-test('time arrays', async (ctx) => {
+test.concurrent('time arrays', async (ctx) => {
 	// normal array time without precision
 	const res5 = await diffDefault(ctx.db, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
 	// const res5_1 = await diffDefault(ctx.db, time().array().default(['15:50:33Z']), `'{15:50:33Z}'::time[]`);
@@ -2225,7 +2225,7 @@ test('time arrays', async (ctx) => {
 	expect(res8_15).toStrictEqual([]);
 });
 
-test('date', async (ctx) => {
+test.concurrent('date', async (ctx) => {
 	// dates
 	const res1 = await diffDefault(ctx.db, date({ mode: 'date' }).default(new Date('2025-05-23')), `'2025-05-23'`);
 	const res1_1 = await diffDefault(
@@ -2271,7 +2271,7 @@ test('date', async (ctx) => {
 	expect(res3_3).toStrictEqual([]);
 });
 
-test('date arrays', async (ctx) => {
+test.concurrent('date arrays', async (ctx) => {
 	const res2 = await diffDefault(ctx.db, date({ mode: 'date' }).array().default([]), `'{}'::date[]`);
 
 	const res4 = await diffDefault(
@@ -2301,7 +2301,7 @@ test('date arrays', async (ctx) => {
 // since user can pass `1 2:3:4` and it will be stored as `1 day 02:03:04`
 // so we just compare row values
 // | This text is a duplicate from cockroach/grammar.ts |
-test('interval', async (ctx) => {
+test.concurrent('interval', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, interval().default('1 day'), `'1 day'`);
 	const res10 = await diffDefault(
 		ctx.db,
@@ -2314,7 +2314,7 @@ test('interval', async (ctx) => {
 	expect(res10.length).toBe(1);
 });
 
-test('interval arrays', async (ctx) => {
+test.concurrent('interval arrays', async (ctx) => {
 	const res2 = await diffDefault(ctx.db, interval().array().default([]), `'{}'::interval[]`);
 	const res20 = await diffDefault(
 		ctx.db,
@@ -2336,7 +2336,7 @@ test('interval arrays', async (ctx) => {
 	expect(res30.length).toBe(1);
 });
 
-test('enum', async (ctx) => {
+test.concurrent('enum', async (ctx) => {
 	const moodEnum = cockroachEnum('mood_enum', [
 		'sad',
 		'ok',
@@ -2373,7 +2373,7 @@ test('enum', async (ctx) => {
 	expect(res6).toStrictEqual([]);
 });
 
-test('enum arrays', async (ctx) => {
+test.concurrent('enum arrays', async (ctx) => {
 	const moodEnum = cockroachEnum('mood_enum', [
 		'sad',
 		'ok',
@@ -2428,7 +2428,7 @@ test('enum arrays', async (ctx) => {
 	expect(res6_1).toStrictEqual([]);
 });
 
-test('uuid', async (ctx) => {
+test.concurrent('uuid', async (ctx) => {
 	const res1 = await diffDefault(
 		ctx.db,
 		uuid().default('550e8400-e29b-41d4-a716-446655440000'),
@@ -2441,7 +2441,7 @@ test('uuid', async (ctx) => {
 	expect(res5).toStrictEqual([]);
 });
 
-test('uuid arrays', async (ctx) => {
+test.concurrent('uuid arrays', async (ctx) => {
 	const res2 = await diffDefault(ctx.db, uuid().array().default([]), `'{}'::uuid[]`);
 
 	const res4 = await diffDefault(
@@ -2472,7 +2472,7 @@ test('uuid arrays', async (ctx) => {
 	expect(res7).toStrictEqual([]);
 });
 
-test('bit', async (ctx) => {
+test.concurrent('bit', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, bit().default(`101`), `'101'`);
 	const res2 = await diffDefault(ctx.db, bit().default(`1010010010`), `'1010010010'`);
 
@@ -2485,7 +2485,7 @@ test('bit', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('bit arrays', async (ctx) => {
+test.concurrent('bit arrays', async (ctx) => {
 	const res5 = await diffDefault(ctx.db, bit().array().default([]), `'{}'::bit[]`);
 	const res6 = await diffDefault(ctx.db, bit().array().default([`101`]), `'{101}'::bit[]`);
 
@@ -2498,7 +2498,7 @@ test('bit arrays', async (ctx) => {
 	expect(res8).toStrictEqual([]);
 });
 
-test('varbit', async (ctx) => {
+test.concurrent('varbit', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, varbit().default(`101`), `'101'`);
 	const res2 = await diffDefault(ctx.db, varbit().default(`1010010010`), `'1010010010'`);
 
@@ -2511,7 +2511,7 @@ test('varbit', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('varbit arrays', async (ctx) => {
+test.concurrent('varbit arrays', async (ctx) => {
 	const res5 = await diffDefault(ctx.db, varbit().array().default([]), `'{}'::varbit[]`);
 	const res6 = await diffDefault(ctx.db, varbit().array().default([`101`]), `'{101}'::varbit[]`);
 
@@ -2524,7 +2524,7 @@ test('varbit arrays', async (ctx) => {
 	expect(res8).toStrictEqual([]);
 });
 
-test('vector', async (ctx) => {
+test.concurrent('vector', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
 	const res2 = await diffDefault(ctx.db, vector({ dimensions: 1 }).default([0.0]), `'[0]'`);
 	const res3 = await diffDefault(
@@ -2544,7 +2544,7 @@ test('vector', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 });
 
-test('inet', async (ctx) => {
+test.concurrent('inet', async (ctx) => {
 	const res1 = await diffDefault(ctx.db, inet().default('127.0.0.1'), `'127.0.0.1'`);
 	const res2 = await diffDefault(ctx.db, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
 
@@ -2552,7 +2552,7 @@ test('inet', async (ctx) => {
 	expect(res2).toStrictEqual([]);
 });
 
-test('inet arrays', async (ctx) => {
+test.concurrent('inet arrays', async (ctx) => {
 	const res1_1 = await diffDefault(ctx.db, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
 	const res2_1 = await diffDefault(
 		ctx.db,
@@ -2566,7 +2566,7 @@ test('inet arrays', async (ctx) => {
 
 // postgis extension
 // SRID=4326 -> these coordinates are longitude/latitude values
-test('geometry', async (ctx) => {
+test.concurrent('geometry', async (ctx) => {
 	const res1 = await diffDefault(
 		ctx.db,
 		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
@@ -2605,7 +2605,7 @@ test('geometry', async (ctx) => {
 	expect(res12).toStrictEqual([]);
 });
 
-test('geometry arrays', async (ctx) => {
+test.concurrent('geometry arrays', async (ctx) => {
 	const res3 = await diffDefault(
 		ctx.db,
 		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),

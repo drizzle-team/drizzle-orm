@@ -1,5 +1,4 @@
-import type { Database } from 'better-sqlite3';
-import BetterSqlite3 from 'better-sqlite3';
+import { Database } from 'bun:sqlite';
 import { is } from 'drizzle-orm';
 import { int, SQLiteColumnBuilder, SQLiteTable, sqliteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -65,7 +64,7 @@ export const diff = async (
 export const dbFrom = (client: Database) => {
 	return {
 		query: async <T>(sql: string, params: any[] = []) => {
-			return client.prepare(sql).bind(params).all() as T[];
+			return client.prepare(sql).all(...params) as T[];
 		},
 		run: async (query: string) => {
 			client.prepare(query).run();
@@ -308,7 +307,7 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = () => {
-	let client = new BetterSqlite3(':memory:');
+	let client = new Database(':memory:');
 
 	const db = {
 		query: async (sql: string, params?: any[]) => {
@@ -337,7 +336,7 @@ export const prepareTestDatabase = () => {
 	};
 	const clear = async () => {
 		client.close();
-		client = new BetterSqlite3(':memory:');
+		client = new Database(':memory:');
 	};
 	return { db, close, clear };
 };

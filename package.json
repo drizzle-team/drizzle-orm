@@ -1,36 +1,49 @@
 {
 	"name": "drizzle-root",
 	"private": true,
+	"workspaces": [
+		"attw-fork",
+		"drizzle-orm",
+		"drizzle-kit",
+		"drizzle-zod",
+		"drizzle-typebox",
+		"drizzle-valibot",
+		"drizzle-arktype",
+		"drizzle-seed",
+		"integration-tests",
+		"typeperf-test",
+		"eslint-plugin-drizzle"
+	],
 	"scripts": {
 		"build:orm": "turbo run build --filter drizzle-orm --color",
 		"build": "turbo run build test:types //#lint --color",
-		"b": "pnpm build",
 		"pack": "turbo run pack --color",
 		"test": "turbo run test --color",
-		"t": "pnpm test",
 		"test:types": "turbo run test:types --color",
 		"lint": "dprint check --list-different",
 		"lint:fix": "dprint fmt"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "0.15.3",
+		"@drizzle-team/brocli": "^0.11.0",
+		"@js-temporal/polyfill": "0.5.1",
 		"@trivago/prettier-plugin-sort-imports": "^5.2.2",
+		"@types/bun": "^1.3.0",
 		"@typescript-eslint/eslint-plugin": "^6.7.3",
 		"@typescript-eslint/experimental-utils": "^5.62.0",
 		"@typescript-eslint/parser": "^6.7.3",
-		"bun-types": "^1.2.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.46.2",
 		"drizzle-kit": "^0.19.13",
-		"drizzle-orm": "workspace:./drizzle-orm/dist",
-		"drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
+		"drizzle-orm": "file:./drizzle-orm/dist",
 		"eslint": "^8.50.0",
-		"eslint-plugin-drizzle-internal": "link:eslint/eslint-plugin-drizzle-internal",
+		"eslint-plugin-drizzle": "workspace:*",
 		"eslint-plugin-import": "^2.28.1",
 		"eslint-plugin-no-instanceof": "^1.0.1",
 		"eslint-plugin-unicorn": "^48.0.1",
 		"eslint-plugin-unused-imports": "^3.0.0",
 		"glob": "^10.3.10",
+		"ohm-js": "^17.1.0",
 		"prettier": "^3.0.3",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
@@ -39,5 +52,5 @@
 		"turbo": "^2.2.3",
 		"typescript": "5.9.2"
 	},
-	"packageManager": "pnpm@10.15.0"
+	"packageManager": "bun@1.2.23"
 }

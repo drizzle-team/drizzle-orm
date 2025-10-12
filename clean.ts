@@ -16,12 +16,13 @@ const printTree = (path: string, indentation: number) => {
 		if (stat.isDirectory()) {
 			printTree(full, indentation + 1);
 		} else {
+			if(full.endsWith(".js"))	console.log(full);
+
 			if (
 				full.endsWith('.js')
 				&& existsSync(full.replace('.js', '.js.map'))
 				&& existsSync(full.replace('.js', '.ts'))
 			) {
-				console.log(full);
 				rmSync(full);
 				rmSync(full.replace('.js', '.js.map'));
 			}
@@ -30,4 +31,4 @@ const printTree = (path: string, indentation: number) => {
 };
 
 // I've accidentally ran tsc which generated .d.ts files for all ts files in repo
-// printTree(".");
+printTree(".", 0);
