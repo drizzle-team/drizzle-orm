@@ -4,7 +4,8 @@ import type { PgTable } from '~/pg-core/table.ts';
 
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
-import { parseEWKB } from './utils.ts';
+import type { GeometryPointObject } from './utils.ts';
+import { parseEWKB, parsePointObject } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	name: string;
@@ -34,10 +35,10 @@ export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends Pg
 		return 'geometry(point)';
 	}
 
-	override mapFromDriverValue(value: string | [number, number]): [number, number] {
-		if (typeof value !== 'string') return value as [number, number];
-
-		return parseEWKB(value);
+	override mapFromDriverValue(value: string | [number, number] | GeometryPointObject): [number, number] {
+		if (typeof value === 'string') return parseEWKB(value)
+    if (Array.isArray(value)) return value as [number, number]
+    return parsePointObject(value)
 	}
 
 	override mapToDriverValue(value: [number, number]): string {
@@ -73,8 +74,8 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> ext
 		return 'geometry(point)';
 	}
 
-	override mapFromDriverValue(value: string): { x: number; y: number } {
-		const parsed = parseEWKB(value);
+	override mapFromDriverValue(value: string | GeometryPointObject): { x: number; y: number } {
+		const parsed = typeof value === 'string' ? parseEWKB(value) : parsePointObject(value);
 		return { x: parsed[0], y: parsed[1] };
 	}
 
