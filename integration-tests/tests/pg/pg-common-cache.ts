@@ -99,7 +99,7 @@ const postsTable = pgTable('posts', {
 	userId: integer('city_id').references(() => usersTable.id),
 });
 
-let pgContainer: Docker.Container | undefined;
+let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);

@@ -34,7 +34,7 @@ function construct<
 	$client: TClient;
 } {
 	// Client is not Drizzle Object, so we can ignore this rule here
-	// eslint-disable-next-line no-instanceof/no-instanceof
+	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (!(client instanceof Client)) {
 		throw new Error(`Warning: You need to pass an instance of Client:
 

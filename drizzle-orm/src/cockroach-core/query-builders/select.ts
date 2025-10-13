@@ -32,8 +32,8 @@ import {
 	haveSameKeys,
 	type NeonAuthToken,
 	type ValueOrArray,
+	orderSelectedFields
 } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	AnyCockroachSelect,

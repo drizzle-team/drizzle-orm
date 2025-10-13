@@ -35,7 +35,7 @@ declare module 'vitest' {
 	}
 }
 
-let globalDocker: Docker | undefined;
+let globalDocker: Docker | undefined; // oxlint-disable-line no-unassigned-vars
 let gelContainer: Docker.Container;
 let client: Client;
 let db: GelJsDatabase<never, typeof relations>;

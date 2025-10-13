@@ -200,7 +200,7 @@ const jsonTestTable = pgTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-let pgContainer: Docker.Container | undefined;
+let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
@@ -4727,8 +4727,13 @@ test('neon: policy', () => {
 		for (const it of Object.values(policy)) {
 			expect(is(it, PgPolicy)).toBe(true);
 			expect(it?.to).toStrictEqual(authenticatedRole);
-			it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
-			it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+
+			if (it?.using) {
+				expect(it.using).toStrictEqual(sql`true`)
+			}
+			if (it?.withCheck) {
+				expect(it.withCheck).toStrictEqual(sql`true`)
+			}
 		}
 	}
 

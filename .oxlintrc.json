@@ -77,13 +77,23 @@
   },
   "overrides": [
     {
-      "files": ["**/tests/**/*.ts", "**/type-tests/**/*.ts"],
-      "import/extensions": "off",
-      "drizzle-internal/no-instanceof": "off"
+      "files": ["**/tests/**/*.ts", "**/type-tests/**/*.ts", "**/typeperf-test/**/*.ts"],
+      "rules": {
+        "import/extensions": "off",
+        "drizzle-internal/no-instanceof": "off"
+      }
+    },
+    {
+      "files": ["**/type-tests/**/*.ts", "**/integration-tests/tests/**/*.ts"],
+      "rules": {
+        "no-unused-expressions": "off"
+      }
     },
     {
       "files": ["eslint-plugin-drizzle/**/*"],
-      "import/extensions": "off"
+      "rules": {
+        "import/extensions": "off"
+      }
     }
   ],
   "ignorePatterns": [

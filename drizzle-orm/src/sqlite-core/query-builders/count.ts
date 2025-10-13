@@ -9,7 +9,7 @@ export class SQLiteCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 
-	static override readonly [entityKind] = 'SQLiteCountBuilderAsync';
+	static override readonly [entityKind]: string = 'SQLiteCountBuilderAsync';
 	[Symbol.toStringTag] = 'SQLiteCountBuilderAsync';
 
 	private session: TSession;
