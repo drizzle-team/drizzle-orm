@@ -49,7 +49,7 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 		if (typeof Buffer !== 'undefined' && Buffer.from) {
 			const buf = Buffer.isBuffer(value)
 				? value
-				// eslint-disable-next-line no-instanceof/no-instanceof
+				// oxlint-disable-next-line drizzle-internal/no-instanceof
 				: value instanceof ArrayBuffer
 				? Buffer.from(value)
 				: value.buffer
@@ -102,7 +102,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 		if (typeof Buffer !== 'undefined' && Buffer.from) {
 			const buf = Buffer.isBuffer(value)
 				? value
-				// eslint-disable-next-line no-instanceof/no-instanceof
+				// oxlint-disable-next-line drizzle-internal/no-instanceof
 				: value instanceof ArrayBuffer
 				? Buffer.from(value)
 				: value.buffer

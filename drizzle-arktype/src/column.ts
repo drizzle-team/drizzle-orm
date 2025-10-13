@@ -14,7 +14,7 @@ import { CONSTANTS } from './constants.ts';
 
 export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
-export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // eslint-disable-line no-instanceof/no-instanceof
+export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // oxlint-disable-line drizzle-internal/no-instanceof
 	'a Buffer instance',
 );
 

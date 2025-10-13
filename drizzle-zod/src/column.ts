@@ -20,7 +20,7 @@ export const jsonSchema: zod.ZodType<Json> = zod.union([
 	zod.record(zod.string(), zod.any()),
 	zod.array(zod.any()),
 ]);
-export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line drizzle-internal/no-instanceof
 
 export function columnToSchema(
 	column: Column,

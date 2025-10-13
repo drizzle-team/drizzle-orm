@@ -33,10 +33,10 @@ import {
 	haveSameKeys,
 	type NeonAuthToken,
 	type ValueOrArray,
+	orderSelectedFields,
+	extractUsedTable
 } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelect,
 	CreatePgSelectFromBuilderMode,
