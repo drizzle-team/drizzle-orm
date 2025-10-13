@@ -13,18 +13,15 @@ export const hash = (input: string, len: number = 12) => {
 	let hash = 0n;
 	for (let i = 0; i < input.length; i++) {
 		hash += (BigInt(input.codePointAt(i) || 0) * (p ** BigInt(i))) % combinationsCount;
-		// console.log('hashI:', hash);
 	}
 
 	const result = [] as string[];
 
-	// console.log('combinationsCount:', combinationsCount, 'hash:', hash);
 	let index = hash % combinationsCount;
 	for (let i = len - 1; i >= 0; i--) {
 		const element = dictionary[Number(index % dictLen)]!;
 		result.unshift(element);
 		index = index / dictLen;
-		// console.log('index', index);
 	}
 
 	return result.join('');
