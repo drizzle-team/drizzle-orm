@@ -46,8 +46,7 @@ import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
 import { hash } from 'src/dialects/common';
-import { InMemoryMutex } from 'src/utils/utils-node';
-import { measure, tsc2 as tsc } from 'tests/utils';
+import { measure, tsc } from 'tests/utils';
 import { test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
