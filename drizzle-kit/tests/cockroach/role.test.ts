@@ -1,25 +1,8 @@
 import { cockroachRole } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('create role', async (t) => {
+test('create role', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -37,7 +20,7 @@ test('create role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create role with properties', async (t) => {
+test('create role with properties', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -55,7 +38,7 @@ test('create role with properties', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create role with some properties', async (t) => {
+test('create role with some properties', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -73,7 +56,7 @@ test('create role with some properties', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop role', async (t) => {
+test('drop role', async ({ db }) => {
 	const schema1 = { manager: cockroachRole('manager') };
 
 	const schema2 = {};
@@ -90,7 +73,7 @@ test('drop role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create and drop role', async (t) => {
+test('create and drop role', async ({ db }) => {
 	const schema1 = {
 		manager: cockroachRole('manager'),
 	};
@@ -116,7 +99,7 @@ test('create and drop role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename role - recreate', async (t) => {
+test('rename role - recreate', async ({ db }) => {
 	const schema1 = {
 		manager: cockroachRole('manager'),
 	};
@@ -142,7 +125,7 @@ test('rename role - recreate', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter all role field', async (t) => {
+test('alter all role field', async ({ db }) => {
 	const schema1 = {
 		manager: cockroachRole('manager'),
 	};
@@ -163,7 +146,7 @@ test('alter all role field', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter createdb in role', async (t) => {
+test('alter createdb in role', async ({ db }) => {
 	const schema1 = {
 		manager: cockroachRole('manager'),
 	};
@@ -184,7 +167,7 @@ test('alter createdb in role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter createrole in role', async (t) => {
+test('alter createrole in role', async ({ db }) => {
 	const schema1 = {
 		manager: cockroachRole('manager'),
 	};

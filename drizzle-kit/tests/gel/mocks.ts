@@ -1,4 +1,4 @@
-import Docker, { Container } from 'dockerode';
+import Docker from 'dockerode';
 import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import createClient from 'gel';
 import getPort from 'get-port';

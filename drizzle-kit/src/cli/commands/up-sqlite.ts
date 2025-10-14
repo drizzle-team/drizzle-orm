@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
+import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
 import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6, SqliteSnapshot } from '../../dialects/sqlite/snapshot';
@@ -46,18 +47,29 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				name: column.name,
 				type: column.type,
 				notNull: column.notNull,
-				primaryKey: column.primaryKey,
 				default: column.default ?? null,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
 			});
+
+			if (column.primaryKey) {
+				ddl.pks.push({
+					table: table.name,
+					columns: [column.name],
+					name: nameForPk(table.name),
+					nameExplicit: false,
+				});
+			}
 		}
 
 		for (const pk of Object.values(table.compositePrimaryKeys)) {
+			const implicit = pk.name === `${table.name}_${pk.columns.join('_')}_pk`;
+
 			ddl.pks.push({
 				table: table.name,
 				name: pk.name,
 				columns: pk.columns,
+				nameExplicit: !implicit,
 			});
 		}
 
@@ -73,11 +85,12 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const unique of Object.values(table.uniqueConstraints)) {
+			const implicit = unique.name === `${table.name}_${unique.columns.join('_')}_unique`;
 			ddl.uniques.push({
 				table: table.name,
 				name: unique.name,
 				columns: unique.columns,
-				origin: 'manual',
+				nameExplicit: !implicit,
 			});
 		}
 
@@ -90,6 +103,8 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const fk of Object.values(table.foreignKeys)) {
+			const implicit =
+				fk.name === `${table.name}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 			ddl.fks.push({
 				table: table.name,
 				name: fk.name,
@@ -98,6 +113,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				columnsTo: fk.columnsTo,
 				onDelete: fk.onDelete ?? 'NO ACTION',
 				onUpdate: fk.onUpdate ?? 'NO ACTION',
+				nameExplicit: !implicit,
 			});
 		}
 	}

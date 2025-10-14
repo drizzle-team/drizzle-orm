@@ -94,26 +94,26 @@ export const preparePgSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, PgTable)) {
-				const schema = pgTableConfig(t).schema || 'public';
-				pgSchema[schema] = pgSchema[schema] || {};
-				pgSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, PgTable)) {
+					const schema = pgTableConfig(t).schema || 'public';
+					pgSchema[schema] = pgSchema[schema] || {};
+					pgSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: pgSchema, relations, files };
 };
@@ -132,25 +132,25 @@ export const prepareMySqlSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, MySqlTable)) {
-				const schema = mysqlTableConfig(t).schema || 'public';
-				mysqlSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, MySqlTable)) {
+					const schema = mysqlTableConfig(t).schema || 'public';
+					mysqlSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: mysqlSchema, relations, files };
 };
@@ -169,25 +169,25 @@ export const prepareMsSqlSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, MsSqlTable)) {
-				const schema = mssqlTableConfig(t).schema || 'public';
-				mssqlSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, MsSqlTable)) {
+					const schema = mssqlTableConfig(t).schema || 'public';
+					mssqlSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: mssqlSchema, relations, files };
 };
@@ -206,25 +206,25 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SQLiteTable)) {
-				const schema = 'public'; // sqlite does not have schemas
-				sqliteSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SQLiteTable)) {
+					const schema = 'public'; // sqlite does not have schemas
+					sqliteSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: sqliteSchema, relations, files };
 };
@@ -243,25 +243,25 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SingleStoreTable)) {
-				const schema = singlestoreTableConfig(t).schema || 'public';
-				singlestoreSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SingleStoreTable)) {
+					const schema = singlestoreTableConfig(t).schema || 'public';
+					singlestoreSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: singlestoreSchema, relations, files };
 };
