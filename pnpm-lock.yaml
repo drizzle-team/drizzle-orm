@@ -341,8 +341,8 @@ importers:
         specifier: ^7.4.3
         version: 7.4.6
       mssql:
-        specifier: ^11.0.1
-        version: 11.0.1
+        specifier: ^12.0.0
+        version: 12.0.0
       mysql2:
         specifier: 3.14.1
         version: 3.14.1
@@ -2944,6 +2944,9 @@ packages:
 
   '@tediousjs/connection-string@0.5.0':
     resolution: {integrity: sha512-7qSgZbincDDDFyRweCIEvZULFAw5iz/DeunhvuxpL31nfntX3P4Yd4HkHBRg9H8CdqY1e5WFN1PZIz/REL9MVQ==}
+
+  '@tediousjs/connection-string@0.6.0':
+    resolution: {integrity: sha512-GxlsW354Vi6QqbUgdPyQVcQjI7cZBdGV5vOYVYuCVDTylx2wl3WHR2HlhcxxHTrMigbelpXsdcZso+66uxPfow==}
 
   '@tidbcloud/serverless@0.1.1':
     resolution: {integrity: sha512-km2P5Mgr9nqVah5p5aMYbO3dBqecSwZ0AU7+BhJH+03L2eJO6qCATcBR8UHPuVLhA7GCt3CambKvVYK79pVQ2g==}
@@ -6622,6 +6625,11 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  mssql@12.0.0:
+    resolution: {integrity: sha512-FcDQ1Gwe4g3Mhw25R1Onr8N+jmqBTWE/pmtcgxYnAUSIf/vBQMvJfMnyMY8ruOICtBch5+Wgbcfd3REDQSlWpA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   mysql2@3.14.1:
     resolution: {integrity: sha512-7ytuPQJjQB8TNAYX/H2yhL+iQOnIBjAMam361R7UAL0lOVXWjtdrmoL9HYKqKoLp/8UUTRcvo1QPvK9KL7wA8w==}
     engines: {node: '>= 8.0'}
@@ -7987,6 +7995,10 @@ packages:
   tedious@18.6.1:
     resolution: {integrity: sha512-9AvErXXQTd6l7TDd5EmM+nxbOGyhnmdbp/8c3pw+tjaiSXW9usME90ET/CRG1LN1Y9tPMtz/p83z4Q97B4DDpw==}
     engines: {node: '>=18'}
+
+  tedious@19.0.0:
+    resolution: {integrity: sha512-nmxNBAT72mMVCIYp0Ts0Zzd5+LBQjoXlqigCrIjSo2OERSi04vr3EHq3qJxv/zgrSkg7si03SoIIfekTAadA7w==}
+    engines: {node: '>=18.17'}
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
@@ -11498,6 +11510,8 @@ snapshots:
       tslib: 2.8.1
 
   '@tediousjs/connection-string@0.5.0': {}
+
+  '@tediousjs/connection-string@0.6.0': {}
 
   '@tidbcloud/serverless@0.1.1': {}
 
@@ -15589,6 +15603,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  mssql@12.0.0:
+    dependencies:
+      '@tediousjs/connection-string': 0.6.0
+      commander: 11.1.0
+      debug: 4.4.3
+      tarn: 3.0.2
+      tedious: 19.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   mysql2@3.14.1:
     dependencies:
       aws-ssl-profiles: 1.1.2
@@ -17102,6 +17126,21 @@ snapshots:
   tarn@3.0.2: {}
 
   tedious@18.6.1:
+    dependencies:
+      '@azure/core-auth': 1.10.1
+      '@azure/identity': 4.13.0
+      '@azure/keyvault-keys': 4.10.0
+      '@js-joda/core': 5.6.5
+      '@types/node': 24.7.2
+      bl: 6.1.3
+      iconv-lite: 0.6.3
+      js-md4: 0.3.2
+      native-duplexpair: 1.0.0
+      sprintf-js: 1.1.3
+    transitivePeerDependencies:
+      - supports-color
+
+  tedious@19.0.0:
     dependencies:
       '@azure/core-auth': 1.10.1
       '@azure/identity': 4.13.0
