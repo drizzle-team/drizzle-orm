@@ -3,6 +3,7 @@ import {
 	AnyMySqlColumn,
 	bigint,
 	binary,
+	blob,
 	char,
 	date,
 	datetime,
@@ -13,7 +14,9 @@ import {
 	index,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -25,6 +28,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	tinytext,
 	unique,
@@ -74,8 +78,8 @@ test('#1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE(`c1`)\n);\n',
-		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE(`c1`)\n);\n',
+		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
+		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c1_users3_c1_fkey` FOREIGN KEY (`c1`) REFERENCES `users3`(`c1`);',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c2_users4_c1_fkey` FOREIGN KEY (`c2`) REFERENCES `users4`(`c1`);',
 	];
@@ -83,47 +87,83 @@ test('#1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO: implement blob and geometry types
+// TODO: implement geometry types
 test('unique constraint errors #1', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
 	const to = {
 		table: mysqlTable('table', {
 			column1: text().unique(),
 			column2: tinytext().unique(),
 			column3: mediumtext().unique(),
 			column4: longtext().unique(),
-			// column5: blob().unique(),
-			// column6: tinyblob().unique(),
-			// column7: mediumblob().unique(),
-			// column8: longblob().unique(),
+			column5: blob().unique(),
+			column6: tinyblob().unique(),
+			column7: mediumblob().unique(),
+			column8: longblob().unique(),
 			column9: json().unique(),
 			column10: varchar({ length: 769 }).unique(), // 768 max depends on mysql version and engine (4 bytes per character for last version)
 			// column11: geometry().unique(),
 		}),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: st, ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, to, []);
 
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual([
+		{
+			columns: ['column1'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column2'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column3'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column4'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column5'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column6'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column7'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+		{
+			columns: ['column8'],
+			table: 'table',
+			type: 'column_unsupported_unique',
+		},
+	]);
+	await expect(push({ db, to })).rejects.toThrowError();
 });
 
 test('unique constraint errors #2', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
 	const to = {
 		table: mysqlTable('table', {
 			column1: text(),
 			column2: tinytext(),
 			column3: mediumtext(),
 			column4: longtext(),
-			// column5: blob(),
-			// column6: tinyblob(),
-			// column7: mediumblob(),
-			// column8: longblob(),
+			column5: blob(),
+			column6: tinyblob(),
+			column7: mediumblob(),
+			column8: longblob(),
 			column9: json(),
 			column10: varchar({ length: 769 }), // 768 max depends on mysql version and engine (4 bytes per character for last version)
 			// column11: geometry(),
@@ -132,124 +172,177 @@ test('unique constraint errors #2', async () => {
 			unique().on(table.column2),
 			unique().on(table.column3),
 			unique().on(table.column4),
-			// unique().on(table.column5),
-			// unique().on(table.column6),
-			// unique().on(table.column7),
-			// unique().on(table.column8),
+			unique().on(table.column5),
+			unique().on(table.column6),
+			unique().on(table.column7),
+			unique().on(table.column8),
 			unique().on(table.column9),
 			unique().on(table.column10),
 			// unique().on(table.column11),
 		]),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: st, ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, to, []);
 
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual(
+		[
+			{
+				columns: ['column1'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column2'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column3'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column4'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column5'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column6'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column7'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+			{
+				columns: ['column8'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+		],
+	);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add UNIQUE on \`column1\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column2\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column3\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column4\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column5\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column6\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column7\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+		` Warning  You tried to add UNIQUE on \`column8\` column in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
+	]);
+	await expect(push({ db, to })).rejects.toThrowError();
 });
 
 test('unique constraint errors #3', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
 	const to = {
 		table: mysqlTable('table', {
 			column1: text(),
 			column2: tinytext(),
 			column3: mediumtext(),
 			column4: longtext(),
-			// column5: blob(),
-			// column6: tinyblob(),
-			// column7: mediumblob(),
-			// column8: longblob(),
+			column5: blob(),
+			column6: tinyblob(),
+			column7: mediumblob(),
+			column8: longblob(),
 			column9: json(),
 			column10: varchar({ length: 769 }), // 768 max depends on mysql version and engine (4 bytes per character for last version)
 			// column11: geometry(),
 		}, (table) => [
-			unique().on(table.column1, table.column2, table.column3, table.column4, table.column9, table.column10),
+			unique().on(
+				table.column1,
+				table.column2,
+				table.column3,
+				table.column4,
+				table.column5,
+				table.column6,
+				table.column7,
+				table.column8,
+				table.column9,
+				table.column10,
+			),
 		]),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
-});
-
-test('foreign key constraint errors #1', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-	const table1 = mysqlTable('table1', {
-		column1: int(),
-	});
-	const table2 = mysqlTable('table2', {
-		column1: int(),
-		column2: int().references(() => table1.column1),
-	});
-	const to = { table1, table2 };
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
-});
-
-test('foreign key constraint errors #2', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
-	const table1 = mysqlTable('table1', {
-		column1: int(),
-		column2: varchar({ length: 256 }),
-	});
-	const table2 = mysqlTable('table2', {
-		column1: int(),
-		column2: varchar({ length: 256 }),
-		column3: text(),
-	}, (table) => [
-		foreignKey({
-			columns: [table.column1, table.column2],
-			foreignColumns: [table1.column1, table1.column2],
-			name: 'custom_fk',
-		}),
+	const { sqlStatements: st, ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, to, []);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual(
+		[
+			{
+				columns: ['column1', 'column2', 'column3', 'column4', 'column5', 'column6', 'column7', 'column8'],
+				table: 'table',
+				type: 'column_unsupported_unique',
+			},
+		],
+	);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add COMPOSITE UNIQUE on \`column1\`, \`column2\`, \`column3\`, \`column4\`, \`column5\`, \`column6\`, \`column7\`, \`column8\` columns in \`table\` table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [uniqueIndex(\"name\").on(sql\`username(10)\`)]`,
 	]);
-	const to = { table1, table2 };
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
-});
-
-test('foreign key constraint errors #3', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
-	const table1 = mysqlTable('table1', {
-		column1: int().unique(),
-		column2: varchar({ length: 256 }).unique(),
-	});
-	const table2 = mysqlTable('table2', {
-		column1: int(),
-		column2: varchar({ length: 256 }),
-		column3: text(),
-	}, (table) => [
-		foreignKey({
-			columns: [table.column1, table.column2],
-			foreignColumns: [table1.column1, table1.column2],
-			name: 'custom_fk',
-		}),
-	]);
-	const to = { table1, table2 };
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([]);
-	expect(pst).toStrictEqual([]);
+	await expect(push({ db, to })).rejects.toThrowError();
 });
 
 test('unique, fk constraints order #1', async () => {
