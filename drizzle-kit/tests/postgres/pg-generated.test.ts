@@ -14,10 +14,6 @@ beforeAll(async () => {
 	db = _.db;
 });
 
-afterAll(async () => {
-	await _.close();
-});
-
 beforeEach(async () => {
 	await _.clear();
 });

@@ -37,15 +37,15 @@ test('integer', async () => {
 	// 	`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
 	// );
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
 });
 
 test('text', async () => {
@@ -79,23 +79,23 @@ test('text', async () => {
 		`'{"key":"value\\\\''\\""}'`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
 });
 
 test('real', async () => {
 	const res1 = await diffDefault(_, real().default(1000.123), '1000.123');
-	expect.soft(res1).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
 });
 
 test('numeric', async () => {
@@ -108,10 +108,10 @@ test('numeric', async () => {
 		"'9223372036854775807'",
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
 });
 
 test('blob', async () => {
@@ -159,18 +159,18 @@ test('blob', async () => {
 		`'{"key":"value\\\\''\\""}'`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
 });

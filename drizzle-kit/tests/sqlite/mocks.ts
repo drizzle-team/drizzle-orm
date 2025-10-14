@@ -1,7 +1,8 @@
-import { Database } from 'bun:sqlite';
+import { SQL } from 'bun';
 import { is } from 'drizzle-orm';
 import { int, SQLiteColumnBuilder, SQLiteTable, sqliteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { resolve } from 'path';
 import { introspect } from 'src/cli/commands/pull-sqlite';
 import { suggestions } from 'src/cli/commands/push-sqlite';
 import { CasingType } from 'src/cli/validations/common';
@@ -61,29 +62,16 @@ export const diff = async (
 	return { sqlStatements, statements, err1, err2, next: ddl2 };
 };
 
-export const dbFrom = (client: Database) => {
-	return {
-		query: async <T>(sql: string, params: any[] = []) => {
-			return client.prepare(sql).all(...params) as T[];
-		},
-		run: async (query: string) => {
-			client.prepare(query).run();
-		},
-	};
-};
-
 export const diffAfterPull = async (
-	client: Database,
+	db: TestDatabase['db'],
 	initSchema: SqliteSchema,
 	testName: string,
 	casing?: CasingType | undefined,
 ) => {
-	const db = dbFrom(client);
-
 	const { ddl: initDDL, errors: e1 } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'push');
 	for (const st of inits) {
-		client.exec(st);
+		db.run(st);
 	}
 
 	const path = `tests/sqlite/tmp/${testName}.ts`;
@@ -95,7 +83,7 @@ export const diffAfterPull = async (
 	writeFileSync(path, file.file);
 	await tsc(path);
 
-	const res = await prepareFromSchemaFiles([path]);
+	const res = await prepareFromSchemaFiles([resolve(path)]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	const { sqlStatements, statements } = await ddlDiff(
@@ -112,7 +100,7 @@ export const diffAfterPull = async (
 };
 
 export const push = async (config: {
-	db: SQLiteDB;
+	db: TestDatabase['db'];
 	to: SqliteSchema | SQLiteDDL;
 	renames?: string[];
 	casing?: CasingType;
@@ -124,9 +112,15 @@ export const push = async (config: {
 	const casing = config.casing ?? 'camelCase';
 
 	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, [], new EmptyProgressView());
+
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as SQLiteDDL, errors: [] }
 		: drizzleToDDL(to, casing);
+
+	const ddl2copy = createDDL();
+	for (const it of ddl2.entities.list()) {
+		ddl2copy.entities.push(it);
+	}
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -178,7 +172,7 @@ export const push = async (config: {
 
 		const { sqlStatements, statements } = await ddlDiff(
 			ddl1,
-			ddl2,
+			ddl2copy,
 			mockResolver(renames),
 			mockResolver(renames),
 			'push',
@@ -238,7 +232,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	writeFileSync(path, file.file);
 	await tsc(path);
 
-	const response = await prepareFromSchemaFiles([path]);
+	const response = await prepareFromSchemaFiles([resolve(path)]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
@@ -306,14 +300,13 @@ export type TestDatabase = {
 	clear: () => Promise<void>;
 };
 
-export const prepareTestDatabase = () => {
-	let client = new Database(':memory:');
+export const prepareTestDatabase = (): TestDatabase => {
+	let client = new SQL({ adapter: 'sqlite', filename: ':memory:' });
 
-	const db = {
+	const db: TestDatabase['db'] = {
 		query: async (sql: string, params?: any[]) => {
 			try {
-				const stmt = client.prepare(sql);
-				const res = stmt.all(...(params ?? [])) as any;
+				const res = await client.unsafe(sql) as any;
 				return res;
 			} catch (error) {
 				const newError = new Error(`query error: ${sql}\n\n${(error as Error).message}`);
@@ -322,8 +315,7 @@ export const prepareTestDatabase = () => {
 		},
 		run: async (sql: string) => {
 			try {
-				const stmt = client.prepare(sql);
-				stmt.run();
+				await client.unsafe(sql);
 				return;
 			} catch (error) {
 				const newError = new Error(`query error: ${sql}\n\n${(error as Error).message}`);
@@ -336,7 +328,7 @@ export const prepareTestDatabase = () => {
 	};
 	const clear = async () => {
 		client.close();
-		client = new Database(':memory:');
+		client = new SQL({ adapter: 'sqlite', filename: ':memory:' });
 	};
 	return { db, close, clear };
 };

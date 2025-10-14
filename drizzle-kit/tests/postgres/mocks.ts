@@ -61,6 +61,7 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
+import { resolve } from 'node:path';
 import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -279,7 +280,7 @@ export const diffIntrospect = async (
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
-		filePath,
+		resolve(filePath),
 	]);
 
 	const {
@@ -383,7 +384,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	writeFileSync(path, file.file);
 	await tsc(path);
 
-	const response = await prepareFromSchemaFiles([path]);
+	const response = await prepareFromSchemaFiles([resolve(path)]);
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
@@ -476,12 +477,12 @@ export type TestDatabase<TClient = any> = {
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { vector, pg_trgm } });
-
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
+	const client = new PGlite({ extensions: { vector, pg_trgm } });
+	await client.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
-	await client.query(`CREATE EXTENSION vector;`);
-	await client.query(`CREATE EXTENSION pg_trgm;`);
+	await client.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+	await client.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
 	if (tx) {
 		await client.query('BEGIN');
 		await client.query('SAVEPOINT drizzle');
@@ -647,5 +648,5 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 			}
 		},
 	};
-	return { db, close, clear, client };
+	return { db, close, clear, client: pgClient! };
 };

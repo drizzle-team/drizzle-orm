@@ -1,4 +1,3 @@
-import type { RunResult } from 'better-sqlite3';
 import type { ProxyParams } from '../cli/commands/studio';
 import type { Config } from '../index';
 import type { Dialect } from './schemaValidator';

@@ -4,8 +4,7 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import { Column, createDDL, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
-import { nameForForeignKey } from './grammar';
+import { Column, IndexColumn, SQLiteDDL, SqliteDiffEntities, SqliteEntities, tableFromDDL } from './ddl';
 import {
 	JsonCreateViewStatement,
 	JsonDropViewStatement,
@@ -277,6 +276,19 @@ export const ddlDiff = async (
 		setOfTablesToRecereate.delete(it.name);
 	}
 
+	const pksUpdates = updates.filter((x): x is SqliteDiffEntities['alter']['pks'] => {
+		if (x.entityType !== 'pks') return false;
+
+		if (mode === 'push' && x.nameExplicit) {
+			delete x.nameExplicit;
+		}
+		return ddl2.pks.hasDiff(x);
+	});
+
+	for (const x of pksUpdates) {
+		setOfTablesToRecereate.add(x.table);
+	}
+
 	for (const it of updates) {
 		if (
 			it.entityType === 'columns'
@@ -284,7 +296,6 @@ export const ddlDiff = async (
 		) {
 			setOfTablesToRecereate.add(it.table);
 		}
-		if (pksAlters.length > 0 && it.entityType === 'pks') setOfTablesToRecereate.add(it.table);
 		if (fksAlters.length > 0 && it.entityType === 'fks') setOfTablesToRecereate.add(it.table);
 		if (uniquesAlters.length > 0 && it.entityType === 'uniques') setOfTablesToRecereate.add(it.table);
 		if (it.entityType === 'checks') setOfTablesToRecereate.add(it.table);

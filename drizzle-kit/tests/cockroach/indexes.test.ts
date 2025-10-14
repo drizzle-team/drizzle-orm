@@ -1,23 +1,34 @@
 import { sql } from 'drizzle-orm';
 import { boolean, cockroachTable, index, int4, text, uuid, vector } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, prepareTestDatabase, push, TestDatabase, TestDatabaseKit } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
+let _: TestDatabaseKit;
 
-beforeAll(async () => {
+declare module 'vitest' {
+	export interface TestContext {
+		db: TestDatabase;
+		release: () => void;
+	}
+}
+
+beforeAll(async (ctx) => {
+	console.log("pre")
 	_ = await prepareTestDatabase();
-	db = _.db;
+	console.log("post")
 });
 
-afterAll(async () => {
-	await _.close();
-});
+// afterAll(async () => {
+// 	await _.close();
+// });
 
 beforeEach(async () => {
-	await _.clear();
+	console.log('beforeeach');
+	// const { db, release } = _.acquire();
+	// ctx.db = db;
+	// ctx.onTestFinished(() => {
+	// 	release();
+	// });
 });
 
 test('adding basic indexes', async () => {

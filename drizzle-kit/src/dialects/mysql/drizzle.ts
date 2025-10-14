@@ -294,16 +294,17 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyMySqlTable[] = [];
 	const views: MySqlView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = prepareFromExports(i0);
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = prepareFromExports(i0);
 
-		tables.push(...prepared.tables);
-		views.push(...prepared.views);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			views.push(...prepared.views);
+		}
+	});
+
 	return { tables: Array.from(new Set(tables)), views };
 };
 

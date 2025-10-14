@@ -1341,7 +1341,7 @@ test('fk #3', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_Bvhqr6Z0Skyq_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_2Ge3281eRCJ5_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
@@ -1361,7 +1361,7 @@ test('fk #4', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_1234567890_123456_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "Xi9rVl1SOACO_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "ydU6odH887YL_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);

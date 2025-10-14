@@ -394,22 +394,50 @@ const assertES5 = async (unregister: () => void) => {
 	}
 };
 
-export const safeRegister = async () => {
-	const { register } = await import('esbuild-register/dist/node');
-	let res: { unregister: () => void };
-	try {
-		res = register({
-			format: 'cjs',
-			loader: 'ts',
-		});
-	} catch {
-		// tsx fallback
-		res = {
-			unregister: () => {},
-		};
-	}
+export class InMemoryMutex {
+	private static lockPromise: Promise<void> | null = null;
 
-	// has to be outside try catch to be able to run with tsx
-	await assertES5(res.unregister);
-	return res;
+	static async withLock<T>(fn: () => Promise<T>): Promise<T> {
+		// Wait for any existing lock
+		while (this.lockPromise) {
+			await this.lockPromise;
+		}
+
+		let resolveLock: (() => void) | undefined;
+		this.lockPromise = new Promise<void>((resolve) => {
+			resolveLock = resolve;
+		});
+
+		try {
+			return await fn();
+		} finally {
+			this.lockPromise = null;
+			resolveLock!(); // non-null assertion: TS now knows it's definitely assigned
+		}
+	}
+}
+
+export const safeRegister = async <T>(fn: () => Promise<T>) => {
+	return InMemoryMutex.withLock(async () => {
+		const { register } = await import('esbuild-register/dist/node');
+		let res: { unregister: () => void };
+		try {
+			res = register({
+				format: 'cjs',
+				loader: 'ts',
+			});
+		} catch {
+			// tsx fallback
+			res = {
+				unregister: () => {},
+			};
+		}
+		// has to be outside try catch to be able to run with tsx
+		await assertES5(res.unregister);
+
+		const result = await fn();
+		res.unregister();
+		
+		return result;
+	});
 };

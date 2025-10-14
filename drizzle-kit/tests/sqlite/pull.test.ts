@@ -1,17 +1,30 @@
-import Database from 'better-sqlite3';
 import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
-import { expect, test } from 'vitest';
-import { dbFrom, diffAfterPull, push } from './mocks';
+import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { diffAfterPull, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { SQLiteDB } from 'src/utils';
+
+let _: TestDatabase;
+let db: SQLiteDB;
+
+beforeAll(async () => {
+	_ = prepareTestDatabase();
+	db = _.db;
+});
+afterEach(async()=>{
+	await _.clear()
+})
+
+afterAll(async () => {
+	await _.close();
+});
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
 test('generated always column: link to another column', async () => {
-	const sqlite = new Database(':memory:');
-
 	const schema = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -20,14 +33,12 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'generated-link-column');
+	const { statements, sqlStatements } = await diffAfterPull(db, schema, 'generated-link-column');
 
 	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('generated always column virtual: link to another column', async () => {
-	const sqlite = new Database(':memory:');
-
 	const schema = {
 		users: sqliteTable('users', {
 			id: int('id'),
@@ -36,29 +47,25 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'generated-link-column-virtual');
+	const { statements, sqlStatements } = await diffAfterPull(db, schema, 'generated-link-column-virtual');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
 
 test('instrospect strings with single quotes', async () => {
-	const sqlite = new Database(':memory:');
-
 	const schema = {
 		columns: sqliteTable('columns', {
 			text: text('text').default('escape\'s quotes " '),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect-strings-with-single-quotes');
+	const { statements, sqlStatements } = await diffAfterPull(db, schema, 'introspect-strings-with-single-quotes');
 
 	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect checks', async () => {
-	const sqlite = new Database(':memory:');
-
 	const initSchema = {
 		users: sqliteTable(
 			'users',
@@ -73,7 +80,6 @@ test('introspect checks', async () => {
 		),
 	};
 
-	const db = dbFrom(sqlite);
 	await push({
 		db,
 		to: initSchema,
@@ -91,8 +97,6 @@ test('introspect checks', async () => {
 });
 
 test('view #1', async () => {
-	const sqlite = new Database(':memory:');
-
 	const users = sqliteTable('users', { id: int('id') });
 	const testView = sqliteView('some_view', { id: int('id') }).as(sql`SELECT * FROM ${users}`);
 	// view with \n newlines
@@ -110,15 +114,13 @@ test('view #1', async () => {
 		testView3,
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-1');
+	const { statements, sqlStatements } = await diffAfterPull(db, schema, 'view-1');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
 
 test('broken view', async () => {
-	const sqlite = new Database(':memory:');
-
 	const users = sqliteTable('users', { id: int('id') });
 	const testView1 = sqliteView('some_view1', { id: int('id') }).as(sql`SELECT id FROM ${users}`);
 	const testView2 = sqliteView('some_view2', { id: int('id'), name: text('name') }).as(
@@ -131,7 +133,7 @@ test('broken view', async () => {
 		testView2,
 	};
 
-	const { statements, sqlStatements, resultDdl } = await diffAfterPull(sqlite, schema, 'broken-view');
+	const { statements, sqlStatements, resultDdl } = await diffAfterPull(db, schema, 'broken-view');
 
 	expect(
 		resultDdl.views.one({

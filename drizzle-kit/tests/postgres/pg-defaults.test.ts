@@ -61,11 +61,11 @@ test('integer', async () => {
 	const res4 = await diffDefault(_, integer().default(1e4), '10000');
 	const res5 = await diffDefault(_, integer().default(-1e4), '-10000');
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 });
 
 test('integer arrays', async () => {
@@ -81,13 +81,13 @@ test('integer arrays', async () => {
 		"'{{{1,2}},{{1,2}}}'::integer[]",
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
 });
 
 test('smallint', async () => {
@@ -96,8 +96,8 @@ test('smallint', async () => {
 	// -2^15
 	const res2 = await diffDefault(_, smallint().default(-32768), '-32768');
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
 });
 
 test('smallint arrays', async () => {
@@ -117,13 +117,13 @@ test('smallint arrays', async () => {
 		"'{{{1,2}},{{1,2}}}'::smallint[]",
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
 });
 
 test('bigint', async () => {
@@ -139,10 +139,10 @@ test('bigint', async () => {
 		'-9223372036854775808',
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
 });
 
 test('bigint arrays', async () => {
@@ -196,21 +196,21 @@ test('bigint arrays', async () => {
 		"'{9223372036854775807}'::bigint[]",
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
-	expect.soft(res15).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
+	expect(res15).toStrictEqual([]);
 });
 
 test('serials', async () => {
@@ -219,10 +219,10 @@ test('serials', async () => {
 	const res3 = await diffDefault(_, bigserial({ mode: 'number' }), '');
 	const res4 = await diffDefault(_, bigserial({ mode: 'bigint' }), '');
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
 });
 
 test('numeric', async () => {
@@ -248,19 +248,19 @@ test('numeric', async () => {
 	const res12 = await diffDefault(_, numeric({ mode: 'number', scale: 2 }).default(10.123), "'10.123'");
 	const res13 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.123), "'10.123'");
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
 });
 
 test('numeric arrays', async () => {
@@ -364,29 +364,29 @@ test('numeric arrays', async () => {
 		"'{{9223372036854775807,9223372036854775806},{9223372036854775807,9223372036854775806}}'::numeric(19)[]",
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
-	expect.soft(res15).toStrictEqual([]);
-	expect.soft(res16).toStrictEqual([]);
-	expect.soft(res17).toStrictEqual([]);
-	expect.soft(res18).toStrictEqual([]);
-	expect.soft(res19).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
+	expect(res15).toStrictEqual([]);
+	expect(res16).toStrictEqual([]);
+	expect(res17).toStrictEqual([]);
+	expect(res18).toStrictEqual([]);
+	expect(res19).toStrictEqual([]);
+	expect(res20).toStrictEqual([]);
 
-	expect.soft(res23).toStrictEqual([]);
-	expect.soft(res24).toStrictEqual([]);
+	expect(res23).toStrictEqual([]);
+	expect(res24).toStrictEqual([]);
 });
 
 test('real + real arrays', async () => {
@@ -402,11 +402,11 @@ test('real + real arrays', async () => {
 		`'{{1000.123,10.2},{1000.123,10.2}}'::real[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 });
 
 test('doublePrecision + doublePrecision arrays', async () => {
@@ -426,11 +426,11 @@ test('doublePrecision + doublePrecision arrays', async () => {
 		`'{{10000.123,10.1},{10000.123,10.1}}'::double precision[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 });
 
 test('boolean + boolean arrays', async () => {
@@ -444,13 +444,13 @@ test('boolean + boolean arrays', async () => {
 	const res6 = await diffDefault(_, boolean().array().array().default([]), `'{}'::boolean[]`);
 	const res7 = await diffDefault(_, boolean().array().array().default([[true], [false]]), `'{{t},{f}}'::boolean[]`);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
 });
 
 test('char + char arrays', async () => {
@@ -511,21 +511,21 @@ test('char + char arrays', async () => {
 		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char(15)[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
-	expect.soft(res15).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
+	expect(res15).toStrictEqual([]);
 });
 
 test('varchar + varchar arrays', async () => {
@@ -586,21 +586,21 @@ test('varchar + varchar arrays', async () => {
 		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::varchar(256)[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
-	expect.soft(res15).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
+	expect(res15).toStrictEqual([]);
 });
 
 test('text + text arrays', async () => {
@@ -646,19 +646,19 @@ test('text + text arrays', async () => {
 		`'{{"text\\\\"},{text}}'::text[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
 });
 
 test('json + json arrays', async () => {
@@ -682,16 +682,16 @@ test('json + json arrays', async () => {
 		`'{"{\\"key\\":\\"val''ue\\"}"}'::json[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 });
 
 test('jsonb + jsonb arrays', async () => {
@@ -706,15 +706,15 @@ test('jsonb + jsonb arrays', async () => {
 	const res8 = await diffDefault(_, jsonb().array().default([]), `'{}'::jsonb[]`);
 	const res12 = await diffDefault(_, jsonb().array().array().default([]), `'{}'::jsonb[]`);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
 });
 
 test('timestamp + timestamp arrays', async () => {
@@ -824,29 +824,29 @@ test('timestamp + timestamp arrays', async () => {
 		`'{{"2025-05-23 12:53:53.115+00"}}'::timestamp(3) with time zone[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
-	expect.soft(res14_1).toStrictEqual([]);
-	expect.soft(res15).toStrictEqual([]);
-	expect.soft(res16).toStrictEqual([]);
-	expect.soft(res17).toStrictEqual([]);
-	expect.soft(res18).toStrictEqual([]);
-	expect.soft(res19).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
-	expect.soft(res21).toStrictEqual([]);
-	expect.soft(res22).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
+	expect(res14_1).toStrictEqual([]);
+	expect(res15).toStrictEqual([]);
+	expect(res16).toStrictEqual([]);
+	expect(res17).toStrictEqual([]);
+	expect(res18).toStrictEqual([]);
+	expect(res19).toStrictEqual([]);
+	expect(res20).toStrictEqual([]);
+	expect(res21).toStrictEqual([]);
+	expect(res22).toStrictEqual([]);
 });
 
 test('time + time arrays', async () => {
@@ -895,20 +895,20 @@ test('time + time arrays', async () => {
 		`'{{15:50:33.123+00}}'::time(3) with time zone[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
-	expect.soft(res12).toStrictEqual([]);
-	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
+	expect(res11).toStrictEqual([]);
+	expect(res12).toStrictEqual([]);
+	expect(res13).toStrictEqual([]);
+	expect(res14).toStrictEqual([]);
 });
 
 test('date + date arrays', async () => {
@@ -939,23 +939,23 @@ test('date + date arrays', async () => {
 		`'{{2025-05-23}}'::date[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res20).toStrictEqual([]);
 
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res30).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res30).toStrictEqual([]);
 
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res40).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res40).toStrictEqual([]);
 
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res50).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res50).toStrictEqual([]);
 
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res60).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res60).toStrictEqual([]);
 });
 
 test('interval + interval arrays', async () => {
@@ -994,20 +994,20 @@ test('interval + interval arrays', async () => {
 		`'{{"1 day 3 second"}}'::interval day to second(3)[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
 	// it's ok, that's due to '1 day 3 second' vs '1 day 00:00:03'
-	expect.soft(res10.length).toBe(1);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+	expect(res10.length).toBe(1);
+	expect(res2).toStrictEqual([]);
+	expect(res20).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
 
 	// it's ok, that's due to '1 day 3 second' vs '1 day 00:00:03'
-	expect.soft(res30.length).toBe(1);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res40).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res30.length).toBe(1);
+	expect(res4).toStrictEqual([]);
+	expect(res40).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 	// it's ok, that's due to '1 day 3 second' vs '1 day 00:00:03'
-	expect.soft(res50.length).toBe(1);
+	expect(res50.length).toBe(1);
 });
 
 test('point + point arrays', async () => {
@@ -1034,16 +1034,16 @@ test('point + point arrays', async () => {
 		`'{{"(1,2)"}}'::point[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 });
 
 test('line + line arrays', async () => {
@@ -1074,16 +1074,16 @@ test('line + line arrays', async () => {
 		`'{{"{1,2,3}"}}'::line[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 });
 
 test('enum + enum arrays', async () => {
@@ -1110,16 +1110,16 @@ test('enum + enum arrays', async () => {
 	const res9 = await diffDefault(_, moodEnum().array().array().default([]), `'{}'::"mood_enum"[]`, pre);
 	const res10 = await diffDefault(_, moodEnum().array().array().default([['ok']]), `'{{ok}}'::"mood_enum"[]`, pre);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 });
 
 test('uuid + uuid arrays', async () => {
@@ -1155,15 +1155,15 @@ test('uuid + uuid arrays', async () => {
 	const res8 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
 	const res9 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
 });
 
 // pgvector extension
@@ -1182,12 +1182,12 @@ test('bit + bit arrays', async () => {
 		`'{{101},{101}}'::bit(3)[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
 });
 
 test('halfvec + halfvec arrays', async () => {
@@ -1227,15 +1227,15 @@ test('halfvec + halfvec arrays', async () => {
 	// 	`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::halfvec(3)[]`,
 	// );
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
 
-	// expect.soft(res2).toStrictEqual([]);
-	// expect.soft(res5).toStrictEqual([]);
-	// expect.soft(res8).toStrictEqual([]);
+	// expect(res2).toStrictEqual([]);
+	// expect(res5).toStrictEqual([]);
+	// expect(res8).toStrictEqual([]);
 });
 
 test('sparsevec + sparsevec arrays', async () => {
@@ -1272,14 +1272,14 @@ test('sparsevec + sparsevec arrays', async () => {
 		`'{{"{1:-1.1234567,3:2.1234567,5:3.1234567}/5"},{"{1:-1.1234567,3:2.1234567,5:3.1234567}/5"}}'::sparsevec(5)[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
 });
 
 test('macaddr + macaddr arrays', async () => {
@@ -1298,11 +1298,11 @@ test('macaddr + macaddr arrays', async () => {
 		`'{{08:00:2b:01:02:03},{ff:ff:ff:ff:ff:ff}}'::macaddr[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 });
 test('macaddr8 + macaddr8 arrays', async () => {
 	const res1 = await diffDefault(_, macaddr8().default('08:00:2b:01:02:03:04:05'), `'08:00:2b:01:02:03:04:05'`);
@@ -1320,11 +1320,11 @@ test('macaddr8 + macaddr8 arrays', async () => {
 		`'{{08:00:2b:01:02:03:04:05},{ff:ff:ff:ff:ff:ff:ff:ff}}'::macaddr8[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
 });
 
 test('vector + vector arrays', async () => {
@@ -1364,16 +1364,16 @@ test('vector + vector arrays', async () => {
 	const res9 = await diffDefault(_, vector({ dimensions: 2 }).default([0, -2]), `'[0,-2]'`);
 	const res10 = await diffDefault(_, vector({ dimensions: 5 }).default([0, -2, 0, 0, 0]), `'[0,-2,0,0,0]'`);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
+	expect(res3).toStrictEqual([]);
+	expect(res4).toStrictEqual([]);
+	expect(res5).toStrictEqual([]);
+	expect(res6).toStrictEqual([]);
+	expect(res7).toStrictEqual([]);
+	expect(res8).toStrictEqual([]);
+	expect(res9).toStrictEqual([]);
+	expect(res10).toStrictEqual([]);
 });
 
 // postgis extension
@@ -1555,23 +1555,23 @@ test('geometry + geometry arrays', async () => {
 			['public'],
 		);
 
-		expect.soft(res1).toStrictEqual([]);
-		expect.soft(res2).toStrictEqual([]);
-		expect.soft(res3).toStrictEqual([]);
-		expect.soft(res4).toStrictEqual([]);
-		expect.soft(res5).toStrictEqual([]);
-		expect.soft(res6).toStrictEqual([]);
-		expect.soft(res7).toStrictEqual([]);
-		expect.soft(res8).toStrictEqual([]);
-		expect.soft(res9).toStrictEqual([]);
-		expect.soft(res10).toStrictEqual([]);
-		expect.soft(res11).toStrictEqual([]);
-		expect.soft(res12).toStrictEqual([]);
-		// expect.soft(res12_1).toStrictEqual([]);
-		expect.soft(res13).toStrictEqual([]);
-		// expect.soft(res14).toStrictEqual([]);
-		expect.soft(res15).toStrictEqual([]);
-		expect.soft(res16).toStrictEqual([]);
+		expect(res1).toStrictEqual([]);
+		expect(res2).toStrictEqual([]);
+		expect(res3).toStrictEqual([]);
+		expect(res4).toStrictEqual([]);
+		expect(res5).toStrictEqual([]);
+		expect(res6).toStrictEqual([]);
+		expect(res7).toStrictEqual([]);
+		expect(res8).toStrictEqual([]);
+		expect(res9).toStrictEqual([]);
+		expect(res10).toStrictEqual([]);
+		expect(res11).toStrictEqual([]);
+		expect(res12).toStrictEqual([]);
+		// expect(res12_1).toStrictEqual([]);
+		expect(res13).toStrictEqual([]);
+		// expect(res14).toStrictEqual([]);
+		expect(res15).toStrictEqual([]);
+		expect(res16).toStrictEqual([]);
 	} catch (error) {
 		await postgisDb.clear();
 		await postgisDb.close();
@@ -1593,11 +1593,11 @@ test('inet + inet arrays', async () => {
 		`'{::ffff:192.168.0.1/96}'::inet[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([]);
 
-	expect.soft(res1_1).toStrictEqual([]);
-	expect.soft(res2_1).toStrictEqual([]);
+	expect(res1_1).toStrictEqual([]);
+	expect(res2_1).toStrictEqual([]);
 });
 
 test.skip('corner cases', async () => {
@@ -1636,21 +1636,21 @@ test.skip('corner cases', async () => {
 	// 	json().array().default([{ key: `mo''",\`}{od` }]),
 	// 	`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
 	// );
-	// expect.soft(res_10).toStrictEqual([]);
+	// expect(res_10).toStrictEqual([]);
 
 	// 	const res14 = await diffDefault(
 	// 	_,
 	// 	json().array().array().default([[{ key: `mo''",\`}{od` }]]),
 	// 	`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
 	// );
-	// expect.soft(res14).toStrictEqual([]);
+	// expect(res14).toStrictEqual([]);
 
 	// const res__10 = await diffDefault(
 	// 	_,
 	// 	json().array().default([{ key: `mo''",\`}{od` }]),
 	// 	`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
 	// );
-	// expect.soft(res__10).toStrictEqual([]);
+	// expect(res__10).toStrictEqual([]);
 
 	const res__14 = await diffDefault(
 		_,
@@ -1660,7 +1660,7 @@ test.skip('corner cases', async () => {
 			),
 		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`}{od"}}'::text[]`,
 	);
-	expect.soft(res__14).toStrictEqual([]);
+	expect(res__14).toStrictEqual([]);
 
 	// 		const res14 = await diffDefault(
 	// 	_,
@@ -1668,7 +1668,7 @@ test.skip('corner cases', async () => {
 	// 	`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
 	// );
 
-	// expect.soft(res14).toStrictEqual([]);
+	// expect(res14).toStrictEqual([]);
 
 	const res_11 = await diffDefault(
 		_,
@@ -1677,7 +1677,7 @@ test.skip('corner cases', async () => {
 		),
 		`'{"mo''''\\\",\`\}\{od"}'::text[]`,
 	);
-	expect.soft(res_11).toStrictEqual([]);
+	expect(res_11).toStrictEqual([]);
 
 	const res21 = await diffDefault(
 		_,
@@ -1693,8 +1693,8 @@ test.skip('corner cases', async () => {
 		"'{{10.123,123.10},{10.123,123.10}}'::numeric[]",
 	);
 
-	// expect.soft(res21).toStrictEqual([]);
-	// expect.soft(res22).toStrictEqual([]);
+	// expect(res21).toStrictEqual([]);
+	// expect(res22).toStrictEqual([]);
 
 	await diffDefault(
 		_,

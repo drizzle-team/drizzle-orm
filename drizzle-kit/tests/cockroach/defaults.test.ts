@@ -27,7 +27,6 @@ import {
 	vector,
 } from 'drizzle-orm/cockroach-core';
 import { varbit } from 'drizzle-orm/cockroach-core/columns/varbit';
-import { afterEach } from 'node:test';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diffDefault, prepareTestDatabase, TestDatabase, TestDatabaseKit } from './mocks';
 
@@ -560,19 +559,16 @@ test.concurrent('decimals arrays', async (ctx) => {
 	expect(res4).toStrictEqual([]);
 	expect(res5).toStrictEqual([]);
 	expect(res6).toStrictEqual([]);
-
 	expect(res7_1).toStrictEqual([]);
 	expect(res7_2).toStrictEqual([]);
 	expect(res7_3).toStrictEqual([]);
 	expect(res7_4).toStrictEqual([]);
 	expect(res7_5).toStrictEqual([]);
-
 	expect(res8_1).toStrictEqual([]);
 	expect(res8_2).toStrictEqual([]);
 	expect(res8_3).toStrictEqual([]);
 	expect(res8_4).toStrictEqual([]);
 	expect(res8_5).toStrictEqual([]);
-
 	expect(res9_1).toStrictEqual([]);
 	expect(res9_2).toStrictEqual([]);
 	expect(res9_3).toStrictEqual([]);

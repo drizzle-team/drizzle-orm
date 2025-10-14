@@ -588,6 +588,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await prepareClient(url, 'db8', tx),
 		await prepareClient(url, 'db9', tx),
 	];
+	
 	const closure = () => {
 		const lockMap = {} as Record<number, boolean>;
 
@@ -596,7 +597,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			while (true) {
 				idx += 1;
 				idx %= clients.length;
-
 				if (lockMap[idx]) continue;
 				lockMap[idx] = true;
 				const c = clients[idx];
