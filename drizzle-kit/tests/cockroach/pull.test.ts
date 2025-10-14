@@ -32,34 +32,10 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import fs from 'fs';
-import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroach/mocks';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diffIntrospect, test } from 'tests/cockroach/mocks';
+import { expect } from 'vitest';
 
-// @vitest-environment-options {"max-concurrency":1}
-
-if (!fs.existsSync('tests/cockroach/tmp')) {
-	fs.mkdirSync(`tests/cockroach/tmp`, { recursive: true });
-}
-
-let _: TestDatabase;
-let db: DB;
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('basic introspect test', async () => {
+test.concurrent('basic introspect test', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').notNull(),
@@ -73,7 +49,7 @@ test('basic introspect test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic identity always test', async () => {
+test.concurrent('basic identity always test', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity(),
@@ -87,7 +63,7 @@ test('basic identity always test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic identity by default test', async () => {
+test.concurrent('basic identity by default test', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
@@ -105,7 +81,7 @@ test('basic identity by default test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic index test', async () => {
+test.concurrent('basic index test', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			firstName: text('first_name'),
@@ -135,7 +111,7 @@ test('basic index test', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('identity always test: few params', async () => {
+test.concurrent('identity always test: few params', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({
@@ -155,7 +131,7 @@ test('identity always test: few params', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('identity by default test: few params', async () => {
+test.concurrent('identity by default test: few params', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -175,7 +151,7 @@ test('identity by default test: few params', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('identity always test: all params', async () => {
+test.concurrent('identity always test: all params', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({
@@ -199,7 +175,7 @@ test('identity always test: all params', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('identity by default test: all params', async () => {
+test.concurrent('identity by default test: all params', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -223,7 +199,7 @@ test('identity by default test: all params', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('generated column: link to another column', async () => {
+test.concurrent('generated column: link to another column', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity(),
@@ -244,7 +220,7 @@ test('generated column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect all column types', async () => {
+test.concurrent('introspect all column types', async ({ dbc: db }) => {
 	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -297,7 +273,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('introspect all column array types', async () => {
+test.concurrent('introspect all column array types', async ({ dbc: db }) => {
 	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -349,7 +325,7 @@ test('introspect all column array types', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect columns with name with non-alphanumeric characters', async () => {
+test.concurrent('introspect columns with name with non-alphanumeric characters', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			'not:allowed': int4('not:allowed'),
@@ -369,7 +345,7 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect enum from different schema', async () => {
+test.concurrent('introspect enum from different schema', async ({ dbc: db }) => {
 	const schema2 = cockroachSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -391,7 +367,7 @@ test('introspect enum from different schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect enum with same names across different schema', async () => {
+test.concurrent('introspect enum with same names across different schema', async ({ dbc: db }) => {
 	const schema2 = cockroachSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
 	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
@@ -416,7 +392,7 @@ test('introspect enum with same names across different schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect enum with similar name to native type', async () => {
+test.concurrent('introspect enum with similar name to native type', async ({ dbc: db }) => {
 	const timeLeft = cockroachEnum('time_left', ['short', 'medium', 'long']);
 	const schema = {
 		timeLeft,
@@ -435,7 +411,7 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect strings with single quotes', async () => {
+test.concurrent('introspect strings with single quotes', async ({ dbc: db }) => {
 	const myEnum = cockroachEnum('my_enum', ['escape\'s quotes " ']);
 	const schema = {
 		enum_: myEnum,
@@ -456,7 +432,7 @@ test('introspect strings with single quotes', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect checks', async () => {
+test.concurrent('introspect checks', async ({ dbc: db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -475,7 +451,7 @@ test('introspect checks', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect checks from different schemas with same names', async () => {
+test.concurrent('introspect checks from different schemas with same names', async ({ dbc: db }) => {
 	const mySchema = cockroachSchema('schema2');
 	const schema = {
 		mySchema,
@@ -500,7 +476,7 @@ test('introspect checks from different schemas with same names', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect view #1', async () => {
+test.concurrent('introspect view #1', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -522,7 +498,7 @@ test('introspect view #1', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect view #2', async () => {
+test.concurrent('introspect view #2', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -546,7 +522,7 @@ test('introspect view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect view in other schema', async () => {
+test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
 	const newSchema = cockroachSchema('new_schema');
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
@@ -573,7 +549,7 @@ test('introspect view in other schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect materialized view in other schema', async () => {
+test.concurrent('introspect materialized view in other schema', async ({ dbc: db }) => {
 	const newSchema = cockroachSchema('new_schema');
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
@@ -600,7 +576,7 @@ test('introspect materialized view in other schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect materialized view #1', async () => {
+test.concurrent('introspect materialized view #1', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -622,7 +598,7 @@ test('introspect materialized view #1', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect materialized view #2', async () => {
+test.concurrent('introspect materialized view #2', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -646,7 +622,7 @@ test('introspect materialized view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic roles', async () => {
+test.concurrent('basic roles', async ({ dbc: db }) => {
 	const schema = {
 		usersRole: cockroachRole('user'),
 	};
@@ -663,7 +639,7 @@ test('basic roles', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('role with properties', async () => {
+test.concurrent('role with properties', async ({ dbc: db }) => {
 	const schema = {
 		usersRole: cockroachRole('user', { createDb: true, createRole: true }),
 	};
@@ -680,7 +656,7 @@ test('role with properties', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('role with a few properties', async () => {
+test.concurrent('role with a few properties', async ({ dbc: db }) => {
 	const schema = {
 		usersRole: cockroachRole('user', { createRole: true }),
 	};
@@ -697,7 +673,7 @@ test('role with a few properties', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('case sensitive schema name + identity column', async () => {
+test.concurrent('case sensitive schema name + identity column', async ({ dbc: db }) => {
 	const mySchema = cockroachSchema('CaseSensitiveSchema');
 	const schema = {
 		mySchema,

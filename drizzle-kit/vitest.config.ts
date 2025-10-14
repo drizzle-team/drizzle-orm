@@ -28,6 +28,7 @@ export default defineConfig({
 		},
 		testTimeout: 100000,
 		hookTimeout: 100000,
+		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],
 });
