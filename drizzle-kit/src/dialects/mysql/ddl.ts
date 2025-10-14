@@ -123,11 +123,30 @@ export type SchemaError = {
 	type: 'column_name_conflict';
 	table: string;
 	name: string;
+} | {
+	type: 'column_unsupported_unique';
+	table: string;
+	columns: string[];
+} | {
+	type: 'column_unsupported_default_on_autoincrement';
+	table: string;
+	column: string;
 };
 
 export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: SchemaError[] } => {
 	const errors = [] as SchemaError[];
 	const ddl = createDDL();
+	const resrtictedUniqueFor = [
+		'blob',
+		'tinyblob',
+		'mediumblob',
+		'longblob',
+		'text',
+		'tinytext',
+		'mediumtext',
+		'longtext',
+	];
+
 	for (const table of interim.tables) {
 		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
@@ -140,6 +159,10 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
+		}
+
+		if ((column.type.startsWith('serial') || column.autoIncrement) && column.default !== null) {
+			errors.push({ type: 'column_unsupported_default_on_autoincrement', table: column.table, column: column.name });
 		}
 	}
 
@@ -165,6 +188,10 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
+		if (resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
+			errors.push({ type: 'column_unsupported_unique', columns: [column.name], table: column.table });
+		}
+
 		const name = column.uniqueName ?? nameForUnique(column.table, [column.name]);
 		const res = ddl.indexes.push({
 			table: column.table,
@@ -186,6 +213,25 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 		const res = ddl.indexes.push(index);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`Index conflict: ${JSON.stringify(index)}`);
+		}
+	}
+	for (const index of interim.indexes.filter((i) => i.isUnique)) {
+		const conflictColumns = index.columns.filter((col) => {
+			if (col.isExpression) return false;
+
+			const column = ddl.columns.one({ table: index.table, name: col.value });
+
+			return resrtictedUniqueFor.some(
+				(restrictedType) => column?.type.startsWith(restrictedType),
+			);
+		});
+
+		if (conflictColumns.length > 0) {
+			errors.push({
+				type: 'column_unsupported_unique',
+				columns: conflictColumns.map((it) => it.value),
+				table: index.table,
+			});
 		}
 	}
 

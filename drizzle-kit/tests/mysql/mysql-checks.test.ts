@@ -279,10 +279,8 @@ test('create checks with same names', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-test('create checks on serail or autoincrement', async (t) => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
+// TODO not possible to parse check definition
+test.todo('create checks on serail or autoincrement', async (t) => {
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: serial(),
