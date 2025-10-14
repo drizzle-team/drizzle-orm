@@ -41,7 +41,9 @@ import {
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
+// @ts-expect-error
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
+// @ts-expect-error
 import { vector } from '@electric-sql/pglite/vector';
 import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
