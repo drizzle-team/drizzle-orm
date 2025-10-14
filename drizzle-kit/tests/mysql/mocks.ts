@@ -72,8 +72,6 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	console.log(err1);
-	console.log(err2);
 	const mappedErrors1 = err1.map((it) => schemaError(it));
 	const mappedErrors2 = err2.map((it) => schemaError(it));
 
