@@ -1,35 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { cockroachPolicy, cockroachRole, cockroachTable, int4 } from 'drizzle-orm/cockroach-core';
-import fs from 'fs';
-import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroach/mocks';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diffIntrospect, test } from 'tests/cockroach/mocks';
+import { expect } from 'vitest';
 
-// @vitest-environment-options {"max-concurrency":1}
-
-if (!fs.existsSync('tests/cockroach/tmp')) {
-	fs.mkdirSync(`tests/cockroach/tmp`, { recursive: true });
-}
-
-let _: TestDatabase;
-let db: DB;
-
-beforeAll(async () => {
-	// TODO can be improved
-	// these tests are failing when using "tx" in prepareTestDatabase
-	_ = await prepareTestDatabase(false);
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('basic policy', async () => {
+test('basic policy',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -46,7 +20,7 @@ test('basic policy', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with "as"', async () => {
+test('basic policy with "as"',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -63,7 +37,7 @@ test('basic policy with "as"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with CURRENT_USER role', async () => {
+test('basic policy with CURRENT_USER role',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -80,7 +54,7 @@ test('basic policy with CURRENT_USER role', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with all fields except "using" and "with"', async () => {
+test('basic policy with all fields except "using" and "with"',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -97,7 +71,7 @@ test('basic policy with all fields except "using" and "with"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with "using" and "with"', async () => {
+test('basic policy with "using" and "with"',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -114,7 +88,7 @@ test('basic policy with "using" and "with"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies', async () => {
+test('multiple policies',async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -131,7 +105,7 @@ test('multiple policies', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies with roles', async () => {
+test('multiple policies with roles',async ({ db }) => {
 	await db.query(`CREATE ROLE new_manager;`);
 
 	const schema = {
@@ -157,7 +131,7 @@ test('multiple policies with roles', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies with roles from schema', async () => {
+test('multiple policies with roles from schema',async ({ db }) => {
 	const usersRole = cockroachRole('user_role', { createRole: true });
 
 	const schema = {

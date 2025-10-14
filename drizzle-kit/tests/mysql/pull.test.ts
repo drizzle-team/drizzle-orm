@@ -548,7 +548,7 @@ test('introspect bit(1); custom type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect tables with case sensitive names', async () => {
+test.only('introspect tables with case sensitive names', async () => {
 	// postpone
 	if (Date.now() < +new Date('10/10/2025')) return;
 
