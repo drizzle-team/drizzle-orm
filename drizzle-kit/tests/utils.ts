@@ -24,73 +24,70 @@ const options = {
 
 type VFile = { text: string; version: number };
 
-export function makeTSC2(options: ts.CompilerOptions, fileName = "temp.ts") {
-  const files = new Map<string, VFile>();
-  const sys = ts.sys; // fall back to real FS for libs, node_modules, etc.
+export function makeTSC2(options: ts.CompilerOptions, fileName = 'temp.ts') {
+	const files = new Map<string, VFile>();
+	const sys = ts.sys; // fall back to real FS for libs, node_modules, etc.
 
-  const ensure = (fn: string) => {
-    if (!files.has(fn)) files.set(fn, { text: "", version: 0 });
-    return files.get(fn)!;
-  };
-  ensure(fileName);
+	const ensure = (fn: string) => {
+		if (!files.has(fn)) files.set(fn, { text: '', version: 0 });
+		return files.get(fn)!;
+	};
+	ensure(fileName);
 
-  const host: ts.LanguageServiceHost = {
-    getCompilationSettings: () => options,
-    getScriptFileNames: () => Array.from(files.keys()),
-    getScriptVersion: (fn) => (files.get(fn)?.version ?? 0).toString(),
-    getScriptSnapshot: (fn) => {
-      const mem = files.get(fn);
-      if (mem) return ts.ScriptSnapshot.fromString(mem.text);
-      // Defer to real FS for everything else
-      if (sys.fileExists(fn)) return ts.ScriptSnapshot.fromString(sys.readFile(fn)!);
-      return undefined;
-    },
-    getCurrentDirectory: () => sys.getCurrentDirectory(),
-    getDefaultLibFileName: (opts) => ts.getDefaultLibFilePath(opts),
-    fileExists: sys.fileExists,
-    readFile: sys.readFile,
-    readDirectory: sys.readDirectory,
-    directoryExists: sys.directoryExists?.bind(sys),
-    getDirectories: sys.getDirectories?.bind(sys),
-    useCaseSensitiveFileNames: () => sys.useCaseSensitiveFileNames,
-  };
+	const host: ts.LanguageServiceHost = {
+		getCompilationSettings: () => options,
+		getScriptFileNames: () => Array.from(files.keys()),
+		getScriptVersion: (fn) => (files.get(fn)?.version ?? 0).toString(),
+		getScriptSnapshot: (fn) => {
+			const mem = files.get(fn);
+			if (mem) return ts.ScriptSnapshot.fromString(mem.text);
+			// Defer to real FS for everything else
+			if (sys.fileExists(fn)) return ts.ScriptSnapshot.fromString(sys.readFile(fn)!);
+			return undefined;
+		},
+		getCurrentDirectory: () => sys.getCurrentDirectory(),
+		getDefaultLibFileName: (opts) => ts.getDefaultLibFilePath(opts),
+		fileExists: sys.fileExists,
+		readFile: sys.readFile,
+		readDirectory: sys.readDirectory,
+		directoryExists: sys.directoryExists?.bind(sys),
+		getDirectories: sys.getDirectories?.bind(sys),
+		useCaseSensitiveFileNames: () => sys.useCaseSensitiveFileNames,
+	};
 
-  const registry = ts.createDocumentRegistry();
-  const service = ts.createLanguageService(host, registry);
+	const registry = ts.createDocumentRegistry();
+	const service = ts.createLanguageService(host, registry);
 
-  const formatHost: ts.FormatDiagnosticsHost = {
-    getCurrentDirectory: host.getCurrentDirectory,
-    getCanonicalFileName: (f) =>
-      host.useCaseSensitiveFileNames?.() ? f : f.toLowerCase(),
-    getNewLine: () => sys.newLine,
-  };
+	const formatHost: ts.FormatDiagnosticsHost = {
+		getCurrentDirectory: host.getCurrentDirectory,
+		getCanonicalFileName: (f) => host.useCaseSensitiveFileNames?.() ? f : f.toLowerCase(),
+		getNewLine: () => sys.newLine,
+	};
 
-  async function tsc2(content: string, fn: string = fileName): Promise<void> {
-		
-    const f = ensure(fn);
-    f.text = content;
-    f.version++;
+	async function tsc2(content: string, fn: string = fileName): Promise<void> {
+		const f = ensure(fn);
+		f.text = content;
+		f.version++;
 
-    // Ask LS for diagnostics (incremental & fast)
-    const syntactic = service.getSyntacticDiagnostics(fn);
-    const semantic = service.getSemanticDiagnostics(fn);
-    const optionsDiag = service.getCompilerOptionsDiagnostics();
+		// Ask LS for diagnostics (incremental & fast)
+		const syntactic = service.getSyntacticDiagnostics(fn);
+		const semantic = service.getSemanticDiagnostics(fn);
+		const optionsDiag = service.getCompilerOptionsDiagnostics();
 
-    const diags = [...optionsDiag, ...syntactic, ...semantic];
-    if (diags.length) {
-      const message = ts.formatDiagnostics(diags, formatHost);
-			console.log(content)
-			console.log()
-			console.error(message)
-      throw new Error(message);
-    }
-  }
+		const diags = [...optionsDiag, ...syntactic, ...semantic];
+		if (diags.length) {
+			const message = ts.formatDiagnostics(diags, formatHost);
+			console.log(content);
+			console.log();
+			console.error(message);
+			throw new Error(message);
+		}
+	}
 
-  return { tsc2, service, update: tsc2 };
+	return { tsc2, service, update: tsc2 };
 }
 
-export const tsc = makeTSC2(options).tsc2
-
+export const tsc = makeTSC2(options).tsc2;
 
 // export const tsc = async (path: string) => {
 // 	const typeCheckResult =

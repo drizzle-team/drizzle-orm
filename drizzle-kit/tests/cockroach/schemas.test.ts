@@ -2,7 +2,7 @@ import { cockroachSchema } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('add schema #1', async ({db}) => {
+test('add schema #1', async ({ db }) => {
 	const to = {
 		devSchema: cockroachSchema('dev'),
 	};
@@ -21,7 +21,7 @@ test('add schema #1', async ({db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add schema #2', async ({db}) => {
+test('add schema #2', async ({ db }) => {
 	const from = {
 		devSchema: cockroachSchema('dev'),
 	};
@@ -45,7 +45,7 @@ test('add schema #2', async ({db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('delete schema #1', async ({db}) => {
+test('delete schema #1', async ({ db }) => {
 	const from = {
 		devSchema: cockroachSchema('dev'),
 	};
@@ -65,7 +65,7 @@ test('delete schema #1', async ({db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('delete schema #2', async ({db}) => {
+test('delete schema #2', async ({ db }) => {
 	const from = {
 		devSchema: cockroachSchema('dev'),
 		devSchema2: cockroachSchema('dev2'),
@@ -89,7 +89,7 @@ test('delete schema #2', async ({db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename schema #1', async ({db}) => {
+test('rename schema #1', async ({ db }) => {
 	const from = {
 		devSchema: cockroachSchema('dev'),
 	};
@@ -115,7 +115,7 @@ test('rename schema #1', async ({db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename schema #2', async ({db}) => {
+test('rename schema #2', async ({ db }) => {
 	const from = {
 		devSchema: cockroachSchema('dev'),
 		devSchema1: cockroachSchema('dev1'),

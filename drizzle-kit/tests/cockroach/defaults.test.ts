@@ -763,7 +763,7 @@ test.concurrent('decimals arrays', async ({ dbc: db }) => {
 	expect(res9_3).toStrictEqual([]);
 });
 
-test.concurrent('real', async ({ dbc: db,  }) => {
+test.concurrent('real', async ({ dbc: db }) => {
 	const res1 = await diffDefault(db, real().default(1000.123), '1000.123');
 	const res2 = await diffDefault(db, real().default(1000), '1000');
 	const res3 = await diffDefault(db, real().default(1000.3), '1000.3');

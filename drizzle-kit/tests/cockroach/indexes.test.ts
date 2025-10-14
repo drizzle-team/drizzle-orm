@@ -3,7 +3,7 @@ import { boolean, cockroachTable, index, int4, text, uuid } from 'drizzle-orm/co
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test.concurrent('adding basic indexes', async ({dbc:db}) => {
+test.concurrent('adding basic indexes', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -41,7 +41,7 @@ test.concurrent('adding basic indexes', async ({dbc:db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('dropping basic index', async ({dbc:db}) => {
+test.concurrent('dropping basic index', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'users',
@@ -71,7 +71,7 @@ test.concurrent('dropping basic index', async ({dbc:db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('altering indexes', async ({dbc:db}) => {
+test.concurrent('altering indexes', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -139,7 +139,7 @@ test.concurrent('altering indexes', async ({dbc:db}) => {
 	]);
 });
 
-test.concurrent('indexes test case #1', async ({dbc:db}) => {
+test.concurrent('indexes test case #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'users',
@@ -187,7 +187,7 @@ test.concurrent('indexes test case #1', async ({dbc:db}) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('Indexes properties that should not trigger push changes', async ({dbc:db}) => {
+test.concurrent('Indexes properties that should not trigger push changes', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -231,7 +231,7 @@ test.concurrent('Indexes properties that should not trigger push changes', async
 	]);
 });
 
-test.concurrent('indexes #0', async ({dbc:db}) => {
+test.concurrent('indexes #0', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'users',
@@ -312,7 +312,7 @@ test.concurrent('indexes #0', async ({dbc:db}) => {
 	]);
 });
 
-test.concurrent('index #2', async ({dbc:db}) => {
+test.concurrent('index #2', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -358,7 +358,7 @@ test.concurrent('index #2', async ({dbc:db}) => {
 	]);
 });
 
-test.concurrent('index #3', async ({dbc:db}) => {
+test.concurrent('index #3', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),

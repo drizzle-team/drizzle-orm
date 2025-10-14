@@ -3,7 +3,7 @@ import { cockroachPolicy, cockroachRole, cockroachTable, int4 } from 'drizzle-or
 import { diffIntrospect, test } from 'tests/cockroach/mocks';
 import { expect } from 'vitest';
 
-test('basic policy',async ({ db }) => {
+test('basic policy', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -20,7 +20,7 @@ test('basic policy',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with "as"',async ({ db }) => {
+test('basic policy with "as"', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -37,7 +37,7 @@ test('basic policy with "as"',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with CURRENT_USER role',async ({ db }) => {
+test('basic policy with CURRENT_USER role', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -54,7 +54,7 @@ test('basic policy with CURRENT_USER role',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with all fields except "using" and "with"',async ({ db }) => {
+test('basic policy with all fields except "using" and "with"', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -71,7 +71,7 @@ test('basic policy with all fields except "using" and "with"',async ({ db }) => 
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy with "using" and "with"',async ({ db }) => {
+test('basic policy with "using" and "with"', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -88,7 +88,7 @@ test('basic policy with "using" and "with"',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies',async ({ db }) => {
+test('multiple policies', async ({ db }) => {
 	const schema = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -105,7 +105,7 @@ test('multiple policies',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies with roles',async ({ db }) => {
+test('multiple policies with roles', async ({ db }) => {
 	await db.query(`CREATE ROLE new_manager;`);
 
 	const schema = {
@@ -131,7 +131,7 @@ test('multiple policies with roles',async ({ db }) => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies with roles from schema',async ({ db }) => {
+test('multiple policies with roles from schema', async ({ db }) => {
 	const usersRole = cockroachRole('user_role', { createRole: true });
 
 	const schema = {

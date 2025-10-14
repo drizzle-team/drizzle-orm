@@ -1,10 +1,6 @@
-import {
-	char,
-	string,
-	varchar,
-} from 'drizzle-orm/cockroach-core';
+import { char, string, varchar } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
-import { diffDefault, test  } from './mocks';
+import { diffDefault, test } from './mocks';
 
 test('char + char arrays', async ({ db }) => {
 	const res1_0 = await diffDefault(db, char().default('text'), `'text'`, true);
