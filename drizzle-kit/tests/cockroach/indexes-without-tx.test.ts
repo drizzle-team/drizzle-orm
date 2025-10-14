@@ -1,28 +1,8 @@
-import { sql } from 'drizzle-orm';
-import { boolean, cockroachTable, index, int4, text, uuid, vector } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { cockroachTable, index, int4, vector } from 'drizzle-orm/cockroach-core';
+import { expect} from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	// TODO can be improved
-	// these tests are failing when using "tx" in prepareTestDatabase
-	_ = await prepareTestDatabase(false);
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('vector index', async (t) => {
+test('vector index', async ({ db }) =>{
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),

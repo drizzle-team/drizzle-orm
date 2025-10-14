@@ -109,7 +109,7 @@ export const diffSqlite = async (
 		ddl2,
 		mockResolver(renames),
 		mockResolver(renames),
-		'generate',
+		'default',
 	);
 
 	return { sqlStatements, statements, groupedStatements };

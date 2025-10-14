@@ -48,7 +48,7 @@ export const handle = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, renames } = await ddlDiffDry(createDDL(), ddl, 'generate');
+		const { sqlStatements, renames } = await ddlDiffDry(createDDL(), ddl, 'default');
 
 		writeResult({
 			snapshot: toJsonSnapshot(ddl, originUUID, '', renames),

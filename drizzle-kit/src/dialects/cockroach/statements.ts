@@ -302,12 +302,6 @@ export interface JsonAlterColumnSetPrimaryKey {
 	column: string;
 }
 
-export interface JsonAlterColumnDropPrimaryKey {
-	type: 'alter_column_change_pk';
-	column: Column;
-	diff: DiffColumn['primaryKey'];
-}
-
 export interface JsonAlterColumnChangeGenerated {
 	type: 'alter_column_change_generated';
 	column: Column;

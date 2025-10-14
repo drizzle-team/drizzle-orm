@@ -1,39 +1,13 @@
-import { sql } from 'drizzle-orm';
 import {
-	AnyCockroachColumn,
 	cockroachTable,
-	foreignKey,
-	index,
 	int4,
 	primaryKey,
 	text,
-	unique,
-	varchar,
 } from 'drizzle-orm/cockroach-core';
-import { DB } from 'src/utils';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	// TODO can be improved
-	// these tests are failing when using "tx" in prepareTestDatabase
-	_ = await prepareTestDatabase(false);
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('alter table add composite pk', async (t) => {
+test('alter table add composite pk', async ({ db }) => {
 	const schema1 = {
 		table: cockroachTable('table', {
 			id1: int4('id1').notNull(),
@@ -65,7 +39,7 @@ test('alter table add composite pk', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('pk #5', async () => {
+test('pk #5', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull(),
@@ -85,7 +59,7 @@ test('pk #5', async () => {
 	await expect(push({ db, to })).rejects.toThrow(); // can not drop pk without adding new one
 });
 
-test('pk multistep #1', async () => {
+test('pk multistep #1', async ({ db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().primaryKey(),
@@ -136,7 +110,7 @@ test('pk multistep #1', async () => {
 	await expect(push({ db, to: sch3 })).rejects.toThrow(); // can not drop pk without adding new one
 });
 
-test('pk multistep #2', async () => {
+test('pk multistep #2', async ({ db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().primaryKey(),
@@ -200,7 +174,7 @@ test('pk multistep #2', async () => {
 	await expect(push({ db, to: sch4 })).rejects.toThrowError(); // can not drop pk without adding new one
 });
 
-test('pk multistep #3', async () => {
+test('pk multistep #3', async ({ db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().primaryKey(),

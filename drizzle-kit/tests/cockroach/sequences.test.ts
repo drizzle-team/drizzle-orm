@@ -1,25 +1,8 @@
 import { cockroachSchema, cockroachSequence } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('create sequence', async () => {
+test('create sequence', async ({ db }) => {
 	const to = {
 		seq: cockroachSequence('name', { startWith: 100 }),
 	};
@@ -38,7 +21,7 @@ test('create sequence', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create sequence: all fields', async () => {
+test('create sequence: all fields', async ({ db }) => {
 	const from = {};
 	const to = {
 		seq: cockroachSequence('name', {
@@ -64,7 +47,7 @@ test('create sequence: all fields', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create sequence: custom schema', async () => {
+test('create sequence: custom schema', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 	const from = { customSchema };
 	const to = {
@@ -84,7 +67,7 @@ test('create sequence: custom schema', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create sequence: custom schema + all fields', async () => {
+test('create sequence: custom schema + all fields', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 	const from = { customSchema };
 	const to = {
@@ -111,7 +94,7 @@ test('create sequence: custom schema + all fields', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop sequence', async () => {
+test('drop sequence', async ({ db }) => {
 	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = {};
 
@@ -130,7 +113,7 @@ test('drop sequence', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop sequence: custom schema', async () => {
+test('drop sequence: custom schema', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 	const to = { customSchema };
@@ -150,7 +133,7 @@ test('drop sequence: custom schema', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename sequence', async () => {
+test('rename sequence', async ({ db }) => {
 	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = { seq: cockroachSequence('name_new', { startWith: 100 }) };
 
@@ -173,7 +156,7 @@ test('rename sequence', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename sequence in custom schema', async () => {
+test('rename sequence in custom schema', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
@@ -198,7 +181,7 @@ test('rename sequence in custom schema', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('move sequence between schemas #1', async () => {
+test('move sequence between schemas #1', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 	const from = { customSchema, seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
@@ -222,7 +205,7 @@ test('move sequence between schemas #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('move sequence between schemas #2', async () => {
+test('move sequence between schemas #2', async ({ db }) => {
 	const customSchema = cockroachSchema('custom');
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 	const to = { customSchema, seq: cockroachSequence('name', { startWith: 100 }) };
@@ -246,7 +229,7 @@ test('move sequence between schemas #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter sequence', async () => {
+test('alter sequence', async ({ db }) => {
 	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = { seq: cockroachSequence('name', { startWith: 105 }) };
 
@@ -265,7 +248,7 @@ test('alter sequence', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('full sequence: no changes', async () => {
+test('full sequence: no changes', async ({ db }) => {
 	const schema1 = {
 		seq: cockroachSequence('my_seq', {
 			startWith: 100,
@@ -298,7 +281,7 @@ test('full sequence: no changes', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('basic sequence: change fields', async () => {
+test('basic sequence: change fields', async ({ db }) => {
 	const schema1 = {
 		seq: cockroachSequence('my_seq', {
 			startWith: 100,
@@ -333,7 +316,7 @@ test('basic sequence: change fields', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('basic sequence: change name', async () => {
+test('basic sequence: change name', async ({ db }) => {
 	const schema1 = {
 		seq: cockroachSequence('my_seq', {
 			startWith: 100,
@@ -369,7 +352,7 @@ test('basic sequence: change name', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('basic sequence: change name and fields', async () => {
+test('basic sequence: change name and fields', async ({ db }) => {
 	const schema1 = {
 		seq: cockroachSequence('my_seq', {
 			startWith: 100,
@@ -406,7 +389,7 @@ test('basic sequence: change name and fields', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('Add basic sequences', async () => {
+test('Add basic sequences', async ({ db }) => {
 	const schema1 = {
 		seq: cockroachSequence('my_seq', { startWith: 100 }),
 	};
