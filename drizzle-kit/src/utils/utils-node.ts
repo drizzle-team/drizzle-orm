@@ -417,7 +417,7 @@ export class InMemoryMutex {
 	}
 }
 
-const registerMutex = new InMemoryMutex()
+const registerMutex = new InMemoryMutex();
 
 export const safeRegister = async <T>(fn: () => Promise<T>) => {
 	return registerMutex.withLock(async () => {

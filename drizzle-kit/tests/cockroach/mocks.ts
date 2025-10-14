@@ -45,10 +45,10 @@ import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { hash } from 'src/dialects/common';
 import { InMemoryMutex } from 'src/utils/utils-node';
 import { measure, tsc2 as tsc } from 'tests/utils';
 import { test as base } from 'vitest';
-import { hash } from 'src/dialects/common';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -507,7 +507,7 @@ export async function createDockerDB() {
 const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const sleep = 1000;
 	let timeLeft = 20000;
-	const name = `${n}${hash(String(Math.random()), 10)}`
+	const name = `${n}${hash(String(Math.random()), 10)}`;
 	do {
 		try {
 			const client = await new Pool({ connectionString: url, max: 1 }).connect();
@@ -590,7 +590,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		// await prepareClient(url, 'db9', tx),
 	];
 
-
 	const clientsTxs = [
 		await prepareClient(url, 'dbc0', true),
 		await prepareClient(url, 'dbc1', true),
@@ -613,7 +612,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 					sleep(50);
 					continue;
 				}
-				console.log(clientsTxs.length)
+				console.log(clientsTxs.length);
 				return {
 					db: c,
 					release: () => {

@@ -1,9 +1,4 @@
-import {
-	cockroachTable,
-	int4,
-	primaryKey,
-	text,
-} from 'drizzle-orm/cockroach-core';
+import { cockroachTable, int4, primaryKey, text } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
