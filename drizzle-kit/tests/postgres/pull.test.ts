@@ -337,6 +337,7 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4916
 test('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -351,7 +352,8 @@ test('introspect all column types', async () => {
 			numeric3: numeric('numeric3').default('99.9'),
 			bigint: bigint('bigint', { mode: 'number' }).default(100),
 			boolean: boolean('boolean').default(true),
-			text: text('test').default('abc'),
+			text: text('text').default('abc'),
+			text1: text('text1').default(sql`gen_random_uuid()`),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
 			char: char('char', { length: 3 }).default('abc'),
 			serial: serial('serial'),
@@ -361,6 +363,7 @@ test('introspect all column types', async () => {
 			real: real('real').default(100),
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
+			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -990,7 +993,7 @@ test('introspect foreign keys', async () => {
 		users,
 		posts: mySchema.table('posts', {
 			id: integer('id').primaryKey(),
-			userId: integer('user_id').references(() => users.id),
+			userId: integer('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 		}),
 	};
 	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
