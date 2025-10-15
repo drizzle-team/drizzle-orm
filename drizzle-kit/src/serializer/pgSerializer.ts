@@ -2058,9 +2058,9 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
 --    ns.nspname AS type_schema,  -- Schema name
     CASE
         WHEN pg_get_serial_sequence('"${schema}"."${table}"', a.attname) LIKE '%.%' THEN
-            split_part(pg_get_serial_sequence('"${schema}"."${table}"', a.attname), '.', 2)::regclass
+            split_part(pg_get_serial_sequence('"${schema}"."${table}"', a.attname), '.', 2)
         ELSE
-            pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass
+            pg_get_serial_sequence('"${schema}"."${table}"', a.attname)
     END AS seq_name,  -- Serial sequence (if any)
     c.column_default,  -- Column default value
     c.data_type AS additional_dt,  -- Data type from information_schema
