@@ -11,7 +11,9 @@
 		"t": "pnpm test",
 		"test:types": "turbo run test:types --color",
 		"lint": "pnpm oxlint",
+		"lint:check": "pnpm oxlint --max-warnings=0",
 		"format": "dprint fmt",
+		"format:check": "dprint check --list-different",
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
@@ -24,6 +26,8 @@
 		"drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
 		"eslint-plugin-drizzle-internal": "link:eslint/eslint-plugin-drizzle-internal",
 		"glob": "^10.3.10",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.2.4",
 		"oxlint": "^1.22.0",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
@@ -32,5 +36,11 @@
 		"turbo": "^2.2.3",
 		"typescript": "5.9.2"
 	},
-	"packageManager": "pnpm@10.15.0"
+	"packageManager": "pnpm@10.15.0",
+	"lint-staged": {
+		"*": [
+			"pnpm format:check",
+			"pnpm lint:check"
+		]
+	}
 }
