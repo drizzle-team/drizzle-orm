@@ -7,6 +7,7 @@ on:
   pull_request: {}
 
 concurrency:
+
   group: feature-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -110,7 +111,6 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 6
       matrix:
         include:
           - shard: gel
