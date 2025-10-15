@@ -54,6 +54,7 @@ import {
 	mysqlTable,
 	mysqlTableCreator,
 	mysqlView,
+	point,
 	primaryKey,
 	real,
 	serial,
@@ -150,6 +151,7 @@ const allTypesTable = mysqlTable('all_types', {
 	}),
 	year: year('year'),
 	enum: mysqlEnum('enum', ['enV1', 'enV2']),
+	point: point('point'),
 });
 
 const usersTable = mysqlTable('userstest', {
@@ -4367,6 +4369,7 @@ export function tests(driver?: string) {
 				varbin: '1010110101001101',
 				varchar: 'VCHAR',
 				year: 2025,
+				point: [1, 2],
 			});
 
 			const rawRes = await db.select().from(allTypesTable);
@@ -4401,6 +4404,7 @@ export function tests(driver?: string) {
 				varchar: string | null;
 				year: number | null;
 				enum: 'enV1' | 'enV2' | null;
+				point: [number, number] | null;
 			}[];
 
 			const expectedRes: ExpectedType = [
@@ -4434,6 +4438,7 @@ export function tests(driver?: string) {
 					varchar: 'VCHAR',
 					year: 2025,
 					enum: 'enV1',
+					point: [1, 2],
 				},
 			];
 
