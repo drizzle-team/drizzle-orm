@@ -22,6 +22,6 @@ for db in "$@"; do
     mssql)        wait_tcp 127.0.0.1 1433  "mssql" ;;
     cockroach)    wait_tcp 127.0.0.1 26257 "cockroach" ;;
     neon)         wait_tcp 127.0.0.1 5445  "neon-serverless" ;;
-    *) echo "Unknown db '$db'"; exit 1 ;;
+    *) echo "Unknown db '$db'";;
   esac
 done
