@@ -11,9 +11,6 @@ importers:
       '@arethetypeswrong/cli':
         specifier: 0.15.3
         version: 0.15.3
-      '@trivago/prettier-plugin-sort-imports':
-        specifier: ^5.2.2
-        version: 5.2.2(prettier@3.5.3)
       bun-types:
         specifier: ^1.2.0
         version: 1.2.15
@@ -21,8 +18,8 @@ importers:
         specifier: ^8.2.1
         version: 8.2.2
       dprint:
-        specifier: ^0.46.2
-        version: 0.46.3
+        specifier: ^0.50.2
+        version: 0.50.2
       drizzle-kit:
         specifier: ^0.19.13
         version: 0.19.13
@@ -41,9 +38,6 @@ importers:
       oxlint:
         specifier: ^1.22.0
         version: 1.22.0
-      prettier:
-        specifier: ^3.0.3
-        version: 3.5.3
       recast:
         specifier: ^0.23.9
         version: 0.23.11
@@ -122,10 +116,10 @@ importers:
     devDependencies:
       '@ark/attest':
         specifier: ^0.45.8
-        version: 0.45.11(typescript@6.0.0-dev.20250901)
+        version: 0.45.11(typescript@5.9.2)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.19.110
@@ -152,7 +146,7 @@ importers:
         version: 4.19.4
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.1(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
@@ -379,7 +373,7 @@ importers:
     devDependencies:
       '@arktype/attest':
         specifier: ^0.46.0
-        version: 0.46.0(typescript@6.0.0-dev.20250901)
+        version: 0.46.0(typescript@5.9.2)
       '@aws-sdk/client-rds-data':
         specifier: ^3.549.0
         version: 3.823.0
@@ -403,7 +397,7 @@ importers:
         version: 0.10.0
       '@op-engineering/op-sqlite':
         specifier: ^2.0.16
-        version: 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+        version: 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.9.0
@@ -451,7 +445,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.5(typescript@6.0.0-dev.20250901)
+        version: 0.29.5(typescript@5.9.2)
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.9.1
@@ -463,7 +457,7 @@ importers:
         version: 10.1.0
       expo-sqlite:
         specifier: ^14.0.0
-        version: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))
+        version: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
       gel:
         specifier: ^2.0.0
         version: 2.1.0
@@ -502,7 +496,7 @@ importers:
         version: 3.14.0
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.1(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0)
@@ -530,7 +524,7 @@ importers:
         version: 0.4.4(rollup@3.29.5)
       '@rollup/plugin-typescript':
         specifier: ^11.1.6
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)
       '@types/async-retry':
         specifier: ^1.4.8
         version: 1.4.9
@@ -587,7 +581,7 @@ importers:
         version: 8.16.0
       resolve-tspaths:
         specifier: ^0.8.19
-        version: 0.8.23(typescript@6.0.0-dev.20250901)
+        version: 0.8.23(typescript@5.9.2)
       rollup:
         specifier: ^3.29.5
         version: 3.29.5
@@ -611,7 +605,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)
       '@sinclair/typebox':
         specifier: ^0.34.8
         version: 0.34.33
@@ -635,7 +629,7 @@ importers:
         version: 3.29.5
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.1(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
@@ -647,7 +641,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.19.110
@@ -668,10 +662,10 @@ importers:
         version: 3.29.5
       valibot:
         specifier: 1.0.0-beta.7
-        version: 1.0.0-beta.7(typescript@6.0.0-dev.20250901)
+        version: 1.0.0-beta.7(typescript@5.9.2)
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.1(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
@@ -683,7 +677,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)
       '@types/node':
         specifier: ^18.15.10
         version: 18.19.110
@@ -704,7 +698,7 @@ importers:
         version: 3.29.5
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.1(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
@@ -788,7 +782,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.5(typescript@6.0.0-dev.20250901)
+        version: 0.29.5(typescript@5.9.2)
       async-retry:
         specifier: ^1.3.3
         version: 1.3.3
@@ -930,13 +924,13 @@ importers:
         version: 5.3.3
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@types/node@20.17.57)(typescript@6.0.0-dev.20250901)
+        version: 10.9.2(@types/node@20.17.57)(typescript@5.9.2)
       tsx:
         specifier: ^4.14.0
         version: 4.19.4
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
+        version: 4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0))
       zx:
         specifier: ^8.3.2
         version: 8.5.4
@@ -945,7 +939,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.1-c0277c0
-        version: drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@6.0.0-dev.20250901))(better-sqlite3@11.9.1)(bun-types@1.2.23)(expo-sqlite@14.0.6)(gel@2.1.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
+        version: drizzle-orm@1.0.0-beta.1-c0277c0(74e9f3e4b8232639d348bd7d63f44496)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -961,10 +955,10 @@ importers:
     devDependencies:
       tslatest:
         specifier: npm:typescript@latest
-        version: typescript@5.9.2
+        version: typescript@5.9.3
       tsnext:
         specifier: npm:typescript@next
-        version: typescript@6.0.0-dev.20250901
+        version: typescript@6.0.0-dev.20251015
 
 packages:
 
@@ -1730,38 +1724,48 @@ packages:
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
 
-  '@dprint/darwin-arm64@0.46.3':
-    resolution: {integrity: sha512-1ycDpGvclGHF3UG5V6peymPDg6ouNTqM6BjhVELQ6zwr+X98AMhq/1slgO8hwHtPcaS5qhTAS+PkzOmBJRegow==}
+  '@dprint/darwin-arm64@0.50.2':
+    resolution: {integrity: sha512-4d08INZlTxbPW9LK9W8+93viN543/qA2Kxn4azVnPW/xCb2Im03UqJBz8mMm3nJZdtNnK3uTVG3ib1VW+XJisw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dprint/darwin-x64@0.46.3':
-    resolution: {integrity: sha512-v5IpLmrY836Q5hJAxZuX097ZNQvoZgO6JKO4bK4l6XDhhHAw2XTIUr41+FM5r36ENxyASMk0NpHjhcHtih3o0g==}
+  '@dprint/darwin-x64@0.50.2':
+    resolution: {integrity: sha512-ZXWPBwdLojhdBATq+bKwJvB7D8bIzrD6eR/Xuq9UYE7evQazUiR069d9NPF0iVuzTo6wNf9ub9SXI7qDl11EGA==}
     cpu: [x64]
     os: [darwin]
 
-  '@dprint/linux-arm64-glibc@0.46.3':
-    resolution: {integrity: sha512-9P13g1vgV8RfQH2qBGa8YAfaOeWA42RIhj7lmWRpkDFtwau96reMKwnBBn8bHUnc5e6bSsbPUOMb/X1KMUKz/g==}
+  '@dprint/linux-arm64-glibc@0.50.2':
+    resolution: {integrity: sha512-marxQzRw8atXAnaawwZHeeUaaAVewrGTlFKKcDASGyjPBhc23J5fHPUPremm8xCbgYZyTlokzrV8/1rDRWhJcw==}
     cpu: [arm64]
     os: [linux]
 
-  '@dprint/linux-arm64-musl@0.46.3':
-    resolution: {integrity: sha512-AAcdcMSZ6DEIoY9E0xQHjkZP+THP7EWsQge4TWzglSIjzn31YltglHAGYFcLB4CTJYpF0NsFDNFktzgkO+s0og==}
+  '@dprint/linux-arm64-musl@0.50.2':
+    resolution: {integrity: sha512-oGDq44ydzo0ZkJk6RHcUzUN5sOMT5HC6WA8kHXI6tkAsLUkaLO2DzZFfW4aAYZUn+hYNpQfQD8iGew0sjkyLyg==}
     cpu: [arm64]
     os: [linux]
 
-  '@dprint/linux-x64-glibc@0.46.3':
-    resolution: {integrity: sha512-c5cQ3G1rC64nBZ8Pd2LGWwzkEk4D7Ax9NrBbwYmNPvs6mFbGlJPC1+RD95x2WwIrIlMIciLG+Kxmt25PzBphmg==}
+  '@dprint/linux-riscv64-glibc@0.50.2':
+    resolution: {integrity: sha512-QMmZoZYWsXezDcC03fBOwPfxhTpPEyHqutcgJ0oauN9QcSXGji9NSZITMmtLz2Ki3T1MIvdaLd1goGzNSvNqTQ==}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@dprint/linux-x64-glibc@0.50.2':
+    resolution: {integrity: sha512-KMeHEzb4teQJChTgq8HuQzc+reRNDnarOTGTQovAZ9WNjOtKLViftsKWW5HsnRHtP5nUIPE9rF1QLjJ/gUsqvw==}
     cpu: [x64]
     os: [linux]
 
-  '@dprint/linux-x64-musl@0.46.3':
-    resolution: {integrity: sha512-ONtk2QtLcV0TqWOCOqzUFQixgk3JC+vnJLB5L6tQwT7BX5LzeircfE/1f4dg459iqejNC9MBXZkHnXqabvWSow==}
+  '@dprint/linux-x64-musl@0.50.2':
+    resolution: {integrity: sha512-qM37T7H69g5coBTfE7SsA+KZZaRBky6gaUhPgAYxW+fOsoVtZSVkXtfTtQauHTpqqOEtbxfCtum70Hz1fr1teg==}
     cpu: [x64]
     os: [linux]
 
-  '@dprint/win32-x64@0.46.3':
-    resolution: {integrity: sha512-xvj4DSEilf0gGdT7CqnwNEgfWNuWqT6eIBxHDEUbmcn1vZ7IwirtqRq/nm3lmYtQaJ4EbtMQZvACHZwxC7G96w==}
+  '@dprint/win32-arm64@0.50.2':
+    resolution: {integrity: sha512-kuGVHGoxLwssVDsodefUIYQRoO2fQncurH/xKgXiZwMPOSzFcgUzYJQiyqmJEp+PENhO9VT1hXUHZtlyCAWBUQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@dprint/win32-x64@0.50.2':
+    resolution: {integrity: sha512-N3l9k31c3IMfVXqL0L6ygIhJFvCIrfQ+Z5Jph6RnCcBO6oDYWeYhAv/qBk1vLsF2y/e79TKsR1tvaEwnrQ03XA==}
     cpu: [x64]
     os: [win32]
 
@@ -3111,22 +3115,6 @@ packages:
     resolution: {integrity: sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==}
     engines: {node: '>= 6'}
 
-  '@trivago/prettier-plugin-sort-imports@5.2.2':
-    resolution: {integrity: sha512-fYDQA9e6yTNmA13TLVSA+WMQRc5Bn/c0EUBditUHNfMMxN7M82c38b1kEggVE3pLpZ0FwkwJkUEKMiOi52JXFA==}
-    engines: {node: '>18.12'}
-    peerDependencies:
-      '@vue/compiler-sfc': 3.x
-      prettier: 2.x - 3.x
-      prettier-plugin-svelte: 3.x
-      svelte: 4.x || 5.x
-    peerDependenciesMeta:
-      '@vue/compiler-sfc':
-        optional: true
-      prettier-plugin-svelte:
-        optional: true
-      svelte:
-        optional: true
-
   '@ts-morph/common@0.26.1':
     resolution: {integrity: sha512-Sn28TGl/4cFpcM+jwsH1wLncYq3FtN/BIpem+HOygfBWPT5pAeS5dB4VFVzV8FbnOKHpDLZmvAl4AjPEev5idA==}
 
@@ -4432,8 +4420,8 @@ packages:
     resolution: {integrity: sha512-m/C+AwOAr9/W1UOIZUo232ejMNnJAJtYQjUbHoNTBNTJSvqzzDh7vnrei3o3r3m9blf6ZoDkvcw0VmozNRFJxg==}
     engines: {node: '>=12'}
 
-  dprint@0.46.3:
-    resolution: {integrity: sha512-ACEd7B7sO/uvPvV/nsHbtkIeMqeD2a8XGO1DokROtKDUmI5WbuflGZOwyjFCYwy4rkX6FXoYBzGdEQ6um7BjCA==}
+  dprint@0.50.2:
+    resolution: {integrity: sha512-+0Fzg+17jsMMUouK00/Fara5YtGOuE76EAJINHB8VpkXHd0n00rMXtw/03qorOgz23eo8Y0UpYvNZBJJo3aNtw==}
     hasBin: true
 
   dreamopt@0.8.0:
@@ -5733,9 +5721,6 @@ packages:
   jackspeak@4.1.1:
     resolution: {integrity: sha512-zptv57P3GpL+O0I7VdMJNBZCu+BPHVQUk55Ft8/QCJjTVxrnJHuVuX/0Bl2A6/+2oyR/ZMEuFKwmzqqZ/U5nPQ==}
     engines: {node: 20 || >=22}
-
-  javascript-natural-sort@0.7.1:
-    resolution: {integrity: sha512-nO6jcEfZWQXDhOiBtG2KvKyEptz7RVbpGP4vTD2hLBdmNQSsCiicO2Ioinv6UI4y9ukqnBpy+XZ9H6uLNgJTlw==}
 
   jest-environment-node@29.7.0:
     resolution: {integrity: sha512-DOSwCRqXirTOyheM+4d5YZOrWcdu0LNZ87ewUoywbcb2XR4wKgqiG8vNeYwhjFMbEkfju7wx2GYH0P2gevGvFw==}
@@ -7481,6 +7466,7 @@ packages:
   source-map@0.8.0-beta.0:
     resolution: {integrity: sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA==}
     engines: {node: '>= 8'}
+    deprecated: The work that was done in this beta branch won't be included in future versions
 
   spawn-command@0.0.2:
     resolution: {integrity: sha512-zC8zGoGkmc8J9ndvml8Xksr1Amk9qBujgbF0JAIWO7kXr43w0h/0GJNM/Vustixu+YE8N/MTrQ7N31FvHUACxQ==}
@@ -7971,8 +7957,13 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20250901:
-    resolution: {integrity: sha512-JhA5t1h+FElVgGJPDNi+bHSZk5g/0BCCWrsVQzuRRcxqCor4VpZlQV3r+Lxs9/yscvgk7cKa46FpJVZs0wvaIQ==}
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  typescript@6.0.0-dev.20251015:
+    resolution: {integrity: sha512-jsK1+Xef9OdqeNUPymZg5AxCGJoFJpO4V0eQwOh6fYvcmYNpCzv4bnG4VeGldDxTvtTJ+JnLGRt1iHUvNNNhSQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -8522,16 +8513,16 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.1
 
-  '@ark/attest@0.45.11(typescript@6.0.0-dev.20250901)':
+  '@ark/attest@0.45.11(typescript@5.9.2)':
     dependencies:
       '@ark/fs': 0.45.10
       '@ark/util': 0.45.10
       '@prettier/sync': 0.5.5(prettier@3.5.3)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@6.0.0-dev.20250901)
+      '@typescript/vfs': 1.6.1(typescript@5.9.2)
       arktype: 2.1.19
       prettier: 3.5.3
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
@@ -8553,16 +8544,16 @@ snapshots:
 
   '@ark/util@0.46.0': {}
 
-  '@arktype/attest@0.46.0(typescript@6.0.0-dev.20250901)':
+  '@arktype/attest@0.46.0(typescript@5.9.2)':
     dependencies:
       '@ark/fs': 0.46.0
       '@ark/util': 0.46.0
       '@prettier/sync': 0.5.5(prettier@3.5.3)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@6.0.0-dev.20250901)
+      '@typescript/vfs': 1.6.1(typescript@5.9.2)
       arktype: 2.1.20
       prettier: 3.5.3
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
@@ -9743,25 +9734,31 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
-  '@dprint/darwin-arm64@0.46.3':
+  '@dprint/darwin-arm64@0.50.2':
     optional: true
 
-  '@dprint/darwin-x64@0.46.3':
+  '@dprint/darwin-x64@0.50.2':
     optional: true
 
-  '@dprint/linux-arm64-glibc@0.46.3':
+  '@dprint/linux-arm64-glibc@0.50.2':
     optional: true
 
-  '@dprint/linux-arm64-musl@0.46.3':
+  '@dprint/linux-arm64-musl@0.50.2':
     optional: true
 
-  '@dprint/linux-x64-glibc@0.46.3':
+  '@dprint/linux-riscv64-glibc@0.50.2':
     optional: true
 
-  '@dprint/linux-x64-musl@0.46.3':
+  '@dprint/linux-x64-glibc@0.50.2':
     optional: true
 
-  '@dprint/win32-x64@0.46.3':
+  '@dprint/linux-x64-musl@0.50.2':
+    optional: true
+
+  '@dprint/win32-arm64@0.50.2':
+    optional: true
+
+  '@dprint/win32-x64@0.50.2':
     optional: true
 
   '@drizzle-team/brocli@0.10.2': {}
@@ -10033,75 +10030,6 @@ snapshots:
     dependencies:
       heap: 0.2.7
 
-  '@expo/cli@0.24.13(bufferutil@4.0.8)':
-    dependencies:
-      '@0no-co/graphql.web': 1.1.2
-      '@babel/runtime': 7.27.4
-      '@expo/code-signing-certificates': 0.0.5
-      '@expo/config': 11.0.10
-      '@expo/config-plugins': 10.0.2
-      '@expo/devcert': 1.2.0
-      '@expo/env': 1.0.5
-      '@expo/image-utils': 0.7.4
-      '@expo/json-file': 9.1.4
-      '@expo/metro-config': 0.20.14
-      '@expo/osascript': 2.2.4
-      '@expo/package-manager': 1.8.4
-      '@expo/plist': 0.3.4
-      '@expo/prebuild-config': 9.0.6
-      '@expo/spawn-async': 1.7.2
-      '@expo/ws-tunnel': 1.0.6
-      '@expo/xcpretty': 4.3.2
-      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)
-      '@urql/core': 5.1.1
-      '@urql/exchange-retry': 1.3.1(@urql/core@5.1.1)
-      accepts: 1.3.8
-      arg: 5.0.2
-      better-opn: 3.0.2
-      bplist-creator: 0.1.0
-      bplist-parser: 0.3.2
-      chalk: 4.1.2
-      ci-info: 3.9.0
-      compression: 1.8.0
-      connect: 3.7.0
-      debug: 4.4.1
-      env-editor: 0.4.2
-      freeport-async: 2.0.0
-      getenv: 1.0.0
-      glob: 10.4.5
-      lan-network: 0.1.7
-      minimatch: 9.0.5
-      node-forge: 1.3.1
-      npm-package-arg: 11.0.3
-      ora: 3.4.0
-      picomatch: 3.0.1
-      pretty-bytes: 5.6.0
-      pretty-format: 29.7.0
-      progress: 2.0.3
-      prompts: 2.4.2
-      qrcode-terminal: 0.11.0
-      require-from-string: 2.0.2
-      requireg: 0.2.2
-      resolve: 1.22.10
-      resolve-from: 5.0.0
-      resolve.exports: 2.0.3
-      semver: 7.7.2
-      send: 0.19.1
-      slugify: 1.6.6
-      source-map-support: 0.5.21
-      stacktrace-parser: 0.1.11
-      structured-headers: 0.4.1
-      tar: 7.4.3
-      terminal-link: 2.1.1
-      undici: 6.21.3
-      wrap-ansi: 7.0.0
-      ws: 8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
-    transitivePeerDependencies:
-      - bufferutil
-      - graphql
-      - supports-color
-      - utf-8-validate
-
   '@expo/cli@0.24.13(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
       '@0no-co/graphql.web': 1.1.2
@@ -10170,7 +10098,6 @@ snapshots:
       - graphql
       - supports-color
       - utf-8-validate
-    optional: true
 
   '@expo/code-signing-certificates@0.0.5':
     dependencies:
@@ -10333,11 +10260,11 @@ snapshots:
 
   '@expo/sudo-prompt@9.3.2': {}
 
-  '@expo/vector-icons@14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@expo/vector-icons@14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
-      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   '@expo/vector-icons@14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
@@ -10436,14 +10363,14 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       jest-mock: 29.7.0
 
   '@jest/fake-timers@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -10477,7 +10404,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       '@types/yargs': 17.0.33
       chalk: 4.1.2
 
@@ -10686,10 +10613,10 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   '@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
@@ -10868,21 +10795,6 @@ snapshots:
       nullthrows: 1.1.1
       yargs: 17.7.2
 
-  '@react-native/community-cli-plugin@0.79.2(bufferutil@4.0.8)':
-    dependencies:
-      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)
-      chalk: 4.1.2
-      debug: 2.6.9
-      invariant: 2.2.4
-      metro: 0.82.4(bufferutil@4.0.8)
-      metro-config: 0.82.4(bufferutil@4.0.8)
-      metro-core: 0.82.4
-      semver: 7.7.2
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   '@react-native/community-cli-plugin@0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
       '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -10897,27 +10809,8 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   '@react-native/debugger-frontend@0.79.2': {}
-
-  '@react-native/dev-middleware@0.79.2(bufferutil@4.0.8)':
-    dependencies:
-      '@isaacs/ttlcache': 1.4.1
-      '@react-native/debugger-frontend': 0.79.2
-      chrome-launcher: 0.15.2
-      chromium-edge-launcher: 0.2.0
-      connect: 3.7.0
-      debug: 2.6.9
-      invariant: 2.2.4
-      nullthrows: 1.1.1
-      open: 7.4.2
-      serve-static: 1.16.2
-      ws: 6.2.3(bufferutil@4.0.8)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
 
   '@react-native/dev-middleware@0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
@@ -10936,7 +10829,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   '@react-native/gradle-plugin@0.79.2': {}
 
@@ -10944,12 +10836,12 @@ snapshots:
 
   '@react-native/normalize-colors@0.79.2': {}
 
-  '@react-native/virtualized-lists@0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@react-native/virtualized-lists@0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       invariant: 2.2.4
       nullthrows: 1.1.1
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     optionalDependencies:
       '@types/react': 18.3.23
 
@@ -10969,11 +10861,11 @@ snapshots:
     optionalDependencies:
       rollup: 3.29.5
 
-  '@rollup/plugin-typescript@11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250901)':
+  '@rollup/plugin-typescript@11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.2)':
     dependencies:
       '@rollup/pluginutils': 5.1.4(rollup@3.29.5)
       resolve: 1.22.10
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
     optionalDependencies:
       rollup: 3.29.5
       tslib: 2.8.1
@@ -11355,18 +11247,6 @@ snapshots:
   '@tootallnate/once@1.1.2':
     optional: true
 
-  '@trivago/prettier-plugin-sort-imports@5.2.2(prettier@3.5.3)':
-    dependencies:
-      '@babel/generator': 7.27.5
-      '@babel/parser': 7.27.5
-      '@babel/traverse': 7.27.4
-      '@babel/types': 7.27.3
-      javascript-natural-sort: 0.7.1
-      lodash: 4.17.21
-      prettier: 3.5.3
-    transitivePeerDependencies:
-      - supports-color
-
   '@ts-morph/common@0.26.1':
     dependencies:
       fast-glob: 3.3.3
@@ -11486,7 +11366,7 @@ snapshots:
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -11689,10 +11569,10 @@ snapshots:
       treeify: 1.1.0
       yargs: 16.2.0
 
-  '@typescript/vfs@1.6.1(typescript@6.0.0-dev.20250901)':
+  '@typescript/vfs@1.6.1(typescript@5.9.2)':
     dependencies:
       debug: 4.4.1
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
     transitivePeerDependencies:
       - supports-color
 
@@ -11883,11 +11763,6 @@ snapshots:
   '@xata.io/client@0.29.5(typescript@5.9.2)':
     dependencies:
       typescript: 5.9.2
-    optional: true
-
-  '@xata.io/client@0.29.5(typescript@6.0.0-dev.20250901)':
-    dependencies:
-      typescript: 6.0.0-dev.20250901
 
   '@xmldom/xmldom@0.8.10': {}
 
@@ -12524,7 +12399,7 @@ snapshots:
 
   chrome-launcher@0.15.2:
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -12533,7 +12408,7 @@ snapshots:
 
   chromium-edge-launcher@0.2.0:
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 1.4.2
@@ -12936,15 +12811,17 @@ snapshots:
 
   dotenv@16.5.0: {}
 
-  dprint@0.46.3:
+  dprint@0.50.2:
     optionalDependencies:
-      '@dprint/darwin-arm64': 0.46.3
-      '@dprint/darwin-x64': 0.46.3
-      '@dprint/linux-arm64-glibc': 0.46.3
-      '@dprint/linux-arm64-musl': 0.46.3
-      '@dprint/linux-x64-glibc': 0.46.3
-      '@dprint/linux-x64-musl': 0.46.3
-      '@dprint/win32-x64': 0.46.3
+      '@dprint/darwin-arm64': 0.50.2
+      '@dprint/darwin-x64': 0.50.2
+      '@dprint/linux-arm64-glibc': 0.50.2
+      '@dprint/linux-arm64-musl': 0.50.2
+      '@dprint/linux-riscv64-glibc': 0.50.2
+      '@dprint/linux-x64-glibc': 0.50.2
+      '@dprint/linux-x64-musl': 0.50.2
+      '@dprint/win32-arm64': 0.50.2
+      '@dprint/win32-x64': 0.50.2
 
   dreamopt@0.8.0:
     dependencies:
@@ -13030,7 +12907,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@6.0.0-dev.20250901))(better-sqlite3@11.9.1)(bun-types@1.2.23)(expo-sqlite@14.0.6)(gel@2.1.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@1.0.0-beta.1-c0277c0(74e9f3e4b8232639d348bd7d63f44496):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.823.0
       '@cloudflare/workers-types': 4.20251004.0
@@ -13038,7 +12915,7 @@ snapshots:
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 0.10.0
-      '@op-engineering/op-sqlite': 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@op-engineering/op-sqlite': 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 5.14.0(prisma@5.14.0)
@@ -13047,16 +12924,17 @@ snapshots:
       '@types/pg': 8.15.4
       '@types/sql.js': 1.4.9
       '@vercel/postgres': 0.8.0
-      '@xata.io/client': 0.29.5(typescript@6.0.0-dev.20250901)
+      '@xata.io/client': 0.29.5(typescript@5.9.2)
       better-sqlite3: 11.9.1
       bun-types: 1.2.23(@types/react@18.3.23)
-      expo-sqlite: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))
+      expo-sqlite: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
       gel: 2.1.0
       knex: 2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7)
       kysely: 0.25.0
       mysql2: 3.14.1
       pg: 8.16.0
       postgres: 3.4.7
+      prisma: 5.14.0
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
@@ -13496,13 +13374,13 @@ snapshots:
 
   expect-type@1.2.1: {}
 
-  expo-asset@11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  expo-asset@11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
       '@expo/image-utils': 0.7.4
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -13517,12 +13395,12 @@ snapshots:
       - supports-color
     optional: true
 
-  expo-constants@17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)):
+  expo-constants@17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/config': 11.0.10
       '@expo/env': 1.0.5
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -13536,10 +13414,10 @@ snapshots:
       - supports-color
     optional: true
 
-  expo-file-system@18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)):
+  expo-file-system@18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   expo-file-system@18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
@@ -13547,9 +13425,9 @@ snapshots:
       react-native: 0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     optional: true
 
-  expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       fontfaceobserver: 2.3.0
       react: 18.3.1
 
@@ -13560,9 +13438,9 @@ snapshots:
       react: 18.3.1
     optional: true
 
-  expo-keep-awake@14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  expo-keep-awake@14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       react: 18.3.1
 
   expo-keep-awake@14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
@@ -13585,10 +13463,10 @@ snapshots:
     dependencies:
       invariant: 2.2.4
 
-  expo-sqlite@14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)):
+  expo-sqlite@14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/websql': 1.0.1
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
 
   expo-sqlite@14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
@@ -13596,26 +13474,26 @@ snapshots:
       expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
     optional: true
 
-  expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/runtime': 7.27.4
-      '@expo/cli': 0.24.13(bufferutil@4.0.8)
+      '@expo/cli': 0.24.13(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@expo/config': 11.0.10
       '@expo/config-plugins': 10.0.2
       '@expo/fingerprint': 0.12.4
       '@expo/metro-config': 0.20.14
-      '@expo/vector-icons': 14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@expo/vector-icons': 14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       babel-preset-expo: 13.1.11(@babel/core@7.27.4)
-      expo-asset: 11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
-      expo-file-system: 18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
-      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
-      expo-keep-awake: 14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      expo-asset: 11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      expo-file-system: 18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      expo-keep-awake: 14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       expo-modules-autolinking: 2.1.10
       expo-modules-core: 2.3.13
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
-      react-native-edge-to-edge: 1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native-edge-to-edge: 1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       whatwg-url-without-unicode: 8.0.0-3
     transitivePeerDependencies:
       - '@babel/core'
@@ -14298,14 +14176,12 @@ snapshots:
     dependencies:
       '@isaacs/cliui': 8.0.2
 
-  javascript-natural-sort@0.7.1: {}
-
   jest-environment-node@29.7.0:
     dependencies:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -14315,7 +14191,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -14342,7 +14218,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       jest-util: 29.7.0
 
   jest-regex-util@29.6.3: {}
@@ -14350,7 +14226,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -14367,7 +14243,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -14814,21 +14690,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.82.4(bufferutil@4.0.8):
-    dependencies:
-      connect: 3.7.0
-      cosmiconfig: 5.2.1
-      flow-enums-runtime: 0.0.6
-      jest-validate: 29.7.0
-      metro: 0.82.4(bufferutil@4.0.8)
-      metro-cache: 0.82.4
-      metro-core: 0.82.4
-      metro-runtime: 0.82.4
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   metro-config@0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       connect: 3.7.0
@@ -14843,7 +14704,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   metro-core@0.82.4:
     dependencies:
@@ -14916,26 +14776,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-transform-worker@0.82.4(bufferutil@4.0.8):
-    dependencies:
-      '@babel/core': 7.27.4
-      '@babel/generator': 7.27.5
-      '@babel/parser': 7.27.5
-      '@babel/types': 7.27.3
-      flow-enums-runtime: 0.0.6
-      metro: 0.82.4(bufferutil@4.0.8)
-      metro-babel-transformer: 0.82.4
-      metro-cache: 0.82.4
-      metro-cache-key: 0.82.4
-      metro-minify-terser: 0.82.4
-      metro-source-map: 0.82.4
-      metro-transform-plugins: 0.82.4
-      nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   metro-transform-worker@0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/core': 7.27.4
@@ -14951,54 +14791,6 @@ snapshots:
       metro-source-map: 0.82.4
       metro-transform-plugins: 0.82.4
       nullthrows: 1.1.1
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-    optional: true
-
-  metro@0.82.4(bufferutil@4.0.8):
-    dependencies:
-      '@babel/code-frame': 7.27.1
-      '@babel/core': 7.27.4
-      '@babel/generator': 7.27.5
-      '@babel/parser': 7.27.5
-      '@babel/template': 7.27.2
-      '@babel/traverse': 7.27.4
-      '@babel/types': 7.27.3
-      accepts: 1.3.8
-      chalk: 4.1.2
-      ci-info: 2.0.0
-      connect: 3.7.0
-      debug: 4.4.1
-      error-stack-parser: 2.1.4
-      flow-enums-runtime: 0.0.6
-      graceful-fs: 4.2.11
-      hermes-parser: 0.28.1
-      image-size: 1.2.1
-      invariant: 2.2.4
-      jest-worker: 29.7.0
-      jsc-safe-url: 0.2.4
-      lodash.throttle: 4.1.1
-      metro-babel-transformer: 0.82.4
-      metro-cache: 0.82.4
-      metro-cache-key: 0.82.4
-      metro-config: 0.82.4(bufferutil@4.0.8)
-      metro-core: 0.82.4
-      metro-file-map: 0.82.4
-      metro-resolver: 0.82.4
-      metro-runtime: 0.82.4
-      metro-source-map: 0.82.4
-      metro-symbolicate: 0.82.4
-      metro-transform-plugins: 0.82.4
-      metro-transform-worker: 0.82.4(bufferutil@4.0.8)
-      mime-types: 2.1.35
-      nullthrows: 1.1.1
-      serialize-error: 2.1.0
-      source-map: 0.5.7
-      throat: 5.0.0
-      ws: 7.5.10(bufferutil@4.0.8)
-      yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -15050,7 +14842,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-    optional: true
 
   micromatch@4.0.8:
     dependencies:
@@ -15834,14 +15625,6 @@ snapshots:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
 
-  react-devtools-core@6.1.2(bufferutil@4.0.8):
-    dependencies:
-      shell-quote: 1.8.3
-      ws: 7.5.10(bufferutil@4.0.8)
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
   react-devtools-core@6.1.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       shell-quote: 1.8.3
@@ -15849,17 +15632,16 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-    optional: true
 
   react-is@17.0.2:
     optional: true
 
   react-is@18.3.1: {}
 
-  react-native-edge-to-edge@1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  react-native-edge-to-edge@1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   react-native-edge-to-edge@1.6.0(react-native@0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
@@ -15867,16 +15649,16 @@ snapshots:
       react-native: 0.79.2(@babel/core@7.27.4)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     optional: true
 
-  react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1):
+  react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3):
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
       '@react-native/assets-registry': 0.79.2
       '@react-native/codegen': 0.79.2(@babel/core@7.27.4)
-      '@react-native/community-cli-plugin': 0.79.2(bufferutil@4.0.8)
+      '@react-native/community-cli-plugin': 0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@react-native/gradle-plugin': 0.79.2
       '@react-native/js-polyfills': 0.79.2
       '@react-native/normalize-colors': 0.79.2
-      '@react-native/virtualized-lists': 0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@react-native/virtualized-lists': 0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       abort-controller: 3.0.0
       anser: 1.4.10
       ansi-regex: 5.0.1
@@ -15897,14 +15679,14 @@ snapshots:
       pretty-format: 29.7.0
       promise: 8.3.0
       react: 18.3.1
-      react-devtools-core: 6.1.2(bufferutil@4.0.8)
+      react-devtools-core: 6.1.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       react-refresh: 0.14.2
       regenerator-runtime: 0.13.11
       scheduler: 0.25.0
       semver: 7.7.2
       stacktrace-parser: 0.1.11
       whatwg-fetch: 3.6.20
-      ws: 6.2.3(bufferutil@4.0.8)
+      ws: 6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       yargs: 17.7.2
     optionalDependencies:
       '@types/react': 18.3.23
@@ -16056,13 +15838,6 @@ snapshots:
       commander: 12.1.0
       fast-glob: 3.3.2
       typescript: 5.9.2
-
-  resolve-tspaths@0.8.23(typescript@6.0.0-dev.20250901):
-    dependencies:
-      ansi-colors: 4.1.3
-      commander: 12.1.0
-      fast-glob: 3.3.2
-      typescript: 6.0.0-dev.20250901
 
   resolve-workspace-root@2.0.0: {}
 
@@ -16748,7 +16523,7 @@ snapshots:
       '@ts-morph/common': 0.26.1
       code-block-writer: 13.0.3
 
-  ts-node@10.9.2(@types/node@20.17.57)(typescript@6.0.0-dev.20250901):
+  ts-node@10.9.2(@types/node@20.17.57)(typescript@5.9.2):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -16762,17 +16537,13 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
   tsconfck@3.1.6(typescript@5.9.2):
     optionalDependencies:
       typescript: 5.9.2
-
-  tsconfck@3.1.6(typescript@6.0.0-dev.20250901):
-    optionalDependencies:
-      typescript: 6.0.0-dev.20250901
 
   tslib@2.8.1: {}
 
@@ -16908,7 +16679,9 @@ snapshots:
 
   typescript@5.9.2: {}
 
-  typescript@6.0.0-dev.20250901: {}
+  typescript@5.9.3: {}
+
+  typescript@6.0.0-dev.20251015: {}
 
   ufo@1.6.1: {}
 
@@ -17013,9 +16786,9 @@ snapshots:
 
   v8-compile-cache-lib@3.0.1: {}
 
-  valibot@1.0.0-beta.7(typescript@6.0.0-dev.20250901):
+  valibot@1.0.0-beta.7(typescript@5.9.2):
     optionalDependencies:
-      typescript: 6.0.0-dev.20250901
+      typescript: 5.9.2
 
   validate-npm-package-name@4.0.0:
     dependencies:
@@ -17162,33 +16935,33 @@ snapshots:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)):
+  vite-tsconfig-paths@4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)):
     dependencies:
       debug: 4.4.1
       globrex: 0.1.2
-      tsconfck: 3.1.6(typescript@6.0.0-dev.20250901)
+      tsconfck: 3.1.6(typescript@5.9.2)
     optionalDependencies:
       vite: 6.3.5(@types/node@18.19.110)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0)):
+  vite-tsconfig-paths@4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0)):
     dependencies:
       debug: 4.4.1
       globrex: 0.1.2
-      tsconfck: 3.1.6(typescript@6.0.0-dev.20250901)
+      tsconfck: 3.1.6(typescript@5.9.2)
     optionalDependencies:
       vite: 6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@3.14.0)(yaml@2.8.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250901)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)):
+  vite-tsconfig-paths@4.3.2(typescript@5.9.2)(vite@6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)):
     dependencies:
       debug: 4.4.1
       globrex: 0.1.2
-      tsconfck: 3.1.6(typescript@6.0.0-dev.20250901)
+      tsconfck: 3.1.6(typescript@5.9.2)
     optionalDependencies:
       vite: 6.3.5(@types/node@20.17.57)(lightningcss@1.27.0)(terser@5.40.0)(tsx@4.19.4)(yaml@2.8.0)
     transitivePeerDependencies:
@@ -17619,29 +17392,17 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 4.1.0
 
-  ws@6.2.3(bufferutil@4.0.8):
-    dependencies:
-      async-limiter: 1.0.1
-    optionalDependencies:
-      bufferutil: 4.0.8
-
   ws@6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       async-limiter: 1.0.1
     optionalDependencies:
       bufferutil: 4.0.8
       utf-8-validate: 6.0.3
-    optional: true
-
-  ws@7.5.10(bufferutil@4.0.8):
-    optionalDependencies:
-      bufferutil: 4.0.8
 
   ws@7.5.10(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     optionalDependencies:
       bufferutil: 4.0.8
       utf-8-validate: 6.0.3
-    optional: true
 
   ws@8.14.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     optionalDependencies:

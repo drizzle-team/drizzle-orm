@@ -21,7 +21,14 @@ import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray, orderSelectedFields } from '~/utils.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MsSqlViewBase } from '../view-base.ts';
 import type {
