@@ -23,6 +23,6 @@
 		"noEmit": true,
 		"typeRoots": ["node_modules/@types", "src/@types"]
 	},
-	"include": ["dev","tests", "drizzle.config.ts", "test.ts"],
+	"include": ["dev", "tests", "drizzle.config.ts", "test.ts"],
 	"exclude": ["node_modules", "tests/**/tmp"]
 }
