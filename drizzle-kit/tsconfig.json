@@ -1,10 +1,10 @@
 {
 	"compilerOptions": {
 		"target": "ESNext",
-		"module": "ES2020",
-		"moduleResolution": "node",
-		"lib": ["es2021"],
+		"lib": ["ESNext"],
 		"types": ["node"],
+		"module": "preserve",
+		"moduleResolution": "bundler",
 		"strictNullChecks": true,
 		"strictFunctionTypes": false,
 		"allowJs": true,

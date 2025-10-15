@@ -31,27 +31,10 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('add columns #1', async (t) => {
+test.concurrent('add columns #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -75,7 +58,7 @@ test('add columns #1', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add columns #2', async (t) => {
+test.concurrent('add columns #2', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -103,7 +86,7 @@ test('add columns #2', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column conflict duplicate name #1', async (t) => {
+test.concurrent('column conflict duplicate name #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -124,7 +107,7 @@ test('column conflict duplicate name #1', async (t) => {
 	await expect(push({ to: schema2, db, schemas: ['dbo'] })).rejects.toThrowError(); // duplicate names in columns
 });
 
-test('alter column change name #1', async (t) => {
+test.concurrent('alter column change name #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -157,7 +140,7 @@ test('alter column change name #1', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter column change name #2', async (t) => {
+test.concurrent('alter column change name #2', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -194,7 +177,7 @@ test('alter column change name #2', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter table add composite pk', async (t) => {
+test.concurrent('alter table add composite pk', async ({ dbc: db }) => {
 	const schema1 = {
 		table: cockroachTable('table', {
 			id1: int4('id1').notNull(),
@@ -226,7 +209,7 @@ test('alter table add composite pk', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename table rename column #1', async (t) => {
+test.concurrent('rename table rename column #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -262,7 +245,7 @@ test('rename table rename column #1', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('with composite pks #1', async (t) => {
+test.concurrent('with composite pks #1', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id1: int4('id1'),
@@ -288,7 +271,7 @@ test('with composite pks #1', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('with composite pks #3', async (t) => {
+test.concurrent('with composite pks #3', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'users',
@@ -318,7 +301,7 @@ test('with composite pks #3', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create composite primary key', async () => {
+test.concurrent('create composite primary key', async ({ dbc: db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -342,7 +325,7 @@ test('create composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add multiple constraints #1', async (t) => {
+test.concurrent('add multiple constraints #1', async ({ dbc: db }) => {
 	const t1 = cockroachTable('t1', {
 		id: uuid('id').primaryKey().defaultRandom(),
 	});
@@ -395,7 +378,7 @@ test('add multiple constraints #1', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add multiple constraints #2', async (t) => {
+test.concurrent('add multiple constraints #2', async ({ dbc: db }) => {
 	const t1 = cockroachTable('t1', {
 		id1: uuid('id1').unique(),
 		id2: uuid('id2').unique(),
@@ -435,7 +418,7 @@ test('add multiple constraints #2', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add multiple constraints #3', async (t) => {
+test.concurrent('add multiple constraints #3', async ({ dbc: db }) => {
 	const t1 = cockroachTable('t1', {
 		id1: uuid('id1').unique(),
 		id2: uuid('id2').unique(),
@@ -486,7 +469,7 @@ test('add multiple constraints #3', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('varchar and text default values escape single quotes', async () => {
+test.concurrent('varchar and text default values escape single quotes', async ({ dbc: db }) => {
 	const schema1 = {
 		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
@@ -517,7 +500,7 @@ test('varchar and text default values escape single quotes', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add columns with defaults', async () => {
+test.concurrent('add columns with defaults', async ({ dbc: db }) => {
 	const schema1 = {
 		table: cockroachTable('table', {
 			id: int4().primaryKey(),
@@ -560,7 +543,7 @@ test('add columns with defaults', async () => {
 	// TODO: check for created tables, etc
 });
 
-test('add array column - empty array default', async () => {
+test.concurrent('add array column - empty array default', async ({ dbc: db }) => {
 	const schema1 = {
 		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
@@ -588,7 +571,7 @@ test('add array column - empty array default', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add array column - default', async () => {
+test.concurrent('add array column - default', async ({ dbc: db }) => {
 	const schema1 = {
 		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
@@ -616,7 +599,7 @@ test('add array column - default', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add not null to a column', async () => {
+test.concurrent('add not null to a column', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'User',
@@ -683,7 +666,7 @@ test('add not null to a column', async () => {
 	expect(losses).toStrictEqual([]);
 });
 
-test('add not null to a column with null data. Should rollback', async () => {
+test.concurrent('add not null to a column with null data. Should rollback', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('User', {
 			id: text('id').primaryKey(),
@@ -726,7 +709,7 @@ test('add not null to a column with null data. Should rollback', async () => {
 	expect(hints).toStrictEqual([]);
 });
 
-test('add generated column', async () => {
+test.concurrent('add generated column', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -756,7 +739,7 @@ test('add generated column', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add generated constraint to an existing column', async () => {
+test.concurrent('add generated constraint to an existing column', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -788,7 +771,7 @@ test('add generated constraint to an existing column', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop generated constraint from a column', async () => {
+test.concurrent('drop generated constraint from a column', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -820,7 +803,7 @@ test('drop generated constraint from a column', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diffs for all database types', async () => {
+test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 	const customSchema = cockroachSchema('schemass');
 
 	const transactionStatusEnum = customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']);
