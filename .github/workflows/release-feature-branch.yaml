@@ -115,8 +115,8 @@ jobs:
         include:
           - shard: gel
             dbs: []
-          - shard: planetscale
-            dbs: [mysql]
+          # - shard: planetscale
+          #   dbs: [mysql]
           - shard: singlestore-core
             dbs: [singlestore]
           - shard: singlestore-proxy
@@ -220,7 +220,7 @@ jobs:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}

@@ -221,7 +221,7 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       '@planetscale/database':
-        specifier: ^1.16.0
+        specifier: ^1.19.0
         version: 1.19.0
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -991,7 +991,7 @@ importers:
         version: typescript@5.9.3
       tsnext:
         specifier: npm:typescript@next
-        version: typescript@6.0.0-dev.20251014
+        version: typescript@6.0.0-dev.20251015
 
 packages:
 
@@ -8316,8 +8316,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251014:
-    resolution: {integrity: sha512-ORcADAevm3EtGYR5n1x9kCDYJGMVLLe4sVqFcByuQB/a2VJebS+HwHz+Qd9jQGeA2H4AX8I61S8oFNF2cxEnUg==}
+  typescript@6.0.0-dev.20251015:
+    resolution: {integrity: sha512-jsK1+Xef9OdqeNUPymZg5AxCGJoFJpO4V0eQwOh6fYvcmYNpCzv4bnG4VeGldDxTvtTJ+JnLGRt1iHUvNNNhSQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -17483,7 +17483,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typescript@6.0.0-dev.20251014: {}
+  typescript@6.0.0-dev.20251015: {}
 
   ufo@1.6.1: {}
 
