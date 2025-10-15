@@ -2056,7 +2056,12 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
         ELSE format_type(a.atttypid, a.atttypmod)
     END AS data_type,  -- Column data type
 --    ns.nspname AS type_schema,  -- Schema name
-    pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass AS seq_name,  -- Serial sequence (if any)
+    CASE
+        WHEN pg_get_serial_sequence('"${schema}"."${table}"', a.attname) LIKE '%.%' THEN
+            split_part(pg_get_serial_sequence('"${schema}"."${table}"', a.attname), '.', 2)::regclass
+        ELSE
+            pg_get_serial_sequence('"${schema}"."${table}"', a.attname)::regclass
+    END AS seq_name,  -- Serial sequence (if any)
     c.column_default,  -- Column default value
     c.data_type AS additional_dt,  -- Data type from information_schema
     c.udt_name AS enum_name,  -- Enum type (if applicable)
