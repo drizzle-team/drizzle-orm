@@ -184,8 +184,8 @@ jobs:
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
-          chmod +x compose/waitdbs.sh
-          compose/waitdbs.sh ${{ join(matrix.dbs, ' ') }}
+          chmod +x compose/wait.sh
+          compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
       - name: Wait for 'prepare' to finish (poll artifact)
         env:
