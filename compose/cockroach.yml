@@ -1,0 +1,12 @@
+services:
+  cockroach:
+    image: cockroachdb/cockroach:latest
+    command: start-single-node --insecure --listen-addr=0.0.0.0 --http-addr=0.0.0.0:8080
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
