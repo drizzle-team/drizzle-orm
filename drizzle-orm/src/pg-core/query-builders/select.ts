@@ -28,13 +28,13 @@ import { tracer } from '~/tracing.ts';
 import {
 	applyMixins,
 	type DrizzleTypeError,
+	extractUsedTable,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
 	type NeonAuthToken,
-	type ValueOrArray,
 	orderSelectedFields,
-	extractUsedTable
+	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {

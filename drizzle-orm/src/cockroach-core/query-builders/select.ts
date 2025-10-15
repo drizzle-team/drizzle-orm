@@ -31,8 +31,8 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	type NeonAuthToken,
+	orderSelectedFields,
 	type ValueOrArray,
-	orderSelectedFields
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {

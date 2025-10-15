@@ -4729,10 +4729,10 @@ test('neon: policy', () => {
 			expect(it?.to).toStrictEqual(authenticatedRole);
 
 			if (it?.using) {
-				expect(it.using).toStrictEqual(sql`true`)
+				expect(it.using).toStrictEqual(sql`true`);
 			}
 			if (it?.withCheck) {
-				expect(it.withCheck).toStrictEqual(sql`true`)
+				expect(it.withCheck).toStrictEqual(sql`true`);
 			}
 		}
 	}

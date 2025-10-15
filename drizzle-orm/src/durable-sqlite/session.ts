@@ -9,9 +9,9 @@ import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
 	type SQLiteExecuteMethod,
+	SQLitePreparedQuery as PreparedQueryBase,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
-	SQLitePreparedQuery as PreparedQueryBase
 } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 

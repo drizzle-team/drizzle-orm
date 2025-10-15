@@ -487,7 +487,7 @@ export function extractTablesRelationalConfig<
 					if (!(dbName in relationsBuffer)) {
 						relationsBuffer[dbName] = {
 							relations: {},
-							//primaryKey,
+							// primaryKey,
 						};
 					}
 					relationsBuffer[dbName]!.relations[relationName] = relation;
