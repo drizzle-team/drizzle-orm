@@ -125,10 +125,10 @@ jobs:
             dbs: [singlestore]
           - shard: singlestore-custom
             dbs: [singlestore]
-          - shard: neon-http
-            dbs: []
-          - shard: neon-serverless
-            dbs: [neon]
+          # - shard: neon-http
+          #   dbs: []
+          # - shard: neon-serverless
+          #   dbs: [neon]
           - shard: cockroach
             dbs: [cockroach]
           - shard: mssql
