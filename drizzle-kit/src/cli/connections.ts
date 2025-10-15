@@ -480,7 +480,7 @@ export const preparePostgresDB = async (
 			: new Pool({ ...credentials, max: 1, ssl });
 		neonConfig.webSocketConstructor = ws;
 
-		const db = drizzle(client);
+		const db = drizzle({ client: client as any });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};

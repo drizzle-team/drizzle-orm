@@ -353,18 +353,18 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = fromExport(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = fromExport(i0);
 
-		tables.push(...prepared.tables);
-		schemas.push(...prepared.schemas);
-		views.push(...prepared.views);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			schemas.push(...prepared.schemas);
+			views.push(...prepared.views);
+		}
+	});
 
 	return {
 		tables,

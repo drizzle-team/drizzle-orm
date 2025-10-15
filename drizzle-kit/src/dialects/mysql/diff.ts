@@ -280,9 +280,9 @@ export const ddlDiff = async (
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table }));
 
-	const dropIndexeStatements = indexesDiff.filter((it) => it.$diffType === 'drop').map((it) =>
-		prepareStatement('drop_index', { index: it })
-	);
+	const dropIndexeStatements = indexesDiff.filter((it) => it.$diffType === 'drop').filter((it) =>
+		!deletedTables.some((x) => x.name === it.table)
+	).map((it) => prepareStatement('drop_index', { index: it }));
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))

@@ -1,9 +1,9 @@
+import { mysqlSchemaError as schemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MysqlDDL } from './ddl';
+import { createDDL, interimToDDL, MysqlDDL, SchemaError } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { drySnapshot, MysqlSnapshot, snapshotValidator } from './snapshot';
-
 export const prepareSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
@@ -15,6 +15,7 @@ export const prepareSnapshot = async (
 		snapshot: MysqlSnapshot;
 		snapshotPrev: MysqlSnapshot;
 		custom: MysqlSnapshot;
+		errors2: SchemaError[];
 	}
 > => {
 	const { readFileSync } = await import('fs') as typeof import('fs');
@@ -49,10 +50,10 @@ export const prepareSnapshot = async (
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
 	// TODO: handle errors
-	// if (errors2.length > 0) {
-	// 	console.log(errors2.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors2.length > 0) {
+		console.log(errors2.map((it) => schemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const id = randomUUID();
 	const prevId = prevSnapshot.id;
@@ -75,5 +76,5 @@ export const prepareSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom, errors2 };
 };

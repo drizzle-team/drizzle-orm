@@ -162,7 +162,7 @@ export const fromDatabase = async (
 			}
 		}
 
-		const def = parseDefaultValue(changedType, columnDefault, dbCharSet);
+		const def = parseDefaultValue(changedType, columnDefault);
 
 		const { default_charset: defDbCharSet, default_collation: defDbCollation } = defaultCharSetAndCollation[0];
 		let charSet: string | null = dbCharSet;
