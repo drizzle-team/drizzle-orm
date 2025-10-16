@@ -47,7 +47,7 @@ export class UniqueConstraint {
 
 	readonly columns: CockroachColumn[];
 	readonly name?: string;
-	readonly explicitName: boolean;
+	readonly isNameExplicit: boolean;
 
 	constructor(
 		readonly table: CockroachTable,
@@ -56,7 +56,7 @@ export class UniqueConstraint {
 	) {
 		this.columns = columns;
 		this.name = name;
-		this.explicitName = name ? true : false;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string | undefined {

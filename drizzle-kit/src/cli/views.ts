@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
+import { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
 import { SchemaError as PostgresSchemaError, SchemaWarning as PostgresSchemaWarning } from 'src/dialects/postgres/ddl';
 import { vectorOps } from '../dialects/postgres/grammar';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
@@ -139,6 +140,57 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	}
 
 	// assertUnreachable(error);
+	return '';
+};
+
+export const mysqlSchemaError = (error: MysqlSchemaError): string => {
+	if (error.type === 'column_name_conflict') {
+		const { name, table } = error;
+		const tableName = chalk.underline.blue(`\`${table}\``);
+		const columnName = chalk.underline.blue(`\`${name}\``);
+		return withStyle.errorWarning(
+			`There's a duplicate column name ${columnName} in ${tableName} table`,
+		);
+	}
+
+	if (error.type === 'table_name_conflict') {
+		const { name: table } = error;
+		const tableName = chalk.underline.blue(`\`${table}\``);
+		return withStyle.errorWarning(
+			`There's a duplicate table name ${tableName}`,
+		);
+	}
+
+	if (error.type === 'column_unsupported_unique') {
+		const { table, columns } = error;
+		const tableName = chalk.underline.blue(`\`${table}\``);
+		const columnsName = chalk.underline.blue(`\`${columns.join('\`, \`')}\``);
+
+		const warningText = `You tried to add${columns.length > 1 ? ` COMPOSITE` : ''} UNIQUE on ${columnsName} ${
+			columns.length > 1 ? 'columns' : 'column'
+		} in ${tableName} table
+It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
+To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
+Ex. 
+const users = mysqlTable('users', {
+	username: text()
+}, (t) => [${chalk.underline.green('uniqueIndex("name").on(sql\`username(10)\`)')}]`;
+
+		return withStyle.errorWarning(warningText);
+	}
+
+	if (error.type === 'column_unsupported_default_on_autoincrement') {
+		const { table, column } = error;
+		const tableName = chalk.underline.blue(`\`${table}\``);
+		const columnName = chalk.underline.blue(`\`${column}\``);
+
+		const warningText =
+			`You tried to add DEFAULT value to ${columnName} in ${tableName}. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`;
+
+		return withStyle.errorWarning(warningText);
+	}
+
+	assertUnreachable(error);
 	return '';
 };
 

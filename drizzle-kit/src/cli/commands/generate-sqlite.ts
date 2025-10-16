@@ -41,11 +41,11 @@ export const handle = async (config: GenerateConfig) => {
 		}
 
 		const { sqlStatements, warnings, renames } = await ddlDiff(
-			ddlCur,
 			ddlPrev,
+			ddlCur,
 			resolver<SqliteEntities['tables']>('table'),
 			resolver<Column>('column'),
-			'generate',
+			'default',
 		);
 
 		for (const w of warnings) {
@@ -74,6 +74,6 @@ export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl } = interimToDDL(schema);
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'generate');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };

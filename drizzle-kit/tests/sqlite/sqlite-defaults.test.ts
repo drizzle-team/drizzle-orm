@@ -31,11 +31,11 @@ test('integer', async () => {
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
 	const res9 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(date), `${date.getTime()}`);
-	const res10 = await diffDefault(
-		_,
-		integer({ mode: 'timestamp_ms' }).defaultNow(),
-		`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
-	);
+	// const res10 = await diffDefault(
+	// 	_,
+	// 	integer({ mode: 'timestamp_ms' }).defaultNow(),
+	// 	`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
+	// );
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

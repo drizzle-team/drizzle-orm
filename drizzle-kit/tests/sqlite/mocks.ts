@@ -22,7 +22,7 @@ mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 
-const drizzleToDDL = (schema: SqliteSchema, casing?: CasingType) => {
+export const drizzleToDDL = (schema: SqliteSchema, casing?: CasingType) => {
 	const tables = Object.values(schema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 	const views = Object.values(schema).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
@@ -30,13 +30,17 @@ const drizzleToDDL = (schema: SqliteSchema, casing?: CasingType) => {
 };
 
 export const diff = async (
-	left: SqliteSchema,
-	right: SqliteSchema,
+	left: SqliteSchema | SQLiteDDL,
+	right: SqliteSchema | SQLiteDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: ddl1, errors: err1 } = drizzleToDDL(left, casing);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as SQLiteDDL, errors: [] }
+		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as SQLiteDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
 	if (err1.length > 0 || err2.length > 0) {
 		console.log('-----');
@@ -53,9 +57,9 @@ export const diff = async (
 		ddl2,
 		mockResolver(renames),
 		mockResolver(renames),
-		'generate',
+		'default',
 	);
-	return { sqlStatements, statements, err1, err2 };
+	return { sqlStatements, statements, err1, err2, next: ddl2 };
 };
 
 export const dbFrom = (client: Database) => {
@@ -90,7 +94,7 @@ export const diffAfterPull = async (
 	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const res = await prepareFromSchemaFiles([path]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
@@ -115,8 +119,9 @@ export const push = async (config: {
 	casing?: CasingType;
 	force?: boolean;
 	expectError?: boolean;
+	log?: 'statements';
 }) => {
-	const { db, to, expectError, force } = config;
+	const { db, to, expectError, force, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, [], new EmptyProgressView());
@@ -158,7 +163,7 @@ export const push = async (config: {
 
 	let error: Error | null = null;
 	for (const sql of sqlStatements) {
-		// if (log === 'statements') console.log(sql);
+		if (log === 'statements') console.log(sql);
 		try {
 			await db.run(sql);
 		} catch (e) {
@@ -168,7 +173,25 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses, error };
+	// subsequent push
+	{
+		const { ddl: ddl1, errors, viewColumns } = await introspect(db, [], new EmptyProgressView());
+
+		const { sqlStatements, statements } = await ddlDiff(
+			ddl1,
+			ddl2,
+			mockResolver(renames),
+			mockResolver(renames),
+			'push',
+		);
+		if (sqlStatements.length > 0) {
+			console.error('---- subsequent push is not empty ----');
+			console.log(sqlStatements.join('\n'));
+			throw new Error();
+		}
+	}
+
+	return { sqlStatements, statements, hints, losses, error, next: ddl2 };
 };
 
 export const diffDefault = async <T extends SQLiteColumnBuilder>(
@@ -214,7 +237,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');

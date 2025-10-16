@@ -13,7 +13,9 @@ import { SQLiteD1Session } from './session.ts';
 export type AnyD1Database = IfNotImported<
 	D1Database,
 	MiniflareD1Database,
-	D1Database | IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
+	| D1Database
+	| IfNotImported<D1DatabaseSession, never, D1DatabaseSession>
+	| IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
 >;
 
 export class DrizzleD1Database<

@@ -347,7 +347,7 @@ export const Char: SqlType = {
 			// remove extra ' and '
 			value = value.substring(1, value.length - 1);
 			const unescaped = unescapeFromSqlDefault(value);
-			const escaped = `"${escapeForTsLiteral(unescaped)}"`;
+			const escaped = escapeForTsLiteral(unescaped);
 
 			return { options: optionsToSet, default: escaped };
 		}
@@ -434,7 +434,7 @@ export const NVarchar: SqlType = {
 		// remove extra ' and '
 		value = value.substring(1, value.length - 1);
 		const unescaped = unescapeFromSqlDefault(value);
-		const escaped = `"${escapeForTsLiteral(unescaped)}"`;
+		const escaped = escapeForTsLiteral(unescaped);
 
 		return { options: optionsToSet, default: escaped };
 	},

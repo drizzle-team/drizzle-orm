@@ -39,7 +39,7 @@ export interface SqlType<MODE = unknown> {
 	toTs(
 		type: string,
 		value: Column['default'],
-	): { options?: Record<string, unknown>; default: string; customType?: string } | string; // customType for Custom
+	): { options?: Record<string, unknown>; default: string; customType?: string }; // customType for Custom
 }
 
 const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect'> = {
@@ -77,7 +77,7 @@ export const Boolean: SqlType = {
 		return value === '1' || value === 'true' ? 'true' : 'false';
 	},
 	toTs: (_, value) => {
-		return value ?? '';
+		return { default: value ?? '' };
 	},
 };
 
@@ -137,7 +137,7 @@ export const Serial: SqlType = {
 	is: (type: string) => /^(?:serial)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'serial',
 	defaultFromDrizzle: (value) => {
-		throw new Error(`Unexpected default for serial type: ${value}`);
+		return ''; // handled in interim to ddl
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
@@ -234,7 +234,7 @@ export const Char: SqlType = {
 		if (!value) return { options, default: '' };
 		if (value.startsWith('(')) return { options, default: `sql\`${value}\`` };
 
-		const escaped = `"${escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")))}"`;
+		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
 	},
 };
@@ -268,7 +268,7 @@ export const TinyText: SqlType = {
 		if (value.startsWith('(') || !value.startsWith("'")) return { options, default: `sql\`${value}\`` };
 
 		const trimmed = trimChar(value, "'");
-		const escaped = value ? `"${escapeForTsLiteral(unescapeFromSqlDefault(trimmed))}"` : '';
+		const escaped = value ? escapeForTsLiteral(unescapeFromSqlDefault(trimmed)) : '';
 		return { options, default: escaped };
 	},
 };
@@ -297,11 +297,71 @@ export const LongText: SqlType = {
 	toTs: TinyText.toTs,
 };
 
+export const TinyBlob: SqlType = {
+	is: (type) => /^\s*tinyblob\s*$/i.test(type),
+	drizzleImport: () => 'tinyblob',
+	defaultFromDrizzle: (value) => {
+		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
+			return `(0x${value.toString('hex').toLowerCase()})`;
+		}
+		if (Array.isArray(value) || typeof value === 'object' || typeof value === 'string') {
+			return Text.defaultFromDrizzle(value);
+		}
+		throw new Error('unexpected');
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: (type, value) => {
+		if (value === null) return { default: '' };
+
+		if (typeof Buffer !== 'undefined' && value.startsWith('0x')) {
+			const parsed = Buffer.from(value.slice(2, value.length), 'hex').toString('utf-8');
+			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
+			return { options: { mode: 'buffer' }, default: `Buffer.from("${escaped}")` };
+		}
+
+		const { default: stringDef } = Text.toTs(type, value);
+
+		return { default: stringDef, options: { mode: 'string' } };
+	},
+};
+
+export const MediumBlob: SqlType = {
+	is: (type) => /^\s*mediumblob\s*$/i.test(type),
+	drizzleImport: () => 'mediumblob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
+export const LongBlob: SqlType = {
+	is: (type) => /^\s*longblob\s*$/i.test(type),
+	drizzleImport: () => 'longblob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
+export const Blob: SqlType = {
+	is: (type) => /^\s*blob\s*$/i.test(type),
+	drizzleImport: () => 'blob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
 export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
-	defaultFromIntrospect: TinyText.defaultFromIntrospect,
+	defaultFromIntrospect: (value) => {
+		// when you do `binary default 'text'` instead of `default ('text')`
+		if (value.startsWith('0x')) {
+			return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+		}
+		return value;
+	},
 	toTs: TinyText.toTs,
 };
 
@@ -313,7 +373,7 @@ export const Varbinary: SqlType = {
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
-		if (!value) return '';
+		if (!value) return { default: '' };
 
 		const options: any = {};
 		const [length] = parseParams(type);
@@ -479,7 +539,7 @@ export const Enum: SqlType = {
 	toTs: (_, def) => {
 		if (!def) return { default: '' };
 		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
-		return { default: `"${unescaped}"` };
+		return { default: unescaped };
 	},
 };
 
@@ -489,15 +549,15 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		return escapeForSqlDefault(value as string);
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return escapeForSqlDefault(value as string);
+		return value;
 	},
 	toTs: (type, def) => {
 		if (!def) return { default: '', customType: type };
 		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
-		return { default: `"${unescaped}"`, customType: type };
+		return { default: unescaped, customType: type };
 	},
 };
 
@@ -528,6 +588,10 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Time.is(sqlType)) return Time;
 	if (Year.is(sqlType)) return Year;
 	if (Enum.is(sqlType)) return Enum;
+	if (TinyBlob.is(sqlType)) return TinyBlob;
+	if (MediumBlob.is(sqlType)) return MediumBlob;
+	if (LongBlob.is(sqlType)) return LongBlob;
+	if (Blob.is(sqlType)) return Blob;
 	return Custom;
 };
 
@@ -557,12 +621,12 @@ export const defaultNameForFK = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tab
 	return res;
 };
 
-export const nameForIndex = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
+export const nameForUnique = (tableName: string, columns: string[]) => {
+	return `${columns.join('_')}_unique`;
 };
 
-const stripCollation = (defaultValue: string, collation?: string): string => {
-	const coll = collation ?? 'utf8mb4';
+const stripCollation = (defaultValue: string): string => {
+	const coll = 'utf8mb4';
 	const escaped = coll.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 	const regex = new RegExp(`_${escaped}(?=(?:\\\\['"]|['"]))`, 'g');
 	const res = defaultValue.replace(regex, '').replaceAll("\\'", "'").replaceAll("\\\\'", "''");
@@ -576,11 +640,10 @@ export const parseEnum = (it: string) => {
 export const parseDefaultValue = (
 	columnType: string,
 	value: string | undefined,
-	collation: string | undefined,
 ): Column['default'] => {
 	if (value === null || typeof value === 'undefined') return null;
 
-	value = stripCollation(value, collation);
+	value = stripCollation(value);
 
 	const grammarType = typeFor(columnType);
 	if (grammarType) return grammarType.defaultFromIntrospect(value);
@@ -596,13 +659,17 @@ const commutativeTypes = [
 	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
 
-export const typesCommutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
+export const commutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
 		const rightIn = it.some((x) => x === right);
 
 		if (leftIn && rightIn) return true;
 	}
+
+	const leftPatched = left.replace(', ', ',');
+	const rightPatched = right.replace(', ', ',');
+	if (leftPatched === rightPatched) return true;
 
 	if (mode === 'push') {
 		if (left === 'double' && right === 'real') return true;
@@ -822,7 +889,7 @@ const commutativeCharSetAndCollation: { charSet: string; collation: string; isDe
 	{ collation: 'utf8mb3_unicode_520_ci', charSet: 'utf8mb3', isDefault: false },
 	{ collation: 'utf8mb3_unicode_ci', charSet: 'utf8mb3', isDefault: false },
 	{ collation: 'utf8mb3_vietnamese_ci', charSet: 'utf8mb3', isDefault: false },
-	{ collation: 'utf8mb4_0900_ai_ci', charSet: 'utf8mb4', isDefault: true }, // This is default value if not specified
+	{ collation: 'utf8mb4_0900_ai_ci', charSet: 'utf8mb4', isDefault: true },
 	{ collation: 'utf8mb4_0900_as_ci', charSet: 'utf8mb4', isDefault: false },
 	{ collation: 'utf8mb4_0900_as_cs', charSet: 'utf8mb4', isDefault: false },
 	{ collation: 'utf8mb4_0900_bin', charSet: 'utf8mb4', isDefault: false },
@@ -936,11 +1003,6 @@ export const charSetAndCollationCommutative = (
 		if (charSet && collation) {
 			const match = commutativeCharSetAndCollation.find((x) => x.charSet === charSet && x.collation === collation);
 			if (!match) return null; // invalid combination
-		}
-
-		if (!charSet && !collation) {
-			charSet = 'utf8mb4';
-			collation = 'utf8mb4_0900_ai_ci';
 		}
 
 		return { charSet, collation };

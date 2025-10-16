@@ -232,9 +232,11 @@ export class Index {
 	static readonly [entityKind]: string = 'PgIndex';
 
 	readonly config: IndexConfig & { table: PgTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: PgTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

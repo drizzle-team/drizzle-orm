@@ -80,7 +80,7 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSche
 	}).flat(1);
 
 	const vws: View[] = views.map((it) => {
-		return { entityType: 'views', isExisting: false, error: null, ...it };
+		return { entityType: 'views', isExisting: false, error: null, definition: it.definition, name: it.name };
 	});
 
 	return {
@@ -109,7 +109,7 @@ export const diffSqlite = async (
 		ddl2,
 		mockResolver(renames),
 		mockResolver(renames),
-		'generate',
+		'default',
 	);
 
 	return { sqlStatements, statements, groupedStatements };

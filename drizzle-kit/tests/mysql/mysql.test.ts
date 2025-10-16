@@ -2,7 +2,10 @@ import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
+	blob,
+	boolean,
 	char,
+	customType,
 	date,
 	datetime,
 	decimal,
@@ -12,7 +15,9 @@ import {
 	index,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -24,6 +29,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	tinytext,
 	unique,
@@ -52,7 +58,7 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-test.only('add table #1', async () => {
+test('add table #1', async () => {
 	const to = {
 		users: mysqlTable('users', { id: int() }),
 	};
@@ -87,10 +93,10 @@ test('add table #3', async () => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id'),
+			test: varchar('test', { length: 1 }),
 		}, (t) => [
 			primaryKey({
-				name: 'users_pk',
-				columns: [t.id],
+				columns: [t.id, t.test],
 			}),
 		]),
 	};
@@ -99,7 +105,7 @@ test('add table #3', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` serial,\n\tCONSTRAINT `users_pk` PRIMARY KEY(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` serial,\n\t`test` varchar(1),\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`id`,`test`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -188,6 +194,47 @@ test('add table #7', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2599
+test('drop + add table', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: int(),
+		}, (table) => [
+			index('unique-index1').on(table.column2),
+		]),
+	};
+
+	const schema2 = {
+		table2: mysqlTable('table2', {
+			column1: int().primaryKey(),
+			column2: int(),
+		}, (table) => [
+			index('unique-index2').on(table.column2),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'CREATE INDEX `unique-index1` ON `table1` (`column2`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'DROP TABLE `table1`;',
+		'CREATE INDEX `unique-index2` ON `table2` (`column2`);',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 test('add schema + table #1', async () => {
@@ -482,10 +529,16 @@ test('add table #14', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #15. timestamp + fsp + on update now + fsp', async () => {
+// https://github.com/drizzle-team/drizzle-orm/issues/472
+// https://github.com/drizzle-team/drizzle-orm/issues/3373
+test('add table #15. timestamp + fsp + default now + on update now + fsp', async () => {
+	// TODO: revise: maybe .onUpdateNow should be able to get fsp from timestamp config.
+	// Because fsp in timestamp config and onUpdateNow config should be the same for query to run successfully.
+	// It might also be helpfull to add fsp field to .defaultNow config,
+	// since setting now() as default without specifying fsp caused an error on PlanetScale (issue 472).
 	const to = {
 		users: mysqlTable('table', {
-			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+			createdAt: timestamp({ fsp: 4 }).defaultNow().onUpdateNow({ fsp: 4 }),
 		}),
 	};
 
@@ -493,7 +546,7 @@ test('add table #15. timestamp + fsp + on update now + fsp', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
+		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -506,6 +559,7 @@ test('add table #16. timestamp + on update now + fsp', async () => {
 		}),
 	};
 
+	// TODO: revise: shouldn't diff also throw an error?
 	const { sqlStatements: st } = await diff({}, to, []);
 
 	const st0: string[] = [
@@ -523,6 +577,7 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 		}),
 	};
 
+	// TODO: revise: shouldn't diff also throw an error?
 	const { sqlStatements: st } = await diff({}, to, []);
 
 	const st0: string[] = [
@@ -533,26 +588,179 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/2815
-test('add table #18. table already exists', async () => {
-	const schema = {
+// https://github.com/drizzle-team/drizzle-orm/issues/2180
+test('add table #18. serial + primary key, timestamp + default with sql``', async () => {
+	const to = {
 		table1: mysqlTable('table1', {
-			column1: int(),
+			column1: serial().primaryKey(),
+			column2: timestamp().notNull().default(sql`CURRENT_TIMESTAMP`),
 		}),
 	};
 
-	const { next: n1 } = await diff({}, schema, []);
-	await push({ db, to: schema });
-
-	const { sqlStatements: st } = await diff(n1, schema, []);
-	const { sqlStatements: pst } = await push({ db, to: schema });
-
-	const st0: string[] = [];
-
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	// TODO: revise: the sql`` passed to .default() may not need parentheses
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt = [
+		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP)\n);\n',
+	];
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
 });
 
+test('add table #19. timestamp + default with sql``', async () => {
+	const to = {
+		table1: mysqlTable('table1', {
+			column1: timestamp().notNull().defaultNow().onUpdateNow(),
+			column2: timestamp().notNull().default(sql`(CURRENT_TIMESTAMP)`).onUpdateNow(),
+			// column3: timestamp().notNull().default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+		}),
+	};
+
+	// TODO: revise: the sql`` passed to .default() may not need parentheses
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt = [
+		'CREATE TABLE `table1` (\n\t'
+		+ '`column1` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\t'
+		+ '`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP\n);\n',
+	];
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2599
+// https://github.com/drizzle-team/drizzle-orm/issues/3359
+// https://github.com/drizzle-team/drizzle-orm/issues/1413
+// https://github.com/drizzle-team/drizzle-orm/issues/3473
+// https://github.com/drizzle-team/drizzle-orm/issues/2815
+test('add table #20. table already exists; multiple pk defined', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: int().autoincrement().primaryKey(),
+			column2: varchar({ length: 256 }).notNull().unique(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int().autoincrement(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1] }),
+		]),
+		table3: mysqlTable('table3', {
+			column1: int(),
+			column2: int(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY,\n\t`column2` varchar(256) NOT NULL,'
+		+ '\n\tCONSTRAINT `column2_unique` UNIQUE(`column2`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
+		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	const expectedSt2: string[] = [];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/1742
+test('add table #21. table with hyphen in identifiers', async () => {
+	const schema1 = {
+		'table-1': mysqlTable('table-1', {
+			'column-1': int('column-1'),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table-1` (\n\t`column-1` int\n);\n',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		'table-1': mysqlTable('table-1', {
+			'column-1': int('column-1').notNull(),
+		}),
+	};
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table-1` MODIFY COLUMN `column-1` int NOT NULL;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/818
+test('add table #22. custom type; default', async () => {
+	interface Semver {
+		major: number;
+		minor: number;
+		patch: number;
+	}
+	const semver = customType<{
+		data: Semver;
+		driverData: string;
+		config: { length: number };
+		configRequired: true;
+	}>({
+		dataType(config) {
+			return `varchar(${config.length})`;
+		},
+		fromDriver(value: string): Semver {
+			const [major, minor, patch] = value.split('.');
+			if (!major || !minor || !patch) {
+				throw new Error(`Invalid semver: ${value}`);
+			}
+			return {
+				major: parseInt(major),
+				minor: parseInt(minor),
+				patch: parseInt(patch),
+			};
+		},
+		toDriver(value: Semver): string {
+			return `${value.major}.${value.minor}.${value.patch}`;
+		},
+	});
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: semver({ length: 12 }).default({ major: 0, minor: 0, patch: 0 }),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		"CREATE TABLE `table1` (\n\t`column1` varchar(12) DEFAULT '0.0.0'\n);\n",
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	const expectedSt2: string[] = [];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/364
 test('add column #1. timestamp + fsp + on update now + fsp', async () => {
 	const from = {
 		users: mysqlTable('table', {
@@ -703,6 +911,7 @@ test('modify on update now fsp #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/998
 test('drop index', async () => {
 	const from = {
 		users: mysqlTable('table', {
@@ -753,6 +962,7 @@ test('drop unique constraint', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1888
 test('add table with indexes', async () => {
 	const from = {};
 
@@ -761,6 +971,7 @@ test('add table with indexes', async () => {
 			id: serial().primaryKey(),
 			name: varchar({ length: 100 }),
 			email: varchar({ length: 100 }),
+			column4: varchar({ length: 100 }),
 		}, (t) => [
 			uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
 			index('indexExpr').on(sql`(lower(${t.email}))`),
@@ -769,6 +980,7 @@ test('add table with indexes', async () => {
 			index('indexCol').on(t.email),
 			index('indexColMultiple').on(t.email, t.name),
 			index('indexColExpr').on(sql`(lower(${t.email}))`, t.email),
+			index('indexCol4Hash').on(sql`(lower(${t.column4}))`).using('hash'),
 		]),
 	};
 
@@ -776,17 +988,21 @@ test('add table with indexes', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,`
+		+ `\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\t\`column4\` varchar(100),`
+		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE INDEX ((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE INDEX (\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`name`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
+		'CREATE INDEX `indexCol4Hash` ON `users` ((lower(`column4`)));',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2122
 test('varchar and text default values escape single quotes', async (t) => {
 	const schema1 = {
 		table: mysqlTable('table', {
@@ -817,6 +1033,52 @@ test('varchar and text default values escape single quotes', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('default on serail', async (t) => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: serial().default(1),
+		}),
+	};
+
+	const { ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, schema1, []);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual([
+		{
+			column: 'column1',
+			table: 'table1',
+			type: 'column_unsupported_default_on_autoincrement',
+		},
+	]);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
+	]);
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
+});
+
+test('default on autoincrement', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().autoincrement().default(1),
+		}),
+	};
+
+	const { ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, schema1, []);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual([
+		{
+			column: 'column1',
+			table: 'table1',
+			type: 'column_unsupported_default_on_autoincrement',
+		},
+	]);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
+	]);
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
+});
+
 test('composite primary key #1', async () => {
 	const from = {};
 	const to = {
@@ -835,7 +1097,7 @@ test('composite primary key #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `works_to_creators_workId_creatorId_classification_pk` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -861,7 +1123,7 @@ test('composite primary key #2', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
+		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`col1`,`col2`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -894,42 +1156,12 @@ test('rename table with composite primary key', async () => {
 
 	const st0: string[] = [
 		'RENAME TABLE `products_categories` TO `products_to_categories`;',
-		'ALTER TABLE `products_to_categories` DROP PRIMARY KEY;',
-		'ALTER TABLE `products_to_categories` ADD PRIMARY KEY (`product_id`,`category_id`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/3329
-test('add column before creating unique constraint', async () => {
-	const from = {
-		table: mysqlTable('table', {
-			id: serial('id').primaryKey(),
-		}),
-	};
-	const to = {
-		table: mysqlTable('table', {
-			id: serial('id').primaryKey(),
-			name: varchar({ length: 10 }).notNull(),
-		}, (t) => [
-			unique('uq').on(t.name),
-		]),
-	};
-
-	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to });
-
-	const st0: string[] = [
-		'ALTER TABLE `table` ADD `name` varchar(10) NOT NULL;',
-		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
+// https://github.com/drizzle-team/drizzle-orm/issues/367
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
@@ -977,18 +1209,18 @@ test('optional db aliases (snake case)', async () => {
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
-	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
+	CONSTRAINT \`t1_uni\` UNIQUE INDEX (\`t1_uni\`),
+	CONSTRAINT \`t1_uni_idx\` UNIQUE INDEX (\`t1_uni_idx\`)
 );\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (
 	\`t3_id1\` int,
 	\`t3_id2\` int,
-	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
+	CONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
 );\n`,
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fk` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fkey` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fkey` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1039,14 +1271,14 @@ test('optional db aliases (camel case)', async () => {
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`
 		+ `\t\`t2Ref\` bigint unsigned,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
-		+ `\tCONSTRAINT \`t1Uni\` UNIQUE(\`t1Uni\`),\n`
-		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)\n`
+		+ `\tCONSTRAINT \`t1Uni\` UNIQUE INDEX (\`t1Uni\`),\n`
+		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE INDEX (\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
-		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fk` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
+		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fkey` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1074,7 +1306,7 @@ test('add+drop unique', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: state2 });
 
 	const st01: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
 	];
 	expect(st1).toStrictEqual(st01);
 	expect(pst1).toStrictEqual(st01);
@@ -1102,9 +1334,34 @@ test('fk #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
-		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
+		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fkey` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/367
+test('fk #2', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const to = {
+		table1,
+		table2: mysqlTable('table2', {
+			column1: serial().primaryKey(),
+			column2: bigint({ mode: 'number', unsigned: true }).references(() => table1.column1).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` bigint unsigned NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1286,16 +1543,57 @@ test('all types', async () => {
 			columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
 			columnDefault: binary('column_default', { length: 12 }).default(sql`(uuid_to_bin(uuid()))`),
 		}),
+
+		allTinyBlobs: mysqlTable('all_tiny_blobs', {
+			simple: tinyblob('simple'),
+			columnNotNull: tinyblob('column_not_null').notNull(),
+			columnDefault: tinyblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: tinyblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: tinyblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: tinyblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: tinyblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: tinyblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
+		allBlobs: mysqlTable('all_blobs', {
+			simple: blob('simple'),
+			columnNotNull: blob('column_not_null').notNull(),
+			columnDefault: blob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: blob('column_default_sql').default(sql`'hello'`),
+			stringSimple: blob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: blob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: blob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`('hello')`),
+		}),
+		allMediumBlobs: mysqlTable('all_medium_blobs', {
+			simple: mediumblob('simple'),
+			columnNotNull: mediumblob('column_not_null').notNull(),
+			columnDefault: mediumblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: mediumblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: mediumblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: mediumblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: mediumblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: mediumblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
+		allLongBlobs: mysqlTable('all_long_blobs', {
+			simple: longblob('simple'),
+			columnNotNull: longblob('column_not_null').notNull(),
+			columnDefault: longblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: longblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: longblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: longblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: longblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: longblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema1, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema1 });
+	const { sqlStatements: sbsqSt } = await push({ db, to: schema1 });
 
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(sbsqSt).toStrictEqual(st0);
 });
 
 test('drop primary key', async () => {
@@ -1354,6 +1652,39 @@ test(`create table with char set and collate`, async () => {
 	\`name5\` mediumtext CHARACTER SET big5 COLLATE big5_bin,
 	\`name6\` longtext CHARACTER SET big5 COLLATE big5_bin,
 	\`test_enum\` enum('1','2') CHARACTER SET big5 COLLATE big5_bin
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`create table with char set and collate with default and not null`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 15 }).charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name2: char('name2', { length: 10 }).charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name3: text('name3').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin').notNull().default('1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE TABLE \`table\` (
+	\`id\` int,
+	\`name1\` varchar(15) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT 'hey',
+	\`name2\` char(10) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT 'hey',
+	\`name3\` text CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name4\` tinytext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name5\` mediumtext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name6\` longtext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`test_enum\` enum('1','2') CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT '1'
 );\n`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1597,4 +1928,174 @@ test(`push-push: check on update now with fsp #2`, async () => {
 
 	const st0: string[] = [];
 	expect(pst).toStrictEqual(st0);
+});
+
+test('weird serial non-pk', async () => {
+	// old kit was generating serials with autoincrements which is wrong
+	db.query('create table `table`(c1 int not null, c2 serial auto_increment, CONSTRAINT `PRIMARY` PRIMARY KEY(`c1`));');
+
+	const table = mysqlTable('table', {
+		c1: int().primaryKey(),
+		c2: serial(),
+	});
+
+	const res1 = await push({ db, to: { table } });
+	const res2 = await push({ db, to: { table } });
+
+	expect(res1.sqlStatements).toStrictEqual([]);
+	expect(res2.sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2216
+test('rename column with pk on another column', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: int(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int(),
+			column2: int(),
+			column3: int(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2_renamed: int('column2_renamed').notNull(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int(),
+			column2: int(),
+			column3_renamed: int('column3_renamed').notNull(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const renames = [
+		'table1.column2->table1.column2_renamed',
+		'table2.column3->table2.column3_renamed',
+	];
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, renames });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` RENAME COLUMN `column2` TO `column2_renamed`;',
+		'ALTER TABLE `table2` RENAME COLUMN `column3` TO `column3_renamed`;',
+		'ALTER TABLE `table1` MODIFY COLUMN `column2_renamed` int NOT NULL;',
+		'ALTER TABLE `table2` MODIFY COLUMN `column3_renamed` int NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/706
+test('add pk', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int().unique(),
+		}),
+		table3: mysqlTable('table3', {
+			column1: int().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int().unique().primaryKey(),
+		}),
+		table3: mysqlTable('table3', {
+			column1: int().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'DROP INDEX `column1_unique` ON `table3`;',
+		'ALTER TABLE `table1` ADD PRIMARY KEY (`column1`);',
+		'ALTER TABLE `table2` ADD PRIMARY KEY (`column1`);',
+		'ALTER TABLE `table3` ADD PRIMARY KEY (`column1`);',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2795
+test('add not null to column with default', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` boolean DEFAULT true\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true),
+			column3: boolean().default(false),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` ADD `column3` boolean DEFAULT false;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+
+	const schema3 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true).notNull(),
+			column3: boolean().default(false).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st3 } = await diff(n2, schema3, []);
+	const { sqlStatements: pst3 } = await push({ db, to: schema3 });
+	const expectedSt3 = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column2` boolean DEFAULT true NOT NULL;',
+		'ALTER TABLE `table1` MODIFY COLUMN `column3` boolean DEFAULT false NOT NULL;',
+	];
+	expect(st3).toStrictEqual(expectedSt3);
+	expect(pst3).toStrictEqual(expectedSt3);
 });

@@ -1,21 +1,19 @@
 import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
-import {
-	int,
-	MySqlColumnBuilder,
-	MySqlDialect,
-	MySqlSchema,
-	MySqlTable,
-	mysqlTable,
-	MySqlView,
-} from 'drizzle-orm/mysql-core';
+import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
+import {
+	MySqlSchema as MySqlSchemaOld,
+	MySqlTable as MysqlTableOld,
+	MySqlView as MysqlViewOld,
+} from 'orm044/mysql-core';
 import { introspect } from 'src/cli/commands/pull-mysql';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { upToV6 } from 'src/cli/commands/up-mysql';
 import { CasingType } from 'src/cli/validations/common';
+import { mysqlSchemaError as schemaError } from 'src/cli/views';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { MysqlDDL, MysqlEntity } from 'src/dialects/mysql/ddl';
@@ -38,6 +36,11 @@ mkdirSync('tests/mysql/tmp', { recursive: true });
 export type MysqlSchema = Record<
 	string,
 	MySqlTable<any> | MySqlSchema | MySqlView
+>;
+
+export type MysqlSchemaOld = Record<
+	string,
+	MysqlTableOld<any> | MySqlSchemaOld | MysqlViewOld
 >;
 
 export const fromEntities = (entities: MysqlEntity[]) => {
@@ -69,6 +72,9 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
+	const mappedErrors1 = err1.map((it) => schemaError(it));
+	const mappedErrors2 = err2.map((it) => schemaError(it));
+
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -78,7 +84,7 @@ export const diff = async (
 		'default',
 	);
 
-	return { sqlStatements, statements, next: ddl2 };
+	return { sqlStatements, statements, next: ddl2, ddl1Err: err1, ddl2Err: err2, mappedErrors1, mappedErrors2 };
 };
 
 export const diffIntrospect = async (
@@ -99,7 +105,7 @@ export const diffIntrospect = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
 
 	writeFileSync(filePath, file.file);
-	await tsc(filePath);
+	await tsc(file.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -111,6 +117,7 @@ export const diffIntrospect = async (
 		response.views,
 		casing,
 	);
+
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
 
 	// TODO: handle errors
@@ -133,6 +140,7 @@ export const diffIntrospect = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		ddlAfterPull: ddl1,
 	};
 };
 
@@ -142,30 +150,31 @@ export const push = async (config: {
 	renames?: string[];
 	casing?: CasingType;
 	log?: 'statements';
+	ignoreSubsequent?: boolean;
 }) => {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
-	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as MysqlDDL, errors: [] }
 		: drizzleToDDL(to, casing);
+
 	if (err2.length > 0) {
 		for (const e of err2) {
 			console.error(`err2: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new Error('Schema2 Interim Error');
 	}
 
-	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
+	if (err1.length > 0) {
+		for (const e of err1) {
+			console.error(`err: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new Error('Schema1 Interim Error');
 	}
 
-	// TODO: handle errors
 	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
@@ -183,6 +192,32 @@ export const push = async (config: {
 		await db.query(sql);
 	}
 
+	// subsequent push
+	if (!config.ignoreSubsequent) {
+		{
+			const { schema } = await introspect({
+				db,
+				database: 'drizzle',
+				tablesFilter: [],
+				progress: new EmptyProgressView(),
+			});
+			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+			const { sqlStatements, statements } = await ddlDiff(
+				ddl1,
+				ddl2,
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				'push',
+			);
+			if (sqlStatements.length > 0) {
+				console.error('---- subsequent push is not empty ----');
+				console.log(sqlStatements.join('\n'));
+				throw new Error();
+			}
+		}
+	}
+
 	return { sqlStatements, statements, hints, truncates };
 };
 
@@ -194,6 +229,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	override?: {
 		type?: string;
 		default?: string;
+		ignoreSubsequent?: boolean;
 	},
 ) => {
 	await kit.clear();
@@ -202,6 +238,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const def = config['default'];
 	const column = mysqlTable('table', { column: builder }).column;
 	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
+	const ignoreSubsequent = override?.ignoreSubsequent ?? false;
 
 	const columnDefault = defaultFromColumn(column, 'camelCase');
 	const defaultSql = override?.default ?? columnDefault;
@@ -218,8 +255,8 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init });
-	const { sqlStatements: st2 } = await push({ db, to: init });
+	const { sqlStatements: st1 } = await push({ db, to: init, ignoreSubsequent });
+	const { sqlStatements: st2 } = await push({ db, to: init, ignoreSubsequent });
 
 	const expectedInit = `CREATE TABLE \`table\` (\n\t\`column\` ${type} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
@@ -234,7 +271,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
@@ -264,9 +301,9 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 		table: mysqlTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema1 });
-	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent });
+	await push({ db, to: schema1, ignoreSubsequent });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, ignoreSubsequent });
 	const expectedAlter = `ALTER TABLE \`table\` MODIFY COLUMN \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
@@ -282,9 +319,9 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 		table: mysqlTable('table', { id: int(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent });
+	await push({ db, to: schema3, ignoreSubsequent });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, ignoreSubsequent });
 
 	const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
@@ -324,6 +361,7 @@ export const createDockerDB = async (): Promise<{ url: string; container: Contai
 
 export type TestDatabase = {
 	db: DB;
+	db_url: string;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
 };
@@ -357,7 +395,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				await client.query(`create database \`drizzle\`;`);
 				await client.query(`use \`drizzle\`;`);
 			};
-			return { db, close, clear };
+			return { db, close, clear, db_url: url };
 		} catch (e) {
 			console.error(e);
 			await new Promise((resolve) => setTimeout(resolve, sleep));
@@ -368,8 +406,8 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 	throw new Error();
 };
 
-export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
-	const res = await serializeMysql(schema, 'camelCase');
+export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema, oldSchema: MysqlSchemaOld) => {
+	const res = await serializeMysql(oldSchema, 'camelCase');
 	const { sqlStatements } = await legacyDiff({ right: res });
 
 	for (const st of sqlStatements) {
@@ -379,7 +417,7 @@ export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
 	const snapshot = upToV6(res);
 	const ddl = fromEntities(snapshot.ddl);
 
-	const { sqlStatements: st, next } = await diff(schema, ddl, []);
+	const { sqlStatements: st, next } = await diff(ddl, schema, []);
 	const { sqlStatements: pst } = await push({ db, to: schema });
 	const { sqlStatements: st1 } = await diff(next, ddl, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });

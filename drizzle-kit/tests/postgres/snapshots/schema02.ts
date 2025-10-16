@@ -1,4 +1,4 @@
-import { SQL, sql } from 'drizzle-orm';
+import { SQL, sql } from 'orm044';
 import {
 	boolean,
 	date,
@@ -13,7 +13,7 @@ import {
 	uniqueIndex,
 	uuid,
 	varchar,
-} from 'drizzle-orm/pg-core';
+} from 'orm044/pg-core';
 
 // Enum types for entity classification
 type EntityClass = 'ALPHA' | 'BETA' | 'GAMMA';

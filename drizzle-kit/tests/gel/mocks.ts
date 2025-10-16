@@ -1,4 +1,4 @@
-import Docker, { Container } from 'dockerode';
+import Docker from 'dockerode';
 import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import createClient from 'gel';
 import getPort from 'get-port';
@@ -9,6 +9,7 @@ import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabase } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
+import { tsc } from 'tests/utils';
 import { v4 as uuid } from 'uuid';
 
 export type TestDatabase = {
@@ -89,6 +90,7 @@ export const pull = async (
 
 	const path = `tests/gel/tmp/${testName}.ts`;
 	fs.writeFileSync(path, file.file);
+	await tsc(file.file);
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${path}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {

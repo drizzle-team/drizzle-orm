@@ -39,6 +39,7 @@ export interface AlterColumn {
 	diff: DiffEntities['columns'];
 	column: Column;
 	isPK: boolean;
+	wasPK: boolean;
 }
 
 export interface RecreateColumn {
@@ -59,10 +60,6 @@ export interface DropIndex {
 
 export interface CreateFK {
 	type: 'create_fk';
-	fk: ForeignKey;
-}
-export interface DropFK {
-	type: 'drop_fk';
 	fk: ForeignKey;
 }
 
@@ -132,7 +129,6 @@ export type JsonStatement =
 	| CreateIndex
 	| DropIndex
 	| CreateFK
-	| DropFK
 	| CreatePK
 	| DropPK
 	| RecreatePK

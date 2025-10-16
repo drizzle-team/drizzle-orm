@@ -1036,10 +1036,11 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
-	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
-	const content = required.default ?? required;
-	unregister();
+	const content = await safeRegister(async () => {
+		const required = require(`${path}`);
+		const content = required.default ?? required;
+		return content;
+	});
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);

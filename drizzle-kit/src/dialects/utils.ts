@@ -1,6 +1,9 @@
-import type { Simplify } from '../utils';
+import { type Simplify } from '../utils';
+import { CockroachDDL } from './cockroach/ddl';
+import { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
+import { SQLiteDDL } from './sqlite/ddl';
 
 export type Named = {
 	name: string;
@@ -115,7 +118,7 @@ export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 
 };
 
 export const escapeForTsLiteral = (input: string) => {
-	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+	return JSON.stringify(input);
 };
 
 export function inspect(it: any): string {
@@ -139,7 +142,12 @@ export function inspect(it: any): string {
 }
 
 export const preserveEntityNames = <
-	C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes'] | MysqlDDL['indexes' | 'pks' | 'fks'],
+	C extends
+		| PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']
+		| MysqlDDL['indexes' | 'fks']
+		| MssqlDDL['uniques' | 'fks' | 'pks' | 'defaults']
+		| CockroachDDL['fks' | 'pks' | 'indexes']
+		| SQLiteDDL['uniques' | 'pks' | 'fks'],
 >(
 	collection1: C,
 	collection2: C,

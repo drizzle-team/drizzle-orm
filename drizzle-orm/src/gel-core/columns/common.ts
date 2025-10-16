@@ -17,7 +17,6 @@ import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { GelIndexOpClass } from '../indexes.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 
 export type GelColumns = Record<string, GelColumn<any>>;
 
@@ -132,9 +131,6 @@ export abstract class GelColumn<
 		table: GelTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}

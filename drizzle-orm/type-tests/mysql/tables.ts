@@ -764,7 +764,7 @@ Expect<
 			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
 		},
 		(table) => [
-			primaryKey({ columns: [table.id], name: 'email_log_id' }),
+			primaryKey({ columns: [table.id] }),
 			unique('email_log_message_id_unique').on(table.messageId),
 		],
 	);

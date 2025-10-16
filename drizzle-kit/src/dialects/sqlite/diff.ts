@@ -2,7 +2,7 @@ import { mockResolver } from 'src/utils/mocks';
 import { prepareMigrationRenames } from '../../utils';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs } from '../utils';
+import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, createDDL, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
 import { nameForForeignKey } from './grammar';
@@ -15,9 +15,9 @@ import {
 	prepareStatement,
 } from './statements';
 
-export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, action: 'push' | 'generate') => {
+export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, mode: 'push' | 'default') => {
 	const empty = new Set<string>();
-	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), action);
+	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), mode);
 };
 
 export const ddlDiff = async (
@@ -25,7 +25,7 @@ export const ddlDiff = async (
 	ddl2: SQLiteDDL,
 	tablesResolver: Resolver<SqliteEntities['tables']>,
 	columnsResolver: Resolver<Column>,
-	action: 'push' | 'generate',
+	mode: 'push' | 'default',
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -57,27 +57,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		const selfRefs = ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-				tableTo: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-				tableTo: renamed.from.name,
-			},
-		});
-
-		const froms = ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
-		});
-
-		const tos = ddl1.fks.update({
+		ddl1.fks.update({
 			set: {
 				tableTo: renamed.to.name,
 			},
@@ -85,20 +65,22 @@ export const ddlDiff = async (
 				tableTo: renamed.from.name,
 			},
 		});
-
-		// preserve name for foreign keys
-		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
-		for (const fk of renamedFKs) {
-			const name = nameForForeignKey(fk);
-			ddl2.fks.update({
-				set: {
-					name: fk.name,
-				},
-				where: {
-					name: name,
-				},
-			});
-		}
+		ddl2.fks.update({
+			set: {
+				tableTo: renamed.to.name,
+			},
+			where: {
+				tableTo: renamed.from.name,
+			},
+		});
+		ddl1.fks.update({
+			set: {
+				table: renamed.to.name,
+			},
+			where: {
+				table: renamed.from.name,
+			},
+		});
 
 		ddl1.entities.update({
 			set: {
@@ -217,11 +199,26 @@ export const ddlDiff = async (
 		ddl2.checks.update(update6);
 	}
 
-	const pksDiff = diff(ddl1, ddl2, 'pks');
-	const uniquesDiff = diff(ddl1, ddl2, 'uniques');
+	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
+
+	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
+	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+
+	const pksDiff = diff(ddl1, ddl2, 'pks').filter((it) => !deletedTables.some((table) => table.name === it.table));
+	const uniquesDiff = diff(ddl1, ddl2, 'uniques').filter((it) =>
+		!deletedTables.some((table) => table.name === it.table)
+	);
 	const indexesDiff = diff(ddl1, ddl2, 'indexes');
 	const checksDiff = diff(ddl1, ddl2, 'checks');
-	const fksDiff = diff(ddl1, ddl2, 'fks');
+	const fksDiff = diff(ddl1, ddl2, 'fks')
+		// it is possible to `ADD COLUMN t integer REFERENCE ...`
+		.filter((it) =>
+			it.columns.length > 0
+			&& !createdFilteredColumns.some((column) => column.table === it.table && column.name === it.columns[0])
+		)
+		// filter deleted tables
+		.filter((it) => !deletedTables.some((table) => table.name === it.table));
 
 	const indexesByTable = groupDiffs(indexesDiff);
 
@@ -232,6 +229,30 @@ export const ddlDiff = async (
 	const deletedViews = viewsDiff.filter((it) => it.$diffType === 'drop');
 
 	const updates = diff.alters(ddl1, ddl2);
+
+	const uniquesAlters = updates.filter((it) => it.entityType === 'uniques').filter((it) => {
+		if (it.nameExplicit) {
+			delete it.nameExplicit;
+		}
+
+		return ddl2.uniques.hasDiff(it);
+	});
+
+	const pksAlters = updates.filter((it) => it.entityType === 'pks').filter((it) => {
+		if (it.nameExplicit) {
+			delete it.nameExplicit;
+		}
+
+		return ddl2.pks.hasDiff(it);
+	});
+
+	const fksAlters = updates.filter((it) => it.entityType === 'fks').filter((it) => {
+		if (it.nameExplicit) {
+			delete it.nameExplicit;
+		}
+
+		return ddl2.fks.hasDiff(it);
+	});
 
 	const alteredColumnsBecameGenerated = updates.filter((it) => it.entityType === 'columns').filter((it) =>
 		it.generated?.to?.type === 'stored'
@@ -244,8 +265,7 @@ export const ddlDiff = async (
 			...uniquesDiff,
 			...pksDiff,
 			...fksDiff,
-			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes
-			...[...columnsToCreate, ...columnsToDelete].filter((it) => it.primaryKey),
+			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes;,
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 		].map((it) => {
@@ -260,13 +280,13 @@ export const ddlDiff = async (
 	for (const it of updates) {
 		if (
 			it.entityType === 'columns'
-			&& (it.type || it.default || it.notNull || it.autoincrement || it.primaryKey)
+			&& (it.type || it.default || it.notNull || it.autoincrement)
 		) {
 			setOfTablesToRecereate.add(it.table);
 		}
-		if (it.entityType === 'pks') setOfTablesToRecereate.add(it.table);
-		if (it.entityType === 'fks') setOfTablesToRecereate.add(it.table);
-		if (it.entityType === 'uniques') setOfTablesToRecereate.add(it.table);
+		if (pksAlters.length > 0 && it.entityType === 'pks') setOfTablesToRecereate.add(it.table);
+		if (fksAlters.length > 0 && it.entityType === 'fks') setOfTablesToRecereate.add(it.table);
+		if (uniquesAlters.length > 0 && it.entityType === 'uniques') setOfTablesToRecereate.add(it.table);
 		if (it.entityType === 'checks') setOfTablesToRecereate.add(it.table);
 	}
 
@@ -322,8 +342,6 @@ export const ddlDiff = async (
 		return !jsonDropTables.some((t) => t.tableName === x.table);
 	}).map((it) => prepareStatement('drop_column', { column: it }));
 
-	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
-
 	const warnings: string[] = [];
 	for (const _ of newStoredColumns) {
 		warnings.push(
@@ -349,7 +367,7 @@ export const ddlDiff = async (
 	dropViews.push(...deletedViews.map((it) => prepareStatement('drop_view', { view: it })));
 
 	for (const view of updates.filter((it) => it.entityType === 'views')) {
-		if (view.isExisting || (view.definition && action !== 'push')) {
+		if (view.isExisting || (view.definition && mode !== 'push')) {
 			const entity = ddl2.views.one({ name: view.name })!;
 			dropViews.push(prepareStatement('drop_view', { view: entity }));
 			createViews.push(prepareStatement('create_view', { view: entity }));
