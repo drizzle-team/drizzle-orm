@@ -309,9 +309,7 @@ export const ddlToTypeScript = (
 		const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 		const values = Object.values(it.values)
-			.map((it) => {
-				return `"${escapeForTsLiteral(it)}"`;
-			})
+			.map((it) => escapeForTsLiteral(it))
 			.join(', ');
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 	})

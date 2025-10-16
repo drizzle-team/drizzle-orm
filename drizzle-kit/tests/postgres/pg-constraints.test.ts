@@ -1052,6 +1052,7 @@ test('pk #5', async () => {
 	expect(pst).toStrictEqual(['ALTER TABLE "users" DROP CONSTRAINT "users_pkey";']);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4944
 test('pk multistep #1', async () => {
 	const sch1 = {
 		users: pgTable('users', {

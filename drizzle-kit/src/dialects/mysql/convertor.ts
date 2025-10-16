@@ -28,7 +28,7 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
-		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
+		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
 		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
@@ -49,11 +49,11 @@ const createTable = convertor('create_table', (st) => {
 		const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
 		statement += '\t'
-			+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${charSetStatement}${collationStatement}`;
+			+ `\`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && (pk.columns.length > 1 || pk.nameExplicit)) {
+	if (pk && (pk.columns.length > 1)) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT \`${pk.name}\` PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
 	}
@@ -64,7 +64,7 @@ const createTable = convertor('create_table', (st) => {
 			.map((it) => it.isExpression ? `${it.value}` : `\`${it.value}\``)
 			.join(',');
 
-		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE(${uniqueString})`;
+		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE INDEX (${uniqueString})`;
 	}
 
 	// TODO remove from create_table
@@ -122,7 +122,7 @@ const addColumn = convertor('add_column', (st) => {
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
-	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
+	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -134,12 +134,12 @@ const renameColumn = convertor('rename_column', (st) => {
 });
 
 const alterColumn = convertor('alter_column', (st) => {
-	const { diff, column, isPK } = st;
+	const { diff, column, isPK, wasPK } = st;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
+	const primaryKeyStatement = `${isPK && !wasPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${column.autoIncrement ? ' AUTO_INCREMENT' : ''}`;
 	const onUpdateStatement = `${
 		column.onUpdateNow
@@ -154,7 +154,7 @@ const alterColumn = convertor('alter_column', (st) => {
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
-	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
+	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
@@ -288,10 +288,7 @@ export function fromJson(
 			});
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
-			if (!convertor) {
-				console.error('cant:', statement.type);
-				return null;
-			}
+			if (!convertor) throw new Error(`No convertor for: ${statement.type} statement`);
 
 			const sqlStatements = convertor.convert(statement as any);
 			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;

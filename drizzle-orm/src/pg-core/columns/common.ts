@@ -16,7 +16,6 @@ import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
 export type PgColumns = Record<string, PgColumn<any>>;
@@ -68,7 +67,6 @@ export abstract class PgColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
-		this.config.uniqueNameExplicit = name ? true : false;
 		return this;
 	}
 
@@ -133,9 +131,6 @@ export abstract class PgColumn<
 		table: PgTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}

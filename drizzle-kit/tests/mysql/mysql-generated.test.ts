@@ -42,6 +42,27 @@ test('generated as callback: create table with generated constraint #1', async (
 	expect(pst).toStrictEqual(st0);
 });
 
+// TODO
+// why to use generated with literal?
+// Looks like invalid use case
+test.skip('generated as callback: create table with generated constraint #2', async () => {
+	const to = {
+		users: mysqlTable('users', {
+			name: text('name'),
+			generatedName: text('gen_name').notNull().generatedAlwaysAs('Default', { mode: 'stored' }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		"CREATE TABLE `users` (\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ('Default') STORED NOT NULL\n);\n",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('generated as callback: add column with generated constraint #1', async () => {
 	const from = {
 		users: mysqlTable('users', {

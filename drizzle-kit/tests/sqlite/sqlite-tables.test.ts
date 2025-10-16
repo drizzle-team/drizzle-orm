@@ -77,7 +77,9 @@ test('add table #3', async () => {
 	const { sqlStatements: st } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 
-	const st0: string[] = ['CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY\n);\n'];
+	const st0: string[] = [
+		'CREATE TABLE `users` (\n\t`id` integer,\n\tCONSTRAINT \`users_pk\` PRIMARY KEY(\`id\`)\n);\n',
+	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -116,7 +118,7 @@ test('add table #5', async () => {
 		'CREATE TABLE `users` (\n'
 		+ '\t`id1` integer,\n'
 		+ '\t`id2` integer,\n'
-		+ '\tPRIMARY KEY(`id1`, `id2`)\n'
+		+ '\tCONSTRAINT \`users_pk\` PRIMARY KEY(`id1`, `id2`)\n'
 		+ ');\n',
 	];
 	expect(st).toStrictEqual(st0);
@@ -180,7 +182,7 @@ test('add table #8', async () => {
 		'CREATE TABLE `users` (\n'
 		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
 		+ '\t`reportee_id` integer,\n'
-		+ '\tFOREIGN KEY (`reportee_id`) REFERENCES `users`(`id`)\n'
+		+ '\tCONSTRAINT `fk_users_reportee_id_users_id_fk` FOREIGN KEY (`reportee_id`) REFERENCES `users`(`id`)\n'
 		+ ');\n',
 	];
 	expect(st).toStrictEqual(st0);
@@ -363,7 +365,7 @@ test('rename table #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename table #2', async () => {
+test('rename table #3', async () => {
 	const profiles = sqliteTable('profiles', {
 		id: integer().primaryKey({ autoIncrement: true }),
 	});
@@ -384,7 +386,6 @@ test('rename table #2', async () => {
 		}),
 	};
 
-	// breaks due to fk name changed
 	const renames = ['table->table1'];
 	const { sqlStatements: st } = await diff(from, to, renames);
 
@@ -464,7 +465,7 @@ test('composite primary key', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT \`works_to_creators_pk\` PRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -493,13 +494,33 @@ test('add column before creating unique constraint', async () => {
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_table` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
-		+ '\t`name` text NOT NULL,\n'
-		+ '\tCONSTRAINT uq UNIQUE(`name`)\n'
+		+ '\t`name` text NOT NULL CONSTRAINT \`uq\` UNIQUE\n'
 		+ ');\n',
 		'INSERT INTO `__new_table`(`id`) SELECT `id` FROM `table`;',
 		'DROP TABLE `table`;',
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
 		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table with unique in third param and in column config', async () => {
+	const to = {
+		table: sqliteTable('table', {
+			id: int('id').unique(),
+			name: text('name').notNull(),
+		}, (t) => [unique('uq').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `table` (\n'
+		+ '\t`id` integer UNIQUE,\n'
+		+ '\t`name` text NOT NULL CONSTRAINT \`uq\` UNIQUE\n'
+		+ ');\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -566,18 +587,17 @@ test('optional db aliases (snake case)', async () => {
 		+ '\t`t1_col2` integer NOT NULL,\n'
 		+ '\t`t1_col3` integer NOT NULL,\n'
 		+ '\t`t2_ref` integer NOT NULL,\n'
-		+ '\t`t1_uni` integer NOT NULL,\n'
+		+ '\t`t1_uni` integer NOT NULL CONSTRAINT \`t1_uni\` UNIQUE,\n'
 		+ '\t`t1_uni_idx` integer NOT NULL,\n'
 		+ '\t`t1_idx` integer NOT NULL,\n'
-		+ '\tFOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`),\n'
-		+ '\tFOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`),\n'
-		+ '\tCONSTRAINT t1_uni UNIQUE(`t1_uni`)\n'
+		+ '\tCONSTRAINT `fk_t1_t2_ref_t2_t2_id_fk` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`),\n'
+		+ '\tCONSTRAINT `fk_t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`)\n'
 		+ ');\n',
 		'CREATE TABLE `t2` (\n\t`t2_id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
 		'CREATE TABLE `t3` (\n'
 		+ '\t`t3_id1` integer,\n'
 		+ '\t`t3_id2` integer,\n'
-		+ '\tPRIMARY KEY(`t3_id1`, `t3_id2`)\n'
+		+ '\tCONSTRAINT \`t3_pk\` PRIMARY KEY(`t3_id1`, `t3_id2`)\n'
 		+ ');\n',
 		'CREATE UNIQUE INDEX `t1_uni_idx` ON `t1` (`t1_uni_idx`);',
 		'CREATE INDEX `t1_idx` ON `t1` (`t1_idx`);',
@@ -647,18 +667,17 @@ test('optional db aliases (camel case)', async () => {
 		+ '\t`t1Col2` integer NOT NULL,\n'
 		+ '\t`t1Col3` integer NOT NULL,\n'
 		+ '\t`t2Ref` integer NOT NULL,\n'
-		+ '\t`t1Uni` integer NOT NULL,\n'
+		+ '\t`t1Uni` integer NOT NULL CONSTRAINT `t1Uni` UNIQUE,\n'
 		+ '\t`t1UniIdx` integer NOT NULL,\n'
 		+ '\t`t1Idx` integer NOT NULL,\n'
-		+ '\tFOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`),\n'
-		+ '\tFOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`),\n'
-		+ '\tCONSTRAINT t1Uni UNIQUE(`t1Uni`)\n'
+		+ '\tCONSTRAINT `fk_t1_t2Ref_t2_t2Id_fk` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`),\n'
+		+ '\tCONSTRAINT `fk_t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`)\n'
 		+ ');\n',
 		'CREATE TABLE `t2` (\n\t`t2Id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
 		'CREATE TABLE `t3` (\n'
 		+ '\t`t3Id1` integer,\n'
 		+ '\t`t3Id2` integer,\n'
-		+ '\tPRIMARY KEY(`t3Id1`, `t3Id2`)\n'
+		+ '\tCONSTRAINT `t3_pk` PRIMARY KEY(`t3Id1`, `t3Id2`)\n'
 		+ ');\n',
 		'CREATE UNIQUE INDEX `t1UniIdx` ON `t1` (`t1UniIdx`);',
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',

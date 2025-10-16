@@ -150,7 +150,7 @@ ORDER BY lower(views.name);
 		});
 	}
 
-	const checkConstraintQuery = db.query<{
+	const checkConstraintQuery = await db.query<{
 		name: string;
 		schema_id: number;
 		parent_table_id: number;
@@ -174,7 +174,7 @@ ORDER BY lower(name)
 		throw error;
 	});
 
-	const defaultsConstraintQuery = db.query<{
+	const defaultsConstraintQuery = await db.query<{
 		name: string;
 		schema_id: number;
 		parent_table_id: number;
@@ -211,7 +211,8 @@ ORDER BY lower(name)
 		reference_table_id: number;
 		reference_column_id: number;
 	};
-	const fkCostraintQuery = db.query<ForeignKeyRow>(`
+	
+	const fkCostraintQuery = await db.query<ForeignKeyRow>(`
 SELECT 
 	fk.name as name,
 	fk.schema_id as schema_id, 
@@ -246,7 +247,7 @@ ORDER BY lower(fk.name);
 		filter_definition: string;
 		column_id: number;
 	};
-	const pksUniquesAndIdxsQuery = db.query<RawIdxsAndConstraints>(`
+	const pksUniquesAndIdxsQuery = await db.query<RawIdxsAndConstraints>(`
 SELECT 
 	i.object_id as table_id,
 	i.index_id as index_id,
@@ -271,7 +272,7 @@ ORDER BY lower(i.name)
 		throw error;
 	});
 
-	const columnsQuery = db.query<{
+	const columnsQuery = await db.query<{
 		column_id: number;
 		table_object_id: number;
 		name: string;
@@ -522,7 +523,6 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			name: index.name,
 			columns,
 			where: index.has_filter ? index.filter_definition : null,
-			nameExplicit: true,
 			isUnique: index.is_unique,
 		});
 	}
@@ -605,7 +605,6 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			table: table.name,
 			name: check.name,
 			value: check.definition,
-			nameExplicit: true,
 		});
 	}
 

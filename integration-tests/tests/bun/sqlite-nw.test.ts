@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 import { Database } from 'bun:sqlite';
 import { DefaultLogger, sql } from 'drizzle-orm';
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { suite } from 'uvu';
@@ -24,7 +24,7 @@ const order = sqliteTable('Order', {
 });
 
 interface Context {
-	db: BunSQLiteDatabase;
+	db: SQLiteBunDatabase;
 }
 
 const test = suite<Context>('sqlite-bun');

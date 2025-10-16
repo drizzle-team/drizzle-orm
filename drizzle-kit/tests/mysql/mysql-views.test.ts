@@ -1,5 +1,6 @@
-import { sql } from 'drizzle-orm';
-import { int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
+import { eq, sql } from 'drizzle-orm';
+import { int, mysqlTable, mysqlView, text } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -69,6 +70,59 @@ test('create view #2', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('create view #3', async () => {
+	const users = mysqlTable('users', {
+		id: int().primaryKey().notNull(),
+		name: text(),
+	});
+	const posts = mysqlTable('posts', {
+		id: int().primaryKey(),
+		content: text(),
+		userId: int().references(() => users.id),
+	});
+
+	const from = { users, posts };
+	const to = {
+		users,
+		posts,
+		view: mysqlView('some_view').as((qb) => {
+			return qb.select({ userId: sql`${users.id}`.as('user'), postId: sql`${posts.id}`.as('post') }).from(users)
+				.leftJoin(
+					posts,
+					eq(posts.userId, users.id),
+				);
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUE (1, 'Alex'), (2, 'Andrew')`);
+	await db.query(
+		`INSERT INTO \`posts\` (\`id\`, \`content\`, \`userId\`) VALUE (1, 'alex-content', 1), (3, 'andrew-content', 2)`,
+	);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS (select \`users\`.\`id\` as \`user\`, \`posts\`.\`id\` as \`post\` from \`users\` left join \`posts\` on \`posts\`.\`userId\` = \`users\`.\`id\`);`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const drizzleDb = drizzle(_.db_url);
+
+	const res = await drizzleDb.select().from(to.view);
+
+	expect(res).toStrictEqual([{
+		userId: 1,
+		postId: 1,
+	}, {
+		userId: 2,
+		postId: 3,
+	}]);
 });
 
 test('create view with existing flag', async () => {
@@ -198,24 +252,36 @@ test('rename view and alter meta options', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('definer')
+		view1: mysqlView('view1', {}).algorithm('merge').sqlSecurity('definer')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+		view2: mysqlView('view2', {}).algorithm('undefined').sqlSecurity('definer')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).sqlSecurity('definer')
+		view: mysqlView('view1new', {}).sqlSecurity('definer')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+		view2: mysqlView('view2new', {}).algorithm('merge').sqlSecurity('definer')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const renames = ['some_view->new_some_view'];
+	const renames = ['view1->view1new', 'view2->view2new'];
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to, renames });
 
+	/*
+		UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”).
+		Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning,
+		but the reverse (forcing UNDEFINED to overwrite MERGE) doesn’t happen via ALTER.
+
+		https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html
+	*/
 	const st0: string[] = [
-		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
-		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`new_some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
+		'RENAME TABLE `view1` TO `view1new`;',
+		'RENAME TABLE `view2` TO `view2new`;',
+		`ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`view2new\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

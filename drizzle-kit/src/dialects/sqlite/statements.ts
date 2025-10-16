@@ -1,4 +1,4 @@
-import { Column, DiffColumn, ForeignKey, Index, Table, TableFull, View } from './ddl';
+import { Column, DiffColumn, ForeignKey, Index, PrimaryKey, Table, TableFull, View } from './ddl';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -106,7 +106,7 @@ export const prepareAddColumns = (
 	fks: ForeignKey[],
 ): JsonAddColumnStatement[] => {
 	return columns.map((it) => {
-		const fk = fks.find((t) => t.columns.includes(it.name)) || null;
+		const fk = fks.find((t) => t.columns.length === 1 && t.columns[0] === it.name && t.table === it.table) || null;
 		return {
 			type: 'add_column',
 			column: it,

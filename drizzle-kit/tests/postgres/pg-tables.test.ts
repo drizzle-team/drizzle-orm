@@ -1173,3 +1173,38 @@ test('rename table and enable rls', async () => {
 
 	expect(st).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4838
+test('rename 2 tables', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+		table2: pgTable('table2', {
+			id: text().primaryKey(),
+		}),
+	};
+	const schema2 = {
+		table3: pgTable('table3', {
+			id: text().primaryKey(),
+		}),
+		table4: pgTable('table4', {
+			id: text().primaryKey(),
+		}),
+	};
+
+	const renames = ['public.table1->public.table3', 'public.table2->public.table4'];
+
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'ALTER TABLE "table1" RENAME TO "table3";',
+		'ALTER TABLE "table2" RENAME TO "table4";',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

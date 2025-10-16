@@ -51,11 +51,13 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
 
 	readonly columns: MySqlColumn[];
-	readonly name?: string;
+	readonly name: string;
+	readonly isNameExplicit: boolean;
 	readonly nullsNotDistinct: boolean = false;
 
 	constructor(readonly table: MySqlTable, columns: MySqlColumn[], name?: string) {
 		this.columns = columns;
+		this.isNameExplicit = !!name;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}
 

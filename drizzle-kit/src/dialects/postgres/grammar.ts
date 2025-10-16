@@ -289,7 +289,7 @@ export const Char: SqlType = {
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
 		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
-		return { options, default: `"${escaped}"` };
+		return { options, default: escaped };
 	},
 	toArrayTs: (type, value) => {
 		const options: any = {};
@@ -305,7 +305,7 @@ export const Char: SqlType = {
 				options,
 				default: stringifyArray(res, 'ts', (v) => {
 					const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(v, "'"), 'arr'));
-					return `"${escaped}"`;
+					return escaped;
 				}),
 			};
 		} catch {
@@ -1524,7 +1524,7 @@ export const Enum: SqlType = {
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
 		const escaped = escapeForTsLiteral(trimChar(value, "'").replaceAll("''", "'"));
-		return { options, default: `"${escaped}"` };
+		return { options, default: escaped };
 	},
 	toArrayTs: (type, value) => {
 		if (!value) return { default: '' };
@@ -1536,7 +1536,7 @@ export const Enum: SqlType = {
 			return {
 				default: stringifyArray(res, 'ts', (v) => {
 					const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(v, "'")));
-					return `"${escaped}"`;
+					return escaped;
 				}),
 			};
 		} catch {
@@ -1615,7 +1615,7 @@ export const Custom: SqlType = {
 		const options: any = {};
 		if (!value) return { options, default: '', customType: type };
 		const escaped = escapeForTsLiteral(value);
-		return { default: `"${escaped}"`, customType: type };
+		return { default: escaped, customType: type };
 	},
 	toArrayTs: (type, value) => {
 		if (!value) return { default: '', customType: type };
@@ -1627,7 +1627,7 @@ export const Custom: SqlType = {
 			return {
 				default: stringifyArray(res, 'ts', (v) => {
 					const escaped = escapeForTsLiteral(v);
-					return `"${escaped}"`;
+					return escaped;
 				}),
 				customType: type,
 			};

@@ -9,27 +9,10 @@ import {
 	timestamp,
 	uuid,
 } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('array #1: empty array default', async (t) => {
+test('array #1: empty array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -52,7 +35,7 @@ test('array #1: empty array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #2: int4 array default', async (t) => {
+test('array #2: int4 array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -75,7 +58,7 @@ test('array #2: int4 array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #3: bigint array default', async (t) => {
+test('array #3: bigint array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -98,7 +81,7 @@ test('array #3: bigint array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #4: boolean array default', async (t) => {
+test('array #4: boolean array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -123,7 +106,7 @@ test('array #4: boolean array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #6: date array default', async (t) => {
+test('array #6: date array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -148,7 +131,7 @@ test('array #6: date array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #7: timestamp array default', async (t) => {
+test('array #7: timestamp array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -173,7 +156,7 @@ test('array #7: timestamp array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #9: text array default', async (t) => {
+test('array #9: text array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -196,7 +179,7 @@ test('array #9: text array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #10: uuid array default', async (t) => {
+test('array #10: uuid array default', async ({ db }) => {
 	const from = {
 		test: cockroachTable('test', {
 			id: int4('id'),
@@ -224,7 +207,7 @@ test('array #10: uuid array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #11: enum array default', async (t) => {
+test('array #11: enum array default', async ({ db }) => {
 	const testEnum = cockroachEnum('test_enum', ['a', 'b', 'c']);
 
 	const from = {
@@ -253,7 +236,7 @@ test('array #11: enum array default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('array #12: enum empty array default', async (t) => {
+test('array #12: enum empty array default', async ({ db }) => {
 	const testEnum = cockroachEnum('test_enum', ['a', 'b', 'c']);
 
 	const from = {

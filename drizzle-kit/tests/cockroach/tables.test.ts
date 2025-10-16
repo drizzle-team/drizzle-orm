@@ -13,27 +13,10 @@ import {
 	uniqueIndex,
 	vector,
 } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('add table #1', async () => {
+test.concurrent('add table #1', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {}),
 	};
@@ -52,7 +35,7 @@ test('add table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #2', async () => {
+test.concurrent('add table #2', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -73,7 +56,7 @@ test('add table #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #3', async () => {
+test.concurrent('add table #3', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -97,7 +80,7 @@ test('add table #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #4', async () => {
+test.concurrent('add table #4', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', { id: int4() }),
 		posts: cockroachTable('posts', { id: int4() }),
@@ -118,7 +101,7 @@ test('add table #4', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #5', async () => {
+test.concurrent('add table #5', async ({ dbc: db }) => {
 	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
@@ -146,7 +129,7 @@ test('add table #5', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #6', async () => {
+test.concurrent('add table #6', async ({ dbc: db }) => {
 	const from = {
 		users1: cockroachTable('users1', { id: int4() }),
 	};
@@ -171,7 +154,7 @@ test('add table #6', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #7', async () => {
+test.concurrent('add table #7', async ({ dbc: db }) => {
 	const from = {
 		users1: cockroachTable('users1', { id: int4() }),
 	};
@@ -199,7 +182,7 @@ test('add table #7', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #8: geometry types', async () => {
+test.concurrent('add table #8: geometry types', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			geom: geometry('geom', { type: 'point' }).notNull(),
@@ -218,7 +201,7 @@ test('add table #8: geometry types', async () => {
 });
 
 /* unique inline */
-test('add table #9', async () => {
+test.concurrent('add table #9', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			name: text().unique(),
@@ -243,7 +226,7 @@ test('add table #9', async () => {
 });
 
 /* unique inline named */
-test('add table #10', async () => {
+test.concurrent('add table #10', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('users', {
@@ -265,7 +248,7 @@ test('add table #10', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #11', async () => {
+test.concurrent('add table #11', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('users', {
@@ -287,7 +270,7 @@ test('add table #11', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #12', async () => {
+test.concurrent('add table #12', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('users', {
@@ -310,7 +293,7 @@ test('add table #12', async () => {
 });
 
 /* unique default-named */
-test('add table #13', async () => {
+test.concurrent('add table #13', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -331,7 +314,7 @@ test('add table #13', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #14', async () => {
+test.concurrent('add table #14', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('users', {
@@ -354,7 +337,7 @@ test('add table #14', async () => {
 });
 
 /* unique */
-test('add table #15', async () => {
+test.concurrent('add table #15', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('users', {
@@ -373,7 +356,7 @@ test('add table #15', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('multiproject schema add table #1', async () => {
+test.concurrent('multiproject schema add table #1', async ({ dbc: db }) => {
 	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const to = {
@@ -396,7 +379,7 @@ test('multiproject schema add table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('multiproject schema drop table #1', async () => {
+test.concurrent('multiproject schema drop table #1', async ({ dbc: db }) => {
 	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const from = {
@@ -420,7 +403,7 @@ test('multiproject schema drop table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('multiproject schema alter table name #1', async () => {
+test.concurrent('multiproject schema alter table name #1', async ({ dbc: db }) => {
 	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const from = {
@@ -453,7 +436,7 @@ test('multiproject schema alter table name #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #8: column with vector', async () => {
+test.concurrent('add table #8: column with vector', async ({ dbc: db }) => {
 	const to = {
 		users2: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
@@ -475,7 +458,7 @@ test('add table #8: column with vector', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add schema + table #1', async () => {
+test.concurrent('add schema + table #1', async ({ dbc: db }) => {
 	const schema = cockroachSchema('folder');
 
 	const to = {
@@ -500,7 +483,7 @@ test('add schema + table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change schema with tables #1', async () => {
+test.concurrent('change schema with tables #1', async ({ dbc: db }) => {
 	const schema = cockroachSchema('folder');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -529,7 +512,7 @@ test('change schema with tables #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #1', async () => {
+test.concurrent('change table schema #1', async ({ dbc: db }) => {
 	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
@@ -559,7 +542,7 @@ test('change table schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #2', async () => {
+test.concurrent('change table schema #2', async ({ dbc: db }) => {
 	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
@@ -589,7 +572,7 @@ test('change table schema #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #3', async () => {
+test.concurrent('change table schema #3', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -622,7 +605,7 @@ test('change table schema #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #4', async () => {
+test.concurrent('change table schema #4', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -655,7 +638,7 @@ test('change table schema #4', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #5', async () => {
+test.concurrent('change table schema #5', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -688,7 +671,7 @@ test('change table schema #5', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #5', async () => {
+test.concurrent('change table schema #5', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -718,7 +701,7 @@ test('change table schema #5', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change table schema #6', async () => {
+test.concurrent('change table schema #6', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -751,7 +734,7 @@ test('change table schema #6', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop table + rename schema #1', async () => {
+test.concurrent('drop table + rename schema #1', async ({ dbc: db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const schema2 = cockroachSchema('folder2');
 	const from = {
@@ -777,7 +760,7 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table with tsvector', async () => {
+test.concurrent('create table with tsvector', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		users: cockroachTable('posts', {
@@ -804,7 +787,7 @@ test('create table with tsvector', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('composite primary key', async () => {
+test.concurrent('composite primary key', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
 		table: cockroachTable('works_to_creators', {
@@ -830,7 +813,7 @@ test('composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add column before creating unique constraint', async () => {
+test.concurrent('add column before creating unique constraint', async ({ dbc: db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
@@ -859,7 +842,7 @@ test('add column before creating unique constraint', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter composite primary key', async () => {
+test.concurrent('alter composite primary key', async ({ dbc: db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			col1: int4('col1').notNull(),
@@ -900,7 +883,7 @@ test('alter composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('optional db aliases (snake case)', async () => {
+test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 	const from = {};
 
 	const t1 = cockroachTable(
@@ -993,7 +976,7 @@ test('optional db aliases (snake case)', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('optional db aliases (camel case)', async () => {
+test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 	const from = {};
 
 	const t1 = cockroachTable('t1', {
@@ -1074,7 +1057,7 @@ test('optional db aliases (camel case)', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table with generated column', async () => {
+test.concurrent('create table with generated column', async ({ dbc: db }) => {
 	const schema1 = {};
 	const schema2 = {
 		users: cockroachTable('users', {
@@ -1098,7 +1081,7 @@ test('create table with generated column', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename table with composite primary key', async () => {
+test.concurrent('rename table with composite primary key', async ({ dbc: db }) => {
 	const schema1 = {
 		table: cockroachTable('table1', {
 			productId: text('product_id').notNull(),

@@ -34,8 +34,8 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import type { BunSQLDatabase } from 'drizzle-orm/bun-sql';
 import { drizzle } from 'drizzle-orm/bun-sql';
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql/postgres';
 import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import { usersSync } from 'drizzle-orm/neon/neon-auth';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
@@ -80,7 +80,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import relations from '~/pg/relations';
@@ -211,7 +210,6 @@ let db: BunSQLDatabase<never, typeof relations>;
 let client: BunSQL;
 
 beforeAll(async () => {
-	console.log('here');
 	const connectionString = process.env['PG_CONNECTION_STRING'];
 	client = await retry(async () => {
 		// @ts-expect-error
@@ -471,7 +469,7 @@ test('table configs: unique in column', async () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-	expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toBe(undefined);
 	expect(columnName?.isUnique).toBe(true);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');

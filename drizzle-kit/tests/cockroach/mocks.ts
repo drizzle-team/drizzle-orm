@@ -41,11 +41,13 @@ import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
-import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
+import { randomUUID } from 'crypto';
+import { hash } from 'src/dialects/common';
 import { measure, tsc } from 'tests/utils';
+import { test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -335,13 +337,13 @@ export const diffIntrospect = async (
 };
 
 export const diffDefault = async <T extends CockroachColumnBuilder>(
-	kit: TestDatabase,
+	db: TestDatabase,
 	builder: T,
 	expectedDefault: string,
 	expectError: boolean = false,
 	pre: CockroachDBSchema | null = null,
 ) => {
-	await kit.clear();
+	await db.clear();
 
 	const config = (builder as any).config;
 	const def = config['default'];
@@ -368,7 +370,6 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		table: cockroachTable('table', { column: builder }),
 	};
 
-	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
@@ -389,19 +390,18 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	}
 
 	// introspect to schema
-	// console.time();
 	const schema = await fromDatabaseForDrizzle(db);
-
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	const path = `tests/cockroach/tmp/temp-${hash(String(Math.random()))}.ts`;
+	const path = `tests/cockroach/tmp/temp-${randomUUID()}.ts`;
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
+
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
@@ -415,9 +415,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
 	}
 
-	// console.timeEnd();
-
-	await clear();
+	await db.clear();
 
 	config.hasDefault = false;
 	config.default = undefined;
@@ -439,7 +437,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
-	await clear();
+	await db.clear();
 
 	const schema3 = {
 		...pre,
@@ -463,10 +461,16 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	return res;
 };
 
-export type TestDatabase = {
-	db: DB & { batch: (sql: string[]) => Promise<void> };
-	close: () => Promise<void>;
+export type TestDatabase = DB & {
+	batch: (sql: string[]) => Promise<void>;
+	close: () => void;
 	clear: () => Promise<void>;
+};
+
+export type TestDatabaseKit = {
+	acquire: () => Promise<{ db: TestDatabase; release: () => void }>;
+	acquireTx: () => Promise<{ db: TestDatabase; release: () => void }>;
+	close: () => Promise<void>;
 };
 
 export async function createDockerDB() {
@@ -499,19 +503,17 @@ export async function createDockerDB() {
 	};
 }
 
-export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
-
-	let client: PoolClient;
+const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const sleep = 1000;
 	let timeLeft = 20000;
+	const name = `${n}${hash(String(Math.random()), 10)}`;
 	do {
 		try {
-			client = await new Pool({ connectionString: url }).connect();
+			const client = await new Pool({ connectionString: url, max: 1 }).connect();
 
-			await client.query('DROP DATABASE defaultdb;');
-			await client.query('CREATE DATABASE defaultdb;');
+			await client.query(`DROP DATABASE IF EXISTS ${name};`);
+			await client.query(`CREATE DATABASE IF NOT EXISTS ${name};`);
+			await client.query(`USE ${name}`);
 
 			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
 			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
@@ -526,22 +528,21 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 				if (tx) {
 					await client.query('ROLLBACK');
 					await client.query('BEGIN');
-					return;
-				}
+				} else {
+					await client.query(`DROP DATABASE IF EXISTS ${name};`);
+					await client.query(`CREATE DATABASE ${name};`);
+					await client.query(`USE ${name};`);
+					const roles = await client.query<{ rolname: string }>(
+						`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+					).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
 
-				await client.query('DROP DATABASE defaultdb;');
-				await client.query('CREATE DATABASE defaultdb;');
-
-				const roles = await client.query<{ rolname: string }>(
-					`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
-				).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
-
-				for (const role of roles) {
-					await client.query(`DROP ROLE "${role.rolname}"`);
+					for (const role of roles) {
+						await client.query(`DROP ROLE "${role.rolname}"`);
+					}
 				}
 			};
 
-			const db: TestDatabase['db'] = {
+			const db: TestDatabase = {
 				query: async (sql, params) => {
 					return client
 						.query(sql, params)
@@ -556,19 +557,136 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 						await client.query(sql);
 					}
 				},
-			};
-			return {
-				db,
+				clear: clear,
 				close: async () => {
 					client.release();
-					await container?.stop();
 				},
-				clear,
 			};
+			return db;
 		} catch (e) {
+			console.error(e);
 			await new Promise((resolve) => setTimeout(resolve, sleep));
 			timeLeft -= sleep;
 		}
 	} while (timeLeft > 0);
 	throw Error();
 };
+
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabaseKit> => {
+	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
+	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+
+	const clients = [
+		await prepareClient(url, 'db0', false),
+		await prepareClient(url, 'db1', false),
+		await prepareClient(url, 'db2', false),
+		await prepareClient(url, 'db3', false),
+		await prepareClient(url, 'db4', false),
+		// await prepareClient(url, 'db5', tx),
+		// await prepareClient(url, 'db6', tx),
+		// await prepareClient(url, 'db7', tx),
+		// await prepareClient(url, 'db8', tx),
+		// await prepareClient(url, 'db9', tx),
+	];
+
+	const clientsTxs = [
+		await prepareClient(url, 'dbc0', true),
+		await prepareClient(url, 'dbc1', true),
+		await prepareClient(url, 'dbc2', true),
+		await prepareClient(url, 'dbc3', true),
+		await prepareClient(url, 'dbc4', true),
+		await prepareClient(url, 'dbc5', true),
+		await prepareClient(url, 'dbc6', true),
+		await prepareClient(url, 'dbc7', true),
+		await prepareClient(url, 'dbc8', true),
+		await prepareClient(url, 'dbc9', true),
+	];
+
+	const closureTxs = () => {
+		return async () => {
+			while (true) {
+				const c = clientsTxs.shift();
+				if (!c) {
+					sleep(50);
+					continue;
+				}
+				return {
+					db: c,
+					release: () => {
+						clientsTxs.push(c);
+					},
+				};
+			}
+		};
+	};
+
+	const closure = () => {
+		return async () => {
+			while (true) {
+				const c = clients.shift();
+				if (!c) {
+					sleep(50);
+					continue;
+				}
+				return {
+					db: c,
+					release: () => {
+						clients.push(c);
+					},
+				};
+			}
+		};
+	};
+
+	return {
+		acquire: closure(),
+		acquireTx: closureTxs(),
+		close: async () => {
+			for (const c of clients) {
+				c.close();
+			}
+			await container?.stop();
+		},
+	};
+};
+
+export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
+	kit: [
+		async ({}, use) => {
+			const kit = await prepareTestDatabase();
+			try {
+				await use(kit);
+			} finally {
+				await kit.close();
+			}
+		},
+		{ scope: 'worker' },
+	],
+	// concurrent no transactions
+	db: [
+		async ({ kit }, use) => {
+			const { db, release } = await kit.acquire();
+			try {
+				await use(db);
+			} finally {
+				await db.clear();
+				release();
+			}
+		},
+		{ scope: 'test' },
+	],
+
+	// concurrent with transactions
+	dbc: [
+		async ({ kit }, use) => {
+			const { db, release } = await kit.acquireTx();
+			try {
+				await use(db);
+			} finally {
+				await db.clear();
+				release();
+			}
+		},
+		{ scope: 'test' },
+	],
+});

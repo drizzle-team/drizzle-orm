@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	date,
@@ -11,7 +12,9 @@ import {
 	float,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -21,6 +24,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	tinytext,
 	varbinary,
@@ -193,7 +197,9 @@ test('real', async () => {
 	// The commented line below will fail
 	// const res2 = await diffDefault(_, real({ precision: 6 }).default(10.123), '10.123');
 	const res3 = await diffDefault(_, real({ precision: 6, scale: 3 }).default(10.123), '10.123');
-	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 
 	// expressions
 	const res5 = await diffDefault(_, decimal().default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -213,9 +219,17 @@ test('double', async () => {
 	// TODO: revise: It seems that the double type can’t be configured using only one property precision or scale; both must be specified.
 	// The commented line below will fail
 	// const res2 = await diffDefault(_, double({ precision: 6 }).default(10.123), '10.123');
-	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 	const res4 = await diffDefault(_, double({ unsigned: true }).default(10.123), '10.123');
-	const res5 = await diffDefault(_, double({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res5 = await diffDefault(
+		_,
+		double({ unsigned: true, precision: 6, scale: 2 }).default(10.123),
+		'10.123',
+		null,
+		{ ignoreSubsequent: true },
+	);
 
 	// expressions
 	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -244,7 +258,9 @@ test('float', async () => {
 
 	const res4 = await diffDefault(_, float({ unsigned: true }).default(10.123), '10.123');
 	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 3 }).default(10.123), '10.123');
-	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123', null, {
+		ignoreSubsequent: true,
+	});
 
 	// expressions
 	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
@@ -264,7 +280,7 @@ test('float', async () => {
 test('boolean', async () => {
 	// sql`null` equals no default value, while we handle it properly
 	// it breaks on expected sql statements since they always expect DEFAULT
-	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null');
+	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null', null, { ignoreSubsequent: true });
 	const res2 = await diffDefault(_, boolean().default(true), 'true');
 	const res3 = await diffDefault(_, boolean().default(false), 'false');
 	const res4 = await diffDefault(_, boolean().default(sql`true`), '(true)');
@@ -371,6 +387,134 @@ test('longtext', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
+test('tinyblob', async () => {
+	const res1 = await diffDefault(_, tinyblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, tinyblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from("text't")),
+		`(0x${Buffer.from("text't").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, tinyblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from('text\'t"')),
+		`(0x${Buffer.from('text\'t"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, tinyblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('mediumblob', async () => {
+	const res1 = await diffDefault(_, mediumblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, mediumblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, mediumblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, mediumblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('blob', async () => {
+	const res1 = await diffDefault(_, blob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, blob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, blob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, blob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('longblob', async () => {
+	const res1 = await diffDefault(_, longblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, longblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, longblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, longblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
 test('enum', async () => {
 	const res1 = await diffDefault(
 		_,
@@ -449,6 +593,8 @@ test('timestamp', async () => {
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res4 = await diffDefault(
 		_,
@@ -460,6 +606,8 @@ test('timestamp', async () => {
 		_,
 		timestamp({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res6 = await diffDefault(
 		_,
@@ -495,6 +643,8 @@ test('datetime', async () => {
 		_,
 		datetime({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res2 = await diffDefault(
 		_,
@@ -506,6 +656,8 @@ test('datetime', async () => {
 		_,
 		datetime({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
 		`'2025-05-23 12:53:53.115'`,
+		null,
+		{ ignoreSubsequent: true },
 	);
 	const res4 = await diffDefault(
 		_,

@@ -118,14 +118,13 @@ export const fromDrizzleSchema = (
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
 
 			const name = pk.name || defaultNameForPK(tableName);
-			const isNameExplicit = !!pk.name;
 
 			result.pks.push({
 				entityType: 'pks',
 				table: tableName,
 				schema: schema,
 				name: name,
-				nameExplicit: isNameExplicit,
+				nameExplicit: pk.isNameExplicit,
 				columns: columnNames,
 			});
 		}
@@ -205,7 +204,7 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name: name,
 				schema: schema,
-				nameExplicit: !!unique.name,
+				nameExplicit: unique.isNameExplicit,
 				columns: columns,
 			});
 		}
@@ -241,7 +240,7 @@ export const fromDrizzleSchema = (
 				columns: columnsFrom,
 				tableTo,
 				columnsTo,
-				nameExplicit: !!fk.getName(),
+				nameExplicit: fk.isNameExplicit(),
 				schemaTo: getTableConfig(fk.reference().foreignTable).schema || 'dbo',
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
@@ -281,7 +280,6 @@ export const fromDrizzleSchema = (
 					}
 				}),
 				isUnique: index.config.unique ?? false,
-				nameExplicit: false,
 				where: where ? where : null,
 			});
 		}
@@ -296,7 +294,6 @@ export const fromDrizzleSchema = (
 				schema,
 				name,
 				value: dialect.sqlToQuery(value, 'mssql-check').sql,
-				nameExplicit: true,
 			});
 		}
 	}
@@ -356,18 +353,18 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = fromExport(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = fromExport(i0);
 
-		tables.push(...prepared.tables);
-		schemas.push(...prepared.schemas);
-		views.push(...prepared.views);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			schemas.push(...prepared.schemas);
+			views.push(...prepared.views);
+		}
+	});
 
 	return {
 		tables,
