@@ -4,6 +4,7 @@ import {
 	bigserial,
 	boolean,
 	char,
+	customType,
 	date,
 	doublePrecision,
 	geometry,
@@ -164,6 +165,42 @@ test('alter column change name #2', async (t) => {
 	const st0 = [
 		'ALTER TABLE "users" RENAME COLUMN "name" TO "name1";',
 		'ALTER TABLE "users" ADD COLUMN "email" text;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// TODO: @AlexBlokh revise: you can't change varchar type to inet using
+// ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE inet;
+// https://github.com/drizzle-team/drizzle-orm/issues/4806
+test('alter column type to custom type', async (t) => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: varchar({ length: 256 }),
+		}),
+	};
+
+	const citext = customType<{ data: string }>({
+		dataType() {
+			return 'text';
+		},
+	});
+	const schema2 = {
+		table1: pgTable('table1', {
+			column1: citext(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE text;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
