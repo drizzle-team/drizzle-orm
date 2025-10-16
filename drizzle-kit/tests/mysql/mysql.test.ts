@@ -628,6 +628,7 @@ test('add table #19. timestamp + default with sql``', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2599
 // https://github.com/drizzle-team/drizzle-orm/issues/3359
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
@@ -636,6 +637,7 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: int().autoincrement().primaryKey(),
+			column2: varchar({ length: 256 }).notNull().unique(),
 		}),
 		table2: mysqlTable('table2', {
 			column1: int().autoincrement(),
@@ -653,7 +655,8 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
-		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY,\n\t`column2` varchar(256) NOT NULL,'
+		+ '\n\tCONSTRAINT `column2_unique` UNIQUE(`column2`)\n);\n',
 		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
 		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
