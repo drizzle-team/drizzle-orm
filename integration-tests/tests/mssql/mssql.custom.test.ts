@@ -19,50 +19,24 @@ import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import mssql, { type ConnectionPool } from 'mssql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { createDockerDB } from './mssql-common';
+import { createClient } from './instrumentation';
 
 const ENABLE_LOGGING = false;
 
 let db: NodeMsSqlDatabase;
 let client: ConnectionPool;
 let container: Docker.Container | undefined;
+let close: () => Promise<void>;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['MSSQL_CONNECTION_STRING']) {
-		connectionString = process.env['MSSQL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-
-	const sleep = 2000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(connectionString);
-			client.on('debug', console.log);
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await container?.stop().catch(console.error);
-		throw lastError;
-	}
+	const res = await createClient();
+	client = res.client;
+	close = res.close;
 	db = drizzle(client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
 afterAll(async () => {
+	await close();
 	await client?.close().catch(console.error);
 	await container?.stop().catch(console.error);
 });
