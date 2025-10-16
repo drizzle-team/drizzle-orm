@@ -72,13 +72,6 @@ export default defineConfig({
 		},
 		testTimeout: 100000,
 		hookTimeout: 200000,
-		isolate: true,
-		poolOptions: {
-			threads: {
-				singleThread: true,
-			},
-		},
-		maxWorkers: 1,
 		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],
