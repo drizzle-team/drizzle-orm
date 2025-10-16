@@ -30,6 +30,7 @@ import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { tsc } from 'tests/utils';
 
 export type MssqlDBSchema = Record<
 	string,
@@ -124,6 +125,7 @@ export const diffIntrospect = async (
 	const filePath = `tests/mssql/tmp/${testName}.ts`;
 
 	writeFileSync(filePath, file.file);
+	await tsc(file.file);
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {
@@ -228,52 +230,6 @@ export type TestDatabase = {
 	clear: () => Promise<void>;
 };
 
-let mssqlContainer: Docker.Container;
-export async function createDockerDB(): Promise<
-	{ container: Docker.Container; options: mssql.config }
-> {
-	const docker = new Docker();
-	const port = await getPort({ port: 1433 });
-	const image = 'mcr.microsoft.com/azure-sql-edge';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mssqlContainer.start();
-
-	const options: mssql.config = {
-		server: 'localhost',
-		user: 'SA',
-		password: 'drizzle123PASSWORD!',
-		pool: {
-			max: 1,
-		},
-		options: {
-			requestTimeout: 100_000,
-			encrypt: true, // for azure
-			trustServerCertificate: true,
-		},
-	};
-	return {
-		options,
-		container: mssqlContainer,
-	};
-}
-
 export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
@@ -323,6 +279,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
@@ -388,40 +345,114 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	return res;
 };
 
-export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	// TODO
-	// const envUrl = process.env.MSSQL_CONNECTION_STRING;
-	// const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+export function parseMssqlUrl(urlString: string) {
+	const url = new URL(urlString);
+	return {
+		user: url.username,
+		password: url.password,
+		server: url.hostname,
+		port: parseInt(url.port, 10),
+		database: url.pathname.replace(/^\//, ''),
+		options: {
+			encrypt: url.searchParams.get('encrypt') === 'true',
+			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
+		},
+	};
+}
 
-	const { container, options } = await createDockerDB();
+export const prepareTestDatabase = async (): Promise<TestDatabase> => {
+	const envUrl = process.env.MSSQL_CONNECTION_STRING;
+	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const params = parseMssqlUrl(url);
 
 	const sleep = 1000;
 	let timeLeft = 20000;
 	do {
 		try {
-			const client = await mssql.connect(options);
+			const client = await mssql.connect({
+				...params,
+				pool: { max: 1 },
+				requestTimeout: 30_000,
+			});
+
+			await client.query(`use [master];`);
+			await client.query(`drop database if exists [drizzle];`);
+			await client.query(`create database [drizzle];`);
+			await client.query(`use [drizzle];`);
+
+			let tx = client.transaction();
+			let req = new mssql.Request(tx);
+			await tx.begin();
+
 			const db = {
-				query: async (sql: string, params: any[]) => {
-					const res = await client.query(sql);
-					return res.recordset as any[];
+				query: async (sql: string, params: any[] = []) => {
+					const error = new Error();
+					try {
+						const res = await req.query(sql);
+						return res.recordset as any[];
+					} catch (err) {
+						error.cause = err;
+						throw error;
+					}
 				},
 			};
 			const close = async () => {
+				await tx.rollback().catch((e) => {});
 				await client?.close().catch(console.error);
 				await container?.stop().catch(console.error);
 			};
+
 			const clear = async () => {
-				await client.query(`use [master];`);
-				await client.query(`drop database if exists [drizzle];`);
-				await client.query(`create database [drizzle];`);
-				await client.query(`use [drizzle];`);
+				try {
+					await tx.rollback();
+					await tx.begin();
+				} catch {
+					tx = client.transaction();
+					await tx.begin();
+					req = new mssql.Request(tx);
+				}
 			};
 			return { db, close, clear };
 		} catch (e) {
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
+			console.error(e);
+			throw e;
+			// await new Promise((resolve) => setTimeout(resolve, sleep));
+			// timeLeft -= sleep;
 		}
 	} while (timeLeft > 0);
 
 	throw new Error();
 };
+
+export async function createDockerDB(): Promise<
+	{ container: Docker.Container; url: string }
+> {
+	let mssqlContainer: Docker.Container;
+
+	const docker = new Docker();
+	const port = await getPort({ port: 1433 });
+	const image = 'mcr.microsoft.com/azure-sql-edge';
+
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+	);
+
+	mssqlContainer = await docker.createContainer({
+		Image: image,
+		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
+		name: `drizzle-integration-tests-${uuid()}`,
+		HostConfig: {
+			AutoRemove: true,
+			PortBindings: {
+				'1433/tcp': [{ HostPort: `${port}` }],
+			},
+		},
+	});
+
+	await mssqlContainer.start();
+	return {
+		url: 'mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true',
+		container: mssqlContainer,
+	};
+}

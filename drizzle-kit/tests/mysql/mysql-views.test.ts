@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView, text } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -72,9 +73,6 @@ test('create view #2', async () => {
 });
 
 test('create view #3', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
 	const users = mysqlTable('users', {
 		id: int().primaryKey().notNull(),
 		name: text(),
@@ -90,20 +88,41 @@ test('create view #3', async () => {
 		users,
 		posts,
 		view: mysqlView('some_view').as((qb) => {
-			return qb.select({ userId: users.id, postId: posts.id }).from(users).leftJoin(posts, eq(posts.userId, users.id));
+			return qb.select({ userId: sql`${users.id}`.as('user'), postId: sql`${posts.id}`.as('post') }).from(users)
+				.leftJoin(
+					posts,
+					eq(posts.userId, users.id),
+				);
 		}),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
+
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUE (1, 'Alex'), (2, 'Andrew')`);
+	await db.query(
+		`INSERT INTO \`posts\` (\`id\`, \`content\`, \`userId\`) VALUE (1, 'alex-content', 1), (3, 'andrew-content', 2)`,
+	);
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS (SELECT * FROM \`users\`) WITH cascaded CHECK OPTION;`,
+		`CREATE ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS (select \`users\`.\`id\` as \`user\`, \`posts\`.\`id\` as \`post\` from \`users\` left join \`posts\` on \`posts\`.\`userId\` = \`users\`.\`id\`);`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+
+	const drizzleDb = drizzle(_.db_url);
+
+	const res = await drizzleDb.select().from(to.view);
+
+	expect(res).toStrictEqual([{
+		userId: 1,
+		postId: 1,
+	}, {
+		userId: 2,
+		postId: 3,
+	}]);
 });
 
 test('create view with existing flag', async () => {

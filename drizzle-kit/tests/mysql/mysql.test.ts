@@ -198,9 +198,6 @@ test('add table #7', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/2599
 test('drop + add table', async () => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: int().primaryKey(),
@@ -228,13 +225,12 @@ test('drop + add table', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 
-	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
 	const expectedSt2 = [
-		'DROP INDEX `unique-index1` ON `table1`',
-		'DROP TABLE `table1`;',
 		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'DROP TABLE `table1`;',
 		'CREATE INDEX `unique-index2` ON `table2` (`column2`);',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
@@ -632,6 +628,7 @@ test('add table #19. timestamp + default with sql``', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2599
 // https://github.com/drizzle-team/drizzle-orm/issues/3359
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
@@ -640,6 +637,7 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: int().autoincrement().primaryKey(),
+			column2: varchar({ length: 256 }).notNull().unique(),
 		}),
 		table2: mysqlTable('table2', {
 			column1: int().autoincrement(),
@@ -657,7 +655,8 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
-		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY,\n\t`column2` varchar(256) NOT NULL,'
+		+ '\n\tCONSTRAINT `column2_unique` UNIQUE(`column2`)\n);\n',
 		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
 		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
@@ -991,7 +990,7 @@ test('add table with indexes', async () => {
 	const st0: string[] = [
 		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,`
 		+ `\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\t\`column4\` varchar(100),`
-		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE INDEX ((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE INDEX (\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
@@ -1034,28 +1033,50 @@ test('varchar and text default values escape single quotes', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO: discuss with @AleksandrSherman
-test('default on serail or autoincrement', async (t) => {
-	// postpone
-	if (Date.now() < +new Date('10/10/2025')) return;
-
+test('default on serail', async (t) => {
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: serial().default(1),
 		}),
 	};
 
-	await expect(diff({}, schema1, [])).rejects.toThrowError();
+	const { ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, schema1, []);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual([
+		{
+			column: 'column1',
+			table: 'table1',
+			type: 'column_unsupported_default_on_autoincrement',
+		},
+	]);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
+	]);
 	await expect(push({ db, to: schema1 })).rejects.toThrowError();
+});
 
-	const schema2 = {
+test('default on autoincrement', async () => {
+	const schema1 = {
 		table1: mysqlTable('table1', {
-			columnй: int().autoincrement().default(1),
+			column1: int().autoincrement().default(1),
 		}),
 	};
 
-	await expect(diff({}, schema2, [])).rejects.toThrowError();
-	await expect(push({ db, to: schema2 })).rejects.toThrowError();
+	const { ddl1Err, ddl2Err, mappedErrors1, mappedErrors2 } = await diff({}, schema1, []);
+	expect(ddl1Err).toStrictEqual([]);
+	expect(ddl2Err).toStrictEqual([
+		{
+			column: 'column1',
+			table: 'table1',
+			type: 'column_unsupported_default_on_autoincrement',
+		},
+	]);
+	expect(mappedErrors1).toStrictEqual([]);
+	expect(mappedErrors2).toStrictEqual([
+		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
+	]);
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
 });
 
 test('composite primary key #1', async () => {
@@ -1188,8 +1209,8 @@ test('optional db aliases (snake case)', async () => {
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
-	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
+	CONSTRAINT \`t1_uni\` UNIQUE INDEX (\`t1_uni\`),
+	CONSTRAINT \`t1_uni_idx\` UNIQUE INDEX (\`t1_uni_idx\`)
 );\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (
@@ -1250,8 +1271,8 @@ test('optional db aliases (camel case)', async () => {
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`
 		+ `\t\`t2Ref\` bigint unsigned,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
-		+ `\tCONSTRAINT \`t1Uni\` UNIQUE(\`t1Uni\`),\n`
-		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)\n`
+		+ `\tCONSTRAINT \`t1Uni\` UNIQUE INDEX (\`t1Uni\`),\n`
+		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE INDEX (\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
@@ -1285,7 +1306,7 @@ test('add+drop unique', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: state2 });
 
 	const st01: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
 	];
 	expect(st1).toStrictEqual(st01);
 	expect(pst1).toStrictEqual(st01);
@@ -1313,7 +1334,7 @@ test('fk #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
 		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fkey` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
 	];
@@ -1631,6 +1652,39 @@ test(`create table with char set and collate`, async () => {
 	\`name5\` mediumtext CHARACTER SET big5 COLLATE big5_bin,
 	\`name6\` longtext CHARACTER SET big5 COLLATE big5_bin,
 	\`test_enum\` enum('1','2') CHARACTER SET big5 COLLATE big5_bin
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`create table with char set and collate with default and not null`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 15 }).charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name2: char('name2', { length: 10 }).charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name3: text('name3').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin').notNull().default('hey'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin').notNull().default('1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE TABLE \`table\` (
+	\`id\` int,
+	\`name1\` varchar(15) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT 'hey',
+	\`name2\` char(10) CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT 'hey',
+	\`name3\` text CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name4\` tinytext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name5\` mediumtext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`name6\` longtext CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT ('hey'),
+	\`test_enum\` enum('1','2') CHARACTER SET big5 COLLATE big5_bin NOT NULL DEFAULT '1'
 );\n`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1965,8 +2019,8 @@ test('add pk', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE(`column1`)\n);\n',
-		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE(`column1`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

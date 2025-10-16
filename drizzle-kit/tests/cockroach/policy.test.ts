@@ -1,26 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { cockroachPolicy, cockroachRole, cockroachSchema, cockroachTable, int4 } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase(false); // all statements fail
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('full policy: no changes', async () => {
+test('full policy: no changes', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -44,7 +27,7 @@ test('full policy: no changes', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy + enable rls', async (t) => {
+test('add policy + enable rls', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -73,7 +56,7 @@ test('add policy + enable rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop policy + disable rls', async (t) => {
+test('drop policy + disable rls', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -102,7 +85,7 @@ test('drop policy + disable rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy without enable rls', async (t) => {
+test('add policy without enable rls', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -130,7 +113,7 @@ test('add policy without enable rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop policy without disable rls', async (t) => {
+test('drop policy without disable rls', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -158,7 +141,7 @@ test('drop policy without disable rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy without recreation: changing roles', async (t) => {
+test('alter policy without recreation: changing roles', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -186,7 +169,7 @@ test('alter policy without recreation: changing roles', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy without recreation: changing using', async (t) => {
+test('alter policy without recreation: changing using', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -214,7 +197,7 @@ test('alter policy without recreation: changing using', async (t) => {
 	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
-test('alter policy without recreation: changing with check', async (t) => {
+test('alter policy without recreation: changing with check', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -244,7 +227,7 @@ test('alter policy without recreation: changing with check', async (t) => {
 
 ///
 
-test('alter policy with recreation: changing as', async (t) => {
+test('alter policy with recreation: changing as', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -273,7 +256,7 @@ test('alter policy with recreation: changing as', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy with recreation: changing for', async (t) => {
+test('alter policy with recreation: changing for', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -302,7 +285,7 @@ test('alter policy with recreation: changing for', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy with recreation: changing both "as" and "for"', async (t) => {
+test('alter policy with recreation: changing both "as" and "for"', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -331,7 +314,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy with recreation: changing all fields', async (t) => {
+test('alter policy with recreation: changing all fields', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -360,7 +343,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename policy', async (t) => {
+test('rename policy', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -393,7 +376,7 @@ test('rename policy', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename policy in renamed table', async (t) => {
+test('rename policy in renamed table', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -422,7 +405,7 @@ test('rename policy in renamed table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table with a policy', async (t) => {
+test('create table with a policy', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -448,7 +431,7 @@ test('create table with a policy', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop table with a policy', async (t) => {
+test('drop table with a policy', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
@@ -473,7 +456,7 @@ test('drop table with a policy', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy with multiple "to" roles', async (t) => {
+test('add policy with multiple "to" roles', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -506,7 +489,7 @@ test('add policy with multiple "to" roles', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table with rls enabled', async (t) => {
+test('create table with rls enabled', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
@@ -531,7 +514,7 @@ test('create table with rls enabled', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enable rls force', async (t) => {
+test('enable rls force', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -559,7 +542,7 @@ test('enable rls force', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('disable rls force', async (t) => {
+test('disable rls force', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -587,7 +570,7 @@ test('disable rls force', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop policy with enabled rls', async (t) => {
+test('drop policy with enabled rls', async ({ db }) => {
 	const role = cockroachRole('manager');
 
 	const schema1 = {
@@ -620,7 +603,7 @@ test('drop policy with enabled rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy with enabled rls', async (t) => {
+test('add policy with enabled rls', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -653,7 +636,7 @@ test('add policy with enabled rls', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy + link table', async (t) => {
+test('add policy + link table', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -685,7 +668,7 @@ test('add policy + link table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('link table', async (t) => {
+test('link table', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -718,7 +701,7 @@ test('link table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unlink table', async (t) => {
+test('unlink table', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -749,7 +732,7 @@ test('unlink table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop policy with link', async (t) => {
+test('drop policy with link', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -779,7 +762,7 @@ test('drop policy with link', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy in table and with link table', async (t) => {
+test('add policy in table and with link table', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -814,7 +797,7 @@ test('add policy in table and with link table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('link non-schema table', async (t) => {
+test('link non-schema table', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -842,7 +825,7 @@ test('link non-schema table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unlink non-schema table', async (t) => {
+test('unlink non-schema table', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -870,7 +853,7 @@ test('unlink non-schema table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy + link non-schema table', async (t) => {
+test('add policy + link non-schema table', async ({ db }) => {
 	const cities = cockroachTable('cities', {
 		id: int4('id').primaryKey(),
 	}).enableRLS();
@@ -906,7 +889,7 @@ test('add policy + link non-schema table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add policy + link non-schema table from auth schema', async (t) => {
+test('add policy + link non-schema table from auth schema', async ({ db }) => {
 	const authSchema = cockroachSchema('auth');
 	const cities = authSchema.table('cities', {
 		id: int4('id').primaryKey(),
@@ -950,7 +933,7 @@ test('add policy + link non-schema table from auth schema', async (t) => {
 	]);
 });
 
-test('rename policy that is linked', async (t) => {
+test('rename policy that is linked', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -985,7 +968,7 @@ test('rename policy that is linked', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy that is linked', async (t) => {
+test('alter policy that is linked', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -1015,7 +998,7 @@ test('alter policy that is linked', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy that is linked: withCheck', async (t) => {
+test('alter policy that is linked: withCheck', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -1045,7 +1028,7 @@ test('alter policy that is linked: withCheck', async (t) => {
 	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
-test('alter policy that is linked: using', async (t) => {
+test('alter policy that is linked: using', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -1075,7 +1058,7 @@ test('alter policy that is linked: using', async (t) => {
 	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
-test('alter policy that is linked: using', async (t) => {
+test('alter policy that is linked: using', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -1108,7 +1091,7 @@ test('alter policy that is linked: using', async (t) => {
 
 ////
 
-test('alter policy in the table', async (t) => {
+test('alter policy in the table', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -1140,7 +1123,7 @@ test('alter policy in the table', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter policy in the table: withCheck', async (t) => {
+test('alter policy in the table: withCheck', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
@@ -1176,7 +1159,7 @@ test('alter policy in the table: withCheck', async (t) => {
 	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
-test('alter policy in the table: using', async (t) => {
+test('alter policy in the table: using', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
@@ -1208,7 +1191,7 @@ test('alter policy in the table: using', async (t) => {
 	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
-test('alter policy in the table: using', async (t) => {
+test('alter policy in the table: using', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});

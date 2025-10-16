@@ -49,7 +49,7 @@ const createTable = convertor('create_table', (st) => {
 		const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
 		statement += '\t'
-			+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${charSetStatement}${collationStatement}`;
+			+ `\`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -64,7 +64,7 @@ const createTable = convertor('create_table', (st) => {
 			.map((it) => it.isExpression ? `${it.value}` : `\`${it.value}\``)
 			.join(',');
 
-		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE(${uniqueString})`;
+		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE INDEX (${uniqueString})`;
 	}
 
 	// TODO remove from create_table
@@ -122,7 +122,7 @@ const addColumn = convertor('add_column', (st) => {
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
-	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
+	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -154,7 +154,7 @@ const alterColumn = convertor('alter_column', (st) => {
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
 
-	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
+	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {

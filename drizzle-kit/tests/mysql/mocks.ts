@@ -1,7 +1,6 @@
 import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -14,6 +13,7 @@ import { introspect } from 'src/cli/commands/pull-mysql';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { upToV6 } from 'src/cli/commands/up-mysql';
 import { CasingType } from 'src/cli/validations/common';
+import { mysqlSchemaError as schemaError } from 'src/cli/views';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { MysqlDDL, MysqlEntity } from 'src/dialects/mysql/ddl';
@@ -72,6 +72,9 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
+	const mappedErrors1 = err1.map((it) => schemaError(it));
+	const mappedErrors2 = err2.map((it) => schemaError(it));
+
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -81,7 +84,7 @@ export const diff = async (
 		'default',
 	);
 
-	return { sqlStatements, statements, next: ddl2 };
+	return { sqlStatements, statements, next: ddl2, ddl1Err: err1, ddl2Err: err2, mappedErrors1, mappedErrors2 };
 };
 
 export const diffIntrospect = async (
@@ -102,7 +105,7 @@ export const diffIntrospect = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
 
 	writeFileSync(filePath, file.file);
-	await tsc(filePath);
+	await tsc(file.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -137,6 +140,7 @@ export const diffIntrospect = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		ddlAfterPull: ddl1,
 	};
 };
 
@@ -152,25 +156,25 @@ export const push = async (config: {
 	const casing = config.casing ?? 'camelCase';
 
 	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
-	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as MysqlDDL, errors: [] }
 		: drizzleToDDL(to, casing);
+
 	if (err2.length > 0) {
 		for (const e of err2) {
 			console.error(`err2: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new Error('Schema2 Interim Error');
 	}
 
-	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
+	if (err1.length > 0) {
+		for (const e of err1) {
+			console.error(`err: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new Error('Schema1 Interim Error');
 	}
 
-	// TODO: handle errors
 	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
@@ -267,7 +271,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
@@ -357,6 +361,7 @@ export const createDockerDB = async (): Promise<{ url: string; container: Contai
 
 export type TestDatabase = {
 	db: DB;
+	db_url: string;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
 };
@@ -390,7 +395,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				await client.query(`create database \`drizzle\`;`);
 				await client.query(`use \`drizzle\`;`);
 			};
-			return { db, close, clear };
+			return { db, close, clear, db_url: url };
 		} catch (e) {
 			console.error(e);
 			await new Promise((resolve) => setTimeout(resolve, sleep));
