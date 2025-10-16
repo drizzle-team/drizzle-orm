@@ -17,6 +17,7 @@ let client: mysql.Connection;
 beforeAll(async () => {
 	let connectionString;
 	if (process.env['MYSQL_CONNECTION_STRING']) {
+		console.log();
 		connectionString = process.env['MYSQL_CONNECTION_STRING'];
 	} else {
 		const { connectionString: conStr } = await createDockerDB();
