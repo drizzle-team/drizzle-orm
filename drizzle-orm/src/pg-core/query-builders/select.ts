@@ -28,7 +28,6 @@ import { tracer } from '~/tracing.ts';
 import {
 	applyMixins,
 	type DrizzleTypeError,
-	extractUsedTable,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
@@ -37,6 +36,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelect,
 	CreatePgSelectFromBuilderMode,
