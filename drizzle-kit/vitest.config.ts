@@ -28,7 +28,7 @@ export default defineConfig({
 		},
 		testTimeout: 100000,
 		hookTimeout: 100000,
-		maxConcurrency: 1,
+		maxConcurrency: 5,
 		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],
