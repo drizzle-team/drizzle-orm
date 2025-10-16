@@ -1,25 +1,8 @@
 import { cockroachEnum, cockroachSchema, cockroachTable, int4, text, varchar } from 'drizzle-orm/cockroach-core';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase(false); // some of the statements fail in tx
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('enums #1', async () => {
+test.concurrent('enums #1', async ({ db }) => {
 	const to = {
 		enum: cockroachEnum('enum', ['value']),
 	};
@@ -38,7 +21,7 @@ test('enums #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #2', async () => {
+test.concurrent('enums #2', async ({ db }) => {
 	const folder = cockroachSchema('folder');
 	const to = {
 		folder,
@@ -56,7 +39,7 @@ test('enums #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #3', async () => {
+test.concurrent('enums #3', async ({ db }) => {
 	const from = {
 		enum: cockroachEnum('enum', ['value']),
 	};
@@ -76,7 +59,7 @@ test('enums #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #4', async () => {
+test.concurrent('enums #4', async ({ db }) => {
 	const folder = cockroachSchema('folder');
 
 	const from = {
@@ -96,7 +79,7 @@ test('enums #4', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #5', async () => {
+test.concurrent('enums #5', async ({ db }) => {
 	const folder1 = cockroachSchema('folder1');
 	const folder2 = cockroachSchema('folder2');
 
@@ -126,7 +109,7 @@ test('enums #5', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #6', async () => {
+test.concurrent('enums #6', async ({ db }) => {
 	const folder1 = cockroachSchema('folder1');
 	const folder2 = cockroachSchema('folder2');
 
@@ -160,7 +143,7 @@ test('enums #6', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #7', async () => {
+test.concurrent('enums #7', async ({ db }) => {
 	const from = {
 		enum: cockroachEnum('enum', ['value1']),
 	};
@@ -184,7 +167,7 @@ test('enums #7', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #8', async () => {
+test.concurrent('enums #8', async ({ db }) => {
 	const from = {
 		enum: cockroachEnum('enum', ['value1']),
 	};
@@ -209,7 +192,7 @@ test('enums #8', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #9', async () => {
+test.concurrent('enums #9', async ({ db }) => {
 	const from = {
 		enum: cockroachEnum('enum', ['value1', 'value3']),
 	};
@@ -231,7 +214,7 @@ test('enums #9', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #10', async () => {
+test.concurrent('enums #10', async ({ db }) => {
 	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
@@ -256,7 +239,7 @@ test('enums #10', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #11', async () => {
+test.concurrent('enums #11', async ({ db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const from = {
 		schema1,
@@ -285,7 +268,7 @@ test('enums #11', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #12', async () => {
+test.concurrent('enums #12', async ({ db }) => {
 	const schema1 = cockroachSchema('folder1');
 	const from = {
 		schema1,
@@ -314,7 +297,7 @@ test('enums #12', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #13', async () => {
+test.concurrent('enums #13', async ({ db }) => {
 	const from = {
 		enum: cockroachEnum('enum1', ['value1']),
 	};
@@ -340,7 +323,7 @@ test('enums #13', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #14', async () => {
+test.concurrent('enums #14', async ({ db }) => {
 	const folder1 = cockroachSchema('folder1');
 	const folder2 = cockroachSchema('folder2');
 	const from = {
@@ -371,7 +354,7 @@ test('enums #14', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #15', async () => {
+test.concurrent('enums #15', async ({ db }) => {
 	const folder1 = cockroachSchema('folder1');
 	const folder2 = cockroachSchema('folder2');
 	const from = {
@@ -402,7 +385,7 @@ test('enums #15', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #16', async () => {
+test.concurrent('enums #16', async ({ db }) => {
 	const enum1 = cockroachEnum('enum1', ['value1']);
 	const enum2 = cockroachEnum('enum2', ['value1']);
 
@@ -437,7 +420,7 @@ test('enums #16', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #17', async () => {
+test.concurrent('enums #17', async ({ db }) => {
 	const schema = cockroachSchema('schema');
 	const enum1 = cockroachEnum('enum1', ['value1']);
 	const enum2 = schema.enum('enum1', ['value1']);
@@ -475,7 +458,7 @@ test('enums #17', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #18', async () => {
+test.concurrent('enums #18', async ({ db }) => {
 	const schema1 = cockroachSchema('schema1');
 	const schema2 = cockroachSchema('schema2');
 
@@ -517,7 +500,7 @@ test('enums #18', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #19', async () => {
+test.concurrent('enums #19', async ({ db }) => {
 	const myEnum = cockroachEnum('my_enum', ["escape's quotes"]);
 
 	const from = {};
@@ -536,7 +519,7 @@ test('enums #19', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #20', async () => {
+test.concurrent('enums #20', async ({ db }) => {
 	const myEnum = cockroachEnum('my_enum', ['one', 'two', 'three']);
 
 	const from = {
@@ -571,7 +554,7 @@ test('enums #20', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #21', async () => {
+test.concurrent('enums #21', async ({ db }) => {
 	const myEnum = cockroachEnum('my_enum', ['one', 'two', 'three']);
 
 	const from = {
@@ -606,7 +589,7 @@ test('enums #21', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #22', async () => {
+test.concurrent('enums #22', async ({ db }) => {
 	const schema = cockroachSchema('schema');
 	const en = schema.enum('e', ['a', 'b']);
 
@@ -633,7 +616,7 @@ test('enums #22', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums #23', async () => {
+test.concurrent('enums #23', async ({ db }) => {
 	const schema = cockroachSchema('schema');
 	const en = schema.enum('e', ['a', 'b']);
 
@@ -662,7 +645,7 @@ test('enums #23', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop enum value', async () => {
+test.concurrent('drop enum value', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -690,7 +673,7 @@ test('drop enum value', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop enum values', async () => {
+test.concurrent('drop enum values', async ({ db }) => {
 	const newSchema = cockroachSchema('mySchema');
 	const enum3 = cockroachEnum('enum_users_customer_and_ship_to_settings_roles', [
 		'addedToTop',
@@ -755,7 +738,7 @@ test('drop enum values', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop enum', async () => {
+test.concurrent('drop enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -789,7 +772,7 @@ test('drop enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop enum value. enum is columns data type', async () => {
+test.concurrent('drop enum value. enum is columns data type', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const schema = cockroachSchema('new_schema');
@@ -837,7 +820,7 @@ test('drop enum value. enum is columns data type', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('shuffle enum values', async () => {
+test.concurrent('shuffle enum values', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const schema = cockroachSchema('new_schema');
@@ -882,7 +865,7 @@ test('shuffle enum values', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is enum type with default value. shuffle enum', async () => {
+test.concurrent('column is enum type with default value. shuffle enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -918,7 +901,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums as ts enum', async () => {
+test.concurrent('enums as ts enum', async ({ db }) => {
 	enum Test {
 		value = 'value',
 	}
@@ -941,7 +924,7 @@ test('enums as ts enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is enum type with default value. shuffle enum', async () => {
+test.concurrent('column is enum type with default value. shuffle enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -979,7 +962,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum type with default value. shuffle enum', async () => {
+test.concurrent('column is array enum type with default value. shuffle enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -1017,7 +1000,7 @@ test('column is array enum type with default value. shuffle enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum with custom size type with default value. shuffle enum', async () => {
+test.concurrent('column is array enum with custom size type with default value. shuffle enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -1055,7 +1038,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum with custom size type. shuffle enum', async () => {
+test.concurrent('column is array enum with custom size type. shuffle enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -1091,7 +1074,7 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is enum type with default value. custom schema. shuffle enum', async () => {
+test.concurrent('column is enum type with default value. custom schema. shuffle enum', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
@@ -1132,7 +1115,7 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum type with default value. custom schema. shuffle enum', async () => {
+test.concurrent('column is array enum type with default value. custom schema. shuffle enum', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
@@ -1171,7 +1154,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum type with custom size with default value. custom schema. shuffle enum', async () => {
+test.concurrent('column is array enum type with custom size with default value. custom schema. shuffle enum', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
@@ -1210,7 +1193,7 @@ test('column is array enum type with custom size with default value. custom sche
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is array enum type with custom size. custom schema. shuffle enum', async () => {
+test.concurrent('column is array enum type with custom size. custom schema. shuffle enum', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
@@ -1247,7 +1230,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('column is enum type without default value. add default to column', async () => {
+test.concurrent('column is enum type without default value. add default to column', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1280,7 +1263,7 @@ test('column is enum type without default value. add default to column', async (
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to enum', async () => {
+test.concurrent('change data type from standart type to enum', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1312,7 +1295,7 @@ test('change data type from standart type to enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to enum. column has default', async () => {
+test.concurrent('change data type from standart type to enum. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1346,7 +1329,7 @@ test('change data type from standart type to enum. column has default', async ()
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array standart type to array enum. column has default', async () => {
+test.concurrent('change data type from array standart type to array enum. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1380,7 +1363,7 @@ test('change data type from array standart type to array enum. column has defaul
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array standart type to array enum. column without default', async () => {
+test.concurrent('change data type from array standart type to array enum. column without default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1412,7 +1395,7 @@ test('change data type from array standart type to array enum. column without de
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array standart type with custom size to array enum with custom size. column has default', async () => {
+test.concurrent('change data type from array standart type with custom size to array enum with custom size. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1443,7 +1426,7 @@ test('change data type from array standart type with custom size to array enum w
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array standart type with custom size to array enum with custom size. column without default', async () => {
+test.concurrent('change data type from array standart type with custom size to array enum with custom size. column without default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1475,7 +1458,7 @@ test('change data type from array standart type with custom size to array enum w
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from enum type to standart type', async () => {
+test.concurrent('change data type from enum type to standart type', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1507,7 +1490,7 @@ test('change data type from enum type to standart type', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array enum type to standart type', async () => {
+test.concurrent('change data type from array enum type to standart type', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1539,7 +1522,7 @@ test('change data type from array enum type to standart type', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from enum type to standart type. column has default', async () => {
+test.concurrent('change data type from enum type to standart type. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1573,7 +1556,7 @@ test('change data type from enum type to standart type. column has default', asy
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array enum type to array standart type', async () => {
+test.concurrent('change data type from array enum type to array standart type', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1605,7 +1588,7 @@ test('change data type from array enum type to array standart type', async () =>
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array enum with custom size type to array standart type with custom size', async () => {
+test.concurrent('change data type from array enum with custom size type to array standart type with custom size', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1638,7 +1621,7 @@ test('change data type from array enum with custom size type to array standart t
 });
 
 //
-test('change data type from array enum type to array standart type. column has default', async () => {
+test.concurrent('change data type from array enum type to array standart type. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2']);
 
 	const from = {
@@ -1672,7 +1655,7 @@ test('change data type from array enum type to array standart type. column has d
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from array enum type with custom size to array standart type with custom size. column has default', async () => {
+test.concurrent('change data type from array enum type with custom size to array standart type with custom size. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2']);
 
 	const from = {
@@ -1706,7 +1689,7 @@ test('change data type from array enum type with custom size to array standart t
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to standart type', async () => {
+test.concurrent('change data type from standart type to standart type', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			column: varchar('test_column'),
@@ -1734,7 +1717,7 @@ test('change data type from standart type to standart type', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to standart type. column has default', async () => {
+test.concurrent('change data type from standart type to standart type. column has default', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			column: varchar('test_column').default('value3'),
@@ -1764,7 +1747,7 @@ test('change data type from standart type to standart type. column has default',
 });
 
 // TODO if leave "column" as name - strange error occurres. Could be bug in cockroachdb
-test('change data type from standart type to standart type. columns are arrays', async () => {
+test.concurrent('change data type from standart type to standart type. columns are arrays', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			test_column: varchar('test_column').array(),
@@ -1792,7 +1775,7 @@ test('change data type from standart type to standart type. columns are arrays',
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to standart type. columns are arrays with custom sizes', async () => {
+test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			test_column: varchar('test_column').array(2),
@@ -1820,7 +1803,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to standart type. columns are arrays. column has default', async () => {
+test.concurrent('change data type from standart type to standart type. columns are arrays. column has default', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			test_column: varchar('test_column').array().default(['hello']),
@@ -1850,7 +1833,7 @@ test('change data type from standart type to standart type. columns are arrays. 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async () => {
+test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
 			column: varchar('test_column').array(2).default(['hello']),
@@ -1878,7 +1861,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from one enum to other', async () => {
+test.concurrent('change data type from one enum to other', async ({ db }) => {
 	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
 	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
@@ -1913,7 +1896,7 @@ test('change data type from one enum to other', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from one enum to other. column has default', async () => {
+test.concurrent('change data type from one enum to other. column has default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
 	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
@@ -1950,7 +1933,7 @@ test('change data type from one enum to other. column has default', async () => 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from one enum to other. changed defaults', async () => {
+test.concurrent('change data type from one enum to other. changed defaults', async ({ db }) => {
 	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
 	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
@@ -1987,7 +1970,7 @@ test('change data type from one enum to other. changed defaults', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('check filtering json statements. here we have recreate enum + set new type + alter default', async () => {
+test.concurrent('check filtering json statements. here we have recreate enum + set new type + alter default', async ({ db }) => {
 	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
 	const from = {
 		enum1,
@@ -2020,7 +2003,7 @@ test('check filtering json statements. here we have recreate enum + set new type
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add column with same name as enum', async () => {
+test.concurrent('add column with same name as enum', async ({ db }) => {
 	const statusEnum = cockroachEnum('status', ['inactive', 'active', 'banned']);
 
 	const schema1 = {
@@ -2058,7 +2041,7 @@ test('add column with same name as enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('enums ordering', async () => {
+test.concurrent('enums ordering', async ({ db }) => {
 	const schema1 = {
 		enum: cockroachEnum('settings', ['all', 'admin']),
 	};

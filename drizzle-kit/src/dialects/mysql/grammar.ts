@@ -137,7 +137,7 @@ export const Serial: SqlType = {
 	is: (type: string) => /^(?:serial)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'serial',
 	defaultFromDrizzle: (value) => {
-		throw new Error(`Unexpected default for serial type: ${value}`);
+		return ''; // handled in interim to ddl
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
@@ -625,8 +625,8 @@ export const nameForUnique = (tableName: string, columns: string[]) => {
 	return `${columns.join('_')}_unique`;
 };
 
-const stripCollation = (defaultValue: string, collation?: string): string => {
-	const coll = collation ?? 'utf8mb4';
+const stripCollation = (defaultValue: string): string => {
+	const coll = 'utf8mb4';
 	const escaped = coll.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 	const regex = new RegExp(`_${escaped}(?=(?:\\\\['"]|['"]))`, 'g');
 	const res = defaultValue.replace(regex, '').replaceAll("\\'", "'").replaceAll("\\\\'", "''");
@@ -640,11 +640,10 @@ export const parseEnum = (it: string) => {
 export const parseDefaultValue = (
 	columnType: string,
 	value: string | undefined,
-	collation: string | undefined,
 ): Column['default'] => {
 	if (value === null || typeof value === 'undefined') return null;
 
-	value = stripCollation(value, collation);
+	value = stripCollation(value);
 
 	const grammarType = typeFor(columnType);
 	if (grammarType) return grammarType.defaultFromIntrospect(value);

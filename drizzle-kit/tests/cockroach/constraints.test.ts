@@ -10,28 +10,10 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import { DB } from 'src/utils';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { expect } from 'vitest';
+import { diff, push, test } from './mocks';
 
-// @vitest-environment-options {"max-concurrency":1}
-let _: TestDatabase;
-let db: TestDatabase['db'];
-
-beforeAll(async () => {
-	_ = await prepareTestDatabase();
-	db = _.db;
-});
-
-afterAll(async () => {
-	await _.close();
-});
-
-beforeEach(async () => {
-	await _.clear();
-});
-
-test('unique #1', async () => {
+test.concurrent('unique #1', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -58,7 +40,7 @@ test('unique #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #2', async () => {
+test.concurrent('unique #2', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -85,7 +67,7 @@ test('unique #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #3', async () => {
+test.concurrent('unique #3', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -112,7 +94,7 @@ test('unique #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #6', async () => {
+test.concurrent('unique #6', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -139,7 +121,7 @@ test('unique #6', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #7', async () => {
+test.concurrent('unique #7', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -166,7 +148,7 @@ test('unique #7', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #8', async () => {
+test.concurrent('unique #8', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -194,7 +176,7 @@ test('unique #8', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #9', async () => {
+test.concurrent('unique #9', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -226,7 +208,7 @@ test('unique #9', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #10', async () => {
+test.concurrent('unique #10', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -263,7 +245,7 @@ test('unique #10', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #11', async () => {
+test.concurrent('unique #11', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -305,7 +287,7 @@ test('unique #11', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #12', async () => {
+test.concurrent('unique #12', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -339,7 +321,7 @@ test('unique #12', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('unique #13', async () => {
+test.concurrent('unique #13', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -398,7 +380,7 @@ test('unique #13', async () => {
 	expect(pst2).toStrictEqual(st20);
 });
 
-test('unique multistep #1', async () => {
+test.concurrent('unique multistep #1', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().unique(),
@@ -450,7 +432,7 @@ test('unique multistep #1', async () => {
 	expect(st4).toStrictEqual(e3);
 });
 
-test('unique multistep #2', async () => {
+test.concurrent('unique multistep #2', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().unique(),
@@ -515,7 +497,7 @@ test('unique multistep #2', async () => {
 	expect(pst5).toStrictEqual(['DROP INDEX "users_name_key" CASCADE;']);
 });
 
-test('unique multistep #3', async () => {
+test.concurrent('unique multistep #3', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().unique(),
@@ -583,7 +565,7 @@ test('unique multistep #3', async () => {
 	expect(pst5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
 });
 
-test('unique multistep #4', async () => {
+test.concurrent('unique multistep #4', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().unique(),
@@ -650,7 +632,7 @@ test('unique multistep #4', async () => {
 	expect(pst5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
 });
 
-test('index multistep #1', async () => {
+test.concurrent('index multistep #1', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -706,7 +688,7 @@ test('index multistep #1', async () => {
 	expect(pst4).toStrictEqual(['DROP INDEX "users_name_index";']);
 });
 
-test('index multistep #2', async () => {
+test.concurrent('index multistep #2', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -771,7 +753,7 @@ test('index multistep #2', async () => {
 	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
 });
 
-test('index multistep #3', async () => {
+test.concurrent('index multistep #3', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -835,7 +817,7 @@ test('index multistep #3', async () => {
 	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
 });
 
-test('index multistep #3', async () => {
+test.concurrent('index multistep #3', async ({ dbc: db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -901,7 +883,7 @@ test('index multistep #3', async () => {
 	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
 });
 
-test('pk #1', async () => {
+test.concurrent('pk #1', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull(),
@@ -923,7 +905,7 @@ test('pk #1', async () => {
 	expect(pst).toStrictEqual(['ALTER TABLE "users" ADD PRIMARY KEY ("name");']);
 });
 
-test('pk #2', async () => {
+test.concurrent('pk #2', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
@@ -944,7 +926,7 @@ test('pk #2', async () => {
 	expect(pst).toStrictEqual([]);
 });
 
-test('pk #3', async () => {
+test.concurrent('pk #3', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
@@ -964,7 +946,7 @@ test('pk #3', async () => {
 	expect(pst).toStrictEqual([]);
 });
 
-test('pk #4', async () => {
+test.concurrent('pk #4', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull(),
@@ -985,7 +967,7 @@ test('pk #4', async () => {
 	expect(pst).toStrictEqual([]);
 });
 
-test('fk #1', async () => {
+test.concurrent('fk #1', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 	});
@@ -1012,7 +994,7 @@ test('fk #1', async () => {
 });
 
 // exactly 63 symbols fkey, fkey name explicit
-test('fk #2', async () => {
+test.concurrent('fk #2', async ({ dbc: db }) => {
 	const users = cockroachTable('123456789_123456789_users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1032,7 +1014,7 @@ test('fk #2', async () => {
 });
 
 // 65 symbols fkey, fkey = table_hash_fkey
-test('fk #3', async () => {
+test.concurrent('fk #3', async ({ dbc: db }) => {
 	const users = cockroachTable('1234567890_1234567890_users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1045,14 +1027,14 @@ test('fk #3', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_users" (\n\t"id" int4 PRIMARY KEY,\n\t"id2" int4\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_Bvhqr6Z0Skyq_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_2Ge3281eRCJ5_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
 });
 
 // >=45 length table name, fkey = hash_fkey
-test('fk #4', async () => {
+test.concurrent('fk #4', async ({ dbc: db }) => {
 	const users = cockroachTable('1234567890_1234567890_1234567890_123456_users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1065,13 +1047,13 @@ test('fk #4', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_1234567890_123456_users" (\n\t"id" int4 PRIMARY KEY,\n\t"id2" int4\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "Xi9rVl1SOACO_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "ydU6odH887YL_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #5', async () => {
+test.concurrent('fk #5', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1090,7 +1072,7 @@ test('fk #5', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #6', async () => {
+test.concurrent('fk #6', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1117,7 +1099,7 @@ test('fk #6', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #7', async () => {
+test.concurrent('fk #7', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id1),
@@ -1143,7 +1125,7 @@ test('fk #7', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #8', async () => {
+test.concurrent('fk #8', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
@@ -1171,7 +1153,7 @@ test('fk #8', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #9', async () => {
+test.concurrent('fk #9', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
@@ -1198,7 +1180,7 @@ test('fk #9', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #10', async () => {
+test.concurrent('fk #10', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 	});
@@ -1225,7 +1207,7 @@ test('fk #10', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk #11', async () => {
+test.concurrent('fk #11', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id1),
@@ -1252,7 +1234,7 @@ test('fk #11', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
-test('fk multistep #1', async () => {
+test.concurrent('fk multistep #1', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1305,7 +1287,7 @@ test('fk multistep #1', async () => {
 	expect(pst4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_id2_users_id_fkey";']);
 });
 
-test('fk multistep #2', async () => {
+test.concurrent('fk multistep #2', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 		id2: int4().references((): AnyCockroachColumn => users.id),
@@ -1347,7 +1329,7 @@ test('fk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
-test('unique duplicate name', async (t) => {
+test.concurrent('unique duplicate name', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: varchar({ length: 255 }),
@@ -1375,7 +1357,7 @@ test('unique duplicate name', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-test('pk duplicate name', async (t) => {
+test.concurrent('pk duplicate name', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: varchar({ length: 255 }),
@@ -1403,7 +1385,7 @@ test('pk duplicate name', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-test('fk duplicate name', async (t) => {
+test.concurrent('fk duplicate name', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		name: varchar({ length: 255 }).primaryKey(),
 		age: int4().unique(),
@@ -1438,7 +1420,7 @@ test('fk duplicate name', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-test('index duplicate name', async (t) => {
+test.concurrent('index duplicate name', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			name: varchar({ length: 255 }).primaryKey(),
@@ -1450,7 +1432,7 @@ test('index duplicate name', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
-test('index with no name', async (t) => {
+test.concurrent('index with no name', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			name: varchar({ length: 255 }).primaryKey(),

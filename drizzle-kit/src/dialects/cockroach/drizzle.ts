@@ -690,23 +690,23 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const policies: CockroachPolicy[] = [];
 	const matViews: CockroachMaterializedView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = fromExports(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = fromExports(i0);
 
-		tables.push(...prepared.tables);
-		enums.push(...prepared.enums);
-		schemas.push(...prepared.schemas);
-		sequences.push(...prepared.sequences);
-		views.push(...prepared.views);
-		matViews.push(...prepared.matViews);
-		roles.push(...prepared.roles);
-		policies.push(...prepared.policies);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			enums.push(...prepared.enums);
+			schemas.push(...prepared.schemas);
+			sequences.push(...prepared.sequences);
+			views.push(...prepared.views);
+			matViews.push(...prepared.matViews);
+			roles.push(...prepared.roles);
+			policies.push(...prepared.policies);
+		}
+	});
 
 	return {
 		tables,

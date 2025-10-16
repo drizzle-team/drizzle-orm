@@ -41,12 +41,13 @@ import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
-import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { hash } from 'src/dialects/common';
 import { measure, tsc } from 'tests/utils';
+import { test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -389,9 +390,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	}
 
 	// introspect to schema
-	// console.time();
 	const schema = await fromDatabaseForDrizzle(db);
-
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
@@ -399,9 +398,10 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
+
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
@@ -414,8 +414,6 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		console.log(`./${path}`);
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
 	}
-
-	// console.timeEnd();
 
 	await db.clear();
 
@@ -470,7 +468,8 @@ export type TestDatabase = DB & {
 };
 
 export type TestDatabaseKit = {
-	acquire: () => { db: TestDatabase; release: () => void };
+	acquire: () => Promise<{ db: TestDatabase; release: () => void }>;
+	acquireTx: () => Promise<{ db: TestDatabase; release: () => void }>;
 	close: () => Promise<void>;
 };
 
@@ -504,9 +503,10 @@ export async function createDockerDB() {
 	};
 }
 
-const prepareClient = async (url: string, name: string, tx: boolean) => {
+const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const sleep = 1000;
 	let timeLeft = 20000;
+	const name = `${n}${hash(String(Math.random()), 10)}`;
 	do {
 		try {
 			const client = await new Pool({ connectionString: url, max: 1 }).connect();
@@ -577,34 +577,61 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	const clients = [
-		await prepareClient(url, 'db0', tx),
-		await prepareClient(url, 'db1', tx),
-		await prepareClient(url, 'db2', tx),
-		await prepareClient(url, 'db3', tx),
-		await prepareClient(url, 'db4', tx),
-		await prepareClient(url, 'db5', tx),
-		await prepareClient(url, 'db6', tx),
-		await prepareClient(url, 'db7', tx),
-		await prepareClient(url, 'db8', tx),
-		await prepareClient(url, 'db9', tx),
+		await prepareClient(url, 'db0', false),
+		await prepareClient(url, 'db1', false),
+		await prepareClient(url, 'db2', false),
+		await prepareClient(url, 'db3', false),
+		await prepareClient(url, 'db4', false),
+		// await prepareClient(url, 'db5', tx),
+		// await prepareClient(url, 'db6', tx),
+		// await prepareClient(url, 'db7', tx),
+		// await prepareClient(url, 'db8', tx),
+		// await prepareClient(url, 'db9', tx),
 	];
-	const closure = () => {
-		const lockMap = {} as Record<number, boolean>;
 
-		let idx = 0;
-		return () => {
+	const clientsTxs = [
+		await prepareClient(url, 'dbc0', true),
+		await prepareClient(url, 'dbc1', true),
+		await prepareClient(url, 'dbc2', true),
+		await prepareClient(url, 'dbc3', true),
+		await prepareClient(url, 'dbc4', true),
+		await prepareClient(url, 'dbc5', true),
+		await prepareClient(url, 'dbc6', true),
+		await prepareClient(url, 'dbc7', true),
+		await prepareClient(url, 'dbc8', true),
+		await prepareClient(url, 'dbc9', true),
+	];
+
+	const closureTxs = () => {
+		return async () => {
 			while (true) {
-				idx += 1;
-				idx %= clients.length;
-
-				if (lockMap[idx]) continue;
-				lockMap[idx] = true;
-				const c = clients[idx];
-				const index = idx;
+				const c = clientsTxs.shift();
+				if (!c) {
+					sleep(50);
+					continue;
+				}
 				return {
 					db: c,
 					release: () => {
-						delete lockMap[index];
+						clientsTxs.push(c);
+					},
+				};
+			}
+		};
+	};
+
+	const closure = () => {
+		return async () => {
+			while (true) {
+				const c = clients.shift();
+				if (!c) {
+					sleep(50);
+					continue;
+				}
+				return {
+					db: c,
+					release: () => {
+						clients.push(c);
 					},
 				};
 			}
@@ -613,6 +640,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 
 	return {
 		acquire: closure(),
+		acquireTx: closureTxs(),
 		close: async () => {
 			for (const c of clients) {
 				c.close();
@@ -621,3 +649,44 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		},
 	};
 };
+
+export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
+	kit: [
+		async ({}, use) => {
+			const kit = await prepareTestDatabase();
+			try {
+				await use(kit);
+			} finally {
+				await kit.close();
+			}
+		},
+		{ scope: 'worker' },
+	],
+	// concurrent no transactions
+	db: [
+		async ({ kit }, use) => {
+			const { db, release } = await kit.acquire();
+			try {
+				await use(db);
+			} finally {
+				await db.clear();
+				release();
+			}
+		},
+		{ scope: 'test' },
+	],
+
+	// concurrent with transactions
+	dbc: [
+		async ({ kit }, use) => {
+			const { db, release } = await kit.acquireTx();
+			try {
+				await use(db);
+			} finally {
+				await db.clear();
+				release();
+			}
+		},
+		{ scope: 'test' },
+	],
+});

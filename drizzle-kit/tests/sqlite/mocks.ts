@@ -94,7 +94,7 @@ export const diffAfterPull = async (
 	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const res = await prepareFromSchemaFiles([path]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
@@ -237,7 +237,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path);
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
