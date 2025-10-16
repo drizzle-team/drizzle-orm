@@ -140,6 +140,7 @@ export const diffIntrospect = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		ddlAfterPull: ddl1,
 	};
 };
 
