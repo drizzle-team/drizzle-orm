@@ -65,7 +65,7 @@ export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) =
 		? ['public']
 		: typeof policy.to === 'string'
 		? [policy.to]
-		: is(policy, CockroachRole)
+		: is(policy.to, CockroachRole)
 		? [(policy.to as CockroachRole).name]
 		: Array.isArray(policy.to)
 		? policy.to.map((it) => {
