@@ -276,13 +276,6 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		}
 	}
 
-	// TODO: remove implicit notnull in orm
-	// skip if not null was implicit from identity and identity is dropped
-	if (diff.notNull && !(diff.notNull.to === false && diff.identity && !diff.identity.to)) {
-		const clause = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ${clause};`);
-	}
-
 	if (diff.identity) {
 		if (diff.identity.from === null) {
 			const identity = column.identity!;
@@ -325,6 +318,11 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET CACHE ${to.cache};`);
 			}
 		}
+	}
+
+	if (diff.notNull && !(diff.notNull.to && diff.identity && diff.identity.to)) {
+		const clause = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ${clause};`);
 	}
 
 	return statements;

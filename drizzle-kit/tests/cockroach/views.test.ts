@@ -127,7 +127,7 @@ test.concurrent('create view with existing flag', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create materialized view', async ({ dbc: db }) => {
+test.concurrent('create materialized view', async ({ db: db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
@@ -144,10 +144,11 @@ test.concurrent('create materialized view', async ({ dbc: db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, log: 'statements' });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		log: 'statements',
 	});
 
 	const st0: string[] = [
