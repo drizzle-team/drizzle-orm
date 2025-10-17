@@ -19,7 +19,7 @@ export const hash = (input: string, len: number = 12) => {
 
 	const result = [] as string[];
 
-	let index = hash % combinationsCount;
+	let index = hash;
 	for (let i = len - 1; i >= 0; i--) {
 		const element = dictionary[Number(index % dictLen)]!;
 		result.unshift(element);
