@@ -505,6 +505,30 @@ test('add schema + table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4796
+test('add schema + table #2', async () => {
+	const schema = pgSchema('folder');
+
+	const to = {
+		schema,
+		users: schema.table('users', {
+			id: integer(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const schemas = ['folder'];
+	const { sqlStatements: pst } = await push({ db, to, schemas });
+
+	const st0 = [
+		'CREATE SCHEMA "folder";\n',
+		'CREATE TABLE "folder"."users" (\n\t"id" integer\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('change schema with tables #1', async () => {
 	const schema = pgSchema('folder');
 	const schema2 = pgSchema('folder2');
@@ -932,6 +956,7 @@ test('add index with op', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4800
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
@@ -945,6 +970,7 @@ test('optional db aliases (snake case)', async () => {
 			t1Uni: integer().notNull(),
 			t1UniIdx: integer().notNull(),
 			t1Idx: integer().notNull(),
+			t1Uni1: integer().unique(),
 		},
 		(table) => [
 			unique('t1_uni').on(table.t1Uni),
@@ -995,7 +1021,8 @@ test('optional db aliases (snake case)', async () => {
 	"t2_ref" integer NOT NULL,
 	"t1_uni" integer NOT NULL CONSTRAINT "t1_uni" UNIQUE,
 	"t1_uni_idx" integer NOT NULL,
-	"t1_idx" integer NOT NULL
+	"t1_idx" integer NOT NULL,
+	"t1_uni1" integer UNIQUE
 );
 `;
 
