@@ -30,6 +30,7 @@ const main = async () => {
 		dts: true,
 		platform: 'browser',
 		format: ['esm'],
+		// noExternal: ['@js-temporal/polyfill'],
 	});
 
 	await tsup.build({

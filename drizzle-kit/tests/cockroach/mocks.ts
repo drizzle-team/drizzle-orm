@@ -607,11 +607,9 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			while (true) {
 				const c = clientsTxs.shift();
 				if (!c) {
-					console.log('slep');
 					sleep(50);
 					continue;
 				}
-				console.log(clientsTxs.length);
 				return {
 					db: c,
 					release: () => {
@@ -627,7 +625,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			while (true) {
 				const c = clients.shift();
 				if (!c) {
-					console.log('slep');
 					sleep(50);
 					continue;
 				}

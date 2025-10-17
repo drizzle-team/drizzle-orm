@@ -28,7 +28,6 @@ export type InterimTable = {
 
 export type InterimView = {
 	name: string;
-	materialized: boolean;
 	columns: Interim<Column>[];
 	definition: string;
 	algorithm: 'undefined' | 'merge' | 'temptable';
@@ -93,7 +92,11 @@ const fromInterims = ({
 	const vws: View[] = views.map(({ columns, ...it }) => {
 		return {
 			entityType: 'views',
-			...it,
+			algorithm: it.algorithm,
+			definition: it.definition,
+			name: it.name,
+			sqlSecurity: it.sqlSecurity,
+			withCheckOption: it.withCheckOption,
 		};
 	});
 	const viewColumns: ViewColumn[] = views
