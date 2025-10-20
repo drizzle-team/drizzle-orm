@@ -272,67 +272,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Jane' }]);
 	});
 
-	test.concurrent('build query', async ({ db }) => {
-		const query = db.select({ id: threeUsers.id, name: threeUsers.name }).from(threeUsers)
-			.groupBy(threeUsers.id, threeUsers.name)
-			.toSQL();
-
-		expect(query).toEqual({
-			sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
-			params: [],
-		});
-	});
-
-	test.concurrent('Query check: Insert all defaults in 1 row', async ({ db }) => {
-		const users = mysqlTable('users', {
-			id: serial('id').primaryKey(),
-			name: text('name').default('Dan'),
-			state: text('state'),
-		});
-
-		const query = db
-			.insert(users)
-			.values({})
-			.toSQL();
-
-		expect(query).toEqual({
-			sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default)',
-			params: [],
-		});
-	});
-
-	test.concurrent('Query check: Insert all defaults in multiple rows', async ({ db }) => {
-		const users = mysqlTable('users', {
-			id: serial('id').primaryKey(),
-			name: text('name').default('Dan'),
-			state: text('state').default('UA'),
-		});
-
-		const query = db
-			.insert(users)
-			.values([{}, {}])
-			.toSQL();
-
-		expect(query).toEqual({
-			sql:
-				'insert into `users` (`id`, `name`, `state`) values (default, default, default), (default, default, default)',
-			params: [],
-		});
-	});
-
-	test.concurrent('build query insert with onDuplicate', async ({ db }) => {
-		const query = db.insert(usersTable)
-			.values({ name: 'John', jsonb: ['foo', 'bar'] })
-			.onDuplicateKeyUpdate({ set: { name: 'John1' } })
-			.toSQL();
-
-		expect(query).toEqual({
-			sql:
-				'insert into `userstest` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, ?, default) on duplicate key update `name` = ?',
-			params: ['John', '["foo","bar"]', 'John1'],
-		});
-	});
-
 	test.concurrent('partial join with alias', async ({ db }) => {
 		const customerAlias = alias(ivanhans, 'customer');
 

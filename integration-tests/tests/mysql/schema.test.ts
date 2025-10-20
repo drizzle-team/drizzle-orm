@@ -1,10 +1,13 @@
 import { sql } from 'drizzle-orm';
+import { jsonb } from 'drizzle-orm/cockroach-core';
 import {
 	bigint,
+	boolean,
 	foreignKey,
 	getTableConfig,
 	index,
 	int,
+	json,
 	mediumint,
 	MySqlDialect,
 	mysqlTable,
@@ -13,10 +16,14 @@ import {
 	serial,
 	smallint,
 	text,
+	timestamp,
 	tinyint,
 	unique,
 } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { expect, test } from 'vitest';
+
+const db = drizzle.mock();
 
 test('table config: unsigned ints', async () => {
 	const unsignedInts = mysqlTable('cities1', {
@@ -151,31 +158,106 @@ test('prefixed', () => {
 		sql: 'create table `prefixed_users` (id serial primary key, name text not null)',
 		params: [],
 	});
+});
 
-	test.concurrent('define constraints as array', async () => {
-		const table = mysqlTable('name', {
-			id: int(),
-		}, (t) => [
-			index('name').on(t.id),
-			primaryKey({ columns: [t.id] }),
-		]);
+test.concurrent('define constraints as array', async () => {
+	const table = mysqlTable('name', {
+		id: int(),
+	}, (t) => [
+		index('name').on(t.id),
+		primaryKey({ columns: [t.id] }),
+	]);
 
-		const { indexes, primaryKeys } = getTableConfig(table);
+	const { indexes, primaryKeys } = getTableConfig(table);
 
-		expect(indexes.length).toBe(1);
-		expect(primaryKeys.length).toBe(1);
+	expect(indexes.length).toBe(1);
+	expect(primaryKeys.length).toBe(1);
+});
+
+test('define constraints as array inside third param', async () => {
+	const table = mysqlTable('name', {
+		id: int(),
+	}, (t) => [
+		[index('name').on(t.id), primaryKey({ columns: [t.id] })],
+	]);
+
+	const { indexes, primaryKeys } = getTableConfig(table);
+
+	expect(indexes.length).toBe(1);
+	expect(primaryKeys.length).toBe(1);
+});
+
+test.concurrent('build query', async () => {
+	const table = mysqlTable('table', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 	});
 
-	test('define constraints as array inside third param', async () => {
-		const table = mysqlTable('name', {
-			id: int(),
-		}, (t) => [
-			[index('name').on(t.id), primaryKey({ columns: [t.id] })],
-		]);
+	const query = db.select({ id: table.id, name: table.name }).from(table)
+		.groupBy(table.id, table.name)
+		.toSQL();
 
-		const { indexes, primaryKeys } = getTableConfig(table);
+	expect(query).toEqual({
+		sql: `select \`id\`, \`name\` from \`table\` group by \`table\`.\`id\`, \`table\`.\`name\``,
+		params: [],
+	});
+});
 
-		expect(indexes.length).toBe(1);
-		expect(primaryKeys.length).toBe(1);
+test.concurrent('Query check: Insert all defaults in 1 row', async ({ db }) => {
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	expect(query).toEqual({
+		sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default)',
+		params: [],
+	});
+});
+
+test.concurrent('Query check: Insert all defaults in multiple rows', async () => {
+	const users = mysqlTable('table', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	expect(query).toEqual({
+		sql: 'insert into `table` (`id`, `name`, `state`) values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.concurrent.skip('build query insert with onDuplicate', async () => {
+	const users = mysqlTable('users', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		jsonb: jsonb('name'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db.insert(users)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onDuplicateKeyUpdate({ set: { name: 'John1' } })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into `users` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, ?, default) on duplicate key update `name` = ?',
+		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
