@@ -830,8 +830,8 @@ test('valuesFromArray unique generator test', async () => {
 				}),
 				valuesFromArrayWeightedNotNull: funcs.valuesFromArray({
 					values: [
-						{ values: lastNames.slice(0, 14920), weight: 0.3 },
-						{ values: lastNames.slice(14920), weight: 0.7 },
+						{ values: lastNames.slice(0, 14894), weight: 0.3 },
+						{ values: lastNames.slice(14894), weight: 0.7 },
 					],
 					isUnique: true,
 				}),

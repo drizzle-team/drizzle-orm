@@ -94,9 +94,7 @@ function getProxyDirectories(rootDir: string, fs: Package) {
 					const proxyDir = '.' + file.slice(rootDir.length, file.lastIndexOf('/'));
 					proxyDirectories.push(proxyDir);
 				}
-			} catch {
-				null;
-			}
+			} catch {}
 		}
 	}
 

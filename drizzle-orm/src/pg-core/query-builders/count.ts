@@ -10,7 +10,7 @@ export class PgCountBuilder<
 	private sql: SQL<number>;
 	private token?: NeonAuthToken;
 
-	static override readonly [entityKind] = 'PgCountBuilder';
+	static override readonly [entityKind]: string = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
 
 	private session: TSession;
