@@ -992,6 +992,33 @@ test('add with option to materialized view #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('add with option to materialized view #1_2', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users,
+		view: pgMaterializedView('some_view').as((qb) => qb.select().from(users)),
+	};
+
+	const to = {
+		users,
+		view: pgMaterializedView('some_view').tablespace('pg_default').as((qb) => qb.select().from(users)),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE \"pg_default\";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);
+});
+
 test('add with options for materialized view #2', async () => {
 	const table = pgTable('test', {
 		id: serial('id').primaryKey(),
@@ -1806,7 +1833,7 @@ test('alter using - materialize', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from });
+	await push({ db, to: from, log: 'statements' });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,

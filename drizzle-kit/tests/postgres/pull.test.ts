@@ -740,7 +740,7 @@ test('introspect materialized view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy', async () => {
+test('basic policy #1', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -750,7 +750,9 @@ test('basic policy', async () => {
 	const { statements, sqlStatements } = await diffIntrospect(
 		db,
 		schema,
-		'basic-policy',
+		'basic-policy-#1',
+		['public'],
+		{ roles: { include: ['test'] } },
 	);
 
 	expect(statements.length).toBe(0);
@@ -774,17 +776,20 @@ test('basic policy with "as"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test.todo('basic policy with CURRENT_USER role', async () => {
+test('basic policy', async () => {
 	const schema = {
+		role: pgRole('test2'),
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { to: 'current_user' })]),
+		}, () => [pgPolicy('test', { to: 'test2' })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'basic-policy',
+		['public'],
+		{ roles: { include: ['test2'] } },
 	);
 
 	expect(statements.length).toBe(0);

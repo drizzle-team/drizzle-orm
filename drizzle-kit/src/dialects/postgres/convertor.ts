@@ -35,7 +35,7 @@ const createViewConvertor = convertor('create_view', (st) => {
 
 	const name = schema !== 'public' ? `"${schema}"."${viewName}"` : `"${viewName}"`;
 	let statement = materialized ? `CREATE MATERIALIZED VIEW ${name}` : `CREATE VIEW ${name}`;
-	if (using && !using.default) statement += ` USING "${using.name}"`;
+	if (using) statement += ` USING "${using}"`;
 
 	const options: string[] = [];
 	if (withOption) {
@@ -104,7 +104,7 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 	}
 
 	if (diff.using) {
-		const toUsing = diff.using.to ? diff.using.to.name : defaults.accessMethod;
+		const toUsing = diff.using.to ?? defaults.accessMethod;
 		statements.push(`ALTER ${viewClause} SET ACCESS METHOD "${toUsing}";`);
 	}
 
@@ -130,11 +130,14 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name
 			&& pk.name === defaultNameForPK(column.table);
-
 		const isSerial = isSerialType(column.type);
 
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
-		const notNullStatement = isPK || isSerial ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+		const notNullStatement = pk?.columns.includes(column.name) || isSerial
+			? ''
+			: column.notNull && !column.identity
+			? ' NOT NULL'
+			: '';
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
 		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);

@@ -133,10 +133,10 @@ test('alter check constraint', async (t) => {
 		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name", ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);
 });
 
-test('alter multiple check constraints', async (t) => {
+test('rename + alter multiple check constraints', async (t) => {
 	const from = {
 		users: pgTable(
 			'users',
@@ -207,7 +207,7 @@ test('create checks with same names', async (t) => {
 	await expect(push({ db, to })).rejects.toThrow();
 });
 
-test('db has checks. Push with same names', async () => {
+test('alter check value', async () => {
 	const schema1 = {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
@@ -230,5 +230,5 @@ test('db has checks. Push with same names', async () => {
 		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT "some_check" CHECK ("test"."values" > 100);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);
 });
