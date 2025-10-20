@@ -23,8 +23,8 @@ import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
-import { createDockerDB } from './mysql-common';
 import relations from './relations';
+import { createDockerDB } from '../../../drizzle-kit/tests/mysql/mocks';
 
 const ENABLE_LOGGING = false;
 
@@ -37,7 +37,7 @@ beforeAll(async () => {
 	if (process.env['MYSQL_CONNECTION_STRING']) {
 		connectionString = process.env['MYSQL_CONNECTION_STRING'];
 	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+		const { url: conStr, container: contrainerObj } = await createDockerDB();
 		connectionString = conStr;
 		container = contrainerObj;
 	}

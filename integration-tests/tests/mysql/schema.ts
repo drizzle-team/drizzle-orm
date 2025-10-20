@@ -20,9 +20,9 @@ export const rqbPost = mysqlTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const empty = mysqlTable('empty', {id: int()});
+export const empty = mysqlTable('empty', { id: int() });
 
-export const relations = defineRelations({ rqbUser, rqbPost , empty}, (r) => ({
+export const relations = defineRelations({ rqbUser, rqbPost, empty }, (r) => ({
 	rqbUser: {
 		posts: r.many.rqbPost(),
 	},

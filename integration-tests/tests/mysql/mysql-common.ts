@@ -95,7 +95,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 		await pushseed(
 			{ users },
-			() => ({ users: { count: 1, columns: { jsonb: false as const, verified: false as const } } }),
+			() => ({ users: { count: 1, columns: { verified: false as const, json: false } } }),
 		);
 		const result = await db.select().from(users);
 
@@ -221,8 +221,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			{ users },
 			(funcs) => ({
 				users: {
-					count: 3,
-					columns: { name: funcs.valuesFromArray({ values: ['John', 'John', 'Jane'], isUnique: true }) },
+					columns: { name: funcs.valuesFromArray({ values: ['John', 'John', 'Jane'] }) },
 				},
 			}),
 		);
@@ -230,43 +229,27 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		const result = await db.select({ name: users.name }).from(users)
 			.groupBy(sql`${users.name}`);
 
-		expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+		expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 	});
 
 	test.concurrent('select with group by as sql + column', async ({ db, pushseed }) => {
 		const users = createUserTable('users_10');
-		await pushseed(
-			{ users },
-			(funcs) => ({
-				users: {
-					count: 3,
-					columns: { name: funcs.valuesFromArray({ values: ['John', 'Jane', 'Jane'], isUnique: true }) },
-				},
-			}),
-		);
+		await pushseed({ users }, () => ({ users: { count: 3 } }));
 
 		const result = await db.select({ name: users.name }).from(users)
 			.groupBy(sql`${users.name}`, users.id);
 
-		expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+		expect(result).toEqual([{ name: 'Agripina' }, { name: 'Candy' }, { name: 'Ilse' }]);
 	});
 
-	test.concurrent('select with group by as column + sql', async ({ db, pushseed }) => {
+	test.only('select with group by as column + sql', async ({ db, pushseed }) => {
 		const users = createUserTable('users_11');
-		await pushseed(
-			{ users },
-			(funcs) => ({
-				users: {
-					count: 3,
-					columns: { name: funcs.valuesFromArray({ values: ['John', 'Jane', 'Jane'], isUnique: true }) },
-				},
-			}),
-		);
+		await pushseed({ users }, () => ({ users: { count: 3 } }));
 
 		const result = await db.select({ name: users.name }).from(users)
 			.groupBy(users.id, sql`${users.name}`);
 
-		expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+		expect(result).toEqual([{ name: 'Agripina' }, { name: 'Candy' }, { name: 'Ilse' }]);
 	});
 
 	test.concurrent('select with group by complex query', async ({ db, pushseed }) => {

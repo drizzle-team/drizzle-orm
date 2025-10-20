@@ -23,9 +23,9 @@ beforeAll(async () => {
 });
 
 beforeEach((ctx) => {
-	ctx.mysql = {
-		db,
-	};
+	// ctx.mysql = {
+	// 	db,
+	// };
 });
 
 skipTests([

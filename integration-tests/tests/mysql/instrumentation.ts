@@ -78,7 +78,7 @@ export class TestCache extends Cache {
 	}
 }
 
-type RefineCallbackT<Schema extends MysqlSchema> = (
+export type RefineCallbackT<Schema extends MysqlSchema> = (
 	funcs: FunctionsVersioning,
 ) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
 const _pushseed = async <Schema extends MysqlSchema>(
@@ -125,6 +125,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 		}
 	>({
 		client: [
+			// oxlint-disable-line no-empty-pattern
 			async ({}, use) => {
 				if (vendor === 'mysql') {
 					const envurl = process.env['MYSQL_CONNECTION_STRING'];
