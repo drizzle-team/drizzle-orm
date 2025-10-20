@@ -13,8 +13,8 @@ import { PgPolicy } from './policies.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import type { PgViewBase } from './view-base.ts';
-import { PgViewConfig } from './view-common.ts';
-import { type PgMaterializedView, PgMaterializedViewConfig, type PgView } from './view.ts';
+import { PgMaterializedViewConfig, PgViewConfig } from './view-common.ts';
+import type { PgMaterializedView, PgView } from './view.ts';
 
 export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const columns = Object.values(table[Table.Symbol.Columns]);

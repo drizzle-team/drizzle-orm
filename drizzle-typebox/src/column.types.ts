@@ -5,7 +5,7 @@ import type { BufferSchema, JsonSchema } from './utils.ts';
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 
-export interface GenericSchema<T> extends t.TSchema {
+export interface GenericSchema<T> extends t.TSchema { // oxlint-disable-line import/namespace false-positive
 	static: T;
 }
 

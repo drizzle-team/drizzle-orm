@@ -9,10 +9,10 @@ import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
 	type SQLiteExecuteMethod,
+	SQLitePreparedQuery as PreparedQueryBase,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery as PreparedQueryBase } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
@@ -168,7 +168,11 @@ export class SQLiteDOPreparedQuery<
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		params.length > 0 ? this.client.sql.exec(this.query.sql, ...params) : this.client.sql.exec(this.query.sql);
+		if (params.length > 0) {
+			this.client.sql.exec(this.query.sql, ...params);
+			return;
+		}
+		this.client.sql.exec(this.query.sql);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
