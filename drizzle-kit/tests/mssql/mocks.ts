@@ -125,7 +125,7 @@ export const diffIntrospect = async (
 	const filePath = `tests/mssql/tmp/${testName}.ts`;
 
 	writeFileSync(filePath, file.file);
-	await tsc(file.file)
+	await tsc(file.file);
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {
@@ -279,7 +279,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(file.file)
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');

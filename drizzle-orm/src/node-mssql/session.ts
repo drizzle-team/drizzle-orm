@@ -140,7 +140,7 @@ export class NodeMsSqlPreparedQuery<
 				]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 					break;
-					// eslint-disable-next-line no-instanceof/no-instanceof
+					// oxlint-disable-next-line drizzle-internal/no-instanceof
 				} else if (row instanceof Error) {
 					throw row;
 				} else {

@@ -11,7 +11,7 @@ import { seed } from '../../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
 let mysqlContainer: Docker.Container;
-let client: Connection | undefined;
+let client: Connection | undefined; // oxlint-disable-line no-unassigned-vars
 let db: MySql2Database;
 
 async function createDockerDB(): Promise<string> {

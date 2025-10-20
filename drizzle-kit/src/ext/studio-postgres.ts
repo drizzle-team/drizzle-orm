@@ -128,7 +128,10 @@ const fromInterims = ({
 			using: null,
 			with: null,
 			withNoData: null,
-			...it,
+			definition: it.definition,
+			materialized: it.materialized,
+			name: it.name,
+			schema: it.schema,
 		};
 	});
 	const viewColumns: ViewColumn[] = views

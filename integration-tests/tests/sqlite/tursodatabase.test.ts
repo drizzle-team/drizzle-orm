@@ -20,7 +20,7 @@ declare module 'vitest' {
 const ENABLE_LOGGING = false;
 
 let db: TursoDatabaseDatabase<never, typeof relations>;
-let client: Database | undefined;
+let client: Database | undefined; // oxlint-disable-line no-unassigned-vars
 
 beforeAll(async () => {
 	const dbPath = ':memory:';
