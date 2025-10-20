@@ -557,11 +557,12 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 	foreignKeysCount = groupedFkCostraints.length;
 	for (const fk of groupedFkCostraints) {
-		const table = tablesList.find((it) => it.object_id === fk.parent_table_id);
-		if (!table) continue;
+		const tableFrom = tablesList.find((it) => it.object_id === fk.parent_table_id);
+		if (!tableFrom) continue;
+		const schemaFrom = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
 		const tableTo = tablesList.find((it) => it.object_id === fk.reference_table_id)!;
+		const schemaTo = filteredSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
@@ -579,13 +580,13 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		fks.push({
 			entityType: 'fks',
-			schema: schema.schema_name,
-			table: table.name,
+			schema: schemaFrom.schema_name,
+			table: tableFrom.name,
 			name: fk.name,
 			nameExplicit: true,
 			columns,
 			tableTo: tableTo.name,
-			schemaTo: schema.schema_name,
+			schemaTo: schemaTo.schema_name,
 			columnsTo,
 			onUpdate: parseFkAction(fk.on_update),
 			onDelete: parseFkAction(fk.on_delete),
