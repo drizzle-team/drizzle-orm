@@ -191,7 +191,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 					break;
-				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
+				} else if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
 					throw row;
 				} else {
 					if (hasRowsMapper) {

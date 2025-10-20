@@ -7,7 +7,7 @@ export async function createDockerDB(): Promise<{ url: string; container: Contai
 	const port = await getPort({ port: 3306 });
 	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
-	const pullStream = await docker.pull(image, { platform: 'linux/amd64' });
+	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
@@ -16,7 +16,7 @@ export async function createDockerDB(): Promise<{ url: string; container: Contai
 	const singleStoreContainer = await docker.createContainer({
 		Image: image,
 		Env: ['ROOT_PASSWORD=singlestore'],
-		name: `drizzle-${uuid()}`,
+		name: `drizzle-seed-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
@@ -28,5 +28,5 @@ export async function createDockerDB(): Promise<{ url: string; container: Contai
 	await singleStoreContainer.start();
 	await new Promise((resolve) => setTimeout(resolve, 4000));
 
-	return { url: `singlestore://root:singlestore@localhost:${port}`, container: singleStoreContainer };
+	return { url: `singlestore://root:singlestore@localhost:${port}/`, container: singleStoreContainer };
 }

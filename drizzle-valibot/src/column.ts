@@ -19,7 +19,7 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.array(v.any()),
 	v.record(v.string(), v.any()),
 ]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line drizzle-internal/no-instanceof
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));

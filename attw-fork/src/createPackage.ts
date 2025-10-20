@@ -199,9 +199,7 @@ export async function resolveTypesPackageForPackage(
 			],
 			options,
 		);
-	} catch {
-		null;
-	}
+	} catch {}
 
 	return undefined;
 }
