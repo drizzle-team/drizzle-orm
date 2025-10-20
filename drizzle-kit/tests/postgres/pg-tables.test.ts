@@ -829,7 +829,7 @@ test('composite primary key', async () => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" integer,\n\t"creator_id" integer,\n\t"classification" text,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

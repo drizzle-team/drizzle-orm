@@ -770,35 +770,6 @@ export const ddlDiff = async (
 		return ddl2.columns.hasDiff(it);
 	});
 
-	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
-		// if push and definition changed
-		return !(it.generated?.to && it.generated.from && mode === 'push');
-	});
-
-	const jsonRecreateColumns = columnsToRecreate.map((it) =>
-		prepareStatement('recreate_column', {
-			column: it.$right,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-		})
-	);
-
-	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).map((it) =>
-		prepareStatement('add_pk', { pk: it })
-	);
-
-	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).map((it) =>
-		prepareStatement('drop_pk', { pk: it })
-	);
-
-	const jsonRenamePrimaryKey = pksRenames.map((it) => {
-		return prepareStatement('rename_constraint', {
-			schema: it.to.schema,
-			table: it.to.table,
-			from: it.from.name,
-			to: it.to.name,
-		});
-	});
-
 	const alteredUniques = alters.filter((it) => it.entityType === 'uniques').filter((it) => {
 		if (it.nameExplicit) {
 			delete it.nameExplicit;
@@ -824,6 +795,23 @@ export const ddlDiff = async (
 			to: it.to.name,
 		})
 	);
+
+	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).map((it) =>
+		prepareStatement('add_pk', { pk: it })
+	);
+
+	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).map((it) =>
+		prepareStatement('drop_pk', { pk: it })
+	);
+
+	const jsonRenamePrimaryKey = pksRenames.map((it) => {
+		return prepareStatement('rename_constraint', {
+			schema: it.to.schema,
+			table: it.to.table,
+			from: it.from.name,
+			to: it.to.name,
+		});
+	});
 
 	const jsonSetTableSchemas = movedTables.map((it) =>
 		prepareStatement('move_table', {
@@ -875,7 +863,9 @@ export const ddlDiff = async (
 		})
 	);
 
-	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { check: it.$right }));
+	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
+		prepareStatement('alter_check', { check: it.$right })
+	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
@@ -1028,11 +1018,6 @@ export const ddlDiff = async (
 				delete it.notNull;
 			}
 
-			const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
-				delete it.notNull;
-			}
-
 			return ddl2.columns.hasDiff(it);
 		})
 		.map((it) => {
@@ -1091,9 +1076,10 @@ export const ddlDiff = async (
 			delete it.definition;
 		}
 
-		if (
-			it.using && ((it.using.from === null && it.using.to?.default) || it.using.to === null && it.using.from?.default)
-		) {
+		// default access method
+		// from db -> heap,
+		// drizzle schema -> null
+		if (mode === 'push' && it.using && !it.using.to && it.using.from === defaults.accessMethod) {
 			delete it.using;
 		}
 
@@ -1129,6 +1115,41 @@ export const ddlDiff = async (
 				`);
 		}
 		return prepareStatement('recreate_view', { from, to: it });
+	});
+
+	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
+		// if push and definition changed
+		return !(it.generated?.to && it.generated.from && mode === 'push');
+	});
+
+	const jsonRecreateColumns = columnsToRecreate.map((it) => {
+		const indexes = ddl2.indexes.list({ table: it.table, schema: it.schema }).filter((index) =>
+			index.columns.some((column) => trimChar(column.value, '`') === it.name)
+		);
+		for (const index of indexes) {
+			jsonCreateIndexes.push({ type: 'create_index', index });
+		}
+
+		const uniques = ddl2.uniques.list({ table: it.table, schema: it.schema, columns: { CONTAINS: it.name } });
+		for (const unique of uniques) {
+			jsonAddedUniqueConstraints.push({ type: 'add_unique', unique });
+		}
+
+		// Not sure if anyone tries to add fk on generated column or from it, but still...
+		const fksFrom = ddl2.fks.list({ table: it.table, schema: it.schema, columns: { CONTAINS: it.name } });
+		const fksTo = ddl2.fks.list({ tableTo: it.table, schemaTo: it.schema, columnsTo: { CONTAINS: it.name } });
+		for (const fkFrom of fksFrom) {
+			jsonDropReferences.push({ type: 'drop_fk', fk: fkFrom });
+		}
+		for (const fkTo of fksTo) {
+			jsonDropReferences.push({ type: 'drop_fk', fk: fkTo });
+			jsonCreateFKs.push({ type: 'create_fk', fk: fkTo });
+		}
+
+		return prepareStatement('recreate_column', {
+			column: it.$right,
+			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+		});
 	});
 
 	jsonStatements.push(...createSchemas);
@@ -1185,6 +1206,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
 
+	jsonStatements.push(...jsonRenamedUniqueConstraints);
+	jsonStatements.push(...jsonAddedUniqueConstraints);
+	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
@@ -1192,11 +1217,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
 
-	jsonStatements.push(...jsonRenamedUniqueConstraints);
-	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
 	jsonStatements.push(...createViews);
