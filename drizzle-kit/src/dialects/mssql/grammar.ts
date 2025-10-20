@@ -519,7 +519,7 @@ export const Float: SqlType = {
 	},
 	toTs: (type, value) => {
 		const param = parseParams(type)[0];
-		const optionsToSet = { precision: param };
+		const optionsToSet = { precision: Number(param) };
 
 		if (!value) return { default: '', options: optionsToSet };
 
@@ -534,10 +534,8 @@ export const Float: SqlType = {
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'bigint' }, default: `sql\`${value}\`` };
-		if (numType === 'number') return { options: { ...optionsToSet, mode: 'number' }, default: trimmed };
-		if (numType === 'bigint') return { options: { ...optionsToSet, mode: 'bigint' }, default: `${trimmed}n` };
-		assertUnreachable(numType);
+		if (numType === 'NaN') return { options: optionsToSet, default: `sql\`${value}\`` };
+		return { options: optionsToSet, default: trimmed };
 	},
 };
 export const Real: SqlType = {
