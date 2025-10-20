@@ -60,4 +60,4 @@ tests(
 		'insert returning sql',
 	]),
 );
-cacheTests("planetscale", planetscaleTest);
+cacheTests('planetscale', planetscaleTest);

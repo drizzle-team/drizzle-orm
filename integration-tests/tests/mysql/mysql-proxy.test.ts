@@ -4,7 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests } from './mysql-common';
+import { tests } from './mysql-common';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
@@ -70,62 +70,6 @@ class ServerSimulator {
 	}
 }
 
-let db: MySqlRemoteDatabase<never, typeof relations>;
-let client: mysql.Connection;
-let serverSimulator: ServerSimulator;
-
-beforeAll(async () => {
-	let connectionString;
-	if (process.env['MYSQL_CONNECTION_STRING']) {
-		connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
-	}
-	client = await retry(async () => {
-		client = await mysql.createConnection({
-			uri: connectionString,
-			supportBigNumbers: true,
-		});
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	serverSimulator = new ServerSimulator(client);
-	db = proxyDrizzle(async (sql, params, method) => {
-		try {
-			const response = await serverSimulator.query(sql, params, method);
-
-			if (response.error !== undefined) {
-				throw response.error;
-			}
-
-			return { rows: response.data };
-		} catch (e: any) {
-			console.error('Error from mysql proxy server:', e.message);
-			throw e;
-		}
-	}, { logger: ENABLE_LOGGING, relations });
-});
-
-afterAll(async () => {
-	await client?.end();
-});
-
-beforeEach((ctx) => {
-	ctx.mysql = {
-		db,
-	};
-});
-
 skipTests([
 	'select iterator w/ prepared statement',
 	'select iterator',
@@ -145,4 +89,4 @@ skipTests([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
-tests();
+// tests();

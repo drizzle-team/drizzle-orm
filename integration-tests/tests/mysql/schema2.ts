@@ -110,7 +110,7 @@ export const createUserTable = (name: string) => {
 
 export const oneUser = createUserTable('one_user');
 export const threeUsers = createUserTable('three_users');
-export const ivanhans = createUserTable("ivanhans");
+export const ivanhans = createUserTable('ivanhans');
 export const usersTable = createUserTable('userstest');
 
 export const usersDistinct = mysqlTable('users_distinct', {

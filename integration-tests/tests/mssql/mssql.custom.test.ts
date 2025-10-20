@@ -1,6 +1,4 @@
 import 'dotenv/config';
-
-import type Docker from 'dockerode';
 import { asc, DefaultLogger, eq, Name, sql } from 'drizzle-orm';
 import {
 	alias,
@@ -16,7 +14,7 @@ import {
 import { drizzle } from 'drizzle-orm/node-mssql';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
-import mssql, { type ConnectionPool } from 'mssql';
+import { type ConnectionPool } from 'mssql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createClient } from './instrumentation';
@@ -25,7 +23,6 @@ const ENABLE_LOGGING = false;
 
 let db: NodeMsSqlDatabase;
 let client: ConnectionPool;
-let container: Docker.Container | undefined;
 let close: () => Promise<void>;
 
 beforeAll(async () => {
@@ -38,7 +35,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await close();
 	await client?.close().catch(console.error);
-	await container?.stop().catch(console.error);
 });
 
 const customText = customType<{ data: string }>({
