@@ -1,6 +1,7 @@
 import 'dotenv/config.js';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import { defineConfig } from 'vitest/config.js';
+// oxlint-disable-next-line extensions
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	test: {

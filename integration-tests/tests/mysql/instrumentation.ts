@@ -7,12 +7,12 @@ import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
-import { seed } from 'drizzle-seed';
+import { FunctionsVersioning, InferCallbackType, seed } from 'drizzle-seed';
 import Keyv from 'keyv';
 import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
-import type { MysqlSchema, TestDatabase } from '../../../drizzle-kit/tests/mysql/mocks';
+import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
 import { push } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
 
@@ -78,14 +78,17 @@ export class TestCache extends Cache {
 	}
 }
 
+type RefineCallbackT<Schema extends MysqlSchema> = (
+	funcs: FunctionsVersioning,
+) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
 const _pushseed = async <Schema extends MysqlSchema>(
 	query: (sql: string, params: any[]) => Promise<any[]>,
 	db: MySqlDatabase<any, any>,
 	schema: Schema,
-	refine: 
+	refineCallback?: RefineCallbackT<Schema>,
 ) => {
 	await push({ db: { query }, to: schema });
-	await seed(db, schema).refine(refine);
+	refineCallback === undefined ? await seed(db, schema) : await seed(db, schema).refine(refineCallback);
 };
 
 const prepareTest = (vendor: 'mysql' | 'planetscale') => {
@@ -97,7 +100,12 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 				batch: (statements: string[]) => Promise<void>;
 			};
 			db: MySqlDatabase<any, any, never, typeof relations>;
-			pushseed: (schema: MysqlSchema) => Promise<void>;
+			pushseed: <Schema extends MysqlSchema>(
+				schema: Schema,
+				refineCallback?: (
+					funcs: FunctionsVersioning,
+				) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
+			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {
 					db: MySqlDatabase<any, any>;
@@ -127,11 +135,11 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 						multipleStatements: true,
 					});
 					await client.connect();
-					await client.query('drop database drizzle; create database drizzle; use drizzle;')
-					
+					await client.query('drop database drizzle; create database drizzle; use drizzle;');
+
 					const query = async (sql: string, params: any[] = []) => {
 						const res = await client.query(sql, params);
-						return res[0];
+						return res[0] as any[];
 					};
 					const batch = async (statements: string[]) => {
 						return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
@@ -180,7 +188,10 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 		pushseed: [
 			async ({ db, client }, use) => {
 				const { query } = client;
-				const pushseed = (schema: MysqlSchema) => _pushseed(query, db, schema);
+				const pushseed = (
+					schema: MysqlSchema,
+					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
+				) => _pushseed(query, db, schema, refineCallback);
 
 				await use(pushseed);
 			},

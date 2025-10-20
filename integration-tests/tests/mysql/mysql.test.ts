@@ -1,6 +1,6 @@
 import { mysqlTest } from './instrumentation';
-import { runTests } from './mysql-common-cache';
 import { tests } from './mysql-common';
+import { runTests } from './mysql-common-cache';
 
 runTests('mysql', mysqlTest);
-tests("mysql", mysqlTest)
+tests('mysql', mysqlTest);
