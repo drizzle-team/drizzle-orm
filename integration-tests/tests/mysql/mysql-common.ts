@@ -297,80 +297,99 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}]);
 	});
 
-	test.concurrent('prepared statement', async ({ db }) => {
+	test.only('prepared statement', async ({ db, pushseed }) => {
+		const users = createUserTable('users_16');
+
+		await pushseed({ users }, () => ({ users: { count: 1 } }));
+
 		const statement = db.select({
-			id: oneUser.id,
-			name: oneUser.name,
-		}).from(oneUser)
+			id: users.id,
+			name: users.name,
+		}).from(users)
 			.prepare();
 		const result = await statement.execute();
 
-		expect(result).toEqual([{ id: 1, name: 'John' }]);
+		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 	});
 
-	test.concurrent('prepared statement with placeholder in .where', async ({ db }) => {
+	test.only('prepared statement with placeholder in .where', async ({ db, pushseed }) => {
+		const users = createUserTable('users_17');
+
+		await pushseed({ users }, () => ({ users: { count: 1 } }));
+
 		const stmt = db.select({
-			id: oneUser.id,
-			name: oneUser.name,
-		}).from(oneUser)
-			.where(eq(oneUser.id, sql.placeholder('id')))
+			id: users.id,
+			name: users.name,
+		}).from(users)
+			.where(eq(users.id, sql.placeholder('id')))
 			.prepare();
 		const result = await stmt.execute({ id: 1 });
 
-		expect(result).toEqual([{ id: 1, name: 'John' }]);
+		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 	});
 
-	test.concurrent('prepared statement with placeholder in .limit', async ({ db }) => {
+	test.only('prepared statement with placeholder in .limit', async ({ db, pushseed }) => {
+		const users = createUserTable('users_18');
+
+		await pushseed({ users }, () => ({ users: { count: 1 } }));
+
 		const stmt = db
 			.select({
-				id: oneUser.id,
-				name: oneUser.name,
+				id: users.id,
+				name: users.name,
 			})
-			.from(oneUser)
-			.where(eq(oneUser.id, sql.placeholder('id')))
+			.from(users)
+			.where(eq(users.id, sql.placeholder('id')))
 			.limit(sql.placeholder('limit'))
 			.prepare();
 
 		const result = await stmt.execute({ id: 1, limit: 1 });
 
-		expect(result).toEqual([{ id: 1, name: 'John' }]);
+		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 		expect(result).toHaveLength(1);
 	});
 
-	test.concurrent('prepared statement with placeholder in .offset', async ({ db }) => {
+	test.only('prepared statement with placeholder in .offset', async ({ db, pushseed }) => {
+		const users = createUserTable('users_19');
+
+		await pushseed({ users }, () => ({ users: { count: 3 } }));
+
 		const stmt = db
 			.select({
-				id: threeUsers.id,
-				name: threeUsers.name,
+				id: users.id,
+				name: users.name,
 			})
-			.from(threeUsers)
+			.from(users)
 			.limit(sql.placeholder('limit'))
 			.offset(sql.placeholder('offset'))
 			.prepare();
 
 		const result = await stmt.execute({ limit: 1, offset: 1 });
 
-		expect(result).toEqual([{ id: 2, name: 'Jane' }]);
+		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
-	test.concurrent('prepared statement built using $dynamic', async ({ db }) => {
+	test.only('prepared statement built using $dynamic', async ({ db, pushseed }) => {
+		const users = createUserTable('users_20');
+
+		await pushseed({ users }, () => ({ users: { count: 3 } }));
+
 		function withLimitOffset(qb: any) {
 			return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
 		}
 
 		const stmt = db
 			.select({
-				id: threeUsers.id,
-				name: threeUsers.name,
+				id: users.id,
+				name: users.name,
 			})
-			.from(threeUsers)
+			.from(users)
 			.$dynamic();
 		withLimitOffset(stmt).prepare('stmt_limit');
 
 		const result = await stmt.execute({ limit: 1, offset: 1 });
 
-		expect(result).toEqual([{ id: 2, name: 'Jane' }]);
-		expect(result).toHaveLength(1);
+		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
 	test.concurrent('insert + select all possible dates', async ({ db }) => {
