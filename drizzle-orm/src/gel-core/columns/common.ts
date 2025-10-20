@@ -264,7 +264,7 @@ export class GelArrayBuilder<
 	},
 	{}
 > {
-	static override readonly [entityKind] = 'GelArrayBuilder';
+	static override readonly [entityKind]: string = 'GelArrayBuilder';
 
 	constructor(
 		name: string,

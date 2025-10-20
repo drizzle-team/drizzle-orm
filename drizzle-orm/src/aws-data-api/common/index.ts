@@ -86,7 +86,7 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 		response.value = { doubleValue: value };
 	} else if (typeof value === 'boolean') {
 		response.value = { booleanValue: value };
-	} else if (value instanceof Date) { // eslint-disable-line no-instanceof/no-instanceof
+	} else if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 		// TODO: check if this clause is needed? Seems like date value always comes as string
 		response.value = { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
 	} else {

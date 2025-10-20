@@ -211,7 +211,7 @@ ORDER BY lower(name)
 		reference_table_id: number;
 		reference_column_id: number;
 	};
-	
+
 	const fkCostraintQuery = await db.query<ForeignKeyRow>(`
 SELECT 
 	fk.name as name,

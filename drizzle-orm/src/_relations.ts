@@ -474,20 +474,20 @@ export function extractTablesRelationalConfig<
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
 			);
-			let primaryKey: AnyColumn[] | undefined;
+			// let primaryKey: AnyColumn[] | undefined;
 
 			for (const [relationName, relation] of Object.entries(relations)) {
 				if (tableName) {
 					const tableConfig = tablesConfig[tableName]!;
 					tableConfig.relations[relationName] = relation;
-					if (primaryKey) {
-						tableConfig.primaryKey.push(...primaryKey);
-					}
+					// if (primaryKey) {
+					// 	tableConfig.primaryKey.push(...primaryKey);
+					// }
 				} else {
 					if (!(dbName in relationsBuffer)) {
 						relationsBuffer[dbName] = {
 							relations: {},
-							primaryKey,
+							// primaryKey,
 						};
 					}
 					relationsBuffer[dbName]!.relations[relationName] = relation;

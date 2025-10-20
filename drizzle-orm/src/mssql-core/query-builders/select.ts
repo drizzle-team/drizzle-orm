@@ -21,8 +21,14 @@ import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MsSqlViewBase } from '../view-base.ts';
 import type {
@@ -51,7 +57,7 @@ class MsSqlSelectFromBuilderBase<
 	TBuilderMode extends 'db' | 'qb',
 	TBranch extends 'from' | 'top',
 > {
-	static readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
+	static readonly [entityKind]: string = 'MsSqlSelectFromBuilderBase';
 
 	protected fields: TSelection;
 	protected session: MsSqlSession | undefined;
@@ -128,7 +134,7 @@ export class MsSqlSelectBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > extends MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'from'> {
-	static override readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
+	static override readonly [entityKind]: string = 'MsSqlSelectFromBuilderBase';
 
 	top(top: number | Placeholder): MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'top'> {
 		return new MsSqlSelectFromBuilderBase({
