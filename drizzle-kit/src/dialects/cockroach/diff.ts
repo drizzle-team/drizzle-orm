@@ -753,7 +753,9 @@ export const ddlDiff = async (
 		})
 	);
 
-	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { check: it.$right }));
+	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
+		prepareStatement('alter_check', { check: it.$right })
+	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
@@ -962,7 +964,6 @@ export const ddlDiff = async (
 	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
-
 	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
 
 	const jsonMoveViews = movedViews.map((it) =>
@@ -972,8 +973,12 @@ export const ddlDiff = async (
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
 		if (it.entityType !== 'views') return false;
 
-		if (it.definition && mode === 'push') {
+		if (mode === 'push' && it.definition) {
 			delete it.definition;
+		}
+
+		if (mode === 'push' && it.withNoData) {
+			delete it.withNoData;
 		}
 
 		return ddl2.views.hasDiff(it);
