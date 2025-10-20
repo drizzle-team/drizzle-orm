@@ -206,7 +206,7 @@ test.concurrent('build query', async () => {
 	});
 });
 
-test.concurrent('Query check: Insert all defaults in 1 row', async ({ db }) => {
+test.concurrent('Query check: Insert all defaults in 1 row', async () => {
 	const users = mysqlTable('users', {
 		id: serial('id').primaryKey(),
 		name: text('name').default('Dan'),
@@ -242,12 +242,12 @@ test.concurrent('Query check: Insert all defaults in multiple rows', async () =>
 	});
 });
 
-test.concurrent.skip('build query insert with onDuplicate', async () => {
+test.concurrent('build query insert with onDuplicate', async () => {
 	const users = mysqlTable('users', {
-		id: serial('id').primaryKey(),
-		name: text('name').default('Dan'),
-		jsonb: jsonb('name'),
-		state: text('state').default('UA'),
+		id: serial().primaryKey(),
+		name: text().default('Dan'),
+		verified: boolean().default(false),
+		jsonb: jsonb(),
 	});
 
 	const query = db.insert(users)
@@ -257,7 +257,7 @@ test.concurrent.skip('build query insert with onDuplicate', async () => {
 
 	expect(query).toEqual({
 		sql:
-			'insert into `users` (`id`, `name`, `verified`, `jsonb`, `created_at`) values (default, ?, default, ?, default) on duplicate key update `name` = ?',
+			'insert into `users` (`id`, `name`, `verified`, `jsonb`) values (default, ?, default, ?) on duplicate key update `name` = ?',
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
