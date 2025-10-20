@@ -272,26 +272,28 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Jane' }]);
 	});
 
-	test.concurrent('partial join with alias', async ({ db }) => {
-		const customerAlias = alias(ivanhans, 'customer');
+	test.only('partial join with alias', async ({ db, pushseed }) => {
+		const users = createUserTable('users_13');
+		await pushseed({ users }, () => ({ users: { count: 2 } }));
 
+		const customerAlias = alias(users, 'customer');
 		const result = await db
 			.select({
 				user: {
-					id: ivanhans.id,
-					name: ivanhans.name,
+					id: users.id,
+					name: users.name,
 				},
 				customer: {
 					id: customerAlias.id,
 					name: customerAlias.name,
 				},
-			}).from(ivanhans)
-			.leftJoin(customerAlias, eq(customerAlias.id, 11))
-			.where(eq(ivanhans.id, 10));
+			}).from(users)
+			.leftJoin(customerAlias, eq(customerAlias.id, 2))
+			.where(eq(users.id, 1));
 
 		expect(result).toEqual([{
-			user: { id: 10, name: 'Ivan' },
-			customer: { id: 11, name: 'Hans' },
+			user: { id: 1, name: 'Agripina' },
+			customer: { id: 2, name: 'Candy' },
 		}]);
 	});
 
