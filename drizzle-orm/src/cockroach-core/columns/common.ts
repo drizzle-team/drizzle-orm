@@ -230,7 +230,7 @@ export class CockroachArrayBuilder<
 		length: number | undefined;
 	}
 > {
-	static override readonly [entityKind] = 'CockroachArrayBuilder';
+	static override readonly [entityKind]: string = 'CockroachArrayBuilder';
 
 	constructor(
 		name: string,

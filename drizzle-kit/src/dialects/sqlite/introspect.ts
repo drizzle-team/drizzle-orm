@@ -514,8 +514,9 @@ export const fromDatabase = async (
 
 		const { columnsFrom, columnsTo } = fksToColumns[`${fk.tableFrom}:${fk.id}`]!;
 
-		const parsedFk = tableToParsedFks[fk.tableFrom];
-		const constraint = parsedFk.find((it) =>
+		// can be undefined if fk references to non-existing table
+		const parsedFk = tableToParsedFks[fk.tableFrom] as typeof tableToParsedFks[string] | undefined;
+		const constraint = parsedFk?.find((it) =>
 			areStringArraysEqual(it.fromColumns, columnsFrom) && areStringArraysEqual(it.toColumns, columnsTo)
 			&& (it.toTable === fk.tableTo) && (it.fromTable === fk.tableFrom)
 		);
