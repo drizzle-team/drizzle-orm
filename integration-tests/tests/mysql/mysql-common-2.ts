@@ -23,12 +23,12 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('left join (flat object fields)', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_23', {
+		const users = mysqlTable('users_19', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id'),
 		});
-		const cities = mysqlTable('cities_5', {
+		const cities = mysqlTable('cities_19', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
@@ -57,7 +57,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('left join (grouped fields)', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_22', {
+		const users = mysqlTable('users_24', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id'),
@@ -105,12 +105,12 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('left join (all fields)', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_21', {
+		const users = mysqlTable('users_25', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id'),
 		});
-		const cities = mysqlTable('cities_3', {
+		const cities = mysqlTable('cities_25', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
@@ -129,23 +129,23 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 		expect(res).toEqual([
 			{
-				users_21: {
+				users_25: {
 					id: 1,
 					name: 'Agripina',
 					cityId: 1,
 				},
-				cities_3: {
+				cities_25: {
 					id: 1,
 					name: 'Lakeitha',
 				},
 			},
 			{
-				users_21: {
+				users_25: {
 					id: 2,
 					name: 'Candy',
 					cityId: null,
 				},
-				cities_3: null,
+				cities_25: null,
 			},
 		]);
 	});
@@ -348,7 +348,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('with ... delete', async ({ db, push }) => {
-		const orders = mysqlTable('orders_18', {
+		const orders = mysqlTable('orders_2', {
 			id: serial('id').primaryKey(),
 			region: text('region').notNull(),
 			product: text('product').notNull(),
@@ -527,34 +527,33 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('view', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_38', {
+	test.concurrent('view', async ({ db, push, seed }) => {
+		const users = mysqlTable('users_39', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id').notNull(),
 		});
 
-		await push({ users });
-		await seed({ users }, (funcs: any) => ({
-			users: { count: 3, columns: { cityId: funcs.valuesFromArray({ values: [1, 1, 2] }) } },
-		}));
-
-		const newYorkers1 = mysqlView('new_yorkers')
+		const newYorkers1 = mysqlView('new_yorkers_1')
 			.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-		const newYorkers2 = mysqlView('new_yorkers', {
+		const newYorkers2 = mysqlView('new_yorkers_2', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id').notNull(),
 		}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 
-		const newYorkers3 = mysqlView('new_yorkers', {
+		const newYorkers3 = mysqlView('new_yorkers_3', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id').notNull(),
 		}).existing();
 
-		await db.execute(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+		await push({ users, newYorkers1, newYorkers2, newYorkers3 });
+		await db.execute(sql`create view new_yorkers_3 as ${getViewConfig(newYorkers1).query}`);
+		await seed({ users }, (funcs: any) => ({
+			users: { count: 3, columns: { cityId: funcs.valuesFromArray({ values: [1, 1, 2] }) } },
+		}));
 
 		{
 			const result = await db.select().from(newYorkers1);
@@ -587,8 +586,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 				{ name: 'Ilse' },
 			]);
 		}
-
-		await db.execute(sql`drop view ${newYorkers1}`);
 	});
 
 	test.concurrent('select from raw sql', async ({ db }) => {
@@ -622,7 +619,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('join on aliased sql from select', async ({ db }) => {
+	test.concurrent('join on aliased sql from select', async ({ db }) => {
 		const result = await db
 			.select({
 				userId: sql<number>`users.id`.as('userId'),
@@ -643,7 +640,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('join on aliased sql from with clause', async ({ db }) => {
+	test.concurrent('join on aliased sql from with clause', async ({ db }) => {
 		const users = db.$with('users').as(
 			db.select({
 				id: sql<number>`id`.as('userId'),
@@ -684,7 +681,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('prefixed table', async ({ db, push }) => {
+	test.concurrent('prefixed table', async ({ db, push }) => {
 		const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
 
 		const users = mysqlTable('test_prefixed_table_with_unique_name', {
@@ -699,7 +696,5 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		const result = await db.select().from(users);
 
 		expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-		await db.execute(sql`drop table ${users}`);
 	});
 }
