@@ -13,7 +13,7 @@ import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
 import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
-import { diff, push } from '../../../drizzle-kit/tests/mysql/mocks';
+import { diff } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
@@ -195,7 +195,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 			{ scope: 'worker' },
 		],
 		push: [
-			async ({ db, client }, use) => {
+			async ({ client }, use) => {
 				const { query } = client;
 				const push = (
 					schema: MysqlSchema,
@@ -206,7 +206,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 			{ scope: 'worker' },
 		],
 		seed: [
-			async ({ db, client }, use) => {
+			async ({ db }, use) => {
 				const seed = (
 					schema: MysqlSchema,
 					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
