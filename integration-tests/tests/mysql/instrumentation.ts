@@ -81,17 +81,23 @@ export class TestCache extends Cache {
 export type RefineCallbackT<Schema extends MysqlSchema> = (
 	funcs: FunctionsVersioning,
 ) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
-const _pushseed = async <Schema extends MysqlSchema>(
+
+const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
-	db: MySqlDatabase<any, any>,
-	schema: Schema,
-	refineCallback?: RefineCallbackT<Schema>,
+	schema: MysqlSchema,
 ) => {
 	const res = await diff({}, schema, []);
 	for (const s of res.sqlStatements) {
 		await query(s, []);
 	}
-	refineCallback === undefined ? await seed(db, schema) : await seed(db, schema).refine(refineCallback);
+};
+
+const _seed = async <Schema extends MysqlSchema>(
+	db: MySqlDatabase<any, any>,
+	schema: Schema,
+	refineCallback?: RefineCallbackT<Schema>,
+) => {
+	return refineCallback === undefined ? seed(db, schema) : seed(db, schema).refine(refineCallback);
 };
 
 const prepareTest = (vendor: 'mysql' | 'planetscale') => {
@@ -103,11 +109,10 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 				batch: (statements: string[]) => Promise<void>;
 			};
 			db: MySqlDatabase<any, any, never, typeof relations>;
-			pushseed: <Schema extends MysqlSchema>(
-				schema: Schema,
-				refineCallback?: (
-					funcs: FunctionsVersioning,
-				) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
+			push: (schema: MysqlSchema) => Promise<void>;
+			seed: (
+				schema: MysqlSchema,
+				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
 			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {
@@ -189,15 +194,25 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 			},
 			{ scope: 'worker' },
 		],
-		pushseed: [
+		push: [
 			async ({ db, client }, use) => {
 				const { query } = client;
-				const pushseed = (
+				const push = (
+					schema: MysqlSchema,
+				) => _push(query, schema);
+
+				await use(push);
+			},
+			{ scope: 'worker' },
+		],
+		seed: [
+			async ({ db, client }, use) => {
+				const seed = (
 					schema: MysqlSchema,
 					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
-				) => _pushseed(query, db, schema, refineCallback);
+				) => _seed(db, schema, refineCallback);
 
-				await use(pushseed);
+				await use(seed);
 			},
 			{ scope: 'worker' },
 		],
