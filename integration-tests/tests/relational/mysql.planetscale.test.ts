@@ -22,10 +22,14 @@ let db: PlanetScaleDatabase<never, typeof relations>;
 
 beforeAll(async () => {
 	db = drizzle(
-		new Client({
-			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
-		}),
-		{ relations, logger: ENABLE_LOGGING, casing: 'snake_case' },
+		{
+			client: new Client({
+				url: process.env['PLANETSCALE_CONNECTION_STRING']!,
+			}),
+			relations,
+			logger: ENABLE_LOGGING,
+			casing: 'snake_case',
+		},
 	);
 
 	await Promise.all([

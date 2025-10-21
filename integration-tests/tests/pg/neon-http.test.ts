@@ -27,15 +27,9 @@ beforeAll(async () => {
 		return `${protocol}://${host}:${port}/sql`;
 	};
 	const client = neon(connectionString);
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestCache(),
-	});
-	dbGlobalCached = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestGlobalCache(),
-	});
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {

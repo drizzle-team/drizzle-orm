@@ -7,7 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { SQLiteBunSession } from './session.ts';
 
 export class SQLiteBunDatabase<
@@ -104,10 +104,10 @@ export function drizzle<
 	...params:
 		| []
 		| [
-			TClient | string,
+			string,
 		]
 		| [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema, TRelations>,
 		]
 		| [
@@ -129,32 +129,28 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& ({
-				connection?: DrizzleBunSqliteDatabaseConfig | string;
-				client?: TClient;
-			})
-			& DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& ({
+			connection?: DrizzleBunSqliteDatabaseConfig | string;
+			client?: TClient;
+		})
+		& DrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		if (typeof connection === 'object') {
-			const { source, ...opts } = connection;
+	if (typeof connection === 'object') {
+		const { source, ...opts } = connection;
 
-			const options = Object.values(opts).filter((v) => v !== undefined).length ? opts : undefined;
+		const options = Object.values(opts).filter((v) => v !== undefined).length ? opts : undefined;
 
-			const instance = new Database(source, options);
-
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = new Database(connection);
+		const instance = new Database(source, options);
 
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	const instance = new Database(connection);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

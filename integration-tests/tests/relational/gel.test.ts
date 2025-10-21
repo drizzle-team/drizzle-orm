@@ -65,7 +65,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
 
 	dsn = connectionString;
 

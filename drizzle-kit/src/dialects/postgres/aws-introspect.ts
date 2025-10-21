@@ -1227,12 +1227,7 @@ export const fromDatabase = async (
 			with: hasNonNullOpt ? opts : null,
 			materialized: view.kind === 'm',
 			tablespace,
-			using: accessMethod
-				? {
-					name: accessMethod.name,
-					default: accessMethod.name === defaults.accessMethod,
-				}
-				: null,
+			using: accessMethod?.name ?? null,
 			withNoData: null,
 		});
 	}
