@@ -841,7 +841,15 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('with ... delete', async ({ db, push }) => {
+	test.only('with ... delete', async ({ db, push }) => {
+		const orders = mysqlTable('orders_18', {
+			id: serial('id').primaryKey(),
+			region: text('region').notNull(),
+			product: text('product').notNull(),
+			amount: int('amount').notNull(),
+			quantity: int('quantity').notNull(),
+		});
+
 		await push({ orders });
 
 		await db.insert(orders).values([
@@ -969,43 +977,70 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}
 	});
 
-	test('having', async ({ db }) => {
+	test.only('having', async ({ db, push, seed }) => {
+		const cities = mysqlTable('cities_37', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('users_37', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		await seed({ cities, users }, (funcs: any) => ({
+			cities: { count: 3 },
+			users: { count: 3, columns: { cityId: funcs.valuesFromArray({ values: [1, 1, 2] }) } },
+		}));
+
 		const result = await db
 			.select({
-				id: citiesTable.id,
-				name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
-				usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+				id: cities.id,
+				name: sql<string>`upper(${cities.name})`.as('upper_name'),
+				usersCount: sql<number>`count(${users.id})`.as('users_count'),
 			})
-			.from(citiesTable)
-			.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
+			.from(cities)
+			.leftJoin(users, eq(users.cityId, cities.id))
 			.where(({ name }) => sql`length(${name}) >= 3`)
-			.groupBy(citiesTable.id)
+			.groupBy(cities.id)
 			.having(({ usersCount }) => sql`${usersCount} > 0`)
 			.orderBy(({ name }) => name);
 
 		expect(result).toEqual([
 			{
-				id: 1,
-				name: 'LONDON',
-				usersCount: 2,
+				id: 2,
+				name: 'HOVANES',
+				usersCount: 1,
 			},
 			{
-				id: 2,
-				name: 'PARIS',
-				usersCount: 1,
+				id: 1,
+				name: 'LAKEITHA',
+				usersCount: 2,
 			},
 		]);
 	});
 
-	test('view', async ({ db }) => {
+	test.only('view', async ({ db, push, seed }) => {
+		const users = mysqlTable('users_38', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id').notNull(),
+		});
+
+		await push({ users });
+		await seed({ users }, (funcs: any) => ({
+			users: { count: 3, columns: { cityId: funcs.valuesFromArray({ values: [1, 1, 2] }) } },
+		}));
+
 		const newYorkers1 = mysqlView('new_yorkers')
-			.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+			.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
 		const newYorkers2 = mysqlView('new_yorkers', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			cityId: int('city_id').notNull(),
-		}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+		}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 
 		const newYorkers3 = mysqlView('new_yorkers', {
 			id: serial('id').primaryKey(),
@@ -1018,32 +1053,32 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		{
 			const result = await db.select().from(newYorkers1);
 			expect(result).toEqual([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 1 },
+				{ id: 2, name: 'Candy', cityId: 1 },
+				{ id: 3, name: 'Ilse', cityId: 1 },
 			]);
 		}
 
 		{
 			const result = await db.select().from(newYorkers2);
 			expect(result).toEqual([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 1 },
+				{ id: 2, name: 'Candy', cityId: 1 },
+				{ id: 3, name: 'Ilse', cityId: 1 },
 			]);
 		}
 
 		{
 			const result = await db.select().from(newYorkers3);
 			expect(result).toEqual([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 1 },
+				{ id: 2, name: 'Candy', cityId: 1 },
+				{ id: 3, name: 'Ilse', cityId: 1 },
 			]);
 		}
 
 		{
 			const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
 			expect(result).toEqual([
-				{ name: 'John' },
-				{ name: 'Jane' },
+				{ name: 'Candy' },
+				{ name: 'Ilse' },
 			]);
 		}
 
