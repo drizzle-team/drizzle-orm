@@ -13,7 +13,7 @@ import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
 import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
-import { push } from '../../../drizzle-kit/tests/mysql/mocks';
+import { diff, push } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
@@ -87,7 +87,10 @@ const _pushseed = async <Schema extends MysqlSchema>(
 	schema: Schema,
 	refineCallback?: RefineCallbackT<Schema>,
 ) => {
-	await push({ db: { query }, to: schema });
+	const res = await diff({}, schema, []);
+	for (const s of res.sqlStatements) {
+		await query(s, []);
+	}
 	refineCallback === undefined ? await seed(db, schema) : await seed(db, schema).refine(refineCallback);
 };
 
