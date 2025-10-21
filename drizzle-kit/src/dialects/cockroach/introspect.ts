@@ -202,7 +202,7 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
+	const viewsList = tablesList.filter((it) => (it.kind === 'v' || it.kind === 'm') && tablesFilter(it.schema, it.name));
 
 	const filteredTables = tablesList
 		.filter((it) => it.kind === 'r' && tablesFilter(it.schema, it.name))
@@ -383,8 +383,8 @@ export const fromDatabase = async (
 		});
 
 	const rolesQuery = db
-		.query<{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }>(
-			`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
+		.query<{ username: string; options: string; member_of: string[] }>(
+			`SHOW roles;`,
 		)
 		.then((rows) => {
 			queryCallback('roles', rows, null);
@@ -684,14 +684,24 @@ export const fromDatabase = async (
 
 	// TODO: drizzle link
 	const res = prepareRoles(entities);
-	for (const dbRole of rolesList) {
-		if (!(res.useRoles || !(res.exclude.includes(dbRole.rolname) || !res.include.includes(dbRole.rolname)))) continue;
+	const filteredRoles = res.useRoles
+		? rolesList
+		: (!res.include.length && !res.exclude.length
+			? []
+			: rolesList.filter(
+				(role) =>
+					(!res.exclude.length || !res.exclude.includes(role.username))
+					&& (!res.include.length || res.include.includes(role.username)),
+			));
 
+	for (const dbRole of filteredRoles) {
+		const createDb = dbRole.options.includes('CREATEDB');
+		const createRole = dbRole.options.includes('CREATEROLE');
 		roles.push({
 			entityType: 'roles',
-			name: dbRole.rolname,
-			createDb: dbRole.rolcreatedb,
-			createRole: dbRole.rolcreatedb,
+			name: dbRole.username,
+			createDb: createDb,
+			createRole: createRole,
 		});
 	}
 
@@ -876,6 +886,16 @@ export const fromDatabase = async (
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
 		const table = tablesList.find((it) => it.oid === check.tableId)!;
 		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+
+		// Check if any column in the PK is hidden, skip if so
+		const hasHiddenColumn = check.columnsOrdinals && check.columnsOrdinals.some((ordinal) => {
+			const column = columnsList.find((column) => column.tableId === check.tableId && column.ordinality === ordinal);
+			return !column || column.isHidden; // skip if not found or hidden
+		});
+
+		if (hasHiddenColumn) {
+			continue;
+		}
 
 		checks.push({
 			entityType: 'checks',

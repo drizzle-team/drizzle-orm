@@ -439,11 +439,10 @@ test('unique #6', async () => {
 		'my_schema.users.unique_name->my_schema.users.unique_name2',
 	]);
 
-	await push({ db, to: from, schemas: ['dbo'] });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		schemas: ['my_schema'],
 		renames: [
 			'my_schema.users.unique_name->my_schema.users.unique_name2',
 		],
@@ -2104,11 +2103,10 @@ test('default #4', async () => {
 		'my_schema.users.name->my_schema.users.name2',
 	]);
 
-	await push({ db, to: from, schemas: ['dbo'] });
+	await push({ db, to: from, log: 'statements' });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		schemas: ['my_schema'],
 		renames: [
 			'my_schema.users.name->my_schema.users.name2',
 		],

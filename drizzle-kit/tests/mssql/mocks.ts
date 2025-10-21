@@ -125,7 +125,7 @@ export const diffIntrospect = async (
 	const filePath = `tests/mssql/tmp/${testName}.ts`;
 
 	writeFileSync(filePath, file.file);
-	await tsc(file.file)
+	await tsc(file.file);
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {
@@ -163,6 +163,7 @@ export const push = async (config: {
 	log?: 'statements' | 'none';
 	force?: boolean;
 	expectError?: boolean;
+	ignoreSubsequent?: boolean;
 }) => {
 	const { db, to, force, expectError, log } = config;
 	const casing = config.casing ?? 'camelCase';
@@ -221,6 +222,40 @@ export const push = async (config: {
 		}
 	}
 
+	// subsequent push
+	if (!config.ignoreSubsequent) {
+		{
+			const { schema } = await introspect(
+				db,
+				[],
+				schemas,
+				new EmptyProgressView(),
+			);
+			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+
+			const { sqlStatements, statements } = await ddlDiff(
+				ddl1,
+				ddl2,
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				'push',
+			);
+			if (sqlStatements.length > 0) {
+				console.error('---- subsequent push is not empty ----');
+				console.log(sqlStatements.join('\n'));
+				throw new Error();
+			}
+		}
+	}
+
 	return { sqlStatements, statements, hints, losses, error };
 };
 
@@ -257,9 +292,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	};
 
 	const { db, clear } = kit;
-	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init });
-	const { sqlStatements: st2 } = await push({ db, to: init });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	const { sqlStatements: st1 } = await push({ db, to: init, ignoreSubsequent: true });
+	const { sqlStatements: st2 } = await push({ db, to: init, ignoreSubsequent: true });
 
 	const expectedInit = `CREATE TABLE [${tableName}] (\n\t[${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
@@ -279,7 +314,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(file.file)
+	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
@@ -310,9 +345,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 		table: mssqlTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema1 });
-	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	await push({ db, to: schema1, ignoreSubsequent: true });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, ignoreSubsequent: true });
 
 	const expectedAlter = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
@@ -331,9 +366,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 		table: mssqlTable('table', { id: int().identity(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	await push({ db, to: schema3, ignoreSubsequent: true });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, ignoreSubsequent: true });
 
 	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)

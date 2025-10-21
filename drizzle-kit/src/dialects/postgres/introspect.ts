@@ -243,7 +243,10 @@ export const fromDatabase = async (
 			})
 		: [] as TableListItem[];
 
-	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
+	const viewsList = tablesList.filter((it) => {
+		if ((it.kind === 'v' || it.kind === 'm') && tablesFilter(it.schema, it.name)) return true;
+		return false;
+	});
 
 	const filteredTables = tablesList.filter((it) => {
 		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.schema, it.name))) return false;
@@ -710,15 +713,24 @@ export const fromDatabase = async (
 
 	// TODO: drizzle link
 	const res = prepareRoles(entities);
-	for (const dbRole of rolesList) {
-		if (!(res.useRoles || !(res.exclude.includes(dbRole.rolname) || !res.include.includes(dbRole.rolname)))) continue;
 
+	const filteredRoles = res.useRoles
+		? rolesList
+		: (!res.include.length && !res.exclude.length
+			? []
+			: rolesList.filter(
+				(role) =>
+					(!res.exclude.length || !res.exclude.includes(role.rolname))
+					&& (!res.include.length || res.include.includes(role.rolname)),
+			));
+
+	for (const dbRole of filteredRoles) {
 		roles.push({
 			entityType: 'roles',
 			name: dbRole.rolname,
 			superuser: dbRole.rolsuper,
 			inherit: dbRole.rolinherit,
-			createRole: dbRole.rolcreatedb,
+			createRole: dbRole.rolcreaterole,
 			createDb: dbRole.rolcreatedb,
 			canLogin: dbRole.rolcanlogin,
 			replication: dbRole.rolreplication,
@@ -1220,12 +1232,7 @@ export const fromDatabase = async (
 			with: hasNonNullOpt ? opts : null,
 			materialized: view.kind === 'm',
 			tablespace,
-			using: accessMethod
-				? {
-					name: accessMethod.name,
-					default: accessMethod.name === defaults.accessMethod,
-				}
-				: null,
+			using: accessMethod?.name ?? null,
 			withNoData: null,
 		});
 	}

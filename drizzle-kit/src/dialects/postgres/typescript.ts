@@ -862,8 +862,8 @@ const createTableColumns = (
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'NO ACTION' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate : null;
+					const onDelete = it.onDelete && it.onDelete !== 'NO ACTION' ? it.onDelete.toLowerCase() : null;
+					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate.toLowerCase() : null;
 					const params = { onDelete, onUpdate };
 
 					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';

@@ -9,15 +9,17 @@ export const hash = (input: string, len: number = 12) => {
 	const dictLen = BigInt(dictionary.length);
 	const combinationsCount = BigInt(dictionary.length) ** BigInt(len);
 	const p = 53n;
+	let power = 1n;
 
 	let hash = 0n;
-	for (let i = 0; i < input.length; i++) {
-		hash += (BigInt(input.codePointAt(i) || 0) * (p ** BigInt(i))) % combinationsCount;
+	for (const ch of input) {
+		hash = (hash + (BigInt(ch.codePointAt(0) || 0) * power)) % combinationsCount;
+		power = (power * p) % combinationsCount;
 	}
 
 	const result = [] as string[];
 
-	let index = hash % combinationsCount;
+	let index = hash;
 	for (let i = len - 1; i >= 0; i--) {
 		const element = dictionary[Number(index % dictLen)]!;
 		result.unshift(element);

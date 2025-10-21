@@ -117,7 +117,7 @@ test('alter check constraint', async ({ db }) => {
 		'ALTER TABLE "users" ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);
 });
 
 test('alter multiple check constraints', async ({ db }) => {
@@ -215,5 +215,5 @@ test('db has checks. Push with same names', async ({ db }) => {
 		'ALTER TABLE "test" ADD CONSTRAINT "some_check" CHECK ("test"."values" > 100);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);
 });

@@ -13,8 +13,8 @@ import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { GelTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import type { GelViewBase } from './view-base.ts';
-import { GelViewConfig } from './view-common.ts';
-import { type GelMaterializedView, GelMaterializedViewConfig, type GelView } from './view.ts';
+import { GelMaterializedViewConfig, GelViewConfig } from './view-common.ts';
+import type { GelMaterializedView, GelView } from './view.ts';
 
 export function getTableConfig<TTable extends GelTable>(table: TTable) {
 	const columns = Object.values(table[Table.Symbol.Columns]);

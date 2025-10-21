@@ -228,7 +228,7 @@ export class NodeCockroachSession<
 		transaction: (tx: NodeCockroachTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: CockroachTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
+		const session = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
 			? new NodeCockroachSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodeCockroachTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
@@ -241,7 +241,7 @@ export class NodeCockroachSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
+			if (this.client instanceof Pool) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}

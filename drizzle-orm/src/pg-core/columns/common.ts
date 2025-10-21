@@ -263,7 +263,7 @@ export class PgArrayBuilder<
 		length: number | undefined;
 	}
 > {
-	static override readonly [entityKind] = 'PgArrayBuilder';
+	static override readonly [entityKind]: string = 'PgArrayBuilder';
 
 	constructor(
 		name: string,

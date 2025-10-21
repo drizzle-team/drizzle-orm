@@ -1,7 +1,7 @@
 import { type Client, type Config, createClient } from '@libsql/client';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import { construct as construct, type LibSQLDatabase } from './driver-core.ts';
+import { construct, type LibSQLDatabase } from './driver-core.ts';
 
 export { LibSQLDatabase } from './driver-core.ts';
 

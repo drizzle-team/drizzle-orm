@@ -291,9 +291,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (value instanceof Uint8Array) { // eslint-disable-line no-instanceof/no-instanceof
+	if (value instanceof Uint8Array) { // oxlint-disable-line drizzle-internal/no-instanceof
 		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
+			if (!(value instanceof Buffer)) { // oxlint-disable-line drizzle-internal/no-instanceof
 				return Buffer.from(value);
 			}
 			return value;

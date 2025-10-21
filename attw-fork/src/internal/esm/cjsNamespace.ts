@@ -22,9 +22,7 @@ export function getCjsModuleNamespace(fs: Package, file: URL, seen = new Set<str
 				const reexported = getCjsModuleNamespace(fs, url, seen);
 				for (const name of reexported) exports.add(name);
 			}
-		} catch {
-			null;
-		}
+		} catch {}
 	}
 
 	return exports;

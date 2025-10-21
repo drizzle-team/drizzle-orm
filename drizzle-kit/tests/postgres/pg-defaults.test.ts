@@ -646,6 +646,8 @@ test('text + text arrays', async () => {
 		`'{{"text\\\\"},{text}}'::text[]`,
 	);
 
+	const res14 = await diffDefault(_, text().default(sql`gen_random_uuid()`), `gen_random_uuid()`);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -659,6 +661,7 @@ test('text + text arrays', async () => {
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
 });
 
 test('json + json arrays', async () => {
