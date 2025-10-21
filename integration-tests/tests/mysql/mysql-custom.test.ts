@@ -23,8 +23,8 @@ import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
-import relations from './relations';
 import { createDockerDB } from '../../../drizzle-kit/tests/mysql/mocks';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 

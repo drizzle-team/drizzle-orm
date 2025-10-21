@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
 	boolean,
 	date,
 	datetime,
@@ -370,7 +371,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 	test.concurrent.only('prepared statement with placeholder in .offset', async ({ db, push, seed }) => {
 		const users = createUserTable('users_19');
-		
+
 		await push({ users });
 		await seed({ users }, () => ({ users: { count: 3 } }));
 
@@ -391,7 +392,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 	test.concurrent.only('prepared statement built using $dynamic', async ({ db, push, seed }) => {
 		const users = createUserTable('users_20');
-		
+
 		await push({ users });
 		await seed({ users }, (funcs: any) => ({ users: { count: 3 } }));
 
@@ -526,8 +527,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-		
-		await push({ users, cities })
+
+		await push({ users, cities });
 		await seed(
 			{ users, cities },
 			(funcs: any) => ({
@@ -560,8 +561,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-		
-		await push({ users, cities })
+
+		await push({ users, cities });
 		await seed(
 			{ users, cities },
 			(funcs: any) => ({
@@ -609,7 +610,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			name: text('name').notNull(),
 		});
 
-		await push({ users, cities })
+		await push({ users, cities });
 		await seed(
 			{ users, cities },
 			(funcs: any) => ({
@@ -923,7 +924,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		});
 
 		push({ users1, users2 });
-		
+
 		expect(() => db.select({ name: users2.name }).from(users1).prepare()).toThrowError();
 	});
 
@@ -3278,13 +3279,13 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(rawRes).toStrictEqual(expectedRes);
 	});
 
-test.only('insert into ... select', async ({ db, push }) => {
+	test.only('insert into ... select', async ({ db, push }) => {
 		const notifications = mysqlTable('notifications_29', {
-			id: serial('id').primaryKey(),
+			id: int('id').primaryKey().autoincrement(),
 			sentAt: timestamp('sent_at').notNull().defaultNow(),
 			message: text('message').notNull(),
 		});
-const users = mysqlTable('users_29', {
+		const users = mysqlTable('users_29', {
 			id: int('id').primaryKey().autoincrement(),
 			name: text('name').notNull(),
 		});
@@ -3431,7 +3432,7 @@ const users = mysqlTable('users_29', {
 			name: varchar('name', { length: 100 }).notNull(),
 			age: int('age').notNull(),
 		}, () => [usersTableNameIndex, usersTableAgeIndex]);
-const usersTableNameIndex = index('users_name_index_32').on(users.name);
+		const usersTableNameIndex = index('users_name_index_32').on(users.name);
 		const usersTableAgeIndex = index('users_age_index_32').on(users.age);
 
 		await push({ users });
@@ -3501,7 +3502,7 @@ const usersTableNameIndex = index('users_name_index_32').on(users.name);
 		})()).rejects.toThrowError();
 	});
 
-test('MySqlTable :: select with join `use index` hint', async ({ db, push }) => {
+	test('MySqlTable :: select with join `use index` hint', async ({ db, push }) => {
 		const users = mysqlTable('users_35', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
@@ -3515,7 +3516,7 @@ test('MySqlTable :: select with join `use index` hint', async ({ db, push }) => 
 		const postsTableUserIdIndex = index('posts_user_id_index_35').on(posts.userId);
 
 		await push({ users, posts });
-await db.insert(users).values([
+		await db.insert(users).values([
 			{ name: 'Alice' },
 			{ name: 'Bob' },
 			{ name: 'Charlie' },
@@ -3562,10 +3563,10 @@ await db.insert(users).values([
 			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
 		}, () => [postsTableUserIdIndex]);
 		const postsTableUserIdIndex = index('posts_user_id_index35').on(posts.userId);
-		
-		await push({users, posts})
 
-	const query = db.select({
+		await push({ users, posts });
+
+		const query = db.select({
 			userId: users.id,
 			name: users.name,
 			postId: posts.id,
