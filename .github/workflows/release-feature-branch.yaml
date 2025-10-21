@@ -161,7 +161,7 @@ jobs:
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
-          MSSQL_CONNECTION_STRING: Server=localhost,1433;User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;
+          MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
         working-directory: integration-tests
         run: |
