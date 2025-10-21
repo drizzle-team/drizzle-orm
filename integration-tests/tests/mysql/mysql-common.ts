@@ -346,7 +346,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 	});
 
-	test.concurrent.only('prepared statement with placeholder in .limit', async ({ db, push, seed }) => {
+	test.concurrent('prepared statement with placeholder in .limit', async ({ db, push, seed }) => {
 		const users = createUserTable('users_18');
 
 		await push({ users });
@@ -413,22 +413,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
-	test.concurrent('insert + select all possible dates', async ({ db }) => {
-		await db.execute(
-			sql`
-				create table \`datestable_1\` (
-				    \`date\` date,
-				    \`date_as_string\` date,
-				    \`time\` time,
-				    \`datetime\` datetime,
-				    \`datetime_as_string\` datetime,
-				    \`timestamp\` timestamp(3),
-				    \`timestamp_as_string\` timestamp(3),
-				    \`year\` year
-				)
-			`,
-		);
-
+	test.concurrent('insert + select all possible dates', async ({ db, push }) => {
 		const datesTable = mysqlTable('datestable_1', {
 			date: date('date'),
 			dateAsString: date('date_as_string', { mode: 'string' }),
@@ -439,6 +424,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
 			year: year('year'),
 		});
+
+		await push({ datesTable });
 
 		const testDate = new Date('2022-11-11');
 		const testDateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
@@ -464,16 +451,16 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(res).toEqual([{
 			date: toLocalDate(new Date('2022-11-11')),
 			dateAsString: '2022-11-11',
-			time: '12:12:12',
+			time: '12:12:12.0',
 			datetime: new Date('2022-11-11'),
 			year: 2022,
-			datetimeAsString: '2022-11-11 12:12:12',
+			datetimeAsString: '2022-11-11 12:12:12.00',
 			timestamp: new Date('2022-11-11 12:12:12.123'),
 			timestampAsString: '2022-11-11 12:12:12.123',
 		}]);
 	});
 
-	test.concurrent.only('Mysql enum as ts enum', async ({ db }) => {
+	test.concurrent('Mysql enum as ts enum', async ({ db, push }) => {
 		enum Test {
 			a = 'a',
 			b = 'b',
@@ -487,14 +474,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
 		});
 
-		await db.execute(sql`
-			create table \`enums_test_case_1\` (
-			    \`id\` serial primary key,
-			    \`enum1\` ENUM('a', 'b', 'c') not null,
-			    \`enum2\` ENUM('a', 'b', 'c') default 'a',
-			    \`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-			)
-		`);
+		await push({ tableWithTsEnums });
 
 		await db.insert(tableWithTsEnums).values([
 			{ id: 1, enum1: Test.a, enum2: Test.b, enum3: Test.c },
@@ -511,7 +491,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('Mysql enum test case #1', async ({ db }) => {
+	test.concurrent('Mysql enum test case #1', async ({ db, push }) => {
 		const tableWithEnums = mysqlTable('enums_test_case_2', {
 			id: serial('id').primaryKey(),
 			enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
@@ -519,14 +499,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
 		});
 
-		await db.execute(sql`
-			create table \`enums_test_case_2\` (
-			    \`id\` serial primary key,
-			    \`enum1\` ENUM('a', 'b', 'c') not null,
-			    \`enum2\` ENUM('a', 'b', 'c') default 'a',
-			    \`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-			)
-		`);
+		await push({ tableWithEnums });
 
 		await db.insert(tableWithEnums).values([
 			{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -819,7 +792,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('with ... update', async ({ db }) => {
+	test('with ... update', async ({ db, push }) => {
 		const products = mysqlTable('products', {
 			id: serial('id').primaryKey(),
 			price: decimal('price', {
@@ -829,14 +802,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			cheap: boolean('cheap').notNull().default(false),
 		});
 
-		await db.execute(sql`drop table if exists ${products}`);
-		await db.execute(sql`
-			create table ${products} (
-			    id serial primary key,
-			    price decimal(15, 2) not null,
-			    cheap boolean not null default false
-			)
-		`);
+		await push({ products });
 
 		await db.insert(products).values([
 			{ price: '10.99' },
@@ -878,19 +844,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('with ... delete', async ({ db }) => {
-		await db.execute(sql`drop table if exists \`orders\``);
-		await db.execute(
-			sql`
-				create table \`orders\` (
-				    \`id\` serial primary key,
-				    \`region\` text not null,
-				    \`product\` text not null,
-				    \`amount\` int not null,
-				    \`quantity\` int not null
-				)
-			`,
-		);
+	test('with ... delete', async ({ db, push }) => {
+		await push({ orders });
 
 		await db.insert(orders).values([
 			{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -1151,7 +1106,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('prefixed table', async ({ db }) => {
+	test('prefixed table', async ({ db, push }) => {
 		const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
 
 		const users = mysqlTable('test_prefixed_table_with_unique_name', {
@@ -1159,11 +1114,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-
-		await db.execute(
-			sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
-		);
+		await push({ users });
 
 		await db.insert(users).values({ id: 1, name: 'John' });
 
@@ -1199,7 +1150,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 	});
 
-	test('transaction', async ({ db }) => {
+	test('transaction', async ({ db, push }) => {
 		const users = mysqlTable('users_transactions', {
 			id: serial('id').primaryKey(),
 			balance: int('balance').notNull(),
@@ -1210,13 +1161,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			stock: int('stock').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`drop table if exists ${products}`);
-
-		await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
-		await db.execute(
-			sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
-		);
+		await push({ users, products });
 
 		const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
 		const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
@@ -1236,7 +1181,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		await db.execute(sql`drop table ${products}`);
 	});
 
-	test('transaction with options (set isolationLevel)', async ({ db }) => {
+	test.only('transaction with options (set isolationLevel)', async ({ db, push }) => {
 		const users = mysqlTable('users_transactions', {
 			id: serial('id').primaryKey(),
 			balance: int('balance').notNull(),
@@ -1247,13 +1192,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			stock: int('stock').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`drop table if exists ${products}`);
-
-		await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
-		await db.execute(
-			sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
-		);
+		await push({ users, products });
 
 		const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
 		const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
