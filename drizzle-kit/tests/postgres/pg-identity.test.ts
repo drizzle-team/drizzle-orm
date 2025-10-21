@@ -280,6 +280,7 @@ test('drop identity from a column - no params', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -322,8 +323,11 @@ test('drop identity from a column - few params', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP NOT NULL;',
 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -378,8 +382,11 @@ test('drop identity from a column - all params', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
 		`ALTER TABLE \"users\" ALTER COLUMN \"id1\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP NOT NULL;',
 		`ALTER TABLE \"users\" ALTER COLUMN \"id2\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

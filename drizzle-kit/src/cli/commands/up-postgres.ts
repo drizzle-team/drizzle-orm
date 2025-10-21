@@ -252,7 +252,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			definition: v.definition ?? null,
 			tablespace: v.tablespace ?? null,
 			withNoData: v.withNoData ?? null,
-			using: v.using ? { name: v.using, default: false } : null,
+			using: v.using ?? null,
 			with: opt
 				? {
 					checkOption: getOrNull(opt, 'checkOption'),

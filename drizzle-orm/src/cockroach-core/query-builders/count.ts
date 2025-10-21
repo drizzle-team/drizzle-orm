@@ -10,7 +10,7 @@ export class CockroachCountBuilder<
 	private sql: SQL<number>;
 	private token?: NeonAuthToken;
 
-	static override readonly [entityKind] = 'CockroachCountBuilder';
+	static override readonly [entityKind]: string = 'CockroachCountBuilder';
 	[Symbol.toStringTag] = 'CockroachCountBuilder';
 
 	private session: TSession;

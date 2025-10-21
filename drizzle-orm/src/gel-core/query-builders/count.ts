@@ -8,7 +8,7 @@ export class GelCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static override readonly [entityKind] = 'GelCountBuilder';
+	static override readonly [entityKind]: string = 'GelCountBuilder';
 	[Symbol.toStringTag] = 'GelCountBuilder';
 
 	private session: TSession;

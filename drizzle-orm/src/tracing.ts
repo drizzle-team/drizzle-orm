@@ -2,7 +2,7 @@ import type { Span, Tracer } from '@opentelemetry/api';
 import { iife } from '~/tracing-utils.ts';
 import { npmVersion } from '~/version.ts';
 
-let otel: typeof import('@opentelemetry/api') | undefined;
+let otel: typeof import('@opentelemetry/api') | undefined; // oxlint-disable-line no-unassigned-vars
 let rawTracer: Tracer | undefined;
 // try {
 // 	otel = await import('@opentelemetry/api');
@@ -41,7 +41,7 @@ export const tracer = {
 						} catch (e) {
 							span.setStatus({
 								code: otel.SpanStatusCode.ERROR,
-								message: e instanceof Error ? e.message : 'Unknown error', // eslint-disable-line no-instanceof/no-instanceof
+								message: e instanceof Error ? e.message : 'Unknown error', // oxlint-disable-line drizzle-internal/no-instanceof
 							});
 							throw e;
 						} finally {

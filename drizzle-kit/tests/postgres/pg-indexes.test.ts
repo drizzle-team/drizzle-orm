@@ -1,5 +1,18 @@
-import { and, isNull, SQL, sql } from 'drizzle-orm';
-import { boolean, index, pgRole, pgTable, serial, text, timestamp, uuid, vector } from 'drizzle-orm/pg-core';
+import { and, eq, isNull, like, SQL, sql } from 'drizzle-orm';
+import {
+	boolean,
+	index,
+	integer,
+	pgEnum,
+	pgRole,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+	vector,
+} from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -498,11 +511,85 @@ test('index #4', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
-	const st0 = [
+	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
 		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
 		`CREATE INDEX "table_uid_bool_idx" ON "table" ("uid","bool");`,
+	]);
+	// push is not triggered on generated change
+	expect(pst).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4790
+test('index #5', async (t) => {
+	const enum_ = pgEnum('enum', ['text', 'not_text']);
+	const schema1 = {
+		enum_,
+		table1: pgTable('table1', {
+			column1: integer(),
+			column2: integer(),
+			column3: integer(),
+			column4: boolean(),
+			column5: enum_(),
+			column6: text(),
+		}, (table) => [
+			uniqueIndex().on(table.column1).where(eq(table.column4, true)),
+			uniqueIndex().on(table.column2).where(eq(table.column5, 'text')),
+			uniqueIndex().on(table.column3).where(like(table.column6, 'text')),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TYPE "enum" AS ENUM('text', 'not_text');`,
+		'CREATE TABLE "table1" (\n'
+		+ '\t"column1" integer,\n'
+		+ '\t"column2" integer,\n'
+		+ '\t"column3" integer,\n'
+		+ '\t"column4" boolean,\n'
+		+ '\t"column5" "enum",\n'
+		+ '\t"column6" text\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column1") WHERE "table1"."column4" = true;', // or with $1 param instead of true, but then params must be included in the query
+		`CREATE UNIQUE INDEX "table1_column2_index" ON "table1" ("column2") WHERE "table1"."column5" = 'text';`,
+		`CREATE UNIQUE INDEX "table1_column3_index" ON "table1" ("column3") WHERE "table1"."column6" like 'text';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('index #6', async (t) => {
+	const enum_ = pgEnum('enum', ['text', 'not_text', 'something_else']);
+	const schema1 = {
+		enum_,
+		table1: pgTable('table1', {
+			column1: integer(),
+			column2: boolean(),
+			column3: enum_(),
+		}, (table) => [
+			uniqueIndex().on(table.column1).where(eq(table.column2, true)),
+			uniqueIndex().on(table.column1).where(eq(table.column3, 'text')),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	console.log(st);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TYPE "enum" AS ENUM('text', 'not_text');`,
+		'CREATE TABLE "table1" (\n'
+		+ '\t"column1" integer,\n'
+		+ '\t"column2" boolean,\n'
+		+ '\t"column3" "enum"\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column1") WHERE "table1"."column2" = true;', // or with $1 param instead of true, but then params must be included in the query
+		`CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column2") WHERE "table1"."column3" = 'text';`, // in indices names maybe should be some hash
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

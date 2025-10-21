@@ -337,6 +337,7 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4760
 // https://github.com/drizzle-team/drizzle-orm/issues/4916
 test('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -354,6 +355,7 @@ test('introspect all column types', async () => {
 			boolean: boolean('boolean').default(true),
 			text: text('text').default('abc'),
 			text1: text('text1').default(sql`gen_random_uuid()`),
+			text2: text('text2').default('``'),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
 			char: char('char', { length: 3 }).default('abc'),
 			serial: serial('serial'),
@@ -640,6 +642,31 @@ test('introspect view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4764
+test('introspect view #3', async () => {
+	const enum1 = pgEnum('enum_1', ['text', 'not_text']);
+
+	const test = pgTable('test', {
+		column1: enum1().array(),
+		column2: enum1().array(),
+	});
+	const publicJobsWithCompanies = pgView('public_jobs_with_companies', {
+		jobIcScale: enum1('job_ic_scale').array(), // TODO: revise: somehow this test passes with or without .array() in view
+		jobWorkStyles: enum1('job_work_styles').array(),
+	}).as(sql`SELECT column1 AS job_ic_scale, column2 AS job_work_styles FROM test j`);
+	const schema = { enum1, test, publicJobsWithCompanies };
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-view-3',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	throw new Error(); // will remove when test is fixed
+});
+
 test('introspect view in other schema', async () => {
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
@@ -740,7 +767,7 @@ test('introspect materialized view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('basic policy', async () => {
+test('basic policy #1', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -750,7 +777,9 @@ test('basic policy', async () => {
 	const { statements, sqlStatements } = await diffIntrospect(
 		db,
 		schema,
-		'basic-policy',
+		'basic-policy-#1',
+		['public'],
+		{ roles: { include: ['test'] } },
 	);
 
 	expect(statements.length).toBe(0);
@@ -774,17 +803,20 @@ test('basic policy with "as"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test.todo('basic policy with CURRENT_USER role', async () => {
+test('basic policy', async () => {
 	const schema = {
+		role: pgRole('test2'),
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { to: 'current_user' })]),
+		}, () => [pgPolicy('test', { to: 'test2' })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'basic-policy',
+		['public'],
+		{ roles: { include: ['test2'] } },
 	);
 
 	expect(statements.length).toBe(0);
