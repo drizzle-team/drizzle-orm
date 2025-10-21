@@ -31,8 +31,8 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = mysql(connect({}), { schema, casing: 'camelCase' });
-const ps = planetscale(new Client({}), { schema, casing: 'camelCase' });
+const db = mysql({ client: connect({}), schema, casing: 'camelCase' });
+const ps = planetscale({ client: new Client({}), schema, casing: 'camelCase' });
 
 const usersCache = {
 	'public.users.id': 'id',
