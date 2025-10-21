@@ -27,6 +27,7 @@ import {
 	alias,
 	bigint,
 	boolean,
+	date,
 	datetime,
 	decimal,
 	except,
@@ -45,10 +46,12 @@ import {
 	primaryKey,
 	serial,
 	text,
+	time,
 	timestamp,
 	union,
 	unionAll,
 	varchar,
+	year,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import { Expect, toLocalDate } from '~/utils.ts';
@@ -232,7 +235,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 	});
 
-	test.concurrent('select with group by as sql + column', async ({ db, pushseed }) => {
+	test.concurrent.only('select with group by as sql + column', async ({ db, pushseed }) => {
 		const users = createUserTable('users_10');
 		await pushseed({ users }, () => ({ users: { count: 3 } }));
 
@@ -242,7 +245,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Agripina' }, { name: 'Candy' }, { name: 'Ilse' }]);
 	});
 
-	test.only('select with group by as column + sql', async ({ db, pushseed }) => {
+	test.concurrent.only('select with group by as column + sql', async ({ db, pushseed }) => {
 		const users = createUserTable('users_11');
 		await pushseed({ users }, () => ({ users: { count: 3 } }));
 
@@ -252,7 +255,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Agripina' }, { name: 'Candy' }, { name: 'Ilse' }]);
 	});
 
-	test.concurrent('select with group by complex query', async ({ db, pushseed }) => {
+	test.concurrent.only('select with group by complex query', async ({ db, pushseed }) => {
 		const users = createUserTable('users_12');
 		await pushseed(
 			{ users },
@@ -272,7 +275,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ name: 'Jane' }]);
 	});
 
-	test.only('partial join with alias', async ({ db, pushseed }) => {
+	test.concurrent.only('partial join with alias', async ({ db, pushseed }) => {
 		const users = createUserTable('users_13');
 		await pushseed({ users }, () => ({ users: { count: 2 } }));
 
@@ -297,7 +300,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}]);
 	});
 
-	test.only('prepared statement', async ({ db, pushseed }) => {
+	test.concurrent.only('prepared statement', async ({ db, pushseed }) => {
 		const users = createUserTable('users_16');
 
 		await pushseed({ users }, () => ({ users: { count: 1 } }));
@@ -312,7 +315,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 	});
 
-	test.only('prepared statement with placeholder in .where', async ({ db, pushseed }) => {
+	test.concurrent.only('prepared statement with placeholder in .where', async ({ db, pushseed }) => {
 		const users = createUserTable('users_17');
 
 		await pushseed({ users }, () => ({ users: { count: 1 } }));
@@ -328,7 +331,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 1, name: 'Agripina' }]);
 	});
 
-	test.only('prepared statement with placeholder in .limit', async ({ db, pushseed }) => {
+	test.concurrent.only('prepared statement with placeholder in .limit', async ({ db, pushseed }) => {
 		const users = createUserTable('users_18');
 
 		await pushseed({ users }, () => ({ users: { count: 1 } }));
@@ -349,7 +352,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toHaveLength(1);
 	});
 
-	test.only('prepared statement with placeholder in .offset', async ({ db, pushseed }) => {
+	test.concurrent.only('prepared statement with placeholder in .offset', async ({ db, pushseed }) => {
 		const users = createUserTable('users_19');
 
 		await pushseed({ users }, () => ({ users: { count: 3 } }));
@@ -369,7 +372,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
-	test.only('prepared statement built using $dynamic', async ({ db, pushseed }) => {
+	test.concurrent.only('prepared statement built using $dynamic', async ({ db, pushseed }) => {
 		const users = createUserTable('users_20');
 
 		await pushseed({ users }, () => ({ users: { count: 3 } }));
@@ -392,11 +395,10 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
-	test.concurrent('insert + select all possible dates', async ({ db }) => {
-		await db.execute(sql`drop table if exists \`datestable\``);
+	test.concurrent.only('insert + select all possible dates', async ({ db }) => {
 		await db.execute(
 			sql`
-				create table \`datestable\` (
+				create table \`datestable_1\` (
 				    \`date\` date,
 				    \`date_as_string\` date,
 				    \`time\` time,
@@ -409,17 +411,28 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			`,
 		);
 
-		const date = new Date('2022-11-11');
-		const dateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
+		const datesTable = mysqlTable('datestable_1', {
+			date: date('date'),
+			dateAsString: date('date_as_string', { mode: 'string' }),
+			time: time('time', { fsp: 1 }),
+			datetime: datetime('datetime', { fsp: 2 }),
+			datetimeAsString: datetime('datetime_as_string', { fsp: 2, mode: 'string' }),
+			timestamp: timestamp('timestamp', { fsp: 3 }),
+			timestampAsString: timestamp('timestamp_as_string', { fsp: 3, mode: 'string' }),
+			year: year('year'),
+		});
+
+		const testDate = new Date('2022-11-11');
+		const testDateWithMilliseconds = new Date('2022-11-11 12:12:12.123');
 
 		await db.insert(datesTable).values({
-			date: date,
+			date: testDate,
 			dateAsString: '2022-11-11',
 			time: '12:12:12',
-			datetime: date,
+			datetime: testDate,
 			year: 22,
 			datetimeAsString: '2022-11-11 12:12:12',
-			timestamp: dateWithMilliseconds,
+			timestamp: testDateWithMilliseconds,
 			timestampAsString: '2022-11-11 12:12:12.123',
 		});
 
@@ -440,35 +453,24 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			timestamp: new Date('2022-11-11 12:12:12.123'),
 			timestampAsString: '2022-11-11 12:12:12.123',
 		}]);
-
-		await db.execute(sql`drop table if exists \`datestable\``);
 	});
 
-	test.concurrent('Mysql enum as ts enum', async ({ db }) => {
-		const tableWithEnums = mysqlTable('enums_test_case', {
-			id: serial('id').primaryKey(),
-			enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
-			enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
-			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
-		});
-
+	test.concurrent.only('Mysql enum as ts enum', async ({ db }) => {
 		enum Test {
 			a = 'a',
 			b = 'b',
 			c = 'c',
 		}
 
-		const tableWithTsEnums = mysqlTable('enums_test_case', {
+		const tableWithTsEnums = mysqlTable('enums_test_case_1', {
 			id: serial('id').primaryKey(),
 			enum1: mysqlEnum('enum1', Test).notNull(),
 			enum2: mysqlEnum('enum2', Test).default(Test.a),
 			enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
 		});
 
-		await db.execute(sql`drop table if exists \`enums_test_case\``);
-
 		await db.execute(sql`
-			create table \`enums_test_case\` (
+			create table \`enums_test_case_1\` (
 			    \`id\` serial primary key,
 			    \`enum1\` ENUM('a', 'b', 'c') not null,
 			    \`enum2\` ENUM('a', 'b', 'c') default 'a',
@@ -484,8 +486,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 		const res = await db.select().from(tableWithTsEnums);
 
-		await db.execute(sql`drop table \`enums_test_case\``);
-
 		expect(res).toEqual([
 			{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 			{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
@@ -493,18 +493,16 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent('Mysql enum test case #1', async ({ db }) => {
-		const tableWithEnums = mysqlTable('enums_test_case2', {
+	test.concurrent.only('Mysql enum test case #1', async ({ db }) => {
+		const tableWithEnums = mysqlTable('enums_test_case_2', {
 			id: serial('id').primaryKey(),
 			enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
 			enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
 			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
 		});
 
-		await db.execute(sql`drop table if exists \`enums_test_case2\``);
-
 		await db.execute(sql`
-			create table \`enums_test_case2\` (
+			create table \`enums_test_case_2\` (
 			    \`id\` serial primary key,
 			    \`enum1\` ENUM('a', 'b', 'c') not null,
 			    \`enum2\` ENUM('a', 'b', 'c') default 'a',
@@ -520,8 +518,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 		const res = await db.select().from(tableWithEnums);
 
-		await db.execute(sql`drop table \`enums_test_case2\``);
-
 		expect(res).toEqual([
 			{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 			{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
@@ -529,73 +525,127 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('left join (flat object fields)', async ({ db }) => {
+	test.concurrent.only('left join (flat object fields)', async ({ db, pushseed }) => {
+		const users = mysqlTable('users_23', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+		const cities = mysqlTable('cities_5', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await pushseed(
+			{ users, cities },
+			(funcs) => ({
+				users: { count: 2, columns: { cityId: funcs.valuesFromArray({ values: [1, null as any] }) } },
+				cities: { count: 1 },
+			}),
+		);
+
 		const res = await db.select({
-			userId: users2Table.id,
-			userName: users2Table.name,
-			cityId: citiesTable.id,
-			cityName: citiesTable.name,
-		}).from(users2Table)
-			.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+			userId: users.id,
+			userName: users.name,
+			cityId: cities.id,
+			cityName: cities.name,
+		}).from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id));
 
 		expect(res).toEqual([
-			{ userId: 1, userName: 'John', cityId: 1, cityName: 'Paris' },
-			{ userId: 2, userName: 'Jane', cityId: null, cityName: null },
+			{ userId: 1, userName: 'Agripina', cityId: 1, cityName: 'Lakeitha' },
+			{ userId: 2, userName: 'Candy', cityId: null, cityName: null },
 		]);
 	});
 
-	test('left join (grouped fields)', async ({ db }) => {
+	test.concurrent.only('left join (grouped fields)', async ({ db, pushseed }) => {
+		const users = mysqlTable('users_22', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+		const cities = mysqlTable('cities_4', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await pushseed(
+			{ users, cities },
+			(funcs) => ({
+				users: { count: 2, columns: { cityId: funcs.valuesFromArray({ values: [1, null as any] }) } },
+				cities: { count: 1 },
+			}),
+		);
+
 		const res = await db.select({
-			id: users2Table.id,
+			id: users.id,
 			user: {
-				name: users2Table.name,
-				nameUpper: sql<string>`upper(${users2Table.name})`,
+				name: users.name,
+				nameUpper: sql<string>`upper(${users.name})`,
 			},
 			city: {
-				id: citiesTable.id,
-				name: citiesTable.name,
-				nameUpper: sql<string>`upper(${citiesTable.name})`,
+				id: cities.id,
+				name: cities.name,
+				nameUpper: sql<string>`upper(${cities.name})`,
 			},
-		}).from(users2Table)
-			.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+		}).from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id));
 
 		expect(res).toEqual([
 			{
 				id: 1,
-				user: { name: 'John', nameUpper: 'JOHN' },
-				city: { id: 1, name: 'Paris', nameUpper: 'PARIS' },
+				user: { name: 'Agripina', nameUpper: 'AGRIPINA' },
+				city: { id: 1, name: 'Lakeitha', nameUpper: 'LAKEITHA' },
 			},
 			{
 				id: 2,
-				user: { name: 'Jane', nameUpper: 'JANE' },
+				user: { name: 'Candy', nameUpper: 'CANDY' },
 				city: null,
 			},
 		]);
 	});
 
-	test('left join (all fields)', async ({ db }) => {
-		const res = await db.select().from(users2Table)
-			.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+	test.concurrent.only('left join (all fields)', async ({ db, pushseed }) => {
+		const users = mysqlTable('users_21', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+		const cities = mysqlTable('cities_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await pushseed(
+			{ users, cities },
+			(funcs) => ({
+				users: { count: 2, columns: { cityId: funcs.valuesFromArray({ values: [1, null as any] }) } },
+				cities: { count: 1 },
+			}),
+		);
+
+		const res = await db.select().from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id));
 
 		expect(res).toEqual([
 			{
-				users2: {
+				users_21: {
 					id: 1,
-					name: 'John',
+					name: 'Agripina',
 					cityId: 1,
 				},
-				cities: {
+				cities_3: {
 					id: 1,
-					name: 'Paris',
+					name: 'Lakeitha',
 				},
 			},
 			{
-				users2: {
+				users_21: {
 					id: 2,
-					name: 'Jane',
+					name: 'Candy',
 					cityId: null,
 				},
-				cities: null,
+				cities_3: null,
 			},
 		]);
 	});
