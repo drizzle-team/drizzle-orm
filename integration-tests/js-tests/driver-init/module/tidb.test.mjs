@@ -51,26 +51,14 @@ describe('tidb', async (it) => {
 		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = connect({
 			url: process.env['TIDB_CONNECTION_STRING'],
 		});
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.execute('SELECT 1;');
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = connect({
-			url: process.env['TIDB_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.execute('SELECT 1;');
-		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {

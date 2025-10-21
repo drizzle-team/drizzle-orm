@@ -426,7 +426,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 						const res = await req.query(sql);
 						return res.recordset as any[];
 					} catch (err) {
-						error.cause = err;
+						(<{ cause?: unknown }> error).cause = err;
 						throw error;
 					}
 				},

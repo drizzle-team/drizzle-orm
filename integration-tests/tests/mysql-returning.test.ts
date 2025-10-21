@@ -83,7 +83,7 @@ test.before(async (t) => {
 		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	ctx.db = drizzle(ctx.client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
+	ctx.db = drizzle({ client: ctx.client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
 test.after.always(async (t) => {

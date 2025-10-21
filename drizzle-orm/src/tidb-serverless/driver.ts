@@ -6,7 +6,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
@@ -79,9 +79,9 @@ export function drizzle<
 	TClient extends Connection = Connection,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		& ({
@@ -102,23 +102,19 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: Config | string; client?: TClient }
-			& DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: Config | string; client?: TClient }
+		& DrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? connect({
-				url: connection,
-			})
-			: connect(connection!);
+	const instance = typeof connection === 'string'
+		? connect({
+			url: connection,
+		})
+		: connect(connection!);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

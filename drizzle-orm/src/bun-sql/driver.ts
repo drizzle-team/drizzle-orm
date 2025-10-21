@@ -11,9 +11,9 @@ export function drizzle<
 	TClient extends SQL = SQL,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -47,9 +47,9 @@ export namespace drizzle {
 		TClient extends SQL = SQL,
 	>(
 		...params: [
-			TClient | string,
+			string,
 		] | [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema, TRelations>,
 		] | [
 			(
@@ -84,9 +84,9 @@ export namespace drizzle {
 		TClient extends SQL = SQL,
 	>(
 		...params: [
-			TClient | string,
+			string,
 		] | [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema, TRelations>,
 		] | [
 			(
@@ -121,9 +121,9 @@ export namespace drizzle {
 		TClient extends SQL = SQL,
 	>(
 		...params: [
-			TClient | string,
+			string,
 		] | [
-			TClient | string,
+			string,
 			BunMySqlDrizzleConfig<TSchema, TRelations>,
 		] | [
 			(

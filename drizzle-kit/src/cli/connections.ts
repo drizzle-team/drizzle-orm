@@ -70,7 +70,7 @@ export const preparePostgresDB = async (
 				undefined,
 			);
 
-			const db = drizzle(rdsClient, config);
+			const db = drizzle({ client: rdsClient, ...config });
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(db, config);
 			};
@@ -129,7 +129,7 @@ export const preparePostgresDB = async (
 
 			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
 			await pglite.waitReady;
-			const drzl = drizzle(pglite);
+			const drzl = drizzle({ client: pglite });
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(drzl, config);
 			};
@@ -224,7 +224,7 @@ export const preparePostgresDB = async (
 			? new pg.Pool({ connectionString: credentials.url, max: 1 })
 			: new pg.Pool({ ...credentials, ssl, max: 1 });
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -296,7 +296,7 @@ export const preparePostgresDB = async (
 		client.options.serializers['114'] = transparentParser;
 		client.options.serializers['3802'] = transparentParser;
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -380,7 +380,7 @@ export const preparePostgresDB = async (
 
 		await client.connect();
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -583,7 +583,7 @@ export const prepareCockroach = async (
 			? new pg.Pool({ connectionString: credentials.url, max: 1 })
 			: new pg.Pool({ ...credentials, ssl, max: 1 });
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -743,7 +743,7 @@ export const connectToSingleStore = async (
 			? await createConnection(result.url)
 			: await createConnection(result.credentials!); // needed for some reason!
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -842,7 +842,7 @@ export const connectToMySQL = async (
 			? await createConnection(result.url)
 			: await createConnection(result.credentials!); // needed for some reason!
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -912,7 +912,7 @@ export const connectToMySQL = async (
 
 		const connection = new Client(result);
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -990,7 +990,7 @@ export const connectToMsSQL = async (
 			? await mssql.default.connect(result.url)
 			: await mssql.default.connect(result.credentials!);
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -1211,7 +1211,7 @@ export const connectToSQLite = async (
 		const client = createClient({
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 		});
-		const drzl = drizzle(client);
+		const drzl = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
@@ -1272,7 +1272,7 @@ export const connectToSQLite = async (
 		const sqlite = new Database(
 			normaliseSQLiteUrl(credentials.url, 'better-sqlite'),
 		);
-		const drzl = drizzle(sqlite);
+		const drzl = drizzle({ client: sqlite });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
@@ -1357,7 +1357,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 			authToken: credentials.authToken,
 		});
-		const drzl = drizzle(client);
+		const drzl = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};

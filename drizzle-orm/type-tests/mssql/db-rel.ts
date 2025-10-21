@@ -5,7 +5,7 @@ import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
 const conn = new mssql.ConnectionPool(process.env['MSSQL_CONNECTION_STRING']!);
-const db = drizzle(conn, { schema });
+const db = drizzle({ client: conn, schema });
 
 {
 	const result = await db._query.users.findMany({

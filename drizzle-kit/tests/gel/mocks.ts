@@ -34,7 +34,7 @@ export const prepareTestDatabase = async (
 			await new Promise((resolve) => setTimeout(resolve, 15 * 1000));
 			const client = createClient({ dsn: url, tlsSecurity });
 
-			const drizzleDB = drizzle(client, { logger: logging });
+			const drizzleDB = drizzle({ client, logger: logging });
 
 			const db = {
 				query: async <T extends unknown>(sql: string, params?: any[]) => {
