@@ -102,7 +102,8 @@ let db: AwsDataApiPgDatabase<typeof schema, typeof relationsV2>;
 beforeAll(async () => {
 	const rdsClient = new RDSDataClient();
 
-	db = drizzle(rdsClient, {
+	db = drizzle({
+		client: rdsClient,
 		// @ts-ignore
 		database: Resource.Postgres.database,
 		// @ts-ignore

@@ -55,7 +55,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

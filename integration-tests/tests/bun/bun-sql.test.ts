@@ -226,7 +226,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: false, relations });
+	db = drizzle({ client, logger: false, relations });
 });
 
 afterAll(async () => {

@@ -39,7 +39,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle({ client, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

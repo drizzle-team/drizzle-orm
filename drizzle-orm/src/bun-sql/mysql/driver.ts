@@ -9,7 +9,7 @@ import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { BunMySqlPreparedQueryHKT, BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
@@ -87,9 +87,9 @@ export function drizzle<
 	TClient extends SQL = SQL,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		BunMySqlDrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -110,26 +110,22 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as {
-			connection?: { url?: string } & SQL.Options;
-			client?: TClient;
-		} & BunMySqlDrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as {
+		connection?: { url?: string } & SQL.Options;
+		client?: TClient;
+	} & BunMySqlDrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		if (typeof connection === 'object' && connection.url !== undefined) {
-			const { url, ...config } = connection;
+	if (typeof connection === 'object' && connection.url !== undefined) {
+		const { url, ...config } = connection;
 
-			const instance = new SQL({ url, ...config });
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = new SQL(connection);
+		const instance = new SQL({ url, ...config });
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as BunMySqlDrizzleConfig<TSchema, TRelations> | undefined) as any;
+	const instance = new SQL(connection);
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

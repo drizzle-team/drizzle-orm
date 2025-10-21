@@ -25,7 +25,7 @@ let db: BetterSQLite3Database<never, typeof relations>;
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	db = drizzle(new Database(dbPath), { relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client: new Database(dbPath), relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 beforeEach(() => {

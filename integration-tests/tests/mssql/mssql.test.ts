@@ -45,7 +45,7 @@ beforeAll(async () => {
 		await container?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
+	db = drizzle({ client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
 afterAll(async () => {
