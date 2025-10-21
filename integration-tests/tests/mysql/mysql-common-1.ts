@@ -47,7 +47,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('select sql', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_24', {
+		const users = mysqlTable('users_2', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -66,7 +66,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('select typed sql', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_25', {
+		const users = mysqlTable('users_3', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -85,7 +85,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('select with empty array in inArray', async ({ db, push, seed }) => {
-		const users = mysqlTable('users_26', {
+		const users = mysqlTable('users_4', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -255,7 +255,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('prepared statement', async ({ db, push, seed }) => {
-		const users = createUserTable('users_16');
+		const users = createUserTable('users_14');
 
 		await push({ users });
 		await seed({ users }, () => ({ users: { count: 1 } }));
@@ -271,7 +271,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('prepared statement with placeholder in .where', async ({ db, push, seed }) => {
-		const users = createUserTable('users_17');
+		const users = createUserTable('users_15');
 
 		await push({ users });
 		await seed({ users }, () => ({ users: { count: 1 } }));
@@ -288,7 +288,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('prepared statement with placeholder in .limit', async ({ db, push, seed }) => {
-		const users = createUserTable('users_18');
+		const users = createUserTable('users_16');
 
 		await push({ users });
 		await seed({ users }, (funcs: any) => ({ users: { count: 1 } }));
@@ -310,7 +310,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('prepared statement with placeholder in .offset', async ({ db, push, seed }) => {
-		const users = createUserTable('users_19');
+		const users = createUserTable('users_17');
 
 		await push({ users });
 		await seed({ users }, () => ({ users: { count: 3 } }));
@@ -331,7 +331,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('prepared statement built using $dynamic', async ({ db, push, seed }) => {
-		const users = createUserTable('users_20');
+		const users = createUserTable('users_18');
 
 		await push({ users });
 		await seed({ users }, (funcs: any) => ({ users: { count: 3 } }));
