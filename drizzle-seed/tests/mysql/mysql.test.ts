@@ -54,7 +54,7 @@ beforeAll(async () => {
 		try {
 			client = await createConnection(connectionString);
 			await client.connect();
-			db = drizzle(client);
+			db = drizzle({ client });
 			connected = true;
 			break;
 		} catch (e) {

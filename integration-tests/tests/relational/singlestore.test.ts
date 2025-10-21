@@ -100,7 +100,7 @@ beforeAll(async () => {
 	}
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle_rqb;`);
 	await client.changeUser({ database: 'drizzle_rqb' });
-	db = drizzle(client, { relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 afterAll(async () => {

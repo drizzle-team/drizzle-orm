@@ -15,12 +15,9 @@ let cachedDb: PlanetScaleDatabase;
 
 beforeAll(async () => {
 	const client = new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! });
-	db = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		relations,
-	});
-	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {

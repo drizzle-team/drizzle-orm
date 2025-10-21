@@ -26,7 +26,7 @@ beforeAll(async () => {
 		try {
 			client = await mssql.connect(options);
 			await client.connect();
-			db = drizzle(client);
+			db = drizzle({ client });
 			connected = true;
 			// console.log('mssql test connection is successfull.')
 			break;

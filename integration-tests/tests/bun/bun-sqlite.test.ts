@@ -236,9 +236,9 @@ let client: SQL;
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 	client = new SQL(dbPath);
-	db = drizzle.sqlite(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle.sqlite(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle.sqlite(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	db = drizzle.sqlite({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {

@@ -3,9 +3,9 @@ import { drizzle } from '~/node-mssql/index.ts';
 
 const pool = await mssql.connect({} as mssql.config);
 
-export const db = drizzle(pool);
+export const db = drizzle({ client: pool });
 
 {
-	drizzle(pool);
-	drizzle(pool, { schema: {} });
+	drizzle({ client: pool });
+	drizzle({ client: pool, schema: {} });
 }

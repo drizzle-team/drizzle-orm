@@ -47,15 +47,9 @@ beforeAll(async () => {
 		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 	client = neon(connectionString);
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, relations: neonRelations });
-	cachedDb = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestCache(),
-	});
-	dbGlobalCached = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestGlobalCache(),
-	});
+	db = drizzle({ client, schema, logger: ENABLE_LOGGING, relations: neonRelations });
+	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {

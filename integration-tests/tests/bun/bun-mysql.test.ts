@@ -309,9 +309,9 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle.mysql(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle.mysql(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle.mysql(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	db = drizzle.mysql({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle.mysql({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle.mysql({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {

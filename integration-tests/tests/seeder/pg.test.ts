@@ -876,7 +876,7 @@ const createAllGeneratorsTables = async () => {
 beforeAll(async () => {
 	client = new PGlite();
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "seeder_lib_pg";`);
 
