@@ -50,4 +50,4 @@ const skip = new Set([
 ]);
 
 tests('mysql', test, skip);
-cacheTests("mysql",test)
+cacheTests('mysql', test);
