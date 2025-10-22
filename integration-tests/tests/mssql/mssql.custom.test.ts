@@ -29,7 +29,7 @@ beforeAll(async () => {
 	const res = await createClient();
 	client = res.client;
 	close = res.close;
-	db = drizzle(client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
+	db = drizzle({ client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
 });
 
 afterAll(async () => {

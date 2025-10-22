@@ -82,4 +82,5 @@ skipTests([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
-tests();
+new ServerSimulator({} as any)
+tests("mysql",{} as any);

@@ -29,24 +29,6 @@ import { mysqlTest as test } from './instrumentation';
 const tablePrefix = 'drizzle_tests_';
 
 const mysqlTable = mysqlTableCreator((name) => `${tablePrefix}${name}`);
-const usersTable = mysqlTable('userstest', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
-});
-
-const users2Table = mysqlTable('users2', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: int('city_id').references(() => citiesTable.id),
-});
-
-const citiesTable = mysqlTable('cities', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-});
 
 test.concurrent('select all fields', async ({ db, push }) => {
 	const users = mysqlTable('users_1', {
@@ -1168,7 +1150,7 @@ test.concurrent('select from subquery sql', async ({ db, push }) => {
 	expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 });
 
-test.concurrent('select a field without joining its table', ({ db, push }) => {
+test.concurrent('select a field without joining its table', ({ db }) => {
 	const users = mysqlTable('users_1173', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1186,7 +1168,7 @@ test.concurrent('select a field without joining its table', ({ db, push }) => {
 	expect(() => db.select({ name: users2.name }).from(users).prepare()).toThrowError();
 });
 
-test.concurrent('select all fields from subquery without alias', ({ db, push }) => {
+test.concurrent('select all fields from subquery without alias', ({ db }) => {
 	const users2 = mysqlTable('users2_1177', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1215,7 +1197,7 @@ test.concurrent('select count()', async ({ db, push }) => {
 	expect(res).toEqual([{ count: 2 }]);
 });
 
-test.concurrent('select for ...', ({ db, push }) => {
+test.concurrent('select for ...', ({ db }) => {
 	const users2 = mysqlTable('users2_1191', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1356,7 +1338,7 @@ test.concurrent('view', async ({ db, push }) => {
 	await db.execute(sql`drop view ${newYorkers1}`);
 });
 
-test.concurrent('select from raw sql', async ({ db, push }) => {
+test.concurrent('select from raw sql', async ({ db }) => {
 	const result = await db.select({
 		id: sql<number>`id`,
 		name: sql<string>`name`,
@@ -1369,7 +1351,7 @@ test.concurrent('select from raw sql', async ({ db, push }) => {
 	]);
 });
 
-test.concurrent('select from raw sql with joins', async ({ db, push }) => {
+test.concurrent('select from raw sql with joins', async ({ db }) => {
 	const result = await db
 		.select({
 			id: sql<number>`users.id`,
@@ -1387,7 +1369,7 @@ test.concurrent('select from raw sql with joins', async ({ db, push }) => {
 	]);
 });
 
-test.concurrent('join on aliased sql from select', async ({ db, push }) => {
+test.concurrent('join on aliased sql from select', async ({ db }) => {
 	const result = await db
 		.select({
 			userId: sql<number>`users.id`.as('userId'),
@@ -1406,7 +1388,7 @@ test.concurrent('join on aliased sql from select', async ({ db, push }) => {
 	]);
 });
 
-test.concurrent('join on aliased sql from with clause', async ({ db, push }) => {
+test.concurrent('join on aliased sql from with clause', async ({ db }) => {
 	const users = db.$with('users').as(
 		db.select({
 			id: sql<number>`id`.as('userId'),
@@ -1461,7 +1443,7 @@ test.concurrent('prefixed table', async ({ db, push }) => {
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test.concurrent('orderBy with aliased column', ({ db, push }) => {
+test.concurrent('orderBy with aliased column', ({ db }) => {
 	const users2 = mysqlTable('users2_1473', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),

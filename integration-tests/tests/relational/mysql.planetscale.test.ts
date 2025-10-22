@@ -5,7 +5,7 @@ import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './mysql.relations.ts';
+import relations from './mysql.relations';
 import {
 	allTypesTable,
 	commentsTable,
@@ -14,7 +14,7 @@ import {
 	postsTable,
 	usersTable,
 	usersToGroupsTable,
-} from './mysql.schema.ts';
+} from './mysql.schema';
 
 const ENABLE_LOGGING = false;
 
