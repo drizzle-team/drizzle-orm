@@ -162,9 +162,6 @@ importers:
       '@js-temporal/polyfill':
         specifier: ^0.5.1
         version: 0.5.1
-      '@vitest/utils':
-        specifier: 4.0.0-beta.19
-        version: 4.0.0-beta.19
       esbuild:
         specifier: ^0.25.10
         version: 0.25.11
@@ -12941,7 +12938,7 @@ snapshots:
 
   dotenv-expand@11.0.7:
     dependencies:
-      dotenv: 16.4.7
+      dotenv: 16.6.1
 
   dotenv@10.0.0: {}
 
@@ -16963,7 +16960,7 @@ snapshots:
 
   vite@6.4.1(@types/node@18.19.130)(lightningcss@1.30.2)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1):
     dependencies:
-      esbuild: 0.25.10
+      esbuild: 0.25.11
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
       postcss: 8.5.6
