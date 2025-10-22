@@ -176,6 +176,22 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 						return Promise.all(queries).then(() => '' as any);
 					};
 
+					const tables =
+						(await query('SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE();')).map(
+							(x) => x['TABLE_NAME']
+						);
+					const views =
+						(await query('SELECT table_name FROM information_schema.views WHERE table_schema = DATABASE();')).map((x) =>
+							x['TABLE_NAME']
+						);
+					
+					const dropViews = views.length===0?"select 1;":`DROP VIEW IF EXISTS ${views.map(x=>`\`${x}\``).join(",")};`
+					const dropTables = tables.length===0?"select 1;":`DROP TABLE IF EXISTS ${tables.map(x=>`\`${x}\``).join(",")};`
+					await query(dropViews)
+					await query("SET FOREIGN_KEY_CHECKS = 0;")
+					await query(dropTables)
+					await query("SET FOREIGN_KEY_CHECKS = 1;")
+
 					await use({ client, query, batch });
 					return;
 				}
