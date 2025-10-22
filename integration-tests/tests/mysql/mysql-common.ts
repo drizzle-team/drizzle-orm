@@ -14,10 +14,11 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});
-	tests1(vendor, test, exclude);
-	tests2(vendor, test, exclude);
-	tests3(vendor, test, exclude);
-	// tests4(vendor, test, exclude);
+
+	// tests1(vendor, test, exclude);
+	// tests2(vendor, test, exclude);
+	// tests3(vendor, test, exclude);
+	tests4(vendor, test, exclude);
 	// tests5(vendor, test, exclude);
 	// tests6(vendor, test, exclude);
 	// tests7(vendor, test, exclude);
