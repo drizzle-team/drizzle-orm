@@ -65,154 +65,267 @@ test('select all fields', async ({ db, push }) => {
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('select sql', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.select({
-		name: sql`upper(${usersTable.name})`,
-	}).from(usersTable);
+test.only('select sql', async ({ db, push }) => {
+	const users = mysqlTable('users_sql', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users).toEqual([{ name: 'JOHN' }]);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select({
+		name: sql`upper(${users.name})`,
+	}).from(users);
+
+	expect(result).toEqual([{ name: 'JOHN' }]);
 });
 
-test('select typed sql', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.select({
-		name: sql<string>`upper(${usersTable.name})`,
-	}).from(usersTable);
+test.only('select typed sql', async ({ db, push }) => {
+	const users = mysqlTable('users_typed_sql', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users).toEqual([{ name: 'JOHN' }]);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select({
+		name: sql<string>`upper(${users.name})`,
+	}).from(users);
+
+	expect(result).toEqual([{ name: 'JOHN' }]);
 });
 
-test('select distinct', async ({ db }) => {
+test.only('select distinct', async ({ db, push }) => {
 	const usersDistinctTable = mysqlTable('users_distinct', {
 		id: int('id').notNull(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-	await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
-
+	await push({ usersDistinctTable });
 	await db.insert(usersDistinctTable).values([
 		{ id: 1, name: 'John' },
 		{ id: 1, name: 'John' },
 		{ id: 2, name: 'John' },
 		{ id: 1, name: 'Jane' },
 	]);
-	const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+	const result = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
 		usersDistinctTable.name,
 	);
 
-	await db.execute(sql`drop table ${usersDistinctTable}`);
-
-	expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	expect(result).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 });
 
-test('insert returning sql', async ({ db }) => {
-	const [result, _] = await db.insert(usersTable).values({ name: 'John' });
+test.only('insert returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const [result, _] = await db.insert(users).values({ name: 'John' });
 
 	expect(result.insertId).toBe(1);
 });
 
-test('delete returning sql', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.only('delete returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users[0].affectedRows).toBe(1);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.delete(users).where(eq(users.name, 'John'));
+
+	expect(result[0].affectedRows).toBe(1);
 });
 
-test('update returning sql', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.only('update returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_update_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users[0].changedRows).toBe(1);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	expect(result[0].changedRows).toBe(1);
 });
 
-test('update with returning all fields', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.only('update with returning all fields', async ({ db, push }) => {
+	const users = mysqlTable('users_update_all_fields', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const users = await db.select().from(usersTable).where(eq(usersTable.id, 1));
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const updatedUsers = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	const result = await db.select().from(users).where(eq(users.id, 1));
 
 	expect(updatedUsers[0].changedRows).toBe(1);
 
-	expect(users[0]!.createdAt).toBeInstanceOf(Date);
+	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-	expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
+	expect(result).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('update with returning partial', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.only('update with returning partial', async ({ db, push }) => {
+	const users = mysqlTable('users_update_partial', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const users = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const updatedUsers = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	const result = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(updatedUsers[0].changedRows).toBe(1);
 
-	expect(users).toEqual([{ id: 1, name: 'Jane' }]);
+	expect(result).toEqual([{ id: 1, name: 'Jane' }]);
 });
 
-test('delete with returning all fields', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.only('delete with returning all fields', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_all_fields', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 	expect(deletedUser[0].affectedRows).toBe(1);
 });
 
-test('delete with returning partial', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.only('delete with returning partial', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_partial', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 	expect(deletedUser[0].affectedRows).toBe(1);
 });
 
-test('insert + select', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const result = await db.select().from(usersTable);
+test.only('insert + select', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_select_249', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select().from(users);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
-	await db.insert(usersTable).values({ name: 'Jane' });
-	const result2 = await db.select().from(usersTable);
+	await db.insert(users).values({ name: 'Jane' });
+	const result2 = await db.select().from(users);
 	expect(result2).toEqual([
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
-test('json insert', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
+test.only('json insert', async ({ db, push }) => {
+	const users = mysqlTable('users_json_insert_262', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John', jsonb: ['foo', 'bar'] });
 	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-	}).from(usersTable);
+		id: users.id,
+		name: users.name,
+		jsonb: users.jsonb,
+	}).from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
-test('insert with overridden default values', async ({ db }) => {
-	await db.insert(usersTable).values({ name: 'John', verified: true });
-	const result = await db.select().from(usersTable);
+test.only('insert with overridden default values', async ({ db, push }) => {
+	const users = mysqlTable('users_override_defaults_273', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John', verified: true });
+	const result = await db.select().from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('insert many', async ({ db }) => {
-	await db.insert(usersTable).values([
+test.only('insert many', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_many_307', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
 	]);
 	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-		verified: usersTable.verified,
-	}).from(usersTable);
+		id: users.id,
+		name: users.name,
+		jsonb: users.jsonb,
+		verified: users.verified,
+	}).from(users);
 
 	expect(result).toEqual([
 		{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -222,8 +335,17 @@ test('insert many', async ({ db }) => {
 	]);
 });
 
-test('insert many with returning', async ({ db }) => {
-	const result = await db.insert(usersTable).values([
+test.only('insert many with returning', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_many_returning_329', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const result = await db.insert(users).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
@@ -233,114 +355,204 @@ test('insert many with returning', async ({ db }) => {
 	expect(result[0].affectedRows).toBe(4);
 });
 
-test('select with group by as field', async ({ db }) => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.only('select with group by as field', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_field_249', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.name);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.name);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 });
 
-test('select with group by as sql', async ({ db }) => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.only('select with group by as sql', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_sql_250', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(sql`${usersTable.name}`);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(sql`${users.name}`);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 });
 
-test('select with group by as sql + column', async ({ db }) => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.only('select with group by as sql + column', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_sql_col_251', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(sql`${usersTable.name}`, usersTable.id);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(sql`${users.name}`, users.id);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test('select with group by as column + sql', async ({ db }) => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.only('select with group by as column + sql', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_col_sql_252', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, sql`${usersTable.name}`);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.id, sql`${users.name}`);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test('select with group by complex query', async ({ db }) => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.only('select with group by complex query', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_complex_253', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, sql`${usersTable.name}`)
-		.orderBy(asc(usersTable.name))
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.id, sql`${users.name}`)
+		.orderBy(asc(users.name))
 		.limit(1);
 
 	expect(result).toEqual([{ name: 'Jane' }]);
 });
 
-test('build query', async ({ db }) => {
-	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, usersTable.name)
+test.only('build query', async ({ db, push }) => {
+	const users = mysqlTable('users_build_query_254', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const query = db.select({ id: users.id, name: users.name }).from(users)
+		.groupBy(users.id, users.name)
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select \`id\`, \`name\` from \`${getTableName(usersTable)}\` group by \`${
-			getTableName(usersTable)
-		}\`.\`id\`, \`${getTableName(usersTable)}\`.\`name\``,
+		sql: `select \`id\`, \`name\` from \`${getTableName(users)}\` group by \`${getTableName(users)}\`.\`id\`, \`${
+			getTableName(users)
+		}\`.\`name\``,
 		params: [],
 	});
 });
 
-test('build query insert with onDuplicate', async ({ db }) => {
-	const query = db.insert(usersTable)
+test.only('build query insert with onDuplicate', async ({ db, push }) => {
+	const users = mysqlTable('users_on_duplicate_255', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const query = db.insert(users)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onDuplicateKeyUpdate({ set: { name: 'John1' } })
 		.toSQL();
 
 	expect(query).toEqual({
 		sql: `insert into \`${
-			getTableName(usersTable)
+			getTableName(users)
 		}\` (\`id\`, \`name\`, \`verified\`, \`jsonb\`, \`created_at\`) values (default, ?, default, ?, default) on duplicate key update \`name\` = ?`,
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
 
-test('insert with onDuplicate', async ({ db }) => {
-	await db.insert(usersTable)
+test.only('insert with onDuplicate', async ({ db, push }) => {
+	const users = mysqlTable('users_on_duplicate_test_256', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
-	await db.insert(usersTable)
+	await db.insert(users)
 		.values({ id: 1, name: 'John' })
 		.onDuplicateKeyUpdate({ set: { name: 'John1' } });
 
-	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(res).toEqual([{ id: 1, name: 'John1' }]);
 });
 
-test('insert conflict', async ({ db }) => {
-	await db.insert(usersTable)
+test.only('insert conflict', async ({ db, push }) => {
+	const users = mysqlTable('users_conflict_257', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
 	await expect((async () => {
-		db.insert(usersTable).values({ id: 1, name: 'John1' });
+		db.insert(users).values({ id: 1, name: 'John1' });
 	})()).resolves.not.toThrowError();
 });
 
-test('insert conflict with ignore', async ({ db }) => {
-	await db.insert(usersTable)
+test.only('insert conflict with ignore', async ({ db, push }) => {
+	const users = mysqlTable('users_conflict_ignore_258', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
-	await db.insert(usersTable)
+	await db.insert(users)
 		.ignore()
 		.values({ id: 1, name: 'John1' });
 
-	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(res).toEqual([{ id: 1, name: 'John' }]);
