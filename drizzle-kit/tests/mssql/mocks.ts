@@ -25,11 +25,11 @@ import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
-import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { hash } from 'src/dialects/common';
 import { tsc } from 'tests/utils';
 
 export type MssqlDBSchema = Record<
