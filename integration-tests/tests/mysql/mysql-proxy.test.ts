@@ -1,13 +1,6 @@
-import retry from 'async-retry';
-import type { MySqlRemoteDatabase } from 'drizzle-orm/mysql-proxy';
-import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import * as mysql from 'mysql2/promise';
-import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
 import { tests } from './mysql-common';
-import relations from './relations';
-
-const ENABLE_LOGGING = false;
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -89,4 +82,4 @@ skipTests([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
-// tests();
+tests();

@@ -58,4 +58,4 @@ const omit = new Set([
 ]);
 
 tests('planetscale', planetscaleTest, omit);
-// cacheTests('planetscale', planetscaleTest);
+cacheTests('planetscale', planetscaleTest);

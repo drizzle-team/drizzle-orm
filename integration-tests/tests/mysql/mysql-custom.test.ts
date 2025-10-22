@@ -63,12 +63,6 @@ afterAll(async () => {
 	await container?.stop().catch(console.error);
 });
 
-beforeEach((ctx) => {
-	ctx.mysql = {
-		db,
-	};
-});
-
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
 	dataType() {
 		return 'serial';

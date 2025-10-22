@@ -1,9 +1,8 @@
-import retry from 'async-retry';
-import type Docker from 'dockerode';
 import type { Equal } from 'drizzle-orm';
 import { asc, eq, getTableName, gt, inArray, Name, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
 	boolean,
 	date,
 	datetime,
@@ -19,52 +18,13 @@ import {
 	time,
 	timestamp,
 	uniqueIndex,
+	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
-import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
-import * as mysql from 'mysql2/promise';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { Expect, toLocalDate } from '~/utils';
-import { createDockerDB } from './mysql-common';
-
-const ENABLE_LOGGING = false;
-
-let db: MySql2Database;
-let client: mysql.Connection;
-let container: Docker.Container | undefined;
-
-beforeAll(async () => {
-	let connectionString;
-	if (process.env['MYSQL_CONNECTION_STRING']) {
-		connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	client = await retry(async () => {
-		client = await mysql.createConnection(connectionString);
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-});
-
-afterAll(async () => {
-	await client?.end();
-	await container?.stop().catch(console.error);
-});
+import { mysqlTest as test } from './instrumentation';
 
 const tablePrefix = 'drizzle_tests_';
 
@@ -88,46 +48,18 @@ const citiesTable = mysqlTable('cities', {
 	name: text('name').notNull(),
 });
 
-beforeEach(async () => {
-	await db.execute(sql`drop table if exists ${usersTable}`);
-	await db.execute(sql`drop table if exists ${users2Table}`);
-	await db.execute(sql`drop table if exists ${citiesTable}`);
+test.concurrent('select all fields', async ({ db, push }) => {
+	const users = mysqlTable('users_1', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	await db.execute(
-		sql`
-			create table ${usersTable} (
-				\`id\` serial primary key,
-				\`name\` text not null,
-				\`verified\` boolean not null default false,
-				\`jsonb\` json,
-				\`created_at\` timestamp not null default now()
-			)
-		`,
-	);
-
-	await db.execute(
-		sql`
-			create table ${users2Table} (
-				\`id\` serial primary key,
-				\`name\` text not null,
-				\`city_id\` int references ${citiesTable}(\`id\`)
-			)
-		`,
-	);
-
-	await db.execute(
-		sql`
-			create table ${citiesTable} (
-				\`id\` serial primary key,
-				\`name\` text not null
-			)
-		`,
-	);
-});
-
-test('select all fields', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const result = await db.select().from(usersTable);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select().from(users);
 
 	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	// not timezone based timestamp, thats why it should not work here
@@ -135,154 +67,267 @@ test('select all fields', async () => {
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('select sql', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.select({
-		name: sql`upper(${usersTable.name})`,
-	}).from(usersTable);
+test.concurrent('select sql', async ({ db, push }) => {
+	const users = mysqlTable('users_sql', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users).toEqual([{ name: 'JOHN' }]);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select({
+		name: sql`upper(${users.name})`,
+	}).from(users);
+
+	expect(result).toEqual([{ name: 'JOHN' }]);
 });
 
-test('select typed sql', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.select({
-		name: sql<string>`upper(${usersTable.name})`,
-	}).from(usersTable);
+test.concurrent('select typed sql', async ({ db, push }) => {
+	const users = mysqlTable('users_typed_sql', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users).toEqual([{ name: 'JOHN' }]);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select({
+		name: sql<string>`upper(${users.name})`,
+	}).from(users);
+
+	expect(result).toEqual([{ name: 'JOHN' }]);
 });
 
-test('select distinct', async () => {
+test.concurrent('select distinct', async ({ db, push }) => {
 	const usersDistinctTable = mysqlTable('users_distinct', {
 		id: int('id').notNull(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-	await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
-
+	await push({ usersDistinctTable });
 	await db.insert(usersDistinctTable).values([
 		{ id: 1, name: 'John' },
 		{ id: 1, name: 'John' },
 		{ id: 2, name: 'John' },
 		{ id: 1, name: 'Jane' },
 	]);
-	const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+	const result = await db.selectDistinct().from(usersDistinctTable).orderBy(
 		usersDistinctTable.id,
 		usersDistinctTable.name,
 	);
 
-	await db.execute(sql`drop table ${usersDistinctTable}`);
-
-	expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	expect(result).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 });
 
-test('insert returning sql', async () => {
-	const [result, _] = await db.insert(usersTable).values({ name: 'John' });
+test.concurrent('insert returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const [result, _] = await db.insert(users).values({ name: 'John' });
 
 	expect(result.insertId).toBe(1);
 });
 
-test('delete returning sql', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.concurrent('delete returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users[0].affectedRows).toBe(1);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.delete(users).where(eq(users.name, 'John'));
+
+	expect(result[0].affectedRows).toBe(1);
 });
 
-test('update returning sql', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.concurrent('update returning sql', async ({ db, push }) => {
+	const users = mysqlTable('users_update_returning', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	expect(users[0].changedRows).toBe(1);
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	expect(result[0].changedRows).toBe(1);
 });
 
-test('update with returning all fields', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.concurrent('update with returning all fields', async ({ db, push }) => {
+	const users = mysqlTable('users_update_all_fields', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const users = await db.select().from(usersTable).where(eq(usersTable.id, 1));
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const updatedUsers = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	const result = await db.select().from(users).where(eq(users.id, 1));
 
 	expect(updatedUsers[0].changedRows).toBe(1);
 
-	expect(users[0]!.createdAt).toBeInstanceOf(Date);
+	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	// not timezone based timestamp, thats why it should not work here
-	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-	expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
+	expect(result).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('update with returning partial', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+test.concurrent('update with returning partial', async ({ db, push }) => {
+	const users = mysqlTable('users_update_partial', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const users = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const updatedUsers = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
+
+	const result = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(updatedUsers[0].changedRows).toBe(1);
 
-	expect(users).toEqual([{ id: 1, name: 'Jane' }]);
+	expect(result).toEqual([{ id: 1, name: 'Jane' }]);
 });
 
-test('delete with returning all fields', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.concurrent('delete with returning all fields', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_all_fields', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 	expect(deletedUser[0].affectedRows).toBe(1);
 });
 
-test('delete with returning partial', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+test.concurrent('delete with returning partial', async ({ db, push }) => {
+	const users = mysqlTable('users_delete_partial', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 	expect(deletedUser[0].affectedRows).toBe(1);
 });
 
-test('insert + select', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const result = await db.select().from(usersTable);
+test.concurrent('insert + select', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_select_249', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
+	const result = await db.select().from(users);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
-	await db.insert(usersTable).values({ name: 'Jane' });
-	const result2 = await db.select().from(usersTable);
+	await db.insert(users).values({ name: 'Jane' });
+	const result2 = await db.select().from(users);
 	expect(result2).toEqual([
 		{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 		{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 	]);
 });
 
-test('json insert', async () => {
-	await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
+test.concurrent('json insert', async ({ db, push }) => {
+	const users = mysqlTable('users_json_insert_262', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John', jsonb: ['foo', 'bar'] });
 	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-	}).from(usersTable);
+		id: users.id,
+		name: users.name,
+		jsonb: users.jsonb,
+	}).from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
-test('insert with overridden default values', async () => {
-	await db.insert(usersTable).values({ name: 'John', verified: true });
-	const result = await db.select().from(usersTable);
+test.concurrent('insert with overridden default values', async ({ db, push }) => {
+	const users = mysqlTable('users_override_defaults_273', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John', verified: true });
+	const result = await db.select().from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('insert many', async () => {
-	await db.insert(usersTable).values([
+test.concurrent('insert many', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_many_307', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
 		{ name: 'Austin', verified: true },
 	]);
 	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		jsonb: usersTable.jsonb,
-		verified: usersTable.verified,
-	}).from(usersTable);
+		id: users.id,
+		name: users.name,
+		jsonb: users.jsonb,
+		verified: users.verified,
+	}).from(users);
 
 	expect(result).toEqual([
 		{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -292,8 +337,17 @@ test('insert many', async () => {
 	]);
 });
 
-test('insert many with returning', async () => {
-	const result = await db.insert(usersTable).values([
+test.concurrent('insert many with returning', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_many_returning_329', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const result = await db.insert(users).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 		{ name: 'Jane' },
@@ -303,142 +357,250 @@ test('insert many with returning', async () => {
 	expect(result[0].affectedRows).toBe(4);
 });
 
-test('select with group by as field', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.concurrent('select with group by as field', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_field_249', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.name);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.name);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 });
 
-test('select with group by as sql', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.concurrent('select with group by as sql', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_sql_250', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(sql`${usersTable.name}`);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(sql`${users.name}`);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 });
 
-test('select with group by as sql + column', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.concurrent('select with group by as sql + column', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_sql_col_251', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(sql`${usersTable.name}`, usersTable.id);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(sql`${users.name}`, users.id);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test('select with group by as column + sql', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.concurrent('select with group by as column + sql', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_col_sql_252', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, sql`${usersTable.name}`);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.id, sql`${users.name}`);
 
 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 });
 
-test('select with group by complex query', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+test.concurrent('select with group by complex query', async ({ db, push }) => {
+	const users = mysqlTable('users_group_by_complex_253', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.select({ name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, sql`${usersTable.name}`)
-		.orderBy(asc(usersTable.name))
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+
+	const result = await db.select({ name: users.name }).from(users)
+		.groupBy(users.id, sql`${users.name}`)
+		.orderBy(asc(users.name))
 		.limit(1);
 
 	expect(result).toEqual([{ name: 'Jane' }]);
 });
 
-test('build query', async () => {
-	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-		.groupBy(usersTable.id, usersTable.name)
+test.concurrent('build query', async ({ db, push }) => {
+	const users = mysqlTable('users_build_query_254', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const query = db.select({ id: users.id, name: users.name }).from(users)
+		.groupBy(users.id, users.name)
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select \`id\`, \`name\` from \`${getTableName(usersTable)}\` group by \`${
-			getTableName(usersTable)
-		}\`.\`id\`, \`${getTableName(usersTable)}\`.\`name\``,
+		sql: `select \`id\`, \`name\` from \`${getTableName(users)}\` group by \`${getTableName(users)}\`.\`id\`, \`${
+			getTableName(users)
+		}\`.\`name\``,
 		params: [],
 	});
 });
 
-test('build query insert with onDuplicate', async () => {
-	const query = db.insert(usersTable)
+test.concurrent('build query insert with onDuplicate', async ({ db, push }) => {
+	const users = mysqlTable('users_on_duplicate_255', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const query = db.insert(users)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onDuplicateKeyUpdate({ set: { name: 'John1' } })
 		.toSQL();
 
 	expect(query).toEqual({
 		sql: `insert into \`${
-			getTableName(usersTable)
+			getTableName(users)
 		}\` (\`id\`, \`name\`, \`verified\`, \`jsonb\`, \`created_at\`) values (default, ?, default, ?, default) on duplicate key update \`name\` = ?`,
 		params: ['John', '["foo","bar"]', 'John1'],
 	});
 });
 
-test('insert with onDuplicate', async () => {
-	await db.insert(usersTable)
+test.concurrent('insert with onDuplicate', async ({ db, push }) => {
+	const users = mysqlTable('users_on_duplicate_test_256', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
-	await db.insert(usersTable)
+	await db.insert(users)
 		.values({ id: 1, name: 'John' })
 		.onDuplicateKeyUpdate({ set: { name: 'John1' } });
 
-	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(res).toEqual([{ id: 1, name: 'John1' }]);
 });
 
-test('insert conflict', async () => {
-	await db.insert(usersTable)
+test.concurrent('insert conflict', async ({ db, push }) => {
+	const users = mysqlTable('users_conflict_257', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
 	await expect((async () => {
-		db.insert(usersTable).values({ id: 1, name: 'John1' });
+		db.insert(users).values({ id: 1, name: 'John1' });
 	})()).resolves.not.toThrowError();
 });
 
-test('insert conflict with ignore', async () => {
-	await db.insert(usersTable)
+test.concurrent('insert conflict with ignore', async ({ db, push }) => {
+	const users = mysqlTable('users_conflict_ignore_258', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users)
 		.values({ name: 'John' });
 
-	await db.insert(usersTable)
+	await db.insert(users)
 		.ignore()
 		.values({ id: 1, name: 'John1' });
 
-	const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-		eq(usersTable.id, 1),
+	const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+		eq(users.id, 1),
 	);
 
 	expect(res).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert sql', async () => {
-	await db.insert(usersTable).values({ name: sql`${'John'}` });
-	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
+test.concurrent('insert sql', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_sql_561', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: sql`${'John'}` });
+	const result = await db.select({ id: users.id, name: users.name }).from(users);
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('partial join with alias', async () => {
-	const customerAlias = alias(usersTable, 'customer');
+test.concurrent('partial join with alias', async ({ db, push }) => {
+	const users = mysqlTable('users_partial_join_567', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+	await push({ users });
+	const customerAlias = alias(users, 'customer');
+
+	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
 	const result = await db
 		.select({
 			user: {
-				id: usersTable.id,
-				name: usersTable.name,
+				id: users.id,
+				name: users.name,
 			},
 			customer: {
 				id: customerAlias.id,
 				name: customerAlias.name,
 			},
-		}).from(usersTable)
+		}).from(users)
 		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(usersTable.id, 10));
+		.where(eq(users.id, 10));
 
 	expect(result).toEqual([{
 		user: { id: 10, name: 'Ivan' },
@@ -446,17 +608,15 @@ test('partial join with alias', async () => {
 	}]);
 });
 
-test('full join with alias', async () => {
-	const mysqlTable = mysqlTableCreator((name) => `prefixed_${name}`);
+test.concurrent('full join with alias', async ({ db, push }) => {
+	const mysqlTableLocal = mysqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mysqlTableLocal('users_full_join_591', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
-
+	await push({ users });
 	const customers = alias(users, 'customer');
 
 	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -466,7 +626,7 @@ test('full join with alias', async () => {
 		.where(eq(users.id, 10));
 
 	expect(result).toEqual([{
-		users: {
+		users_full_join_591: {
 			id: 10,
 			name: 'Ivan',
 		},
@@ -475,21 +635,17 @@ test('full join with alias', async () => {
 			name: 'Hans',
 		},
 	}]);
-
-	await db.execute(sql`drop table ${users}`);
 });
 
-test('select from alias', async () => {
-	const mysqlTable = mysqlTableCreator((name) => `prefixed_${name}`);
+test.concurrent('select from alias', async ({ db, push }) => {
+	const mysqlTableLocal = mysqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mysqlTableLocal('users_select_alias_638', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
-
+	await push({ users });
 	const user = alias(users, 'user');
 	const customers = alias(users, 'customer');
 
@@ -510,31 +666,56 @@ test('select from alias', async () => {
 			name: 'Hans',
 		},
 	}]);
-
-	await db.execute(sql`drop table ${users}`);
 });
 
-test('insert with spaces', async () => {
-	await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
-	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
+test.concurrent('insert with spaces', async ({ db, push }) => {
+	const users = mysqlTable('users_insert_spaces_669', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: sql`'Jo   h     n'` });
+	const result = await db.select({ id: users.id, name: users.name }).from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 });
 
-test('prepared statement', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
+test.concurrent('prepared statement', async ({ db, push }) => {
+	const users = mysqlTable('users_prepared_676', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
 	const statement = db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-	}).from(usersTable)
+		id: users.id,
+		name: users.name,
+	}).from(users)
 		.prepare();
 	const result = await statement.execute();
 
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('prepared statement reuse', async () => {
-	const stmt = db.insert(usersTable).values({
+test.concurrent('prepared statement reuse', async ({ db, push }) => {
+	const users = mysqlTable('users_prepared_reuse_688', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	const stmt = db.insert(users).values({
 		verified: true,
 		name: sql.placeholder('name'),
 	}).prepare();
@@ -544,10 +725,10 @@ test('prepared statement reuse', async () => {
 	}
 
 	const result = await db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-		verified: usersTable.verified,
-	}).from(usersTable);
+		id: users.id,
+		name: users.name,
+		verified: users.verified,
+	}).from(users);
 
 	expect(result).toEqual([
 		{ id: 1, name: 'John 0', verified: true },
@@ -563,35 +744,36 @@ test('prepared statement reuse', async () => {
 	]);
 });
 
-test('prepared statement with placeholder in .where', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
+test.concurrent('prepared statement with placeholder in .where', async ({ db, push }) => {
+	const users = mysqlTable('users_745', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
+	await db.insert(users).values({ name: 'John' });
 	const stmt = db.select({
-		id: usersTable.id,
-		name: usersTable.name,
-	}).from(usersTable)
-		.where(eq(usersTable.id, sql.placeholder('id')))
+		id: users.id,
+		name: users.name,
+	}).from(users)
+		.where(eq(users.id, sql.placeholder('id')))
 		.prepare();
 	const result = await stmt.execute({ id: 1 });
 
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('migrator', async () => {
-	const usersMigratorTable = mysqlTableRaw('users12', {
+test.concurrent('migrator', async ({ db, push }) => {
+	const usersMigratorTable = mysqlTableRaw('users12_758', {
 		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
+		name: varchar('name', { length: 100 }).notNull(),
 		email: text('email').notNull(),
-	}, (table) => {
-		return {
-			name: uniqueIndex('').on(table.name).using('btree'),
-		};
-	});
+	}, (table) => [uniqueIndex('name_unique_idx').on(table.name).using('btree')]);
 
-	await db.execute(sql.raw(`drop table if exists cities_migration`));
-	await db.execute(sql.raw(`drop table if exists users_migration`));
-	await db.execute(sql.raw(`drop table if exists users12`));
-	await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
-
+	await push({ usersMigratorTable });
 	await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -599,29 +781,42 @@ test('migrator', async () => {
 	const result = await db.select().from(usersMigratorTable);
 
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql.raw(`drop table cities_migration`));
-	await db.execute(sql.raw(`drop table users_migration`));
-	await db.execute(sql.raw(`drop table users12`));
-	await db.execute(sql.raw(`drop table __drizzle_migrations`));
 });
 
-test('insert via db.execute + select via db.execute', async () => {
-	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
+test.concurrent('insert via db.execute + select via db.execute', async ({ db, push }) => {
+	const users = mysqlTable('users_788', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
+	await push({ users });
+	await db.execute(sql`insert into ${users} (${new Name(users.name.name)}) values (${'John'})`);
+
+	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${users}`);
 	expect(result[0]).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert via db.execute w/ query builder', async () => {
+test.concurrent('insert via db.execute w/ query builder', async ({ db, push }) => {
+	const users = mysqlTable('users_795', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
 	const inserted = await db.execute(
-		db.insert(usersTable).values({ name: 'John' }),
+		db.insert(users).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);
 });
 
-test('insert + select all possible dates', async () => {
-	const datesTable = mysqlTable('datestable', {
+test.concurrent('insert + select all possible dates', async ({ db, push }) => {
+	const datesTable = mysqlTable('datestable_802', {
 		date: date('date'),
 		dateAsString: date('date_as_string', { mode: 'string' }),
 		time: time('time', { fsp: 1 }),
@@ -630,19 +825,7 @@ test('insert + select all possible dates', async () => {
 		year: year('year'),
 	});
 
-	await db.execute(sql`drop table if exists ${datesTable}`);
-	await db.execute(
-		sql`
-			create table ${datesTable} (
-				\`date\` date,
-				\`date_as_string\` date,
-				\`time\` time,
-				\`datetime\` datetime,
-				\`datetime_as_string\` datetime,
-				\`year\` year
-			)
-		`,
-	);
+	await push({ datesTable });
 
 	const d = new Date('2022-11-11');
 
@@ -665,33 +848,22 @@ test('insert + select all possible dates', async () => {
 	expect(res).toEqual([{
 		date: toLocalDate(new Date('2022-11-11')),
 		dateAsString: '2022-11-11',
-		time: '12:12:12',
+		time: '12:12:12.0',
 		datetime: new Date('2022-11-11'),
 		year: 2022,
-		datetimeAsString: '2022-11-11 12:12:12',
+		datetimeAsString: '2022-11-11 12:12:12.00',
 	}]);
-
-	await db.execute(sql`drop table ${datesTable}`);
 });
 
-test('Mysql enum test case #1', async () => {
-	const tableWithEnums = mysqlTable('enums_test_case', {
+test.concurrent('Mysql enum test case #1', async ({ db, push }) => {
+	const tableWithEnums = mysqlTable('enums_test_case_856', {
 		id: serial('id').primaryKey(),
 		enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
 		enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
 		enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
 	});
 
-	await db.execute(sql`drop table if exists ${tableWithEnums}`);
-
-	await db.execute(sql`
-		create table ${tableWithEnums} (
-			\`id\` serial primary key,
-			\`enum1\` ENUM('a', 'b', 'c') not null,
-			\`enum2\` ENUM('a', 'b', 'c') default 'a',
-			\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-		)
-	`);
+	await push({ tableWithEnums });
 
 	await db.insert(tableWithEnums).values([
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
@@ -701,8 +873,6 @@ test('Mysql enum test case #1', async () => {
 
 	const res = await db.select().from(tableWithEnums);
 
-	await db.execute(sql`drop table ${tableWithEnums}`);
-
 	expect(res).toEqual([
 		{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 		{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
@@ -710,19 +880,31 @@ test('Mysql enum test case #1', async () => {
 	]);
 });
 
-test('left join (flat object fields)', async () => {
-	await db.insert(citiesTable)
+test.concurrent('left join (flat object fields)', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_892', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	const cities = mysqlTable('cities_892', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await push({ users2, cities });
+	await db.insert(cities)
 		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 	const res = await db.select({
-		userId: users2Table.id,
-		userName: users2Table.name,
-		cityId: citiesTable.id,
-		cityName: citiesTable.name,
-	}).from(users2Table)
-		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+		userId: users2.id,
+		userName: users2.name,
+		cityId: cities.id,
+		cityName: cities.name,
+	}).from(users2)
+		.leftJoin(cities, eq(users2.cityId, cities.id));
 
 	expect(res).toEqual([
 		{ userId: 1, userName: 'John', cityId: 1, cityName: 'Paris' },
@@ -730,25 +912,37 @@ test('left join (flat object fields)', async () => {
 	]);
 });
 
-test('left join (grouped fields)', async () => {
-	await db.insert(citiesTable)
+test.concurrent('left join (grouped fields)', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_912', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	const cities = mysqlTable('cities_912', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await push({ users2, cities });
+	await db.insert(cities)
 		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 	const res = await db.select({
-		id: users2Table.id,
+		id: users2.id,
 		user: {
-			name: users2Table.name,
-			nameUpper: sql<string>`upper(${users2Table.name})`,
+			name: users2.name,
+			nameUpper: sql<string>`upper(${users2.name})`,
 		},
 		city: {
-			id: citiesTable.id,
-			name: citiesTable.name,
-			nameUpper: sql<string>`upper(${citiesTable.name})`,
+			id: cities.id,
+			name: cities.name,
+			nameUpper: sql<string>`upper(${cities.name})`,
 		},
-	}).from(users2Table)
-		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+	}).from(users2)
+		.leftJoin(cities, eq(users2.cityId, cities.id));
 
 	expect(res).toEqual([
 		{
@@ -764,71 +958,63 @@ test('left join (grouped fields)', async () => {
 	]);
 });
 
-test('left join (all fields)', async () => {
-	await db.insert(citiesTable)
+test.concurrent('left join (all fields)', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_946', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	const cities = mysqlTable('cities_946', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await push({ users2, cities });
+	await db.insert(cities)
 		.values([{ name: 'Paris' }, { name: 'London' }]);
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+	await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
-	const res = await db.select().from(users2Table)
-		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+	const res = await db.select().from(users2)
+		.leftJoin(cities, eq(users2.cityId, cities.id));
 
 	expect(res).toEqual([
 		{
-			users2: {
+			users2_946: {
 				id: 1,
 				name: 'John',
 				cityId: 1,
 			},
-			cities: {
+			cities_946: {
 				id: 1,
 				name: 'Paris',
 			},
 		},
 		{
-			users2: {
+			users2_946: {
 				id: 2,
 				name: 'Jane',
 				cityId: null,
 			},
-			cities: null,
+			cities_946: null,
 		},
 	]);
 });
 
-test('join subquery', async () => {
-	const coursesTable = mysqlTable('courses', {
+test.concurrent('join subquery', async ({ db, push }) => {
+	const coursesTable = mysqlTable('courses_978', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
-		categoryId: int('category_id').references(() => courseCategoriesTable.id),
+		categoryId: bigint('category_id', { mode: 'number', unsigned: true }).references(() => courseCategoriesTable.id),
 	});
 
-	const courseCategoriesTable = mysqlTable('course_categories', {
+	const courseCategoriesTable = mysqlTable('course_categories_978', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${coursesTable}`);
-	await db.execute(sql`drop table if exists ${courseCategoriesTable}`);
-
-	await db.execute(
-		sql`
-			create table ${courseCategoriesTable} (
-				\`id\` serial primary key,
-				\`name\` text not null
-			)
-		`,
-	);
-
-	await db.execute(
-		sql`
-			create table ${coursesTable} (
-				\`id\` serial primary key,
-				\`name\` text not null,
-				\`category_id\` int references ${courseCategoriesTable}(\`id\`)
-			)
-		`,
-	);
+	await push({ coursesTable, courseCategoriesTable });
 
 	await db.insert(courseCategoriesTable).values([
 		{ name: 'Category 1' },
@@ -863,9 +1049,6 @@ test('join subquery', async () => {
 		.leftJoin(sq2, eq(coursesTable.categoryId, sq2.categoryId))
 		.orderBy(coursesTable.name);
 
-	await db.execute(sql`drop table ${coursesTable}`);
-	await db.execute(sql`drop table ${courseCategoriesTable}`);
-
 	expect(res).toEqual([
 		{ courseName: 'Design', categoryId: 1 },
 		{ courseName: 'Development', categoryId: 2 },
@@ -874,8 +1057,8 @@ test('join subquery', async () => {
 	]);
 });
 
-test('with ... select', async () => {
-	const orders = mysqlTable('orders', {
+test.concurrent('with ... select', async ({ db, push }) => {
+	const orders = mysqlTable('orders_1056', {
 		id: serial('id').primaryKey(),
 		region: text('region').notNull(),
 		product: text('product').notNull(),
@@ -883,18 +1066,7 @@ test('with ... select', async () => {
 		quantity: int('quantity').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${orders}`);
-	await db.execute(
-		sql`
-			create table ${orders} (
-				\`id\` serial primary key,
-				\`region\` text not null,
-				\`product\` text not null,
-				\`amount\` int not null,
-				\`quantity\` int not null
-			)
-		`,
-	);
+	await push({ orders });
 
 	await db.insert(orders).values([
 		{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -948,8 +1120,6 @@ test('with ... select', async () => {
 		.groupBy(orders.region, orders.product)
 		.orderBy(orders.region, orders.product);
 
-	await db.execute(sql`drop table ${orders}`);
-
 	expect(result).toEqual([
 		{
 			region: 'Europe',
@@ -978,12 +1148,19 @@ test('with ... select', async () => {
 	]);
 });
 
-test('select from subquery sql', async () => {
-	await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
+test.concurrent('select from subquery sql', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_1160', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	await push({ users2 });
+	await db.insert(users2).values([{ name: 'John' }, { name: 'Jane' }]);
 
 	const sq = db
-		.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
-		.from(users2Table)
+		.select({ name: sql<string>`concat(${users2.name}, " modified")`.as('name') })
+		.from(users2)
 		.as('sq');
 
 	const res = await db.select({ name: sq.name }).from(sq);
@@ -991,57 +1168,104 @@ test('select from subquery sql', async () => {
 	expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 });
 
-test('select a field without joining its table', () => {
-	expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare()).toThrowError();
+test.concurrent('select a field without joining its table', ({ db, push }) => {
+	const users = mysqlTable('users_1173', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	const users2 = mysqlTable('users2_1173', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	expect(() => db.select({ name: users2.name }).from(users).prepare()).toThrowError();
 });
 
-test('select all fields from subquery without alias', () => {
-	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
+test.concurrent('select all fields from subquery without alias', ({ db, push }) => {
+	const users2 = mysqlTable('users2_1177', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
+	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2.name})` }).from(users2));
 
 	expect(() => db.select().from(sq).prepare()).toThrowError();
 });
 
-test('select count()', async () => {
-	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+test.concurrent('select count()', async ({ db, push }) => {
+	const users = mysqlTable('users_1183', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
 
-	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
+	await push({ users });
+	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+
+	const res = await db.select({ count: sql`count(*)` }).from(users);
 
 	expect(res).toEqual([{ count: 2 }]);
 });
 
-test('select for ...', () => {
+test.concurrent('select for ...', ({ db, push }) => {
+	const users2 = mysqlTable('users2_1191', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
 	{
-		const query = db.select().from(users2Table).for('update').toSQL();
+		const query = db.select().from(users2).for('update').toSQL();
 		expect(query.sql).toMatch(/ for update$/);
 	}
 	{
-		const query = db.select().from(users2Table).for('share', { skipLocked: true }).toSQL();
+		const query = db.select().from(users2).for('share', { skipLocked: true }).toSQL();
 		expect(query.sql).toMatch(/ for share skip locked$/);
 	}
 	{
-		const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
+		const query = db.select().from(users2).for('update', { noWait: true }).toSQL();
 		expect(query.sql).toMatch(/ for update nowait$/);
 	}
 });
 
-test('having', async () => {
-	await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
+test.concurrent('having', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_1206', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
 
-	await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
+	const cities = mysqlTable('cities_1206', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await push({ users2, cities });
+	await db.insert(cities).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
+
+	await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
 		name: 'Jack',
 		cityId: 2,
 	}]);
 
 	const result = await db
 		.select({
-			id: citiesTable.id,
-			name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
-			usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+			id: cities.id,
+			name: sql<string>`upper(${cities.name})`.as('upper_name'),
+			usersCount: sql<number>`count(${users2.id})`.as('users_count'),
 		})
-		.from(citiesTable)
-		.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
+		.from(cities)
+		.leftJoin(users2, eq(users2.cityId, cities.id))
 		.where(({ name }) => sql`length(${name}) >= 3`)
-		.groupBy(citiesTable.id)
+		.groupBy(cities.id)
 		.having(({ usersCount }) => sql`${usersCount} > 0`)
 		.orderBy(({ name }) => name);
 
@@ -1059,27 +1283,39 @@ test('having', async () => {
 	]);
 });
 
-test('view', async () => {
-	const newYorkers1 = mysqlView('new_yorkers')
-		.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
+test.concurrent('view', async ({ db, push }) => {
+	const users2 = mysqlTable('users2_1241', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
 
-	const newYorkers2 = mysqlView('new_yorkers', {
+	const cities = mysqlTable('cities_1241', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const newYorkers1 = mysqlView('new_yorkers_1241')
+		.as((qb) => qb.select().from(users2).where(eq(users2.cityId, 1)));
+
+	const newYorkers2 = mysqlView('new_yorkers_1241', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: int('city_id').notNull(),
-	}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
+	}).as(sql`select * from ${users2} where ${eq(users2.cityId, 1)}`);
 
-	const newYorkers3 = mysqlView('new_yorkers', {
+	const newYorkers3 = mysqlView('new_yorkers_1241', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: int('city_id').notNull(),
 	}).existing();
 
-	await db.execute(sql`create view new_yorkers as ${getViewConfig(newYorkers1).query}`);
+	await push({ users2, cities });
+	await db.execute(sql`create view new_yorkers_1241 as ${getViewConfig(newYorkers1).query}`);
 
-	await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
+	await db.insert(cities).values([{ name: 'New York' }, { name: 'Paris' }]);
 
-	await db.insert(users2Table).values([
+	await db.insert(users2).values([
 		{ name: 'John', cityId: 1 },
 		{ name: 'Jane', cityId: 1 },
 		{ name: 'Jack', cityId: 2 },
@@ -1120,7 +1356,7 @@ test('view', async () => {
 	await db.execute(sql`drop view ${newYorkers1}`);
 });
 
-test('select from raw sql', async () => {
+test.concurrent('select from raw sql', async ({ db, push }) => {
 	const result = await db.select({
 		id: sql<number>`id`,
 		name: sql<string>`name`,
@@ -1133,7 +1369,7 @@ test('select from raw sql', async () => {
 	]);
 });
 
-test('select from raw sql with joins', async () => {
+test.concurrent('select from raw sql with joins', async ({ db, push }) => {
 	const result = await db
 		.select({
 			id: sql<number>`users.id`,
@@ -1151,7 +1387,7 @@ test('select from raw sql with joins', async () => {
 	]);
 });
 
-test('join on aliased sql from select', async () => {
+test.concurrent('join on aliased sql from select', async ({ db, push }) => {
 	const result = await db
 		.select({
 			userId: sql<number>`users.id`.as('userId'),
@@ -1170,7 +1406,7 @@ test('join on aliased sql from select', async () => {
 	]);
 });
 
-test('join on aliased sql from with clause', async () => {
+test.concurrent('join on aliased sql from with clause', async ({ db, push }) => {
 	const users = db.$with('users').as(
 		db.select({
 			id: sql<number>`id`.as('userId'),
@@ -1209,72 +1445,74 @@ test('join on aliased sql from with clause', async () => {
 	]);
 });
 
-test('prefixed table', async () => {
+test.concurrent('prefixed table', async ({ db, push }) => {
 	const mysqlTable = mysqlTableCreator((name) => `myprefix_${name}`);
 
-	const users = mysqlTable('test_prefixed_table_with_unique_name', {
+	const users = mysqlTable('test_prefixed_table_with_unique_name_1450', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
-	);
-
+	await push({ users });
 	await db.insert(users).values({ id: 1, name: 'John' });
 
 	const result = await db.select().from(users);
 
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-	await db.execute(sql`drop table ${users}`);
 });
 
-test('orderBy with aliased column', () => {
+test.concurrent('orderBy with aliased column', ({ db, push }) => {
+	const users2 = mysqlTable('users2_1473', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id'),
+	});
+
 	const query = db.select({
 		test: sql`something`.as('test'),
-	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+	}).from(users2).orderBy((fields) => fields.test).toSQL();
 
-	expect(query.sql).toBe(`select something as \`test\` from \`${getTableName(users2Table)}\` order by \`test\``);
+	expect(query.sql).toBe(`select something as \`test\` from \`${getTableName(users2)}\` order by \`test\``);
 });
 
-test('timestamp timezone', async () => {
+test.concurrent('timestamp timezone', async ({ db, push }) => {
+	const users = mysqlTable('users_1481', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});
+
+	await push({ users });
 	const date = new Date(Date.parse('2020-01-01T12:34:56+07:00'));
 
-	await db.insert(usersTable).values({ name: 'With default times' });
-	await db.insert(usersTable).values({
+	await db.insert(users).values({ name: 'With default times' });
+	await db.insert(users).values({
 		name: 'Without default times',
 		createdAt: date,
 	});
-	const users = await db.select().from(usersTable);
+	const usersResult = await db.select().from(users);
 
 	// check that the timestamps are set correctly for default times
-	expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
+	expect(Math.abs(usersResult[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
 
 	// check that the timestamps are set correctly for non default times
-	expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
+	expect(Math.abs(usersResult[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 });
 
-test('transaction', async () => {
-	const users = mysqlTable('users_transactions', {
+test('transaction', async ({ db, push }) => {
+	const users = mysqlTable('users_transactions_1498', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
 	});
-	const products = mysqlTable('products_transactions', {
+	const products = mysqlTable('products_transactions_1498', {
 		id: serial('id').primaryKey(),
 		price: int('price').notNull(),
 		stock: int('stock').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`drop table if exists ${products}`);
-
-	await db.execute(sql`create table ${users} (id serial not null primary key, balance int not null)`);
-	await db.execute(
-		sql`create table ${products} (id serial not null primary key, price int not null, stock int not null)`,
-	);
+	await push({ users, products });
 
 	const [{ insertId: userId }] = await db.insert(users).values({ balance: 100 });
 	const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
@@ -1288,23 +1526,16 @@ test('transaction', async () => {
 
 	const result = await db.select().from(users);
 
-	await db.execute(sql`drop table ${users}`);
-	await db.execute(sql`drop table ${products}`);
-
 	expect(result).toEqual([{ id: 1, balance: 90 }]);
 });
 
-test('transaction rollback', async () => {
-	const users = mysqlTable('users_transactions_rollback', {
+test.concurrent('transaction rollback', async ({ db, push }) => {
+	const users = mysqlTable('users_transactions_rollback_1535', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, balance int not null)`,
-	);
+	await push({ users });
 
 	await expect((async () => {
 		await db.transaction(async (tx) => {
@@ -1315,22 +1546,16 @@ test('transaction rollback', async () => {
 
 	const result = await db.select().from(users);
 
-	await db.execute(sql`drop table ${users}`);
-
 	expect(result).toEqual([]);
 });
 
-test('nested transaction', async () => {
-	const users = mysqlTable('users_nested_transactions', {
+test('nested transaction', async ({ db, push }) => {
+	const users = mysqlTable('users_nested_transactions_1561', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, balance int not null)`,
-	);
+	await push({ users });
 
 	await db.transaction(async (tx) => {
 		await tx.insert(users).values({ balance: 100 });
@@ -1342,22 +1567,16 @@ test('nested transaction', async () => {
 
 	const result = await db.select().from(users);
 
-	await db.execute(sql`drop table ${users}`);
-
 	expect(result).toEqual([{ id: 1, balance: 200 }]);
 });
 
-test('nested transaction rollback', async () => {
-	const users = mysqlTable('users_nested_transactions_rollback', {
+test('nested transaction rollback', async ({ db, push }) => {
+	const users = mysqlTable('users_nested_transactions_rollback_1588', {
 		id: serial('id').primaryKey(),
 		balance: int('balance').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, balance int not null)`,
-	);
+	await push({ users });
 
 	await db.transaction(async (tx) => {
 		await tx.insert(users).values({ balance: 100 });
@@ -1372,31 +1591,23 @@ test('nested transaction rollback', async () => {
 
 	const result = await db.select().from(users);
 
-	await db.execute(sql`drop table ${users}`);
-
 	expect(result).toEqual([{ id: 1, balance: 100 }]);
 });
 
-test('join subquery with join', async () => {
-	const internalStaff = mysqlTable('internal_staff', {
+test.concurrent('join subquery with join', async ({ db, push }) => {
+	const internalStaff = mysqlTable('internal_staff_1618', {
 		userId: int('user_id').notNull(),
 	});
 
-	const customUser = mysqlTable('custom_user', {
+	const customUser = mysqlTable('custom_user_1618', {
 		id: int('id').notNull(),
 	});
 
-	const ticket = mysqlTable('ticket', {
+	const ticket = mysqlTable('ticket_1618', {
 		staffId: int('staff_id').notNull(),
 	});
 
-	await db.execute(sql`drop table if exists ${internalStaff}`);
-	await db.execute(sql`drop table if exists ${customUser}`);
-	await db.execute(sql`drop table if exists ${ticket}`);
-
-	await db.execute(sql`create table ${internalStaff} (user_id integer not null)`);
-	await db.execute(sql`create table ${customUser} (id integer not null)`);
-	await db.execute(sql`create table ${ticket} (staff_id integer not null)`);
+	await push({ internalStaff, customUser, ticket });
 
 	await db.insert(internalStaff).values({ userId: 1 });
 	await db.insert(customUser).values({ id: 1 });
@@ -1411,36 +1622,27 @@ test('join subquery with join', async () => {
 	const mainQuery = await db
 		.select()
 		.from(ticket)
-		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
-
-	await db.execute(sql`drop table ${internalStaff}`);
-	await db.execute(sql`drop table ${customUser}`);
-	await db.execute(sql`drop table ${ticket}`);
+		.leftJoin(subq, eq(subq.internal_staff_1618.userId, ticket.staffId));
 
 	expect(mainQuery).toEqual([{
-		ticket: { staffId: 1 },
+		ticket_1618: { staffId: 1 },
 		internal_staff: {
-			internal_staff: { userId: 1 },
-			custom_user: { id: 1 },
+			internal_staff_1618: { userId: 1 },
+			custom_user_1618: { id: 1 },
 		},
 	}]);
 });
 
-test('subquery with view', async () => {
-	const users = mysqlTable('users_subquery_view', {
+test.concurrent('subquery with view', async ({ db, push }) => {
+	const users = mysqlTable('users_subquery_view_1667', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: int('city_id').notNull(),
 	});
 
-	const newYorkers = mysqlView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+	const newYorkers = mysqlView('new_yorkers_1667').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`drop view if exists ${newYorkers}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-	);
+	await push({ users });
 	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
 	await db.insert(users).values([
@@ -1454,7 +1656,6 @@ test('subquery with view', async () => {
 	const result = await db.with(sq).select().from(sq);
 
 	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
 
 	expect(result).toEqual([
 		{ id: 1, name: 'John', cityId: 1 },
@@ -1462,21 +1663,16 @@ test('subquery with view', async () => {
 	]);
 });
 
-test('join view as subquery', async () => {
-	const users = mysqlTable('users_join_view', {
+test.concurrent('join view as subquery', async ({ db, push }) => {
+	const users = mysqlTable('users_join_view_1703', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		cityId: int('city_id').notNull(),
 	});
 
-	const newYorkers = mysqlView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+	const newYorkers = mysqlView('new_yorkers_1703').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`drop view if exists ${newYorkers}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-	);
+	await push({ users });
 	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
 	await db.insert(users).values([
@@ -1492,35 +1688,32 @@ test('join view as subquery', async () => {
 
 	expect(result).toEqual([
 		{
-			users_join_view: { id: 1, name: 'John', cityId: 1 },
+			users_join_view_1703: { id: 1, name: 'John', cityId: 1 },
 			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
 		},
 		{
-			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+			users_join_view_1703: { id: 2, name: 'Jane', cityId: 2 },
 			new_yorkers_sq: null,
 		},
 		{
-			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+			users_join_view_1703: { id: 3, name: 'Jack', cityId: 1 },
 			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
 		},
 		{
-			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+			users_join_view_1703: { id: 4, name: 'Jill', cityId: 2 },
 			new_yorkers_sq: null,
 		},
 	]);
 
 	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
 });
 
-test('select iterator', async () => {
-	const users = mysqlTable('users_iterator', {
+test.concurrent('select iterator', async ({ db, push }) => {
+	const users = mysqlTable('users_iterator_1754', {
 		id: serial('id').primaryKey(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`create table ${users} (id serial not null primary key)`);
-
+	await push({ users });
 	await db.insert(users).values([{}, {}, {}]);
 
 	const iter = db.select().from(users).iterator();
@@ -1534,14 +1727,12 @@ test('select iterator', async () => {
 	expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
 });
 
-test('select iterator w/ prepared statement', async () => {
-	const users = mysqlTable('users_iterator', {
+test.concurrent('select iterator w/ prepared statement', async ({ db, push }) => {
+	const users = mysqlTable('users_iterator_1775', {
 		id: serial('id').primaryKey(),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-	await db.execute(sql`create table ${users} (id serial not null primary key)`);
-
+	await push({ users });
 	await db.insert(users).values([{}, {}, {}]);
 
 	const prepared = db.select().from(users).prepare();
@@ -1555,36 +1746,26 @@ test('select iterator w/ prepared statement', async () => {
 	expect(result).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
 });
 
-test('insert undefined', async () => {
-	const users = mysqlTable('users', {
+test.concurrent('insert undefined', async ({ db, push }) => {
+	const users = mysqlTable('users_1796', {
 		id: serial('id').primaryKey(),
 		name: text('name'),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text)`,
-	);
+	await push({ users });
 
 	await expect((async () => {
 		await db.insert(users).values({ name: undefined });
 	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
 });
 
-test('update undefined', async () => {
-	const users = mysqlTable('users', {
+test.concurrent('update undefined', async ({ db, push }) => {
+	const users = mysqlTable('users_1815', {
 		id: serial('id').primaryKey(),
 		name: text('name'),
 	});
 
-	await db.execute(sql`drop table if exists ${users}`);
-
-	await db.execute(
-		sql`create table ${users} (id serial not null primary key, name text)`,
-	);
+	await push({ users });
 
 	await expect((async () => {
 		await db.update(users).set({ name: undefined });
@@ -1593,6 +1774,4 @@ test('update undefined', async () => {
 	await expect((async () => {
 		await db.update(users).set({ id: 1, name: undefined });
 	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
 });
