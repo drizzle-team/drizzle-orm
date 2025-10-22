@@ -88,11 +88,11 @@ export type RefineCallbackT<Schema extends MysqlSchema> = (
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
 	schema: MysqlSchema,
-	vendor: null | 'tidb',
+	vendor: string,
 ) => {
 	const res = await diff({}, schema, []);
 	for (const s of res.sqlStatements) {
-		const patched = vendor === null ? s : s.replace('(now())', '(now(2))');
+		const patched = vendor === 'tidb' ? s.replace('(now())', '(now(2))') : s;
 		await query(patched, []).catch((e) => {
 			console.error(s);
 			console.error(e);
@@ -257,7 +257,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 				const { query } = client;
 				const push = (
 					schema: MysqlSchema,
-				) => _push(query, schema);
+				) => _push(query, schema, vendor);
 
 				await use(push);
 			},
