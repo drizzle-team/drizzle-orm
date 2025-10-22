@@ -5,7 +5,7 @@ import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { NodeCockroachClient, NodeCockroachQueryResultHKT } from './session.ts';
 import { NodeCockroachSession } from './session.ts';
 
@@ -80,10 +80,10 @@ export function drizzle<
 >(
 	...params:
 		| [
-			TClient | string,
+			string,
 		]
 		| [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema>,
 		]
 		| [
@@ -107,24 +107,20 @@ export function drizzle<
 		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as (
-			& ({ connection?: PoolConfig | string; client?: TClient })
-			& DrizzleConfig<TSchema>
-		);
+	const { connection, client, ...drizzleConfig } = params[0] as (
+		& ({ connection?: PoolConfig | string; client?: TClient })
+		& DrizzleConfig<TSchema>
+	);
 
-		if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, drizzleConfig);
 
-		const instance = typeof connection === 'string'
-			? new pg.Pool({
-				connectionString: connection,
-			})
-			: new pg.Pool(connection!);
+	const instance = typeof connection === 'string'
+		? new pg.Pool({
+			connectionString: connection,
+		})
+		: new pg.Pool(connection!);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

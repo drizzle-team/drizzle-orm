@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { BetterSQLiteSession } from './session.ts';
 
 export type DrizzleBetterSQLite3DatabaseConfig =
@@ -83,10 +83,10 @@ export function drizzle<
 	...params:
 		| []
 		| [
-			Database | string,
+			string,
 		]
 		| [
-			Database | string,
+			string,
 			DrizzleConfig<TSchema, TRelations>,
 		]
 		| [
@@ -108,30 +108,26 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& {
-				connection?: DrizzleBetterSQLite3DatabaseConfig;
-				client?: Database;
-			}
-			& DrizzleConfig<TSchema, TRelations>;
-
-		if (client) return construct(client, drizzleConfig) as any;
-
-		if (typeof connection === 'object') {
-			const { source, ...options } = connection;
-
-			const instance = new Client(source, options);
-
-			return construct(instance, drizzleConfig) as any;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& {
+			connection?: DrizzleBetterSQLite3DatabaseConfig;
+			client?: Database;
 		}
+		& DrizzleConfig<TSchema, TRelations>;
 
-		const instance = new Client(connection);
+	if (client) return construct(client, drizzleConfig) as any;
+
+	if (typeof connection === 'object') {
+		const { source, ...options } = connection;
+
+		const instance = new Client(source, options);
 
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	const instance = new Client(connection);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

@@ -44,7 +44,7 @@ beforeAll(async () => {
 
 	await pgClient.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
 
-	db = drizzle(pgClient);
+	db = drizzle({ client: pgClient });
 
 	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
 

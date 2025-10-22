@@ -93,7 +93,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { relations, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
 });
 
 afterAll(async () => {

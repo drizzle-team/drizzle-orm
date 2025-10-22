@@ -70,20 +70,18 @@ describe('node-mssql', async (it) => {
 		// expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = await mssql.connect(connectionString);
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 
-	it('drizzle(client, config)', async () => {
+	it('drizzle({ client, ...config })', async () => {
 		const client = await mssql.connect(connectionString);
-		const db = drizzle(client, {
-			schema,
-		});
+		const db = drizzle({ client, schema });
 
 		await db.$client.query('SELECT 1;');
 
