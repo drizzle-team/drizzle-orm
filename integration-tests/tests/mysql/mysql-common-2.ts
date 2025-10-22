@@ -17,7 +17,7 @@ import { Expect } from '~/utils';
 import type { Equal } from '~/utils';
 import { type Test } from './instrumentation';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});

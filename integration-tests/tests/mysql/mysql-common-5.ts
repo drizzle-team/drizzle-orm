@@ -1,18 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, sql } from 'drizzle-orm';
-import { alias, getViewConfig, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
-import { describe, expect, expectTypeOf } from 'vitest';
-import type { Equal } from '~/utils.ts';
+import { alias, getViewConfig, int, mysqlTable, serial, text } from 'drizzle-orm/mysql-core';
+import { describe, expect } from 'vitest';
 import { type Test } from './instrumentation';
-import {
-	citiesMySchemaTable,
-	createMySchemaUsersTable,
-	mySchema,
-	users2MySchemaTable,
-	usersMySchemaTable,
-	usersTable,
-} from './schema2';
+import { citiesMySchemaTable, mySchema, users2MySchemaTable, usersMySchemaTable } from './schema2';
 
 async function setupReturningFunctionsTest(batch: (s: string[]) => Promise<void>) {
 	await batch([`drop table if exists \`users_default_fn\``]);
@@ -287,9 +279,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			);
 
 			await db.insert(usersMySchemaTable).values({ id: 10, name: 'Ivan' });
-			await db.insert(usersTable).values({ id: 11, name: 'Hans' });
+			await db.insert(usersMySchemaTable).values({ id: 11, name: 'Hans' });
 
-			const customerAlias = alias(usersTable, 'customer');
+			const customerAlias = alias(usersMySchemaTable, 'customer');
 
 			const result = await db
 				.select().from(usersMySchemaTable)

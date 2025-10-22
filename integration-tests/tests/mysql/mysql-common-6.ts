@@ -1,22 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, like, not, sql } from 'drizzle-orm';
-import { bigint, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import { type Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
-import {
-	cities3,
-	citiesTable,
-	createCitiesTable,
-	createUsers2Table,
-	createUserTable,
-	users2Table,
-	users3,
-	usersTable,
-} from './schema2';
+import { createCitiesTable, createUsers2Table, createUserTable } from './schema2';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	let firstTime = true;
 	let resolveValue: (val: any) => void;
 	const promise = new Promise((resolve) => {

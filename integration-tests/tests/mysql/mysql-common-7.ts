@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
+	bigint,
 	getTableConfig,
 	index,
 	int,
@@ -17,12 +18,14 @@ import { expect, expectTypeOf } from 'vitest';
 import { type Test } from './instrumentation';
 import { allTypesTable } from './schema2';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});
 
-	test('all types', async ({ db }) => {
+	test.concurrent('all types', async ({ db, push }) => {
+		await push({ allTypesTable });
+
 		await db.insert(allTypesTable).values({
 			serial: 1,
 			bigint53: 9007199254740991,
@@ -154,17 +157,17 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(rawRes).toStrictEqual(expectedRes);
 	});
 
-	test.only('insert into ... select', async ({ db, push }) => {
-		const notifications = mysqlTable('notifications_29', {
+	test.concurrent('insert into ... select', async ({ db, push }) => {
+		const notifications = mysqlTable('notifications', {
 			id: int('id').primaryKey().autoincrement(),
 			sentAt: timestamp('sent_at').notNull().defaultNow(),
 			message: text('message').notNull(),
 		});
-		const users = mysqlTable('users_29', {
+		const users = mysqlTable('users_64', {
 			id: int('id').primaryKey().autoincrement(),
 			name: text('name').notNull(),
 		});
-		const userNotications = mysqlTable('user_notifications_29', {
+		const userNotications = mysqlTable('user_notifications', {
 			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
 		}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
@@ -208,30 +211,17 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('insert into ... select with keys in different order', async ({ db }) => {
-		const users1 = mysqlTable('users1', {
+	test.concurrent('insert into ... select with keys in different order', async ({ db, push }) => {
+		const users1 = mysqlTable('users_65', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
-		const users2 = mysqlTable('users2', {
+		const users2 = mysqlTable('users_66', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users1}`);
-		await db.execute(sql`drop table if exists ${users2}`);
-		await db.execute(sql`
-			create table ${users1} (
-				\`id\` serial primary key,
-				\`name\` text not null
-			)
-		`);
-		await db.execute(sql`
-			create table ${users2} (
-				\`id\` serial primary key,
-				\`name\` text not null
-			)
-		`);
+		await push({ users1, users2 });
 
 		expect(
 			() =>
@@ -248,12 +238,12 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		).toThrowError();
 	});
 
-	test('MySqlTable :: select with `use index` hint', async ({ db, push }) => {
-		const users = mysqlTable('users_30', {
+	test.concurrent('MySqlTable :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_67', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		}, () => [usersTableNameIndex]);
-		const usersTableNameIndex = index('users_name_index_30').on(users.name);
+		const usersTableNameIndex = index('users_name_index_67').on(users.name);
 
 		await push({ users });
 
@@ -275,21 +265,14 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 4, name: 'David' }]);
 	});
 
-	test('MySqlTable :: select with `use index` hint on 1 index', async ({ db }) => {
-		const users = mysqlTable('users_31', {
+	test.concurrent('MySqlTable :: select with `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_68', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		}, () => [usersTableNameIndex]);
-		const usersTableNameIndex = index('users_name_index_31').on(users.name);
+		const usersTableNameIndex = index('users_name_index_68').on(users.name);
 
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`
-			create table ${users} (
-				\`id\` serial primary key,
-				\`name\` varchar(100) not null
-			)
-		`);
-		await db.execute(sql`create index users_name_index_30 ON users_32(name)`);
+		await push({ users });
 
 		const query = db.select()
 			.from(users, {
@@ -298,17 +281,17 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			.where(eq(users.name, 'David'))
 			.toSQL();
 
-		expect(query.sql).to.include('USE INDEX (users_name_index_31)');
+		expect(query.sql).to.include('USE INDEX (users_name_index_68)');
 	});
 
-	test('MySqlTable :: select with `use index` hint on multiple indexes', async ({ db, push }) => {
-		const users = mysqlTable('users_32', {
+	test.concurrent('MySqlTable :: select with `use index` hint on multiple indexes', async ({ db, push }) => {
+		const users = mysqlTable('users_69', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 			age: int('age').notNull(),
 		}, () => [usersTableNameIndex, usersTableAgeIndex]);
-		const usersTableNameIndex = index('users_name_index_32').on(users.name);
-		const usersTableAgeIndex = index('users_age_index_32').on(users.age);
+		const usersTableNameIndex = index('users_name_index_69').on(users.name);
+		const usersTableAgeIndex = index('users_age_index_69').on(users.age);
 
 		await push({ users });
 
@@ -319,15 +302,15 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			.where(eq(users.name, 'David'))
 			.toSQL();
 
-		expect(query.sql).to.include('USE INDEX (users_name_index_32, users_age_index_32)');
+		expect(query.sql).to.include('USE INDEX (users_name_index_69, users_age_index_69)');
 	});
 
-	test('MySqlTable :: select with `use index` hint on not existed index', async ({ db, push }) => {
-		const users = mysqlTable('users_33', {
+	test.concurrent('MySqlTable :: select with `use index` hint on not existed index', async ({ db, push }) => {
+		const users = mysqlTable('users_70', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		}, () => [usersTableNameIndex]);
-		const usersTableNameIndex = index('users_name_index_33').on(users.name);
+		const usersTableNameIndex = index('users_name_index_70').on(users.name);
 
 		await push({ users });
 
@@ -348,47 +331,51 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		})()).rejects.toThrowError();
 	});
 
-	test('MySqlTable :: select with `use index` + `force index` incompatible hints', async ({ db, push }) => {
-		const users = mysqlTable('users_34', {
-			id: serial('id').primaryKey(),
-			name: varchar('name', { length: 100 }).notNull(),
-			age: int('age').notNull(),
-		}, () => [usersTableNameIndex, usersTableAgeIndex]);
-		const usersTableNameIndex = index('users_name_index_34').on(users.name);
-		const usersTableAgeIndex = index('users_age_index_34').on(users.age);
+	test.concurrent(
+		'MySqlTable :: select with `use index` + `force index` incompatible hints',
+		async ({ db, push }) => {
+			const users = mysqlTable('users_71', {
+				id: serial('id').primaryKey(),
+				name: varchar('name', { length: 100 }).notNull(),
+				age: int('age').notNull(),
+			}, () => [usersTableNameIndex, usersTableAgeIndex]);
+			const usersTableNameIndex = index('users_name_index_71').on(users.name);
+			const usersTableAgeIndex = index('users_age_index_71').on(users.age);
 
-		await push({ users });
+			await push({ users });
 
-		await db.insert(users).values([
-			{ name: 'Alice', age: 18 },
-			{ name: 'Bob', age: 19 },
-			{ name: 'Charlie', age: 20 },
-			{ name: 'David', age: 21 },
-			{ name: 'Eve', age: 22 },
-		]);
+			await db.insert(users).values([
+				{ name: 'Alice', age: 18 },
+				{ name: 'Bob', age: 19 },
+				{ name: 'Charlie', age: 20 },
+				{ name: 'David', age: 21 },
+				{ name: 'Eve', age: 22 },
+			]);
 
-		await expect((async () => {
-			return await db.select()
-				.from(users, {
-					useIndex: [usersTableNameIndex],
-					forceIndex: [usersTableAgeIndex],
-				})
-				.where(eq(users.name, 'David'));
-		})()).rejects.toThrowError();
-	});
+			await expect((async () => {
+				return await db.select()
+					.from(users, {
+						useIndex: [usersTableNameIndex],
+						forceIndex: [usersTableAgeIndex],
+					})
+					.where(eq(users.name, 'David'));
+			})()).rejects.toThrowError();
+		},
+	);
 
-	test('MySqlTable :: select with join `use index` hint', async ({ db, push }) => {
-		const users = mysqlTable('users_35', {
+	test.concurrent('MySqlTable :: select with join `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_72', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_35', {
+		const posts = mysqlTable('posts_72', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_35').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_72').on(posts.userId);
 
 		await push({ users, posts });
 		await db.insert(users).values([
@@ -426,18 +413,19 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ userId: 4, name: 'David', postId: 4, text: 'David post' }]);
 	});
 
-	test('MySqlTable :: select with join `use index` hint on 1 index', async ({ db, push }) => {
-		const users = mysqlTable('users', {
+	test.concurrent('MySqlTable :: select with join `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_73', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts', {
+		const posts = mysqlTable('posts_73', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index35').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_73').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -456,21 +444,22 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_35)');
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index_73)');
 	});
 
-	test('MySqlTable :: select with cross join `use index` hint', async ({ db, push }) => {
-		const users = mysqlTable('users_36', {
+	test.concurrent('MySqlTable :: select with cross join `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_74', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_36', {
+		const posts = mysqlTable('posts_74', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_36').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_74').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -492,32 +481,33 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			.orderBy(users.id, posts.id);
 
 		expect(result).toStrictEqual([{
-			users: { id: 1, name: 'Alice' },
-			posts: { id: 1, text: 'Alice post', userId: 1 },
+			users_74: { id: 1, name: 'Alice' },
+			posts_74: { id: 1, text: 'Alice post', userId: 1 },
 		}, {
-			users: { id: 1, name: 'Alice' },
-			posts: { id: 2, text: 'Bob post', userId: 2 },
+			users_74: { id: 1, name: 'Alice' },
+			posts_74: { id: 2, text: 'Bob post', userId: 2 },
 		}, {
-			users: { id: 2, name: 'Bob' },
-			posts: { id: 1, text: 'Alice post', userId: 1 },
+			users_74: { id: 2, name: 'Bob' },
+			posts_74: { id: 1, text: 'Alice post', userId: 1 },
 		}, {
-			users: { id: 2, name: 'Bob' },
-			posts: { id: 2, text: 'Bob post', userId: 2 },
+			users_74: { id: 2, name: 'Bob' },
+			posts_74: { id: 2, text: 'Bob post', userId: 2 },
 		}]);
 	});
 
-	test('MySqlTable :: select with cross join `use index` hint on 1 index', async ({ db, push }) => {
-		const users = mysqlTable('users_37', {
+	test.concurrent('MySqlTable :: select with cross join `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_75', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_37', {
+		const posts = mysqlTable('posts_75', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_37').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_75').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -536,22 +526,23 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_37)');
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index_75)');
 	});
 
-	test('MySqlTable :: select with join `use index` hint on multiple indexes', async ({ db, push }) => {
-		const users = mysqlTable('users_38', {
+	test.concurrent('MySqlTable :: select with join `use index` hint on multiple indexes', async ({ db, push }) => {
+		const users = mysqlTable('users_76', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_38', {
+		const posts = mysqlTable('posts_76', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex, postsTableTextIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_38').on(posts.userId);
-		const postsTableTextIndex = index('posts_text_index_38').on(posts.text);
+		const postsTableUserIdIndex = index('posts_user_id_index_76').on(posts.userId);
+		const postsTableTextIndex = index('posts_text_index_76').on(posts.text);
 
 		await push({ users, posts });
 
@@ -570,21 +561,22 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_38, posts_text_index_38)');
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index_76, posts_text_index_76)');
 	});
 
-	test('MySqlTable :: select with join `use index` hint on not existed index', async ({ db, push }) => {
-		const users = mysqlTable('users_39', {
+	test.concurrent('MySqlTable :: select with join `use index` hint on not existed index', async ({ db, push }) => {
+		const users = mysqlTable('users_77', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_39', {
+		const posts = mysqlTable('posts_77', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_39').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_77').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -622,69 +614,76 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		})()).rejects.toThrowError();
 	});
 
-	test('MySqlTable :: select with join `use index` + `force index` incompatible hints', async ({ db, push }) => {
-		const users = mysqlTable('users_40', {
-			id: serial('id').primaryKey(),
-			name: varchar('name', { length: 100 }).notNull(),
-		});
+	test.concurrent(
+		'MySqlTable :: select with join `use index` + `force index` incompatible hints',
+		async ({ db, push }) => {
+			const users = mysqlTable('users_78', {
+				id: serial('id').primaryKey(),
+				name: varchar('name', { length: 100 }).notNull(),
+			});
 
-		const posts = mysqlTable('posts_40', {
-			id: serial('id').primaryKey(),
-			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-		}, () => [postsTableUserIdIndex, postsTableTextIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_40').on(posts.userId);
-		const postsTableTextIndex = index('posts_text_index_40').on(posts.text);
-
-		await push({ users, posts });
-
-		await db.insert(users).values([
-			{ name: 'Alice' },
-			{ name: 'Bob' },
-			{ name: 'Charlie' },
-			{ name: 'David' },
-			{ name: 'Eve' },
-		]);
-
-		await db.insert(posts).values([
-			{ text: 'Alice post', userId: 1 },
-			{ text: 'Bob post', userId: 2 },
-			{ text: 'Charlie post', userId: 3 },
-			{ text: 'David post', userId: 4 },
-			{ text: 'Eve post', userId: 5 },
-		]);
-
-		await expect((async () => {
-			return await db.select({
-				userId: users.id,
-				name: users.name,
-				postId: posts.id,
-				text: posts.text,
-			})
-				.from(users)
-				.leftJoin(posts, eq(users.id, posts.userId), {
-					useIndex: [postsTableUserIdIndex],
-					forceIndex: [postsTableTextIndex],
+			const posts = mysqlTable('posts_78', {
+				id: serial('id').primaryKey(),
+				text: varchar('text', { length: 100 }).notNull(),
+				userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, {
+					onDelete: 'cascade',
 				})
-				.where(and(
-					eq(users.name, 'David'),
-					eq(posts.text, 'David post'),
-				));
-		})()).rejects.toThrowError();
-	});
+					.notNull(),
+			}, () => [postsTableUserIdIndex, postsTableTextIndex]);
+			const postsTableUserIdIndex = index('posts_user_id_index_78').on(posts.userId);
+			const postsTableTextIndex = index('posts_text_index_78').on(posts.text);
 
-	test('MySqlTable :: select with Subquery join `use index`', async ({ db, push }) => {
-		const users = mysqlTable('users_41', {
+			await push({ users, posts });
+
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			await db.insert(posts).values([
+				{ text: 'Alice post', userId: 1 },
+				{ text: 'Bob post', userId: 2 },
+				{ text: 'Charlie post', userId: 3 },
+				{ text: 'David post', userId: 4 },
+				{ text: 'Eve post', userId: 5 },
+			]);
+
+			await expect((async () => {
+				return await db.select({
+					userId: users.id,
+					name: users.name,
+					postId: posts.id,
+					text: posts.text,
+				})
+					.from(users)
+					.leftJoin(posts, eq(users.id, posts.userId), {
+						useIndex: [postsTableUserIdIndex],
+						forceIndex: [postsTableTextIndex],
+					})
+					.where(and(
+						eq(users.name, 'David'),
+						eq(posts.text, 'David post'),
+					));
+			})()).rejects.toThrowError();
+		},
+	);
+
+	test.concurrent('MySqlTable :: select with Subquery join `use index`', async ({ db, push }) => {
+		const users = mysqlTable('users_79', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_41', {
+		const posts = mysqlTable('posts_79', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_41').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_79').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -720,18 +719,19 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ userId: 1, name: 'Alice', postId: 1, text: 'Alice post' }]);
 	});
 
-	test('MySqlTable :: select with Subquery join with `use index` in join', async ({ db, push }) => {
-		const users = mysqlTable('users_42', {
+	test.concurrent('MySqlTable :: select with Subquery join with `use index` in join', async ({ db, push }) => {
+		const users = mysqlTable('users_80', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		});
 
-		const posts = mysqlTable('posts_42', {
+		const posts = mysqlTable('posts_80', {
 			id: serial('id').primaryKey(),
 			text: varchar('text', { length: 100 }).notNull(),
-			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
 		}, () => [postsTableUserIdIndex]);
-		const postsTableUserIdIndex = index('posts_user_id_index_42').on(posts.userId);
+		const postsTableUserIdIndex = index('posts_user_id_index_80').on(posts.userId);
 
 		await push({ users, posts });
 
@@ -752,18 +752,17 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(query.sql).not.include('USE INDEX');
 	});
 
-	test('View :: select with `use index` hint', async ({ db, push }) => {
-		const users = mysqlTable('users_43', {
+	test.concurrent('View :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_81', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		}, () => [usersTableNameIndex]);
 
-		const usersTableNameIndex = index('users_name_index_43').on(users.name);
+		const usersTableNameIndex = index('users_name_index_81').on(users.name);
 
-		const usersView = mysqlView('users_view_43').as((qb) => qb.select().from(users));
+		const usersView = mysqlView('users_view_81').as((qb) => qb.select().from(users));
 
-		await push({ users });
-		await db.execute(sql`create view ${usersView} as select * from ${users}`);
+		await push({ users, usersView });
 
 		// @ts-expect-error
 		const query = db.select().from(usersView, {
@@ -771,16 +770,14 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}).toSQL();
 
 		expect(query.sql).not.include('USE INDEX');
-
-		await db.execute(sql`drop view ${usersView}`);
 	});
 
-	test('Subquery :: select with `use index` hint', async ({ db, push }) => {
-		const users = mysqlTable('users_44', {
+	test.concurrent('Subquery :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_82', {
 			id: serial('id').primaryKey(),
 			name: varchar('name', { length: 100 }).notNull(),
 		}, () => [usersTableNameIndex]);
-		const usersTableNameIndex = index('users_name_index_44').on(users.name);
+		const usersTableNameIndex = index('users_name_index_82').on(users.name);
 
 		await push({ users });
 
@@ -794,8 +791,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(query.sql).not.include('USE INDEX');
 	});
 
-	test('sql operator as cte', async ({ db, push }) => {
-		const users = mysqlTable('users_45', {
+	test.concurrent('sql operator as cte', async ({ db, push }) => {
+		const users = mysqlTable('users_83', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
@@ -826,8 +823,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
 
-	test('contraint names config', async ({ db, push }) => {
-		const users = mysqlTable('users_46', {
+	test.concurrent('contraint names config', async ({ db, push }) => {
+		const users = mysqlTable('users_84', {
 			id: int('id').unique(),
 			id1: int('id1').unique('custom_name'),
 		});
