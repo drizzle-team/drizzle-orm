@@ -13,8 +13,8 @@ import {
 	text,
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
-import { Expect } from '~/utils.ts';
-import type { Equal } from '~/utils.ts';
+import { Expect } from '~/utils';
+import type { Equal } from '~/utils';
 import { type Test } from './instrumentation';
 
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
