@@ -1,13 +1,250 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, like, not, sql } from 'drizzle-orm';
-import { expect } from 'vitest';
+import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { expect, expectTypeOf } from 'vitest';
 import { type Test } from './instrumentation';
-import { cities3, citiesTable, users2Table, users3, usersTable } from './schema2';
+import { cities3, citiesTable, createUserTable, users2Table, users3, usersTable } from './schema2';
 
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
+	});
+
+	test.concurrent('insert $returningId: serial as id', async ({ db, push }) => {
+		const users = createUserTable('users_60');
+		await push({ users });
+		const result = await db.insert(users).values({ name: 'John' }).$returningId();
+
+		expectTypeOf(result).toEqualTypeOf<{
+			id: number;
+		}[]>();
+
+		expect(result).toStrictEqual([{ id: 1 }]);
+	});
+
+	test.concurrent('insert $returningId: serial as id, not first column', async ({ db, push }) => {
+		const usersTableDefNotFirstColumn = mysqlTable('users2_52', {
+			name: text('name').notNull(),
+			id: serial('id').primaryKey(),
+		});
+
+		await push({ usersTableDefNotFirstColumn });
+
+		const result = await db.insert(usersTableDefNotFirstColumn).values({ name: 'John' }).$returningId();
+
+		expectTypeOf(result).toEqualTypeOf<{
+			id: number;
+		}[]>();
+
+		expect(result).toStrictEqual([{ id: 1 }]);
+	});
+
+	test.concurrent('insert $returningId: serial as id, batch insert', async ({ db, push }) => {
+		const users = createUserTable('users_60');
+		await push({ users });
+
+		const result = await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]).$returningId();
+
+		expectTypeOf(result).toEqualTypeOf<{
+			id: number;
+		}[]>();
+
+		expect(result).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	});
+
+	test.concurrent('insert $returningId: $default as primary key', async ({ db, push }) => {
+		const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+		let iterator = 0;
+
+		const usersTableDefFn = mysqlTable('users_default_fn_1', {
+			customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
+				const value = uniqueKeys[iterator]!;
+				iterator++;
+				return value;
+			}),
+			name: text('name').notNull(),
+		});
+
+		await push({ usersTableDefFn });
+
+		const result = await db.insert(usersTableDefFn).values([{ name: 'John' }, { name: 'John1' }])
+			//    ^?
+			.$returningId();
+
+		expectTypeOf(result).toEqualTypeOf<{
+			customId: string;
+		}[]>();
+
+		expect(result).toStrictEqual([{ customId: 'ao865jf3mcmkfkk8o5ri495z' }, {
+			customId: 'dyqs529eom0iczo2efxzbcut',
+		}]);
+	});
+
+	test.concurrent('insert $returningId: $default as primary key with value', async ({ db, push }) => {
+		const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+		let iterator = 0;
+
+		const usersTableDefFn = mysqlTable('users_default_fn_2', {
+			customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
+				const value = uniqueKeys[iterator]!;
+				iterator++;
+				return value;
+			}),
+			name: text('name').notNull(),
+		});
+
+		await push({ usersTableDefFn });
+
+		const result = await db.insert(usersTableDefFn).values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
+			//    ^?
+			.$returningId();
+
+		expectTypeOf(result).toEqualTypeOf<{
+			customId: string;
+		}[]>();
+
+		expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
+	});
+
+	test.concurrent('$count separate', async ({ db, push }) => {
+		const countTestTable = mysqlTable('count_test1', {
+			id: int('id').notNull(),
+			name: text('name').notNull(),
+		});
+
+		await push({ countTestTable });
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.$count(countTestTable);
+
+		expect(count).toStrictEqual(4);
+	});
+
+	test.concurrent('$count embedded', async ({ db }) => {
+		const countTestTable = mysqlTable('count_test2', {
+			id: int('id').notNull(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${countTestTable}`);
+		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.select({
+			count: db.$count(countTestTable),
+		}).from(countTestTable);
+
+		await db.execute(sql`drop table ${countTestTable}`);
+
+		expect(count).toStrictEqual([
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+		]);
+	});
+
+	test.concurrent('$count separate reuse', async ({ db }) => {
+		const countTestTable = mysqlTable('count_test3', {
+			id: int('id').notNull(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${countTestTable}`);
+		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = db.$count(countTestTable);
+
+		const count1 = await count;
+
+		await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+		const count2 = await count;
+
+		await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+		const count3 = await count;
+
+		await db.execute(sql`drop table ${countTestTable}`);
+
+		expect(count1).toStrictEqual(4);
+		expect(count2).toStrictEqual(5);
+		expect(count3).toStrictEqual(6);
+	});
+
+	test.concurrent('$count embedded reuse', async ({ db }) => {
+		const countTestTable = mysqlTable('count_test4', {
+			id: int('id').notNull(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${countTestTable}`);
+		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = db.select({
+			count: db.$count(countTestTable),
+		}).from(countTestTable);
+
+		const count1 = await count;
+
+		await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+		const count2 = await count;
+
+		await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+		const count3 = await count;
+
+		await db.execute(sql`drop table ${countTestTable}`);
+
+		expect(count1).toStrictEqual([
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+		]);
+		expect(count2).toStrictEqual([
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+		]);
+		expect(count3).toStrictEqual([
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+		]);
 	});
 
 	test.concurrent('limit 0', async ({ db }) => {
