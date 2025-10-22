@@ -65,7 +65,7 @@ export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) =
 		? ['public']
 		: typeof policy.to === 'string'
 		? [policy.to]
-		: is(policy, CockroachRole)
+		: is(policy.to, CockroachRole)
 		? [(policy.to as CockroachRole).name]
 		: Array.isArray(policy.to)
 		? policy.to.map((it) => {
@@ -306,6 +306,22 @@ export const fromDrizzleSchema = (
 			continue;
 		}
 
+		res.pks.push(
+			...drizzlePKs.map<PrimaryKey>((pk) => {
+				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+
+				const name = pk.name || defaultNameForPK(tableName);
+				return {
+					entityType: 'pks',
+					schema: schema,
+					table: tableName,
+					name: name,
+					columns: columnNames,
+					nameExplicit: pk.isNameExplicit,
+				};
+			}),
+		);
+
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
@@ -367,22 +383,6 @@ export const fromDrizzleSchema = (
 					uniqueName: column.uniqueName ?? null,
 					identity: identityValue,
 				} satisfies InterimColumn;
-			}),
-		);
-
-		res.pks.push(
-			...drizzlePKs.map<PrimaryKey>((pk) => {
-				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-
-				const name = pk.name || defaultNameForPK(tableName);
-				return {
-					entityType: 'pks',
-					schema: schema,
-					table: tableName,
-					name: name,
-					columns: columnNames,
-					nameExplicit: pk.isNameExplicit,
-				};
 			}),
 		);
 

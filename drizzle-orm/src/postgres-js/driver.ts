@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
@@ -74,9 +74,9 @@ export function drizzle<
 	TClient extends Sql = Sql,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -97,26 +97,22 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as {
-			connection?: { url?: string } & Options<Record<string, PostgresType>>;
-			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+	const { connection, client, ...drizzleConfig } = params[0] as {
+		connection?: { url?: string } & Options<Record<string, PostgresType>>;
+		client?: TClient;
+	} & DrizzleConfig<TSchema>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		if (typeof connection === 'object' && connection.url !== undefined) {
-			const { url, ...config } = connection;
+	if (typeof connection === 'object' && connection.url !== undefined) {
+		const { url, ...config } = connection;
 
-			const instance = pgClient(url, config);
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = pgClient(connection);
+		const instance = pgClient(url, config);
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	const instance = pgClient(connection);
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

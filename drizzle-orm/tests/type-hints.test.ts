@@ -6,7 +6,8 @@ import { drizzle } from '~/aws-data-api/pg';
 import { customType, json, PgDialect, pgTable, text, timestamp, uuid, varchar } from '~/pg-core';
 import { sql } from '~/sql/sql';
 
-const db = drizzle(new RDSDataClient(), {
+const db = drizzle({
+	client: new RDSDataClient(),
 	database: '',
 	resourceArn: '',
 	secretArn: '',

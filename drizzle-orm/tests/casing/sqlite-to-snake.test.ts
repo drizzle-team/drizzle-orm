@@ -28,7 +28,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle(new Database(':memory:'), { schema, casing: 'snake_case' });
+const db = drizzle({ client: new Database(':memory:'), schema, casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',

@@ -953,11 +953,10 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 		to,
 		[],
 	);
-	await push({ db, to: from, schemas: ['dbo'] });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		schemas: ['new_schema'],
 	});
 
 	const st0 = [

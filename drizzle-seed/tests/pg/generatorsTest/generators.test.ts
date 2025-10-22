@@ -22,7 +22,7 @@ beforeAll(async () => {
 
 	await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
 

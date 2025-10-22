@@ -86,7 +86,7 @@ test.concurrent('add columns #2', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('column conflict duplicate name #1', async ({ dbc: db }) => {
+test.concurrent('column conflict duplicate name #1', async ({ db: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -101,10 +101,10 @@ test.concurrent('column conflict duplicate name #1', async ({ dbc: db }) => {
 		}),
 	};
 
-	await push({ to: schema1, db, schemas: ['dbo'] });
+	await push({ to: schema1, db });
 
 	await expect(diff(schema1, schema2, [])).rejects.toThrowError(); // duplicate names in columns
-	await expect(push({ to: schema2, db, schemas: ['dbo'] })).rejects.toThrowError(); // duplicate names in columns
+	await expect(push({ to: schema2, db })).rejects.toThrowError(); // duplicate names in columns
 });
 
 test.concurrent('alter column change name #1', async ({ dbc: db }) => {
@@ -318,7 +318,7 @@ test.concurrent('create composite primary key', async ({ dbc: db }) => {
 	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE "table" (\n\t"col1" int4 NOT NULL,\n\t"col2" int4 NOT NULL,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
+		'CREATE TABLE "table" (\n\t"col1" int4,\n\t"col2" int4,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -599,7 +599,7 @@ test.concurrent('add array column - default', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('add not null to a column', async ({ dbc: db }) => {
+test.concurrent('add not null to a column', async ({ db: db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'User',
@@ -666,7 +666,7 @@ test.concurrent('add not null to a column', async ({ dbc: db }) => {
 	expect(losses).toStrictEqual([]);
 });
 
-test.concurrent('add not null to a column with null data. Should rollback', async ({ dbc: db }) => {
+test.concurrent('add not null to a column with null data. Should rollback', async ({ db: db }) => {
 	const schema1 = {
 		users: cockroachTable('User', {
 			id: text('id').primaryKey(),

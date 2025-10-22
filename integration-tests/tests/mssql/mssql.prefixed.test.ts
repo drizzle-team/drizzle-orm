@@ -18,7 +18,7 @@ import {
 } from 'drizzle-orm/mssql-core';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { expect } from 'vitest';
-import { type Equal, Expect } from '~/utils.ts';
+import { type Equal, Expect } from '~/utils';
 import { test } from './instrumentation';
 import { citiesTable, users2Table, usersTable } from './schema';
 

@@ -76,7 +76,7 @@ test('create table and view #3', async () => {
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to: to });
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true }); // because of encryption
 
 	const st0 = [
 		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
@@ -86,6 +86,30 @@ test('create table and view #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('create table and view #3_1', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+	const to = {
+		users: users,
+		view1: mssqlView('some_view1', { id: int('id') }).with({
+			checkOption: true,
+			schemaBinding: true,
+			viewMetadata: true,
+		}).as(sql`SELECT ${users.id} FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true }); // because of encryption
+
+	const st0 = [
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+		`CREATE VIEW [some_view1]\nWITH SCHEMABINDING, VIEW_METADATA AS (SELECT [users].[id] FROM [dbo].[users])\nWITH CHECK OPTION;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('create table and view #4', async () => {
 	const schema = mssqlSchema('new_schema');
 
@@ -104,12 +128,41 @@ test('create table and view #4', async () => {
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to: to });
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true }); // because of encryption
 
 	const st0 = [
 		`CREATE SCHEMA [new_schema];\n`,
 		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
 		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table and view #4_1', async () => {
+	const schema = mssqlSchema('new_schema');
+
+	const users = schema.table('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+	const to = {
+		schema,
+		users: users,
+		view1: schema.view('some_view1', { id: int('id') }).with({
+			checkOption: true,
+			schemaBinding: true,
+			viewMetadata: true,
+		}).as(sql`SELECT ${users.id} FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true }); // because of encryption
+
+	const st0 = [
+		`CREATE SCHEMA [new_schema];\n`,
+		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+		`CREATE VIEW [new_schema].[some_view1]\nWITH SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -134,12 +187,41 @@ test('create table and view #4', async () => {
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to: to });
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true });
 
 	const st0 = [
 		`CREATE SCHEMA [new_schema];\n`,
 		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
 		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table and view #4_1', async () => {
+	const schema = mssqlSchema('new_schema');
+
+	const users = schema.table('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+	const to = {
+		schema,
+		users: users,
+		view1: schema.view('some_view1', { id: int('id') }).with({
+			checkOption: true,
+			schemaBinding: true,
+			viewMetadata: true,
+		}).as(sql`SELECT ${users.id} FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to, ignoreSubsequent: true });
+
+	const st0 = [
+		`CREATE SCHEMA [new_schema];\n`,
+		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+		`CREATE VIEW [new_schema].[some_view1]\nWITH SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
 	];
 
 	expect(st).toStrictEqual(st0);

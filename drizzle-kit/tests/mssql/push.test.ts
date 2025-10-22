@@ -916,7 +916,12 @@ test('hints + losses: add column with not null without default', async (t) => {
 			age: int().notNull(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+	const { sqlStatements: pst1, hints, losses, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
 	const st_01 = [
 		`ALTER TABLE [users] ADD [age] int NOT NULL;`,
@@ -929,7 +934,46 @@ test('hints + losses: add column with not null without default', async (t) => {
 	expect(error).not.toBeNull();
 	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
-	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
+	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
+});
+test('hints + losses: add column with not null without default #2', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+			age: int().notNull(),
+		}),
+	};
+	// const { sqlStatements: pst1, hints, losses, error } = await push({
+	// 	db,
+	// 	to: to,
+	// 	expectError: true,
+	// 	ignoreSubsequent: true,
+	// });
+
+	// const st_01 = [
+	// 	`ALTER TABLE [users] ADD [age] int NOT NULL;`,
+	// ];
+
+	// expect(pst1).toStrictEqual(st_01);
+	// expect(hints).toStrictEqual([
+	// 	`· You're about to add not-null [age] column without default value to a non-empty [users] table`,
+	// ]);
+	// expect(error).not.toBeNull();
+	// expect(losses).toStrictEqual([`DELETE FROM [users];`]);
+
+	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
 });
 
 test('hints + losses: add column with not null with default', async (t) => {
@@ -981,7 +1025,12 @@ test('hints + losses: alter column add not null without default', async (t) => {
 			name: varchar({ length: 200 }).notNull(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+	const { sqlStatements: pst1, hints, losses, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
 	const st_01 = [
 		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
@@ -994,7 +1043,46 @@ test('hints + losses: alter column add not null without default', async (t) => {
 	expect(error).not.toBeNull();
 	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
-	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
+	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
+});
+
+test('hints + losses: alter column add not null without default #2', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id]) VALUES (1), (2);`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).notNull(),
+		}),
+	};
+	// const { sqlStatements: pst1, hints, losses, error } = await push({
+	// 	db,
+	// 	to: to,
+	// 	expectError: true,
+	// 	ignoreSubsequent: true,
+	// });
+
+	// const st_01 = [
+	// 	`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
+	// ];
+
+	// expect(pst1).toStrictEqual(st_01);
+	// expect(hints).toStrictEqual([
+	// 	`· You're about to add not-null to [name] column without default value to a non-empty [users] table`,
+	// ]);
+	// expect(error).not.toBeNull();
+	// expect(losses).toStrictEqual([`DELETE FROM [users];`]);
+
+	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
 });
 
 // TODO
@@ -1024,7 +1112,12 @@ test('hints + losses: alter column add not null with default', async (t) => {
 			name: varchar({ length: 200 }).notNull().default('1'),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+	const { sqlStatements: pst1, hints, losses, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
 	const st_01 = [
 		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
@@ -1087,7 +1180,12 @@ test('hints + losses: add unique to column #2', async (t) => {
 			name: varchar({ length: 200 }).unique(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+	const { sqlStatements: pst1, hints, losses, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
 	const st_01 = [
 		`ALTER TABLE [users] ADD CONSTRAINT [users_name_key] UNIQUE([name]);`,

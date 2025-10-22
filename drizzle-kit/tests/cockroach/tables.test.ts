@@ -72,7 +72,7 @@ test.concurrent('add table #3', async ({ dbc: db }) => {
 
 	const st0 = [
 		'CREATE TABLE "users" (\n'
-		+ '\t"id" int4 NOT NULL,\n'
+		+ '\t"id" int4,\n'
 		+ '\tCONSTRAINT "users_pk" PRIMARY KEY("id")\n'
 		+ ');\n',
 	];
@@ -807,7 +807,7 @@ test.concurrent('composite primary key', async ({ dbc: db }) => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4 NOT NULL,\n\t"creator_id" int4 NOT NULL,\n\t"classification" string NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4,\n\t"creator_id" int4,\n\t"classification" string,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -958,8 +958,8 @@ test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 `;
 
 	const st3 = `CREATE TABLE "t3" (
-	"t3_id1" int4 NOT NULL,
-	"t3_id2" int4 NOT NULL,
+	"t3_id1" int4,
+	"t3_id2" int4,
 	CONSTRAINT "t3_pkey" PRIMARY KEY("t3_id1","t3_id2")
 );
 `;
@@ -1040,8 +1040,8 @@ test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 `;
 
 	const st3 = `CREATE TABLE "t3" (
-	"t3Id1" int4 NOT NULL,
-	"t3Id2" int4 NOT NULL,
+	"t3Id1" int4,
+	"t3Id2" int4,
 	CONSTRAINT "t3_pkey" PRIMARY KEY("t3Id1","t3Id2")
 );
 `;

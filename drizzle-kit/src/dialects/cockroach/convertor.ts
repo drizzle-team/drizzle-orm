@@ -85,7 +85,11 @@ const createTableConvertor = convertor('create_table', (st) => {
 			&& pk.name === defaultNameForPK(column.table);
 
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
-		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+		const notNullStatement = pk?.columns.includes(column.name)
+			? ''
+			: column.notNull && !column.identity
+			? ' NOT NULL'
+			: '';
 
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
@@ -176,8 +180,6 @@ const addColumnConvertor = convertor('add_column', (st) => {
 	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 
-	const primaryKeyStatement = st.isPK ? ' PRIMARY KEY' : '';
-
 	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
@@ -204,7 +206,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 });
 
 const dropColumnConvertor = convertor('drop_column', (st) => {
@@ -276,13 +278,6 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		}
 	}
 
-	// TODO: remove implicit notnull in orm
-	// skip if not null was implicit from identity and identity is dropped
-	if (diff.notNull && !(diff.notNull.to === false && diff.identity && !diff.identity.to)) {
-		const clause = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ${clause};`);
-	}
-
 	if (diff.identity) {
 		if (diff.identity.from === null) {
 			const identity = column.identity!;
@@ -327,6 +322,25 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		}
 	}
 
+	return statements;
+});
+
+const alterColumnAddNotNullConvertor = convertor('alter_add_column_not_null', (st) => {
+	const { table, schema, column } = st;
+	const statements = [] as string[];
+
+	const key = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
+
+	statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column}" SET NOT NULL;`);
+	return statements;
+});
+const alterColumnDropNotNullConvertor = convertor('alter_drop_column_not_null', (st) => {
+	const { table, schema, column } = st;
+	const statements = [] as string[];
+
+	const key = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
+
+	statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column}" DROP NOT NULL;`);
 	return statements;
 });
 
@@ -728,6 +742,8 @@ const convertors = [
 	recreatePolicy,
 	toggleRlsConvertor,
 	alterPrimaryKeyConvertor,
+	alterColumnAddNotNullConvertor,
+	alterColumnDropNotNullConvertor,
 ];
 
 export function fromJson(statements: JsonStatement[]) {

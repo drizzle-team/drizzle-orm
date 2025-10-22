@@ -439,11 +439,10 @@ test('unique #6', async () => {
 		'my_schema.users.unique_name->my_schema.users.unique_name2',
 	]);
 
-	await push({ db, to: from, schemas: ['dbo'] });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		schemas: ['my_schema'],
 		renames: [
 			'my_schema.users.unique_name->my_schema.users.unique_name2',
 		],
@@ -1385,7 +1384,7 @@ test('fk #3', async () => {
 
 	const e = [
 		`CREATE TABLE [123456789_123456789_123456789_123456789_123456789_123_users] (\n\t[id3] int,\n\t[id2] int,\n\tCONSTRAINT [123456789_123456789_123456789_123456789_123456789_123_users_pkey] PRIMARY KEY([id3])\n);\n`,
-		'ALTER TABLE [123456789_123456789_123456789_123456789_123456789_123_users] ADD CONSTRAINT [123456789_123456789_123456789_123456789_123456789_123_users_eAak0doOrYmM_fk] FOREIGN KEY ([id2]) REFERENCES [123456789_123456789_123456789_123456789_123456789_123_users]([id3]);',
+		'ALTER TABLE [123456789_123456789_123456789_123456789_123456789_123_users] ADD CONSTRAINT [123456789_123456789_123456789_123456789_123456789_123_users_RqTNlAl1EEx0_fk] FOREIGN KEY ([id2]) REFERENCES [123456789_123456789_123456789_123456789_123456789_123_users]([id3]);',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
@@ -1408,7 +1407,7 @@ test('fk #4', async () => {
 
 	const e = [
 		`CREATE TABLE [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users] (\n\t[id] int,\n\t[id2] int,\n\tCONSTRAINT [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users_pkey] PRIMARY KEY([id])\n);\n`,
-		'ALTER TABLE [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users] ADD CONSTRAINT [DmIimCiS8C44_fk] FOREIGN KEY ([id2]) REFERENCES [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users]([id]);',
+		'ALTER TABLE [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users] ADD CONSTRAINT [1roIIPOipLA5_fk] FOREIGN KEY ([id2]) REFERENCES [1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_1234567890_123456_users]([id]);',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
@@ -2104,11 +2103,10 @@ test('default #4', async () => {
 		'my_schema.users.name->my_schema.users.name2',
 	]);
 
-	await push({ db, to: from, schemas: ['dbo'] });
+	await push({ db, to: from, log: 'statements' });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		schemas: ['my_schema'],
 		renames: [
 			'my_schema.users.name->my_schema.users.name2',
 		],

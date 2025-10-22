@@ -3097,43 +3097,37 @@ test.concurrent('enum', async ({ dbc: db }) => {
 		db,
 		moodEnum().default('ok'),
 		`'ok'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res2 = await diffDefault(
 		db,
 		moodEnum().default(`text'text`),
 		`e'text\\'text'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res3 = await diffDefault(
 		db,
 		moodEnum().default('text"text'),
 		`'text"text'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res4 = await diffDefault(
 		db,
 		moodEnum().default('text\\text'),
 		`e'text\\\\text'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res5 = await diffDefault(
 		db,
 		moodEnum().default('text,text'),
 		`'text,text'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res6 = await diffDefault(
 		db,
 		moodEnum().default(`mo''"\\\\\\\`}{od`),
 		`e'mo\\'\\'"\\\\\\\\\\\\\`}{od'::"mood_enum"`,
-		false,
-		pre,
+		{ pre },
 	);
 
 	expect(res1).toStrictEqual([]);
@@ -3164,43 +3158,37 @@ test.concurrent('enum arrays', async ({ dbc: db }) => {
 		db,
 		moodEnum().array().default(['ok']),
 		`'{ok}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res1_2 = await diffDefault(
 		db,
 		moodEnum().array().default(['sad']),
 		`'{sad}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res2_1 = await diffDefault(
 		db,
 		moodEnum().array().default([`text'text`]),
 		`'{"text''text"}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res3_1 = await diffDefault(
 		db,
 		moodEnum().array().default(['text"text']),
 		`'{"text\\"text"}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res4_1 = await diffDefault(
 		db,
 		moodEnum().array().default(['text\\text']),
 		`'{"text\\\\text"}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 	const res6_1 = await diffDefault(
 		db,
 		moodEnum().array().default([`mo''"\\\\\\\`}{od`]),
 		`'{"mo''''\\"\\\\\\\\\\\\\`}{od"}'::"mood_enum"[]`,
-		false,
-		pre,
+		{ pre },
 	);
 
 	expect(res1_1).toStrictEqual([]);
@@ -3441,8 +3429,6 @@ test.concurrent('geometry', async ({ dbc: db }) => {
 			50.4501,
 		]),
 		`'SRID=4326;POINT(30.5234 50.4501)'`,
-		undefined,
-		undefined,
 	);
 
 	const res2 = await diffDefault(
@@ -3452,16 +3438,12 @@ test.concurrent('geometry', async ({ dbc: db }) => {
 			y: 50.4501,
 		}),
 		`'SRID=4326;POINT(30.5234 50.4501)'`,
-		undefined,
-		undefined,
 	);
 
 	const res11 = await diffDefault(
 		db,
 		geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
 		`'POINT(30.5234 50.4501)'`,
-		undefined,
-		undefined,
 	);
 
 	const res12 = await diffDefault(
@@ -3470,8 +3452,6 @@ test.concurrent('geometry', async ({ dbc: db }) => {
 			sql`'SRID=4326;POINT(10 10)'`,
 		),
 		`'SRID=4326;POINT(10 10)'`,
-		undefined,
-		undefined,
 	);
 
 	expect(res1).toStrictEqual([]);
@@ -3485,8 +3465,6 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 		db,
 		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
 		`'{}'::geometry(point,4326)[]`,
-		undefined,
-		undefined,
 	);
 	const res4 = await diffDefault(
 		db,
@@ -3494,16 +3472,12 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 			.array()
 			.default([[30.5234, 50.4501]]),
 		`'{SRID=4326;POINT(30.5234 50.4501)}'::geometry(point,4326)[]`,
-		undefined,
-		undefined,
 	);
 
 	const res5 = await diffDefault(
 		db,
 		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
 		`'{}'::geometry(point,4326)[]`,
-		undefined,
-		undefined,
 	);
 	const res6 = await diffDefault(
 		db,
@@ -3511,8 +3485,6 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 			.array()
 			.default([{ x: 30.5234, y: 50.4501 }]),
 		`'{SRID=4326;POINT(30.5234 50.4501)}'::geometry(point,4326)[]`,
-		undefined,
-		undefined,
 	);
 
 	const res13 = await diffDefault(
@@ -3521,8 +3493,6 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 			.array()
 			.default([{ x: 13, y: 13 }]),
 		`'{POINT(13 13)}'::geometry(point)[]`,
-		undefined,
-		undefined,
 	);
 
 	const res15 = await diffDefault(
@@ -3531,8 +3501,6 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 			.array()
 			.default(sql`'{SRID=4326;POINT(15 15)}'::geometry(point)[]`),
 		`'{SRID=4326;POINT(15 15)}'::geometry(point)[]`,
-		undefined,
-		undefined,
 	);
 
 	const res16 = await diffDefault(
@@ -3541,8 +3509,6 @@ test.concurrent('geometry arrays', async ({ dbc: db }) => {
 			.array()
 			.default(sql`'{POINT(15 15)}'::geometry(point)[]`),
 		`'{POINT(15 15)}'::geometry(point)[]`,
-		undefined,
-		undefined,
 	);
 
 	expect(res3).toStrictEqual([]);

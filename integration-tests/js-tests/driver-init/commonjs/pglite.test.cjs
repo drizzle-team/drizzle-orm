@@ -53,24 +53,12 @@ describe('pglite', async (it) => {
 		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = new Database('memory://');
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = new Database('memory://');
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.exec('SELECT 1;');
-		await db.$client.close();
-
-		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {

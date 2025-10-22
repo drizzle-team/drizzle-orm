@@ -19,13 +19,17 @@ let db: PlanetScaleDatabase<typeof schema>;
 
 beforeAll(async () => {
 	db = drizzle(
-		new Client({
-			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
-			// host: process.env['DATABASE_HOST']!,
-			// username: process.env['DATABASE_USERNAME']!,
-			// password: process.env['DATABASE_PASSWORD']!,
-		}),
-		{ schema, logger: ENABLE_LOGGING, casing: 'snake_case' },
+		{
+			client: new Client({
+				url: process.env['PLANETSCALE_CONNECTION_STRING']!,
+				// host: process.env['DATABASE_HOST']!,
+				// username: process.env['DATABASE_USERNAME']!,
+				// password: process.env['DATABASE_PASSWORD']!,
+			}),
+			schema,
+			logger: ENABLE_LOGGING,
+			casing: 'snake_case',
+		},
 	);
 
 	await Promise.all([

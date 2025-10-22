@@ -369,7 +369,7 @@ test('change schema with tables #1', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, ['folder->folder2']);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder->folder2'] });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder->folder2'], ignoreSubsequent: true });
 
 	expect(st).toStrictEqual([`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),

@@ -24,7 +24,7 @@ beforeAll(async () => {
 		try {
 			client = new Client({ connectionString });
 			await client.connect();
-			db = drizzle(client);
+			db = drizzle({ client });
 			connected = true;
 			break;
 		} catch (e) {
@@ -40,7 +40,7 @@ beforeAll(async () => {
 		throw lastError;
 	}
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
 

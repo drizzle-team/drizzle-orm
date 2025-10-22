@@ -5,7 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
 import { NodeMsSqlSession } from './session.ts';
@@ -92,10 +92,10 @@ export function drizzle<
 >(
 	...params:
 		| [
-			TClient | string,
+			string,
 		]
 		| [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema>,
 		]
 		| [
@@ -117,22 +117,18 @@ export function drizzle<
 		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as (
-			& ({ connection?: mssql.config | string; client?: TClient })
-			& DrizzleConfig<TSchema>
-		);
+	const { connection, client, ...drizzleConfig } = params[0] as (
+		& ({ connection?: mssql.config | string; client?: TClient })
+		& DrizzleConfig<TSchema>
+	);
 
-		if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, drizzleConfig);
 
-		const instance = typeof connection === 'string'
-			? new AutoPool(connection)
-			: new AutoPool(connection!);
+	const instance = typeof connection === 'string'
+		? new AutoPool(connection)
+		: new AutoPool(connection!);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(instance, drizzleConfig) as any;
 }
 
 interface CallbackClient {

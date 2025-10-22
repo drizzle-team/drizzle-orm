@@ -24,7 +24,13 @@ import {
 	View,
 } from './ddl';
 import { defaultsCommutative, typesCommutative } from './grammar';
-import { JsonStatement, prepareStatement } from './statements';
+import {
+	JsonAlterColumn,
+	JsonAlterColumnAddNotNull,
+	JsonAlterColumnDropNotNull,
+	JsonStatement,
+	prepareStatement,
+} from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -753,7 +759,9 @@ export const ddlDiff = async (
 		})
 	);
 
-	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { check: it.$right }));
+	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
+		prepareStatement('alter_check', { check: it.$right })
+	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
@@ -891,7 +899,10 @@ export const ddlDiff = async (
 		}
 	}
 
-	const jsonAlterColumns = columnAlters
+	const jsonAlterAddNotNull: JsonAlterColumnAddNotNull[] = [];
+	const jsonAlterDropNotNull: JsonAlterColumnDropNotNull[] = [];
+	const jsonAlterColumns: JsonAlterColumn[] = [];
+	columnAlters
 		.filter((it) => !it.generated)
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
@@ -912,32 +923,39 @@ export const ddlDiff = async (
 				delete it.notNull;
 			}
 
-			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			// Cockroach forces adding not null and only than primary key
-			// if (it.notNull && pkIn2) {
-			// 	delete it.notNull;
-			// }
-
-			const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
-				delete it.notNull;
-			}
-
-			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
+			if (it.notNull && (it.notNull.to && it.identity?.to)) {
 				delete it.notNull;
 			}
 
 			return ddl2.columns.hasDiff(it);
 		})
-		.map((it) => {
+		.forEach((it) => {
+			if (it.notNull) {
+				if (it.notNull.from) {
+					jsonAlterDropNotNull.push(
+						prepareStatement('alter_drop_column_not_null', {
+							table: it.table,
+							schema: it.schema,
+							column: it.name,
+						}),
+					);
+				} else {
+					jsonAlterAddNotNull.push(prepareStatement('alter_add_column_not_null', {
+						table: it.table,
+						schema: it.schema,
+						column: it.name,
+					}));
+				}
+			}
+
 			const column = it.$right;
-			return prepareStatement('alter_column', {
+			jsonAlterColumns.push(prepareStatement('alter_column', {
 				diff: it,
 				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
 				wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
 					?? false,
 				to: column,
-			});
+			}));
 		});
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
@@ -962,7 +980,6 @@ export const ddlDiff = async (
 	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
-
 	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
 
 	const jsonMoveViews = movedViews.map((it) =>
@@ -972,8 +989,12 @@ export const ddlDiff = async (
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
 		if (it.entityType !== 'views') return false;
 
-		if (it.definition && mode === 'push') {
+		if (mode === 'push' && it.definition) {
 			delete it.definition;
+		}
+
+		if (mode === 'push' && it.withNoData) {
+			delete it.withNoData;
 		}
 
 		return ddl2.views.hasDiff(it);
@@ -1046,18 +1067,22 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonAddColumnsStatemets);
-	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
+
+	jsonStatements.push(...recreateEnums);
+
+	jsonStatements.push(...jsonAlterAddNotNull);
 	jsonStatements.push(...jsonAlterColumns);
 	jsonStatements.push(...jsonAddPrimaryKeys);
+	jsonStatements.push(...jsonAlteredPKs);
+	jsonStatements.push(...jsonRecreatePk);
+	jsonStatements.push(...jsonAlterDropNotNull);
 
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
-	jsonStatements.push(...jsonAlteredPKs);
-	jsonStatements.push(...jsonRecreatePk);
 
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 

@@ -1,4 +1,4 @@
-import { cockroachTable, int2, int4, int8, text } from 'drizzle-orm/cockroach-core';
+import { bigint, cockroachTable, int2, int4, int8, text } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -228,17 +228,18 @@ test('drop identity from a column - no params', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
+		log: 'statements',
 	});
 
 	const st0 = [
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from a column - few params', async ({ db }) => {
-	// TODO revise: added id1, id2 columns to users table, like in the same test from push.test.ts
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -274,13 +275,15 @@ test('drop identity from a column - few params', async ({ db }) => {
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP NOT NULL;',
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from a column - all params', async ({ db }) => {
-	// TODO revise: added id1, id2 columns to users table, like in the same test from push.test.ts
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -325,6 +328,9 @@ test('drop identity from a column - all params', async ({ db }) => {
 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
 		`ALTER TABLE \"users\" ALTER COLUMN \"id1\" DROP IDENTITY;`,
 		`ALTER TABLE \"users\" ALTER COLUMN \"id2\" DROP IDENTITY;`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
+		'ALTER TABLE "users" ALTER COLUMN "id1" DROP NOT NULL;',
+		'ALTER TABLE "users" ALTER COLUMN "id2" DROP NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -333,13 +339,13 @@ test('drop identity from a column - all params', async ({ db }) => {
 test('alter identity from a column - no params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedByDefaultAsIdentity(),
+			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity(),
 		}),
 	};
 
 	const to = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedByDefaultAsIdentity({ startWith: 100 }),
+			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity({ startWith: 100 }),
 		}),
 	};
 
@@ -361,14 +367,13 @@ test('alter identity from a column - no params', async ({ db }) => {
 test('alter identity from a column - few params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedByDefaultAsIdentity({ startWith: 100 }),
+			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity({ startWith: 100 }),
 		}),
 	};
 
-	// TODO revise: added more params, like in same test from push.test.ts
 	const to = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedByDefaultAsIdentity({
+			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity({
 				startWith: 100,
 				cache: 10,
 				increment: 4,
@@ -398,13 +403,13 @@ test('alter identity from a column - few params', async ({ db }) => {
 test('alter identity from a column - by default to always', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedByDefaultAsIdentity(),
+			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity(),
 		}),
 	};
 
 	const to = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedAlwaysAsIdentity({
+			id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity({
 				startWith: 100,
 				cache: 10,
 			}),
@@ -431,13 +436,14 @@ test('alter identity from a column - by default to always', async ({ db }) => {
 test('alter identity from a column - always to by default', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
-			id: int4('id').generatedAlwaysAsIdentity(),
+			id: int4('id').generatedAlwaysAsIdentity({ maxValue: 10000 }),
 		}),
 	};
 
 	const to = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
+				maxValue: 10000,
 				startWith: 100,
 				cache: 10,
 			}),

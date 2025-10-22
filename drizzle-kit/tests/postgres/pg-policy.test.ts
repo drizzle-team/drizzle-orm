@@ -145,7 +145,7 @@ test('drop policy without disable rls', async (t) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, ignoreSubsequent: true });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -157,7 +157,37 @@ test('drop policy without disable rls', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+test('alter policy without recreation: changing roles #2', async (t) => {
+	const role = pgRole('test');
+	const schema1 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
+	};
 
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'permissive', to: role })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role.name] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role.name] } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "test";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
 test('alter policy without recreation: changing roles', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
@@ -173,10 +203,11 @@ test('alter policy without recreation: changing roles', async (t) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, ignoreSubsequent: true });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
@@ -350,11 +381,44 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role WITH CHECK (true);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy with recreation: changing all fields #2', async (t) => {
+	const role = pgRole('test');
+	const schema1 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
+	};
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'restrictive', to: role, withCheck: sql`true` })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role.name] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role.name] } },
+	});
+
+	const st0 = [
+		'DROP POLICY "test" ON "users";',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO "test" WITH CHECK (true);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -495,14 +559,53 @@ test('add policy with multiple "to" roles', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
-	// TODO: it is now really weird that I have to include role names in entities when I just have them in schema
+	// TODO: @AlexBlokh: it is now really weird that I have to include role names in entities when I just have them in schema
 	// if I don't - it will try to create same roles all the time
 	const st0 = [
 		'CREATE ROLE "manager";',
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy with multiple "to" roles #2', async (t) => {
+	const role2 = pgRole('test');
+	const schema1 = {
+		role2,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const role = pgRole('manager');
+
+	const schema2 = {
+		role2,
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { to: [role2, role] })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role2.name, role.name] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role2.name, role.name] } },
+	});
+
+	// TODO: @AlexBlokh: it is now really weird that I have to include role names in entities when I just have them in schema
+	// if I don't - it will try to create same roles all the time
+	const st0 = [
+		'CREATE ROLE "manager";',
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO "manager", "test";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -608,7 +711,40 @@ test('drop policy with enabled rls', async (t) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, ignoreSubsequent: true });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+		ignoreSubsequent: true,
+	});
+
+	const st0 = [
+		'DROP POLICY "test" ON "users";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('drop policy with enabled rls #2', async (t) => {
+	const role = pgRole('manager');
+
+	const schema1 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { to: [role] })]).enableRLS(),
+	};
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -645,11 +781,44 @@ test('add policy with enabled rls', async (t) => {
 		db,
 		to: schema2,
 		entities: { roles: { include: ['manager'] } },
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'CREATE ROLE "manager";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy with enabled rls #2', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const role = pgRole('manager');
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { to: [role] })]).enableRLS(),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager";',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO "manager";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -805,12 +974,51 @@ test('add policy in table and with link table', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
 		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO current_user;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy in table and with link table #2', async (t) => {
+	const role = pgRole('test2');
+	const schema1 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	}, () => [
+		pgPolicy('test1', { to: role }),
+	]);
+
+	const schema2 = {
+		role,
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role.name] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role.name] } },
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO "test2";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1008,10 +1216,44 @@ test('alter policy that is linked', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_role;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy that is linked #2', async (t) => {
+	const role = pgRole('owner');
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+	});
+
+	const schema1 = {
+		role,
+		users,
+		rls: pgPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		role,
+		users,
+		rls: pgPolicy('test', { as: 'permissive', to: role }).link(users),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role.name, 'test'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role.name, 'test'] } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1129,14 +1371,51 @@ test('alter policy in the table', async (t) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['test'] } } });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['test'] } },
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_role;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy in the table #2', async (t) => {
+	const role = pgRole('owner');
+	const schema1 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive' }),
+		]),
+	};
+
+	const schema2 = {
+		role,
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, (t) => [
+			pgPolicy('test', { as: 'permissive', to: role }),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: [role.name] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: [role.name] } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

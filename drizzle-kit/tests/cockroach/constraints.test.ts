@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	AnyCockroachColumn,
+	bigint,
 	cockroachTable,
 	foreignKey,
 	index,
@@ -967,6 +968,298 @@ test.concurrent('pk #4', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual([]);
 });
 
+test.concurrent('pk multistep #1', async ({ dbc: db }) => {
+	const sch1 = {
+		users: cockroachTable('users', {
+			name: text().primaryKey(),
+			id: int4().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4 NOT NULL\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4 NOT NULL\n);\n']);
+
+	const sch2 = {
+		users: cockroachTable('users2', {
+			name: text('name2').primaryKey(),
+			id: int4().notNull(),
+		}),
+	};
+
+	const renames = [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: cockroachTable('users2', {
+			name: text('name2'),
+			id: int4().notNull().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
+
+	const st04 = [
+		'ALTER TABLE "users2" DROP CONSTRAINT "users_pkey", ADD CONSTRAINT "users2_pkey" PRIMARY KEY("id");',
+		'ALTER TABLE "users2" ALTER COLUMN "name2" DROP NOT NULL;',
+	];
+	expect(st4).toStrictEqual(st04);
+	expect(pst4).toStrictEqual(st04);
+});
+
+test.concurrent('pk multistep #2', async ({ dbc: db }) => {
+	const sch1 = {
+		users: cockroachTable('users', {
+			name: text().primaryKey().notNull(),
+			id: int4().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4 NOT NULL\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4 NOT NULL\n);\n']);
+
+	const sch2 = {
+		users: cockroachTable('users2', {
+			name: text('name2').notNull(),
+			id: int4().notNull(),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const renames = [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: cockroachTable('users2', {
+			name: text('name2').notNull(),
+			id: int4().notNull(),
+		}, (t) => [primaryKey({ name: 'users2_pk', columns: [t.name] })]),
+	};
+
+	const renames2 = ['public.users2.users_pkey->public.users2.users2_pk'];
+	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, renames2);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3, renames: renames2 });
+
+	expect(st4).toStrictEqual(['ALTER TABLE "users2" RENAME CONSTRAINT "users_pkey" TO "users2_pk";']);
+	expect(pst4).toStrictEqual(['ALTER TABLE "users2" RENAME CONSTRAINT "users_pkey" TO "users2_pk";']);
+
+	const sch4 = {
+		users: cockroachTable('users2', {
+			name: text('name2').notNull(),
+			id: int4().notNull().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st5 } = await diff(n4, sch4, []);
+	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
+
+	expect(st5).toStrictEqual([
+		'ALTER TABLE "users2" DROP CONSTRAINT "users2_pk", ADD CONSTRAINT "users2_pkey" PRIMARY KEY("id");',
+	]);
+	expect(pst5).toStrictEqual([
+		'ALTER TABLE "users2" DROP CONSTRAINT "users2_pk", ADD CONSTRAINT "users2_pkey" PRIMARY KEY("id");',
+	]);
+});
+
+test.concurrent('pk multistep #3', async ({ db: db }) => {
+	const sch1 = {
+		users: cockroachTable('users', {
+			name: text().primaryKey(),
+			id: int4(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1, log: 'statements' });
+
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
+
+	const sch2 = {
+		users: cockroachTable('users2', {
+			name: text('name2'),
+			id: int4(),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const renames = [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames, log: 'statements' });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2, log: 'statements' });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: cockroachTable('users2', {
+			name: text('name2'),
+			id: int4(),
+		}, (t) => [primaryKey({ name: 'users2_pk', columns: [t.name] })]),
+	};
+
+	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3, log: 'statements' });
+
+	const e4 = [
+		'ALTER TABLE "users2" DROP CONSTRAINT "users_pkey", ADD CONSTRAINT "users2_pk" PRIMARY KEY("name2");',
+	];
+	expect(st4).toStrictEqual(e4);
+	expect(pst4).toStrictEqual(e4);
+
+	const sch4 = {
+		users: cockroachTable('users2', {
+			name: text('name2'),
+			id: int4().notNull().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st5 } = await diff(n4, sch4, []);
+	const { sqlStatements: pst5 } = await push({ db, to: sch4, log: 'statements' });
+
+	const st05 = [
+		'ALTER TABLE "users2" ALTER COLUMN "id" SET NOT NULL;',
+		'ALTER TABLE "users2" DROP CONSTRAINT "users2_pk", ADD CONSTRAINT "users2_pkey" PRIMARY KEY("id");',
+		'ALTER TABLE "users2" ALTER COLUMN "name2" DROP NOT NULL;',
+	];
+	expect(st5).toStrictEqual(st05);
+	expect(pst5).toStrictEqual(st05);
+});
+
+test.concurrent('pk multistep #4', async ({ dbc: db }) => {
+	const sch1 = {
+		users: cockroachTable('users', {
+			name: text(),
+		}, (t) => [
+			primaryKey({ name: 'users_pk', columns: [t.name] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_pk" PRIMARY KEY("name")\n);\n',
+	]);
+	expect(pst1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_pk" PRIMARY KEY("name")\n);\n',
+	]);
+
+	const sch2 = {
+		users: cockroachTable('users2', {
+			name: text(),
+		}, (t) => [
+			primaryKey({ name: 'users_pk', columns: [t.name] }),
+		]),
+	};
+
+	const renames = ['public.users->public.users2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+});
+
+test.concurrent('pk multistep #5', async ({ dbc: db }) => {
+	const sch1 = {
+		users: cockroachTable('users', {
+			name: text().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n',
+	]);
+	expect(pst1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n',
+	]);
+
+	const sch2 = {
+		users: cockroachTable('users2', {
+			name: text().primaryKey(),
+		}),
+	};
+
+	const renames = ['public.users->public.users2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+});
+
 test.concurrent('fk #1', async ({ dbc: db }) => {
 	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
@@ -1442,4 +1735,89 @@ test.concurrent('index with no name', async ({ dbc: db }) => {
 
 	await expect(diff({}, to, [])).rejects.toThrowError();
 	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test.concurrent('alter pk test #1', async ({ dbc: db }) => {
+	const from = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: int4().notNull(),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const to = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: int4().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`ALTER TABLE \"users\" DROP CONSTRAINT \"users_pkey\", ADD CONSTRAINT \"users_pkey\" PRIMARY KEY(\"id\");`,
+		'ALTER TABLE "users" ALTER COLUMN "name" DROP NOT NULL;',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('alter pk test #2', async ({ dbc: db }) => {
+	const from = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: int4().notNull(),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const to = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: bigint('id3', { mode: 'number' }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, ['public.users.id->public.users.id3']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames: ['public.users.id->public.users.id3'] });
+
+	const st0 = [
+		`ALTER TABLE \"users\" RENAME COLUMN \"id\" TO \"id3\";`,
+		'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE int8;',
+		`ALTER TABLE \"users\" DROP CONSTRAINT \"users_pkey\", ADD CONSTRAINT \"users_pkey\" PRIMARY KEY(\"id3\");`,
+		'ALTER TABLE "users" ALTER COLUMN "name" DROP NOT NULL;',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('alter pk test #3', async ({ dbc: db }) => {
+	const from = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: int4().notNull(),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const to = {
+		users: cockroachTable('users', {
+			name: text(),
+			id: bigint('id3', { mode: 'number' }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "users" ADD COLUMN "id3" int8 NOT NULL;',
+		`ALTER TABLE \"users\" DROP CONSTRAINT \"users_pkey\", ADD CONSTRAINT \"users_pkey\" PRIMARY KEY(\"id3\");`,
+		'ALTER TABLE "users" ALTER COLUMN "name" DROP NOT NULL;',
+		'ALTER TABLE "users" DROP COLUMN "id";',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

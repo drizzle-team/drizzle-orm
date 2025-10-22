@@ -160,6 +160,7 @@ export const push = async (
 		casing?: CasingType;
 		log?: 'statements' | 'none';
 		entities?: Entities;
+		ignoreSubsequent?: boolean;
 	},
 ) => {
 	const { db, to } = config;
@@ -181,14 +182,6 @@ export const push = async (
 	if (err3.length > 0) {
 		throw new MockError(err3);
 	}
-
-	if (log === 'statements') {
-		// console.dir(ddl1.roles.list());
-		// console.dir(ddl2.roles.list());
-	}
-
-	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
-	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
 
 	// TODO: handle errors
 
@@ -215,6 +208,42 @@ export const push = async (
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
 		await db.query(sql);
+	}
+
+	// subsequent push
+	if (!config.ignoreSubsequent) {
+		{
+			const { schema } = await introspect(
+				db,
+				[],
+				config.schemas ?? ((_: string) => true),
+				config.entities,
+				new EmptyProgressView(),
+			);
+			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+
+			const { sqlStatements, statements } = await ddlDiff(
+				ddl1,
+				ddl2,
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				'push',
+			);
+			if (sqlStatements.length > 0) {
+				console.error('---- subsequent push is not empty ----');
+				console.log(sqlStatements.join('\n'));
+				throw new Error();
+			}
+		}
 	}
 
 	return { sqlStatements, statements, hints, losses };
@@ -340,13 +369,21 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	db: TestDatabase,
 	builder: T,
 	expectedDefault: string,
-	expectError: boolean = false,
-	pre: CockroachDBSchema | null = null,
+	override?: {
+		expectError?: boolean;
+		ignoreSubsequent?: boolean;
+		pre?: CockroachDBSchema;
+	},
 ) => {
 	await db.clear();
 
 	const config = (builder as any).config;
+
+	const expectError = override?.expectError ?? false;
+	const ignoreSubsequent = typeof override?.ignoreSubsequent === 'undefined' ? true : override.ignoreSubsequent;
+	const pre: CockroachDBSchema | null = override?.pre ?? null;
 	const def = config['default'];
+
 	const column = cockroachTable('table', { column: builder }).column;
 	const { dimensions, typeSchema, sqlType: sqlt } = unwrapColumn(column);
 	const type = sqlt.replaceAll('[]', '');
@@ -370,9 +407,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		table: cockroachTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init });
-	const { sqlStatements: st2 } = await push({ db, to: init });
+	if (pre) await push({ db, to: pre, ignoreSubsequent });
+	const { sqlStatements: st1 } = await push({ db, to: init, ignoreSubsequent });
+	const { sqlStatements: st2 } = await push({ db, to: init, ignoreSubsequent });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${type}"` : type;
@@ -431,9 +468,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		table: cockroachTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema1 });
-	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent });
+	await push({ db, to: schema1, ignoreSubsequent });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, ignoreSubsequent });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
@@ -449,9 +486,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		table: cockroachTable('table', { id: int4(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent });
+	await push({ db, to: schema3, ignoreSubsequent });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, ignoreSubsequent });
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {

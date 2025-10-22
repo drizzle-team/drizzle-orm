@@ -20,7 +20,7 @@ const mysqlPool = mysql.createPool({
 	// ssl: { rejectUnauthorized: false }
 });
 
-const db = drizzle(mysqlPool);
+const db = drizzle({ client: mysqlPool });
 
 console.log('database connection was established successfully.');
 
