@@ -35,7 +35,6 @@
 		"skipLibCheck": true, /* Skip type checking all .d.ts files. */
 		"noErrorTruncation": true, /* Disable truncating types in error messages. */
 		"checkJs": true,
-		"allowImportingTsExtensions": true
 	},
 	"exclude": ["**/dist"]
 }

@@ -125,7 +125,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toStrictEqual([{ name: 'AGRIPINA' }]);
 	});
 
-	test.concurrent.only('select typed sql', async ({ db, push, seed }) => {
+	test.concurrent('select typed sql', async ({ db, push, seed }) => {
 		const users = mysqlTable('users_25', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -369,7 +369,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toHaveLength(1);
 	});
 
-	test.concurrent.only('prepared statement with placeholder in .offset', async ({ db, push, seed }) => {
+	test.concurrent('prepared statement with placeholder in .offset', async ({ db, push, seed }) => {
 		const users = createUserTable('users_19');
 
 		await push({ users });
@@ -390,7 +390,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result).toEqual([{ id: 2, name: 'Candy' }]);
 	});
 
-	test.concurrent.only('prepared statement built using $dynamic', async ({ db, push, seed }) => {
+	test.concurrent('prepared statement built using $dynamic', async ({ db, push, seed }) => {
 		const users = createUserTable('users_20');
 
 		await push({ users });
@@ -517,7 +517,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('left join (flat object fields)', async ({ db, push, seed }) => {
+	test.concurrent('left join (flat object fields)', async ({ db, push, seed }) => {
 		const users = mysqlTable('users_23', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -551,7 +551,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('left join (grouped fields)', async ({ db, push, seed }) => {
+	test.concurrent('left join (grouped fields)', async ({ db, push, seed }) => {
 		const users = mysqlTable('users_22', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -599,7 +599,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('left join (all fields)', async ({ db, push, seed }) => {
+	test.concurrent('left join (all fields)', async ({ db, push, seed }) => {
 		const users = mysqlTable('users_21', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -645,7 +645,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('join subquery', async ({ db, push }) => {
+	test.concurrent('join subquery', async ({ db, push }) => {
 		const courseCategories = mysqlTable('course_categories_1', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -699,7 +699,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent.only('with ... select', async ({ db, push }) => {
+	test.concurrent('with ... select', async ({ db, push }) => {
 		const orders = mysqlTable('orders_1', {
 			id: serial('id').primaryKey(),
 			region: text('region').notNull(),
@@ -842,7 +842,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.only('with ... delete', async ({ db, push }) => {
+	test('with ... delete', async ({ db, push }) => {
 		const orders = mysqlTable('orders_18', {
 			id: serial('id').primaryKey(),
 			region: text('region').notNull(),
@@ -978,7 +978,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}
 	});
 
-	test.only('having', async ({ db, push, seed }) => {
+	test('having', async ({ db, push, seed }) => {
 		const cities = mysqlTable('cities_37', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -1022,7 +1022,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.only('view', async ({ db, push, seed }) => {
+	test('view', async ({ db, push, seed }) => {
 		const users = mysqlTable('users_38', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -3279,7 +3279,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(rawRes).toStrictEqual(expectedRes);
 	});
 
-	test.only('insert into ... select', async ({ db, push }) => {
+	test('insert into ... select', async ({ db, push }) => {
 		const notifications = mysqlTable('notifications_29', {
 			id: int('id').primaryKey().autoincrement(),
 			sentAt: timestamp('sent_at').notNull().defaultNow(),
