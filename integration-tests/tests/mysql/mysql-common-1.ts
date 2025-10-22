@@ -52,7 +52,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
 			jsonb: json('jsonb').$type<string[]>(),
-			createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+			createdAt: timestamp('created_at', { mode: 'date', fsp: 2 }).notNull().defaultNow(),
 		});
 
 		await push({ users });
@@ -71,7 +71,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
 			jsonb: json('jsonb').$type<string[]>(),
-			createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+			createdAt: timestamp('created_at', { mode: 'date', fsp: 2 }).notNull().defaultNow(),
 		});
 
 		await push({ users });
@@ -90,7 +90,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
 			jsonb: json('jsonb').$type<string[]>(),
-			createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+			createdAt: timestamp('created_at', { mode: 'date', fsp: 2 }).notNull().defaultNow(),
 		});
 
 		await push({ users });
@@ -152,9 +152,9 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		}));
 
 		const result = await db.select({ name: users.name }).from(users)
-			.groupBy(users.name);
+			.groupBy(users.name).orderBy(users.name);
 
-		expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+		expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 	});
 
 	test.concurrent('select with exists', async ({ db, push, seed }) => {

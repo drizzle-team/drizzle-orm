@@ -4,16 +4,7 @@ import { alias, boolean, int, json, mysqlTable, serial, text, timestamp } from '
 import { expect } from 'vitest';
 import type { Test } from './instrumentation';
 
-declare module 'vitest' {
-	interface TestContext {
-		cachedMySQL: {
-			db: MySqlDatabase<any, any>;
-			dbGlobalCached: MySqlDatabase<any, any>;
-		};
-	}
-}
-
-const usersTable = mysqlTable('users', {
+const usersTable = mysqlTable('users_for_cache', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
@@ -21,7 +12,7 @@ const usersTable = mysqlTable('users', {
 	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 
-const postsTable = mysqlTable('posts', {
+const postsTable = mysqlTable('posts_for_cache', {
 	id: serial().primaryKey(),
 	description: text().notNull(),
 	userId: int('city_id').references(() => usersTable.id),
@@ -30,17 +21,17 @@ const postsTable = mysqlTable('posts', {
 export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 	test.beforeEach(async ({ client }) => {
 		await client.batch([
-			`drop table if exists users, posts`,
+			`drop table if exists users_for_cache, posts_for_cache`,
 		]);
 		await client.batch([
-			`create table users (
+			`create table users_for_cache (
 						id serial primary key,
 						name text not null,
 						verified boolean not null default false,
 						jsonb json,
 						created_at timestamp not null default now()
 					)`,
-			`create table posts (
+			`create table posts_for_cache (
 						id serial primary key,
 						description text not null,
 						user_id int
@@ -51,7 +42,7 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 	test('test force invalidate', async ({ drizzle }) => {
 		const { db, invalidate } = drizzle.withCacheExplicit;
 
-		await db.$cache?.invalidate({ tables: 'users' });
+		await db.$cache?.invalidate({ tables: 'users_for_cache' });
 		expect(invalidate).toHaveBeenCalledTimes(1);
 	});
 
@@ -182,9 +173,9 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		const { db } = drizzle.withCacheExplicit;
 
 		// @ts-expect-error
-		expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
+		expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users_for_cache']);
 		// @ts-expect-error
-		expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
+		expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users_for_cache']);
 	});
 
 	// check select+join used tables
@@ -193,11 +184,11 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 
 		// @ts-expect-error
 		expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
-			.toStrictEqual(['users', 'posts']);
+			.toStrictEqual(['users_for_cache', 'posts_for_cache']);
 		expect(
 			// @ts-expect-error
 			db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
+		).toStrictEqual(['users_for_cache', 'posts_for_cache']);
 	});
 
 	// check select+2join used tables
@@ -215,14 +206,14 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 				// @ts-expect-error
 				.getUsedTables(),
 		)
-			.toStrictEqual(['users', 'posts']);
+			.toStrictEqual(['users_for_cache', 'posts_for_cache']);
 		expect(
 			db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).leftJoin(
 				alias(postsTable, 'post2'),
 				eq(usersTable.id, postsTable.userId),
 				// @ts-expect-error
 			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
+		).toStrictEqual(['users_for_cache', 'posts_for_cache']);
 	});
 	// select subquery used tables
 	test('select+join', ({ drizzle }) => {
@@ -232,6 +223,6 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		db.select().from(sq);
 
 		// @ts-expect-error
-		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
+		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users_for_cache']);
 	});
 }

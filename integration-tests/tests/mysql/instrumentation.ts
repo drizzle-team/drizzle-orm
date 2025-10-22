@@ -88,10 +88,16 @@ export type RefineCallbackT<Schema extends MysqlSchema> = (
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
 	schema: MysqlSchema,
+	vendor: null | 'tidb',
 ) => {
 	const res = await diff({}, schema, []);
 	for (const s of res.sqlStatements) {
-		await query(s, []);
+		const patched = vendor === null ? s : s.replace('(now())', '(now(2))');
+		await query(patched, []).catch((e) => {
+			console.error(s);
+			console.error(e);
+			throw e;
+		});
 	}
 };
 
@@ -209,11 +215,12 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 						throw new Error('TIDB_CONNECTION_STRING is not set');
 					}
 
-					const client = connect({ url: connectionString });
-					await client.execute('drop database if exists ci;');
-					await client.execute('create database ci;');
-					await client.execute('use ci;');
-					await client.execute('select 1;');
+					const tmpClient = connect({ url: connectionString });
+					await tmpClient.execute('drop database if exists ci;');
+					await tmpClient.execute('create database ci;');
+					await tmpClient.execute('use ci;');
+
+					const client = connect({ url: connectionString, database: 'ci' });
 
 					const query = async (sql: string, params: any[] = []) => {
 						return client.execute(sql, params) as Promise<any[]>;
@@ -274,12 +281,12 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 				const withCacheExplicit = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: explicitCache })
 					: vendor === 'tidb'
-					? drizzleTidb({ client: client.client as Connection, relations })
+					? drizzleTidb({ client: client.client as Connection, relations, cache: explicitCache })
 					: psDrizzle({ client: client.client as any, cache: explicitCache });
 				const withCacheAll = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: allCache })
 					: vendor === 'tidb'
-					? drizzleTidb({ client: client.client as Connection, relations })
+					? drizzleTidb({ client: client.client as Connection, relations, cache: allCache })
 					: psDrizzle({ client: client.client as any, cache: allCache });
 
 				const drz = {
