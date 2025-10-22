@@ -110,9 +110,9 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 			};
 			db: MySqlDatabase<any, any, never, typeof relations>;
 			push: (schema: MysqlSchema) => Promise<void>;
-			seed: (
-				schema: MysqlSchema,
-				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
+			seed: <Schema extends MysqlSchema>(
+				schema: Schema,
+				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
 			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {

@@ -1,76 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import {
-	and,
-	asc,
-	avg,
-	avgDistinct,
-	count,
-	countDistinct,
-	eq,
-	exists,
-	gt,
-	gte,
-	inArray,
-	like,
-	lt,
-	max,
-	min,
-	not,
-	notInArray,
-	sql,
-	sum,
-	sumDistinct,
-	TransactionRollbackError,
-} from 'drizzle-orm';
-import {
-	alias,
-	bigint,
-	boolean,
-	date,
-	datetime,
-	decimal,
-	except,
-	exceptAll,
-	getTableConfig,
-	getViewConfig,
-	index,
-	int,
-	intersect,
-	intersectAll,
-	json,
-	mysqlEnum,
-	mysqlTable,
-	mysqlTableCreator,
-	mysqlView,
-	primaryKey,
-	serial,
-	text,
-	time,
-	timestamp,
-	union,
-	unionAll,
-	varchar,
-	year,
-} from 'drizzle-orm/mysql-core';
-import { expect, expectTypeOf } from 'vitest';
-import { Expect, toLocalDate } from '~/utils.ts';
-import type { Equal } from '~/utils.ts';
+import { asc, avg, avgDistinct, count, countDistinct, eq, gt, gte, max, min, sql, sum, sumDistinct } from 'drizzle-orm';
+import { except, exceptAll, int, intersect, intersectAll, mysqlTable, text, union } from 'drizzle-orm/mysql-core';
+import { expect } from 'vitest';
+
 import { type Test } from './instrumentation';
 import {
 	aggregateTable,
-	allTypesTable,
-	cities3,
-	citiesMySchemaTable,
 	citiesTable,
-	createUserTable,
-	mySchema,
-	orders,
-	users2MySchemaTable,
+	createAggregateTable,
+	createCitiesTable,
+	createUsers2Table,
 	users2Table,
-	users3,
 	usersMySchemaTable,
-	usersTable,
 } from './schema2';
 
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
@@ -78,144 +20,180 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		if (exclude.has(task.name)) skip();
 	});
 
-	test.concurrent('set operations (intersect) as function', async ({ db, client }) => {
+	test.concurrent('set operations (intersect) as function', async ({ db, push }) => {
+		const cities = createCitiesTable('cities_43');
+		const users2 = createUsers2Table('users2_43', cities);
+		await push({ cities, users2 });
+
 		const result = await intersect(
 			db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).where(eq(citiesTable.id, 1)),
+				.select({ id: cities.id, name: cities.name })
+				.from(cities).where(eq(cities.id, 1)),
 			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
 			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
 		).limit(1);
 
-		expect(result).toHaveLength(0);
-
-		expect(result).toEqual([]);
+		expect(result).toStrictEqual([]);
 
 		await expect((async () => {
 			intersect(
 				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.select({ id: cities.id, name: cities.name })
+					.from(cities).where(eq(cities.id, 1)),
 				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ id: users2.id, name: users2.name })
+					.from(users2).where(eq(users2.id, 1)),
 				db
-					.select({ name: users2Table.name, id: users2Table.id })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ name: users2.name, id: users2.id })
+					.from(users2).where(eq(users2.id, 1)),
 			).limit(1);
 		})()).rejects.toThrowError();
 	});
 
-	test.concurrent('set operations (intersect all) from query builder', async ({ db, client }) => {
+	test.concurrent('set operations (intersect all) from query builder', async ({ db, push, seed }) => {
+		const cities = createCitiesTable('cities_44');
+		await push({ cities });
+
+		await seed(
+			{ cities },
+			(funcs) => ({ cities: { count: 3, columns: { name: funcs.city() } } }),
+		);
+
 		const result = await db
-			.select({ id: citiesTable.id, name: citiesTable.name })
-			.from(citiesTable).limit(2).intersectAll(
+			.select({ id: cities.id, name: cities.name })
+			.from(cities).limit(2).intersectAll(
 				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).limit(2),
+					.select({ id: cities.id, name: cities.name })
+					.from(cities).limit(2),
 			).orderBy(asc(sql`id`));
 
 		expect(result).toStrictEqual([
-			{ id: 1, name: 'New York' },
-			{ id: 2, name: 'London' },
+			{ id: 1, name: 'Hoogvliet' },
+			{ id: 2, name: 'South Milwaukee' },
 		]);
 
 		await expect((async () => {
 			db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).limit(2).intersectAll(
+				.select({ id: cities.id, name: cities.name })
+				.from(cities).limit(2).intersectAll(
 					db
-						.select({ name: citiesTable.name, id: citiesTable.id })
-						.from(citiesTable).limit(2),
+						.select({ name: cities.name, id: cities.id })
+						.from(cities).limit(2),
 				).orderBy(asc(sql`id`));
 		})()).rejects.toThrowError();
 	});
 
-	test.concurrent('set operations (intersect all) as function', async ({ db, client }) => {
-		const result = await intersectAll(
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
-			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
+	test.concurrent('set operations (intersect all) as function', async ({ db, push, seed }) => {
+		const cities = createCitiesTable('cities_45');
+		const users2 = createUsers2Table('users2_45', cities);
+		await push({ cities, users2 });
+
+		await seed(
+			{ cities, users2 },
+			(funcs) => ({
+				cities: { count: 3, columns: { name: funcs.city() } },
+				users2: { count: 8 },
+			}),
 		);
 
-		expect(result).toHaveLength(1);
+		const result = await intersectAll(
+			db
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
+			db
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
+			db
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
+		);
 
-		expect(result).toEqual([
-			{ id: 1, name: 'John' },
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'Melina' },
 		]);
 
 		await expect((async () => {
 			intersectAll(
 				db
-					.select({ name: users2Table.name, id: users2Table.id })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ name: users2.name, id: users2.id })
+					.from(users2).where(eq(users2.id, 1)),
 				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ id: users2.id, name: users2.name })
+					.from(users2).where(eq(users2.id, 1)),
 				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ id: users2.id, name: users2.name })
+					.from(users2).where(eq(users2.id, 1)),
 			);
 		})()).rejects.toThrowError();
 	});
 
-	test.concurrent('set operations (except) from query builder', async ({ db, client }) => {
+	test.concurrent('set operations (except) from query builder', async ({ db, push, seed }) => {
+		const cities = createCitiesTable('cities_46');
+		await push({ cities });
+
+		await seed(
+			{ cities },
+			(funcs) => ({ cities: { count: 3, columns: { name: funcs.city() } } }),
+		);
+
 		const result = await db
 			.select()
-			.from(citiesTable).except(
+			.from(cities).except(
 				db
 					.select()
-					.from(citiesTable).where(gt(citiesTable.id, 1)),
+					.from(cities).where(gt(cities.id, 1)),
 			);
 
-		expect(result).toHaveLength(1);
-
-		expect(result).toEqual([
-			{ id: 1, name: 'Paris' },
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'Hoogvliet' },
 		]);
 	});
 
-	test.concurrent('set operations (except) as function', async ({ db, client }) => {
+	test.concurrent('set operations (except) as function', async ({ db, push, seed }) => {
+		const cities = createCitiesTable('cities_47');
+		const users2 = createUsers2Table('users2_47', cities);
+		await push({ cities, users2 });
+
+		await seed(
+			{ cities, users2 },
+			(funcs) => ({
+				cities: { count: 3, columns: { name: funcs.city() } },
+				users2: { count: 8 },
+			}),
+		);
+
 		const result = await except(
 			db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable),
+				.select({ id: cities.id, name: cities.name })
+				.from(cities),
 			db
-				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).where(eq(citiesTable.id, 1)),
+				.select({ id: cities.id, name: cities.name })
+				.from(cities).where(eq(cities.id, 1)),
 			db
-				.select({ id: users2Table.id, name: users2Table.name })
-				.from(users2Table).where(eq(users2Table.id, 1)),
+				.select({ id: users2.id, name: users2.name })
+				.from(users2).where(eq(users2.id, 1)),
 		).limit(3);
 
-		expect(result).toHaveLength(2);
-
-		expect(result).toEqual([
-			{ id: 2, name: 'London' },
-			{ id: 3, name: 'Tampa' },
+		expect(result).toStrictEqual([
+			{ id: 2, name: 'South Milwaukee' },
+			{ id: 3, name: 'Bou Hadjar' },
 		]);
 
 		await expect((async () => {
 			except(
 				db
-					.select({ name: citiesTable.name, id: citiesTable.id })
-					.from(citiesTable),
+					.select({ name: cities.name, id: cities.id })
+					.from(cities),
 				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.select({ id: cities.id, name: cities.name })
+					.from(cities).where(eq(cities.id, 1)),
 				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.select({ id: users2.id, name: users2.name })
+					.from(users2).where(eq(users2.id, 1)),
 			).limit(3);
 		})()).rejects.toThrowError();
 	});
@@ -368,7 +346,20 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		})()).rejects.toThrowError();
 	});
 
-	test.concurrent('aggregate function: count', async ({ db, client }) => {
+	test.concurrent('aggregate function: count', async ({ db, push }) => {
+		const aggregateTable = createAggregateTable('aggregate_table_1');
+
+		await push({ aggregateTable });
+		await db.insert(aggregateTable).values([
+			{ name: 'value 1', a: 5, b: 10, c: 20 },
+			{ name: 'value 1', a: 5, b: 20, c: 30 },
+			{ name: 'value 2', a: 10, b: 50, c: 60 },
+			{ name: 'value 3', a: 20, b: 20, c: null },
+			{ name: 'value 4', a: null, b: 90, c: 120 },
+			{ name: 'value 5', a: 80, b: 10, c: null },
+			{ name: 'value 6', a: null, b: null, c: 150 },
+		]);
+
 		const result1 = await db.select({ value: count() }).from(aggregateTable);
 		const result2 = await db.select({ value: count(aggregateTable.a) }).from(aggregateTable);
 		const result3 = await db.select({ value: countDistinct(aggregateTable.name) }).from(aggregateTable);
@@ -378,7 +369,19 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(result3[0]?.value).toBe(6);
 	});
 
-	test.concurrent('aggregate function: avg', async ({ db, client }) => {
+	test.concurrent('aggregate function: avg', async ({ db, push }) => {
+		const aggregateTable = createAggregateTable('aggregate_table_2');
+
+		await push({ aggregateTable });
+		await db.insert(aggregateTable).values([
+			{ name: 'value 1', a: 5, b: 10, c: 20 },
+			{ name: 'value 1', a: 5, b: 20, c: 30 },
+			{ name: 'value 2', a: 10, b: 50, c: 60 },
+			{ name: 'value 3', a: 20, b: 20, c: null },
+			{ name: 'value 4', a: null, b: 90, c: 120 },
+			{ name: 'value 5', a: 80, b: 10, c: null },
+			{ name: 'value 6', a: null, b: null, c: 150 },
+		]);
 		const table = aggregateTable;
 		const result1 = await db.select({ value: avg(table.b) }).from(table);
 		const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);

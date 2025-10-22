@@ -217,6 +217,16 @@ export const aggregateTable = mysqlTable('aggregate_table', {
 	nullOnly: int('null_only'),
 });
 
+export const createAggregateTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').notNull(),
+		name: text('name').notNull(),
+		a: int('a'),
+		b: int('b'),
+		c: int('c'),
+		nullOnly: int('null_only'),
+	});
+
 // To test another schema and multischema
 export const mySchema = mysqlSchema(`mySchema`);
 
