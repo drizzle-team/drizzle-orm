@@ -3,7 +3,7 @@ import { getTableName, is, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
@@ -12,12 +12,11 @@ import Keyv from 'keyv';
 import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
-import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
-import { diff } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
-
 import { connect, type Connection } from '@tidbcloud/serverless';
 import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
+
+
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
@@ -81,15 +80,22 @@ export class TestCache extends Cache {
 	}
 }
 
+export type MysqlSchema = Record<
+	string,
+	MySqlTable<any> | MySqlSchema | MySqlView
+>;
+
 export type RefineCallbackT<Schema extends MysqlSchema> = (
 	funcs: FunctionsVersioning,
 ) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
 
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
-	schema: MysqlSchema,
+	schema: any,
 	vendor: string,
 ) => {
+	const { diff } = await import('../../../drizzle-kit/tests/mysql/mocks' as string) ;
+
 	const res = await diff({}, schema, []);
 	for (const s of res.sqlStatements) {
 		const patched = vendor === 'tidb' ? s.replace('(now())', '(now(2))') : s;
@@ -118,7 +124,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 				batch: (statements: string[]) => Promise<void>;
 			};
 			db: MySqlDatabase<any, any, never, typeof relations>;
-			push: (schema: MysqlSchema) => Promise<void>;
+			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
 				schema: Schema,
 				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
@@ -256,7 +262,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 			async ({ client }, use) => {
 				const { query } = client;
 				const push = (
-					schema: MysqlSchema,
+					schema: any,
 				) => _push(query, schema, vendor);
 
 				await use(push);
@@ -266,8 +272,8 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 		seed: [
 			async ({ db }, use) => {
 				const seed = (
-					schema: MysqlSchema,
-					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
+					schema: any,
+					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, any>,
 				) => _seed(db, schema, refineCallback);
 
 				await use(seed);

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { eq, sql } from 'drizzle-orm';
 import { alias, getViewConfig, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { describe, expect, expectTypeOf } from 'vitest';
-import type { Equal } from '~/utils.ts';
+import type { Equal } from '~/utils';
 import { type Test } from './instrumentation';
 import {
 	citiesMySchemaTable,

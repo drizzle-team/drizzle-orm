@@ -16,7 +16,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { v4 as uuid } from 'uuid';
-import { beforeEach, expect } from 'vitest';
+import { expect } from 'vitest';
 import { toLocalDate } from '~/utils';
 import { mysqlTest as test } from './instrumentation';
 
