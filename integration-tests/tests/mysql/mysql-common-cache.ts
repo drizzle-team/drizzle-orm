@@ -1,5 +1,4 @@
 import { eq, sql } from 'drizzle-orm';
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import { alias, boolean, int, json, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
