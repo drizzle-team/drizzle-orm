@@ -16,6 +16,7 @@ import { expect } from 'vitest';
 import { Expect } from '~/utils';
 import type { Equal } from '~/utils';
 import { type Test } from './instrumentation';
+import { createOrdersTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
@@ -205,13 +206,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('with ... select', async ({ db, push }) => {
-		const orders = mysqlTable('orders_1', {
-			id: serial('id').primaryKey(),
-			region: text('region').notNull(),
-			product: text('product').notNull(),
-			amount: int('amount').notNull(),
-			quantity: int('quantity').notNull(),
-		});
+		const orders = createOrdersTable('orders_1');
 
 		await push({ orders });
 
@@ -348,13 +343,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('with ... delete', async ({ db, push }) => {
-		const orders = mysqlTable('orders_2', {
-			id: serial('id').primaryKey(),
-			region: text('region').notNull(),
-			product: text('product').notNull(),
-			amount: int('amount').notNull(),
-			quantity: int('quantity').notNull(),
-		});
+		const orders = createOrdersTable('orders_2');
 
 		await push({ orders });
 

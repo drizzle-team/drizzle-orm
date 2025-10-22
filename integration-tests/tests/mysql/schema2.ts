@@ -110,8 +110,6 @@ export const createUserTable = (name: string) => {
 	});
 };
 
-export const usersTable = createUserTable('userstest');
-
 export const createCitiesTable = (name: string) =>
 	mysqlTable(name, {
 		id: int('id').primaryKey(),
@@ -133,14 +131,21 @@ export const createUsers2Table = (
 		cityId: int('city_id').references(() => citiesTable.id),
 	});
 
-export const usersOnUpdate = mysqlTable('users_on_update', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
-	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
-	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
-});
+export const createUsersOnUpdateTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+		updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
+		uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
+		alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
+	});
+
+export const createCountTestTable = (name: string) =>
+	mysqlTable(name, {
+		id: int('id').notNull(),
+		name: text('name').notNull(),
+	});
 
 export const datesTable = mysqlTable('datestable', {
 	date: date('date'),
@@ -164,13 +169,14 @@ export const courseCategoriesTable = mysqlTable('course_categories', {
 	name: text('name').notNull(),
 });
 
-export const orders = mysqlTable('orders', {
-	id: serial('id').primaryKey(),
-	region: text('region').notNull(),
-	product: text('product').notNull().$default(() => 'random_string'),
-	amount: int('amount').notNull(),
-	quantity: int('quantity').notNull(),
-});
+export const createOrdersTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').primaryKey(),
+		region: text('region').notNull(),
+		product: text('product').notNull().$default(() => 'random_string'),
+		amount: int('amount').notNull(),
+		quantity: int('quantity').notNull(),
+	});
 
 export const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),

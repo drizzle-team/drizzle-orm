@@ -16,12 +16,12 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		if (exclude.has(task.name)) skip();
 	});
 
-	// tests1(test, exclude);
-	// tests2(test, exclude);
-	// tests3(test, exclude);
-	// tests4(test, exclude);
-	// tests5(test, exclude);
-	// tests6(test, exclude);
-	// tests7(test, exclude);
+	tests1(test, exclude);
+	tests2(test, exclude);
+	tests3(test, exclude);
+	tests4(test, exclude);
+	tests5(test, exclude);
+	tests6(test, exclude);
+	tests7(test, exclude);
 	tests8(test, exclude);
 }
