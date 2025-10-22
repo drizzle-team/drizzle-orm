@@ -37,8 +37,8 @@
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
-		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
-		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/ && attw --pack dist",
+		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/",
+		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
 		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
@@ -51,7 +51,6 @@
 		"esbuild-register": "^3.6.0"
 	},
 	"devDependencies": {
-		"@arethetypeswrong/cli": "^0.15.3",
 		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@electric-sql/pglite": "^0.2.12",
