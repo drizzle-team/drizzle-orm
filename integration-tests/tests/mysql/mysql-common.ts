@@ -54,7 +54,7 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { Expect, toLocalDate } from '~/utils.ts';
+import { Expect, toLocalDate } from '~/utils';
 import type { Equal } from '~/utils.ts';
 import { type Test } from './instrumentation';
 import {
