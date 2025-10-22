@@ -151,10 +151,7 @@ export const createDDL = () => {
 				userCatalogTable: 'boolean?',
 			},
 			withNoData: 'boolean?',
-			using: {
-				name: 'string',
-				default: 'boolean',
-			},
+			using: 'string?',
 			tablespace: 'string?',
 			materialized: 'boolean',
 		},
@@ -409,7 +406,6 @@ export const interimToDDL = (
 
 	for (const column of schema.columns) {
 		const { pk, pkName, unique, uniqueName, uniqueNullsNotDistinct, ...rest } = column;
-		rest.notNull = pk ? false : rest.notNull;
 
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {

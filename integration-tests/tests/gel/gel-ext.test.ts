@@ -84,7 +84,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, schema: { user, identityInExtauth, userRelations } });
+	db = drizzle({ client, logger: ENABLE_LOGGING, schema: { user, identityInExtauth, userRelations } });
 
 	dsn = connectionString;
 });

@@ -84,7 +84,7 @@ beforeAll(async () => {
 		await mssqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined, schema });
+	db = drizzle({ client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined, schema });
 });
 
 afterAll(async () => {

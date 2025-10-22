@@ -279,7 +279,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const right = statement.to;
 
 			hints.push(
-				`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table. 
+				`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
 To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
 			);
 

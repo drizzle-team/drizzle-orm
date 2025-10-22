@@ -7,7 +7,7 @@ import * as schema from './tables-rel.ts';
 const { Pool } = pg;
 
 const pdb = new Pool({ connectionString: process.env['COCKROACH_CONNECTION_STRING'] });
-const db = drizzle(pdb, { schema });
+const db = drizzle({ client: pdb, schema });
 
 {
 	const result = await db._query.users.findMany({

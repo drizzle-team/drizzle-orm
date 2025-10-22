@@ -47,7 +47,11 @@ test('create role with some properties', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+	});
 
 	const st0 = [
 		'CREATE ROLE "manager" WITH CREATEDB;',
@@ -63,7 +67,7 @@ test('drop role', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
 	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
 
 	const st0 = [
@@ -84,7 +88,7 @@ test('create and drop role', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager', 'superuser'] } } });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -110,7 +114,7 @@ test('rename role - recreate', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager', 'superuser'] } } });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -136,8 +140,12 @@ test('alter all role field', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+	});
 
 	const st0 = [
 		'ALTER ROLE "manager" WITH CREATEDB CREATEROLE;',
@@ -157,7 +165,7 @@ test('alter createdb in role', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
 	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
 
 	const st0 = [
@@ -178,7 +186,7 @@ test('alter createrole in role', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
 	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
 
 	const st0 = [

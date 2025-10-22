@@ -76,7 +76,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 		? ['public']
 		: typeof policy.to === 'string'
 		? [policy.to]
-		: is(policy, PgRole)
+		: is(policy.to, PgRole)
 		? [(policy.to as PgRole).name]
 		: Array.isArray(policy.to)
 		? policy.to.map((it) => {
@@ -419,6 +419,12 @@ export const fromDrizzleSchema = (
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
 				const name = pk.name || defaultNameForPK(tableName);
+
+				for (const columnName of columnNames) {
+					const column = res.columns.find((it) => it.name === columnName)!;
+					column.notNull = true;
+				}
+
 				return {
 					entityType: 'pks',
 					schema: schema,
@@ -753,12 +759,7 @@ export const fromDrizzleSchema = (
 			withNoData: withNoData ?? null,
 			materialized,
 			tablespace: tablespace ?? null,
-			using: using
-				? {
-					name: using,
-					default: false,
-				}
-				: null,
+			using: using ?? null,
 		});
 	}
 

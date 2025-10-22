@@ -182,7 +182,12 @@ test('alter column: change data type, add not null with default', async (t) => {
 			name: varchar({ length: 200 }).notNull().default('1'),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+	const { sqlStatements: pst1, hints, losses, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
 	const st_01 = [
 		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
@@ -365,9 +370,9 @@ test('rename column #2. Part of unique constraint', async (t) => {
 		}),
 	};
 
-	// const { sqlStatements: st } = await diff(schema1, schema2, [
-	// 	'new_schema.users.id->new_schema.users.id1',
-	// ]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		'new_schema.users.id->new_schema.users.id1',
+	]);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({
@@ -382,7 +387,7 @@ test('rename column #2. Part of unique constraint', async (t) => {
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
 	];
 
-	// expect(st).toStrictEqual(st0);
+	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
@@ -407,28 +412,32 @@ test('rename column #3. Part of check constraint', async (t) => {
 	]);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, hints: phints } = await push({
+	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,
 		renames: [
 			'new_schema.users.id->new_schema.users.id1',
 		],
 		expectError: true,
+		ignoreSubsequent: true,
 	});
 
-	const st0 = [
+	expect(st).toStrictEqual([
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [new_schema].[users] ADD CONSTRAINT [hey] CHECK ([users].[id1] != 2);`,
-	];
-	expect(st).toStrictEqual(st0);
+	]);
 	// error expected
 	// since there will be changes in defintion
 	// push will skip alter definition and tries to rename column
-	// expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([
+		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
+	]);
+	expect(error).not.toBeNull();
 	expect(phints).toStrictEqual([
-		`· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table. 
-To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
+		'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
+		+ '\n'
+		+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
 	]);
 });
 

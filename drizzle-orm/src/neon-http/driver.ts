@@ -9,7 +9,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -185,9 +185,9 @@ export function drizzle<
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -207,34 +207,30 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& {
-				connection?:
-					| ({
-						connectionString: string;
-					} & HTTPTransactionOptions<boolean, boolean>)
-					| string;
-				client?: TClient;
-			}
-			& DrizzleConfig<TSchema, TRelations>;
-
-		if (client) return construct(client, drizzleConfig);
-
-		if (typeof connection === 'object') {
-			const { connectionString, ...options } = connection;
-
-			const instance = neon(connectionString, options);
-
-			return construct(instance, drizzleConfig) as any;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& {
+			connection?:
+				| ({
+					connectionString: string;
+				} & HTTPTransactionOptions<boolean, boolean>)
+				| string;
+			client?: TClient;
 		}
+		& DrizzleConfig<TSchema, TRelations>;
 
-		const instance = neon(connection!);
+	if (client) return construct(client, drizzleConfig);
+
+	if (typeof connection === 'object') {
+		const { connectionString, ...options } = connection;
+
+		const instance = neon(connectionString, options);
 
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	const instance = neon(connection!);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

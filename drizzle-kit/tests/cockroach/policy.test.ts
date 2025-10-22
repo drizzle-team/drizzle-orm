@@ -3,6 +3,7 @@ import { cockroachPolicy, cockroachRole, cockroachSchema, cockroachTable, int4 }
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
+const systemRoles = ['admin', 'root'];
 test('full policy: no changes', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
@@ -141,6 +142,10 @@ test('drop policy without disable rls', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+/**
+ * Subsequent push is disabled for the first test (currest_user, session_user treated as corner cases)
+ * Subsequent push is enabled for the first test
+ */
 test('alter policy without recreation: changing roles', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
@@ -160,10 +165,42 @@ test('alter policy without recreation: changing roles', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER POLICY "test" ON "users" TO session_user;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy without recreation: changing roles #2', async ({ db }) => {
+	const role = cockroachRole('owner');
+	const schema1 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
+	};
+
+	const schema2 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { as: 'permissive', to: role })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { exclude: systemRoles } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { exclude: systemRoles } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -333,11 +370,50 @@ test('alter policy with recreation: changing all fields', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_user WITH CHECK (true);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy with recreation: changing all fields #2', async ({ db }) => {
+	const root = cockroachRole('root');
+	const admin = cockroachRole('admin');
+	const owner = cockroachRole('owner');
+	const schema1 = {
+		root,
+		admin,
+		owner,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
+	};
+
+	const schema2 = {
+		root,
+		admin,
+		owner,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { as: 'restrictive', to: owner, withCheck: sql`true` })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: true } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: true },
+	});
+
+	const st0 = [
+		'DROP POLICY "test" ON "users";',
+		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO "owner" WITH CHECK (true);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -478,12 +554,49 @@ test('add policy with multiple "to" roles', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'CREATE ROLE "manager";',
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_user, "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy with multiple "to" roles #2', async ({ db }) => {
+	const role2 = cockroachRole('owner');
+	const schema1 = {
+		role2,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}),
+	};
+
+	const role = cockroachRole('manager');
+
+	const schema2 = {
+		role2,
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { to: [role2, role] })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { exclude: systemRoles } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { exclude: systemRoles } },
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager";',
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO "manager", "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -589,7 +702,39 @@ test('drop policy with enabled rls', async ({ db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, ignoreSubsequent: true });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+	});
+
+	const st0 = [
+		'DROP POLICY "test" ON "users";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('drop policy with enabled rls #2', async ({ db }) => {
+	const role = cockroachRole('manager');
+
+	const schema1 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { to: [role] })]).enableRLS(),
+	};
+
+	const schema2 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -626,11 +771,47 @@ test('add policy with enabled rls', async ({ db }) => {
 		db,
 		to: schema2,
 		entities: { roles: { include: ['manager'] } },
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'CREATE ROLE "manager";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_user, "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy with enabled rls #2', async ({ db }) => {
+	const role2 = cockroachRole('owner');
+	const schema1 = {
+		role2,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const role = cockroachRole('manager');
+
+	const schema2 = {
+		role2,
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, () => [cockroachPolicy('test', { to: [role2, role] })]).enableRLS(),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['owner'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { exclude: systemRoles } },
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager";',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO "manager", "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -786,12 +967,51 @@ test('add policy in table and with link table', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
 		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO current_user;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('add policy in table and with link table #2', async ({ db }) => {
+	const role = cockroachRole('owner');
+	const schema1 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}),
+	};
+
+	const users = cockroachTable('users', {
+		id: int4('id').primaryKey(),
+	}, () => [
+		cockroachPolicy('test1', { to: role }),
+	]);
+
+	const schema2 = {
+		role,
+		users,
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['owner'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['owner'] } },
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -989,10 +1209,44 @@ test('alter policy that is linked', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_user;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy that is linked #2', async ({ db }) => {
+	const role = cockroachRole('owner');
+	const users = cockroachTable('users', {
+		id: int4('id').primaryKey(),
+	});
+
+	const schema1 = {
+		role,
+		users,
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
+	};
+
+	const schema2 = {
+		role,
+		users,
+		rls: cockroachPolicy('test', { as: 'permissive', to: role }).link(users),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['owner'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['owner'] } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1114,10 +1368,46 @@ test('alter policy in the table', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		ignoreSubsequent: true,
 	});
 
 	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_user;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('alter policy in the table #2', async ({ db }) => {
+	const role = cockroachRole('owner');
+	const schema1 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, (t) => [
+			cockroachPolicy('test', { as: 'permissive' }),
+		]),
+	};
+
+	const schema2 = {
+		role,
+		users: cockroachTable('users', {
+			id: int4('id').primaryKey(),
+		}, (t) => [
+			cockroachPolicy('test', { as: 'permissive', to: role }),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, entities: { roles: { exclude: systemRoles } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { exclude: systemRoles } },
+	});
+
+	const st0 = [
+		'ALTER POLICY "test" ON "users" TO "owner";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

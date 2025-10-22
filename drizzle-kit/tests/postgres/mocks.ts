@@ -41,9 +41,9 @@ import {
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
-// @ts-expect-error
+// @ts-ignore
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
-// @ts-expect-error
+// @ts-ignore
 import { vector } from '@electric-sql/pglite/vector';
 import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -186,6 +186,7 @@ export const push = async (config: {
 	casing?: CasingType;
 	log?: 'statements' | 'none';
 	entities?: Entities;
+	ignoreSubsequent?: boolean;
 }) => {
 	const { db, to, tables } = config;
 
@@ -213,16 +214,6 @@ export const push = async (config: {
 		throw new Error();
 	}
 
-	if (log === 'statements') {
-		// console.dir(ddl1.roles.list());
-		// console.dir(ddl2.roles.list());
-	}
-
-	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
-	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
-
-	// TODO: handle errors
-
 	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
@@ -249,6 +240,45 @@ export const push = async (config: {
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
 		await db.query(sql);
+	}
+
+	// subsequent push
+	if (!config.ignoreSubsequent) {
+		{
+			const { schema } = await introspect(
+				db,
+				tables ?? [],
+				config.schemas ?? ((_: string) => true),
+				config.entities,
+				new EmptyProgressView(),
+			);
+			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+
+			const { sqlStatements, statements } = await ddlDiff(
+				ddl1,
+				ddl2,
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				'push',
+			);
+			if (sqlStatements.length > 0) {
+				console.error('---- subsequent push is not empty ----');
+				console.log(sqlStatements.join('\n'));
+				throw new Error();
+			}
+		}
 	}
 
 	return { sqlStatements, statements, hints, losses };
@@ -350,14 +380,21 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	};
 
 	const { db, clear } = kit;
-	if (pre) await push({ db, to: pre });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
 	const { sqlStatements: st1 } = await push({
 		db,
 		to: init,
 		tables: tablesFilter,
 		schemas: schemasFilter,
+		ignoreSubsequent: true,
 	});
-	const { sqlStatements: st2 } = await push({ db, to: init, tables: tablesFilter, schemas: schemasFilter });
+	const { sqlStatements: st2 } = await push({
+		db,
+		to: init,
+		tables: tablesFilter,
+		schemas: schemasFilter,
+		ignoreSubsequent: true,
+	});
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${type}"` : type;
 	const sqlType = `${typeSchemaPrefix}${typeValue}${'[]'.repeat(dimensions)}`;
@@ -412,9 +449,15 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter });
-	await push({ db, to: schema1, tables: tablesFilter, schemas: schemasFilter });
-	const { sqlStatements: st3 } = await push({ db, to: schema2, tables: tablesFilter, schemas: schemasFilter });
+	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter, ignoreSubsequent: true });
+	await push({ db, to: schema1, tables: tablesFilter, schemas: schemasFilter, ignoreSubsequent: true });
+	const { sqlStatements: st3 } = await push({
+		db,
+		to: schema2,
+		tables: tablesFilter,
+		schemas: schemasFilter,
+		ignoreSubsequent: true,
+	});
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if ((st3.length !== 1 || st3[0] !== expectedAlter) && expectedDefault) {
 		res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
@@ -432,9 +475,15 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter });
-	await push({ db, to: schema3, tables: tablesFilter, schemas: schemasFilter });
-	const { sqlStatements: st4 } = await push({ db, to: schema4, tables: tablesFilter, schemas: schemasFilter });
+	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter, ignoreSubsequent: true });
+	await push({ db, to: schema3, tables: tablesFilter, schemas: schemasFilter, ignoreSubsequent: true });
+	const { sqlStatements: st4 } = await push({
+		db,
+		to: schema4,
+		tables: tablesFilter,
+		schemas: schemasFilter,
+		ignoreSubsequent: true,
+	});
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType}${defaultStatement};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
