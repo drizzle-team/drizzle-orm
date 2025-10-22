@@ -1,16 +1,77 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, like, not, sql } from 'drizzle-orm';
-import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import { type Test } from './instrumentation';
-import { cities3, citiesTable, createUserTable, users2Table, users3, usersTable } from './schema2';
+import { rqbPost, rqbUser } from './schema';
+import {
+	cities3,
+	citiesTable,
+	createCitiesTable,
+	createUsers2Table,
+	createUserTable,
+	users2Table,
+	users3,
+	usersTable,
+} from './schema2';
 
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
-	test.beforeEach(async ({ task, skip }) => {
+	let firstTime = true;
+	let resolveValue: (val: any) => void;
+	const promise = new Promise((resolve) => {
+		resolveValue = resolve;
+	});
+	test.beforeEach(async ({ task, skip, client, db }) => {
+		if (firstTime) {
+			firstTime = false;
+
+			await client.batch([
+				`CREATE TABLE \`user_rqb_test\` (
+		        	\`id\` SERIAL PRIMARY KEY,
+		        	\`name\` TEXT NOT NULL,
+		        	\`created_at\` TIMESTAMP NOT NULL
+		     	);`,
+				`CREATE TABLE \`post_rqb_test\` ( 
+		        	\`id\` SERIAL PRIMARY KEY,
+		        	\`user_id\` BIGINT(20) UNSIGNED NOT NULL,
+		        	\`content\` TEXT,
+		        	\`created_at\` TIMESTAMP NOT NULL
+				);`,
+				`CREATE TABLE \`empty\` (\`id\` int);`,
+			]);
+
+			const date = new Date(120000);
+			await db.insert(rqbUser).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.insert(rqbPost).values([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}]);
+
+			resolveValue('');
+		}
+
+		await promise;
 		if (exclude.has(task.name)) skip();
 	});
 
+	// .sequential is needed for beforeEach to be executed before all tests
 	test.concurrent('insert $returningId: serial as id', async ({ db, push }) => {
 		const users = createUserTable('users_60');
 		await push({ users });
@@ -41,7 +102,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('insert $returningId: serial as id, batch insert', async ({ db, push }) => {
-		const users = createUserTable('users_60');
+		const users = createUserTable('users_61');
 		await push({ users });
 
 		const result = await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]).$returningId();
@@ -108,7 +169,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('$count separate', async ({ db, push }) => {
-		const countTestTable = mysqlTable('count_test1', {
+		const countTestTable = mysqlTable('count_test_1', {
 			id: int('id').notNull(),
 			name: text('name').notNull(),
 		});
@@ -127,14 +188,13 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		expect(count).toStrictEqual(4);
 	});
 
-	test.concurrent('$count embedded', async ({ db }) => {
-		const countTestTable = mysqlTable('count_test2', {
+	test.concurrent('$count embedded', async ({ db, push }) => {
+		const countTestTable = mysqlTable('count_test_2', {
 			id: int('id').notNull(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${countTestTable}`);
-		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+		await push({ countTestTable });
 
 		await db.insert(countTestTable).values([
 			{ id: 1, name: 'First' },
@@ -147,8 +207,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			count: db.$count(countTestTable),
 		}).from(countTestTable);
 
-		await db.execute(sql`drop table ${countTestTable}`);
-
 		expect(count).toStrictEqual([
 			{ count: 4 },
 			{ count: 4 },
@@ -157,14 +215,13 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent('$count separate reuse', async ({ db }) => {
-		const countTestTable = mysqlTable('count_test3', {
+	test.concurrent('$count separate reuse', async ({ db, push }) => {
+		const countTestTable = mysqlTable('count_test_3', {
 			id: int('id').notNull(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${countTestTable}`);
-		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+		await push({ countTestTable });
 
 		await db.insert(countTestTable).values([
 			{ id: 1, name: 'First' },
@@ -185,21 +242,18 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 		const count3 = await count;
 
-		await db.execute(sql`drop table ${countTestTable}`);
-
 		expect(count1).toStrictEqual(4);
 		expect(count2).toStrictEqual(5);
 		expect(count3).toStrictEqual(6);
 	});
 
-	test.concurrent('$count embedded reuse', async ({ db }) => {
-		const countTestTable = mysqlTable('count_test4', {
+	test.concurrent('$count embedded reuse', async ({ db, push }) => {
+		const countTestTable = mysqlTable('count_test_4', {
 			id: int('id').notNull(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${countTestTable}`);
-		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
+		await push({ countTestTable });
 
 		await db.insert(countTestTable).values([
 			{ id: 1, name: 'First' },
@@ -221,8 +275,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
 
 		const count3 = await count;
-
-		await db.execute(sql`drop table ${countTestTable}`);
 
 		expect(count1).toStrictEqual([
 			{ count: 4 },
@@ -247,61 +299,89 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent('limit 0', async ({ db }) => {
-		const users = await db
+	test.concurrent('limit 0', async ({ db, push }) => {
+		const users = createUserTable('users_62');
+		await push({ users });
+		await db.insert(users).values({ name: 'John' });
+
+		const result = await db
 			.select()
-			.from(usersTable)
+			.from(users)
 			.limit(0);
 
-		expect(users).toEqual([]);
+		expect(result).toEqual([]);
 	});
 
-	test.concurrent('limit -1', async ({ db }) => {
-		const users = await db
+	test.concurrent('limit -1', async ({ db, push }) => {
+		const users = createUserTable('users_631');
+		await push({ users });
+		await db.insert(users).values({ name: 'John' });
+
+		const result = await db
 			.select()
-			.from(usersTable)
+			.from(users)
 			.limit(-1);
 
-		expect(users.length).toBeGreaterThan(0);
+		expect(result.length).toBeGreaterThan(0);
 	});
 
-	test('cross join', async ({ db }) => {
+	test.concurrent('cross join', async ({ db, push, seed }) => {
+		const users = createUserTable('users_63');
+		const cities = createCitiesTable('cities_63');
+
+		await push({ users, cities });
+		await seed({ users, cities }, (funcs) => ({
+			users: { count: 2, columns: { name: funcs.firstName() } },
+			cities: { count: 2, columns: { name: funcs.city() } },
+		}));
+
 		const result = await db
 			.select({
-				user: usersTable.name,
-				city: citiesTable.name,
+				user: users.name,
+				city: cities.name,
 			})
-			.from(usersTable)
-			.crossJoin(citiesTable)
-			.orderBy(usersTable.name, citiesTable.name);
+			.from(users)
+			.crossJoin(cities)
+			.orderBy(users.name, cities.name);
 
 		expect(result).toStrictEqual([
-			{ city: 'New York City', user: 'Jane' },
-			{ city: 'Seattle', user: 'Jane' },
-			{ city: 'New York City', user: 'John' },
-			{ city: 'Seattle', user: 'John' },
+			{ city: 'Hoogvliet', user: 'Agripina' },
+			{ city: 'South Milwaukee', user: 'Agripina' },
+			{ city: 'Hoogvliet', user: 'Candy' },
+			{ city: 'South Milwaukee', user: 'Candy' },
 		]);
 	});
 
-	test('left join (lateral)', async ({ db }) => {
+	test.concurrent('left join (lateral)', async ({ db, push }) => {
+		const cities = createCitiesTable('cities_64');
+		const users2 = createUsers2Table('users2_64', cities);
+
+		await push({ cities, users2 });
+
+		await db
+			.insert(cities)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+		await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
 		const sq = db
 			.select({
-				userId: users2Table.id,
-				userName: users2Table.name,
-				cityId: users2Table.cityId,
+				userId: users2.id,
+				userName: users2.name,
+				cityId: users2.cityId,
 			})
-			.from(users2Table)
-			.where(eq(users2Table.cityId, citiesTable.id))
+			.from(users2)
+			.where(eq(users2.cityId, cities.id))
 			.as('sq');
 
 		const res = await db
 			.select({
-				cityId: citiesTable.id,
-				cityName: citiesTable.name,
+				cityId: cities.id,
+				cityName: cities.name,
 				userId: sq.userId,
 				userName: sq.userName,
 			})
-			.from(citiesTable)
+			.from(cities)
 			.leftJoinLateral(sq, sql`true`);
 
 		expect(res).toStrictEqual([
@@ -310,25 +390,33 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('inner join (lateral)', async ({ db }) => {
+	test.concurrent('inner join (lateral)', async ({ db, push }) => {
+		const cities = createCitiesTable('cities_65');
+		const users2 = createUsers2Table('users2_65', cities);
+
+		await push({ cities, users2 });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+		await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
 		const sq = db
 			.select({
-				userId: users2Table.id,
-				userName: users2Table.name,
-				cityId: users2Table.cityId,
+				userId: users2.id,
+				userName: users2.name,
+				cityId: users2.cityId,
 			})
-			.from(users2Table)
-			.where(eq(users2Table.cityId, citiesTable.id))
+			.from(users2)
+			.where(eq(users2.cityId, cities.id))
 			.as('sq');
 
 		const res = await db
 			.select({
-				cityId: citiesTable.id,
-				cityName: citiesTable.name,
+				cityId: cities.id,
+				cityName: cities.name,
 				userId: sq.userId,
 				userName: sq.userName,
 			})
-			.from(citiesTable)
+			.from(cities)
 			.innerJoinLateral(sq, sql`true`);
 
 		expect(res).toStrictEqual([
@@ -336,27 +424,41 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test.concurrent('cross join (lateral)', async ({ db }) => {
+	test.concurrent('cross join (lateral)', async ({ db, push }) => {
+		const cities = createCitiesTable('cities_66');
+		const users2 = createUsers2Table('users2_66', cities);
+
+		await push({ cities, users2 });
+
+		await db
+			.insert(cities)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+
+		await db.insert(users2).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
+			name: 'Patrick',
+			cityId: 2,
+		}]);
+
 		const sq = db
 			.select({
-				userId: users3.id,
-				userName: users3.name,
-				cityId: users3.cityId,
+				userId: users2.id,
+				userName: users2.name,
+				cityId: users2.cityId,
 			})
-			.from(users3)
-			.where(not(like(cities3.name, 'L%')))
+			.from(users2)
+			.where(not(like(cities.name, 'L%')))
 			.as('sq');
 
 		const res = await db
 			.select({
-				cityId: cities3.id,
-				cityName: cities3.name,
+				cityId: cities.id,
+				cityName: cities.name,
 				userId: sq.userId,
 				userName: sq.userName,
 			})
-			.from(cities3)
+			.from(cities)
 			.crossJoinLateral(sq)
-			.orderBy(cities3.id, sq.userId);
+			.orderBy(cities.id, sq.userId);
 
 		expect(res).toStrictEqual([
 			{
@@ -398,12 +500,12 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		]);
 	});
 
-	test('RQB v2 simple find first - no rows', async ({ db }) => {
+	test.concurrent('RQB v2 simple find first - no rows', async ({ db }) => {
 		const result = await db.query.empty.findFirst();
 		expect(result).toStrictEqual(undefined);
 	});
 
-	test('RQB v2 simple find first - multiple rows', async ({ db }) => {
+	test.concurrent('RQB v2 simple find first - multiple rows', async ({ db }) => {
 		const result = await db.query.rqbUser.findFirst({
 			orderBy: {
 				id: 'desc',
@@ -417,7 +519,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		});
 	});
 
-	test('RQB v2 simple find first - with relation', async ({ db }) => {
+	test.concurrent('RQB v2 simple find first - with relation', async ({ db }) => {
 		const result = await db.query.rqbUser.findFirst({
 			with: {
 				posts: {
