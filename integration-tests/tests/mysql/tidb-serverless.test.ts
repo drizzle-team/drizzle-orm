@@ -1,34 +1,8 @@
-import 'dotenv/config';
+import { tidbTest as test } from './instrumentation';
+import { tests } from './mysql-common';
+import { runTests as cacheTests } from './mysql-common-cache';
 
-import { connect } from '@tidbcloud/serverless';
-import type { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
-import { drizzle } from 'drizzle-orm/tidb-serverless';
-import { beforeAll, beforeEach } from 'vitest';
-import { skipTests } from '~/common.ts';
-import { tests } from './mysql-common.ts';
-import relations from './relations.ts';
-
-const ENABLE_LOGGING = false;
-
-let db: TiDBServerlessDatabase<never, typeof relations>;
-
-beforeAll(async () => {
-	const connectionString = process.env['TIDB_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error('TIDB_CONNECTION_STRING is not set');
-	}
-
-	const client = connect({ url: connectionString });
-	db = drizzle(client!, { logger: ENABLE_LOGGING, relations });
-});
-
-beforeEach((ctx) => {
-	// ctx.mysql = {
-	// 	db,
-	// };
-});
-
-skipTests([
+const skip = new Set([
 	'mySchema :: select with group by as field',
 	'mySchema :: delete with returning all fields',
 	'mySchema :: update with returning partial',
@@ -74,4 +48,5 @@ skipTests([
 	'utc config for datetime',
 ]);
 
-tests();
+tests('mysql', test, skip);
+cacheTests("mysql",test)

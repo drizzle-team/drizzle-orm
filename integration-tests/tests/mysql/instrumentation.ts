@@ -16,6 +16,9 @@ import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
 import { diff, push } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
 
+import { connect, type Connection } from '@tidbcloud/serverless';
+import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
+
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
@@ -100,11 +103,11 @@ const _seed = async <Schema extends MysqlSchema>(
 	return refineCallback === undefined ? seed(db, schema) : seed(db, schema).refine(refineCallback);
 };
 
-const prepareTest = (vendor: 'mysql' | 'planetscale') => {
+const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 	return base.extend<
 		{
 			client: {
-				client: AnyMySql2Connection | Client;
+				client: AnyMySql2Connection | Client | Connection;
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
@@ -200,6 +203,32 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 					return;
 				}
 
+				if (vendor === 'tidb') {
+					const connectionString = process.env['TIDB_CONNECTION_STRING'];
+					if (!connectionString) {
+						throw new Error('TIDB_CONNECTION_STRING is not set');
+					}
+
+					const client = connect({ url: connectionString });
+					await client.execute('drop database if exists ci;');
+					await client.execute('create database ci;');
+					await client.execute('use ci;');
+					await client.execute('select 1;');
+
+					const query = async (sql: string, params: any[] = []) => {
+						return client.execute(sql, params) as Promise<any[]>;
+					};
+
+					const batch = async (statements: string[]) => {
+						const queries = statements.map((x) => {
+							return client.execute(x);
+						});
+						return Promise.all(queries).then(() => '' as any);
+					};
+					await use({ client, query, batch });
+					return;
+				}
+
 				throw new Error('error');
 			},
 			{ scope: 'worker' },
@@ -208,6 +237,8 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 			async ({ client }, use) => {
 				const db = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as AnyMySql2Connection, relations })
+					: vendor === 'tidb'
+					? drizzleTidb({ client: client.client as Connection, relations })
 					: psDrizzle({ client: client.client as Client, relations });
 
 				await use(db as any);
@@ -242,9 +273,13 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 				const allCache = new TestCache('all');
 				const withCacheExplicit = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: explicitCache })
+					: vendor === 'tidb'
+					? drizzleTidb({ client: client.client as Connection, relations })
 					: psDrizzle({ client: client.client as any, cache: explicitCache });
 				const withCacheAll = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: allCache })
+					: vendor === 'tidb'
+					? drizzleTidb({ client: client.client as Connection, relations })
 					: psDrizzle({ client: client.client as any, cache: allCache });
 
 				const drz = {
@@ -284,4 +319,5 @@ const prepareTest = (vendor: 'mysql' | 'planetscale') => {
 
 export const mysqlTest = prepareTest('mysql');
 export const planetscaleTest = prepareTest('planetscale');
+export const tidbTest = prepareTest('tidb');
 export type Test = ReturnType<typeof prepareTest>;
