@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(
 		sql`

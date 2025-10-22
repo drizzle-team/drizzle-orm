@@ -13,7 +13,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { npmVersion } from '~/version.ts';
 import type {
 	SingleStoreDriverClient,
@@ -136,9 +136,9 @@ export function drizzle<
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		SingleStoreDriverDrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -163,38 +163,31 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: PoolOptions | string; client?: TClient }
-			& SingleStoreDriverDrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: PoolOptions | string; client?: TClient }
+		& SingleStoreDriverDrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		let opts: PoolOptions = {};
-		opts = typeof connection === 'string'
-			? {
-				uri: connection,
-				supportBigNumbers: true,
-				connectAttributes: CONNECTION_ATTRS,
-			}
-			: {
-				...connection,
-				connectAttributes: {
-					...connection!.connectAttributes,
-					...CONNECTION_ATTRS,
-				},
-			};
+	let opts: PoolOptions = {};
+	opts = typeof connection === 'string'
+		? {
+			uri: connection,
+			supportBigNumbers: true,
+			connectAttributes: CONNECTION_ATTRS,
+		}
+		: {
+			...connection,
+			connectAttributes: {
+				...connection!.connectAttributes,
+				...CONNECTION_ATTRS,
+			},
+		};
 
-		const instance = createPool(opts);
-		const db = construct(instance, drizzleConfig);
+	const instance = createPool(opts);
+	const db = construct(instance, drizzleConfig);
 
-		return db as any;
-	}
-
-	return construct(
-		params[0] as TClient,
-		params[1] as SingleStoreDriverDrizzleConfig<TSchema, TRelations> | undefined,
-	) as any;
+	return db as any;
 }
 
 export namespace drizzle {

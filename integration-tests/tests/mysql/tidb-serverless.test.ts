@@ -19,7 +19,7 @@ beforeAll(async () => {
 	}
 
 	const client = connect({ url: connectionString });
-	db = drizzle(client!, { logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client: client!, logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {

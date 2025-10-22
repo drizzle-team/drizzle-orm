@@ -47,7 +47,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 
 	dsn = connectionString;
 	await $`gel query "CREATE TYPE default::users_custom {
