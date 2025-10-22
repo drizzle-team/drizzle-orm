@@ -17,7 +17,7 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
-import { toLocalDate } from '~/utils.ts';
+import { toLocalDate } from '~/utils';
 import { type Test } from './instrumentation';
 import { createUserTable } from './schema2';
 
