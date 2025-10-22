@@ -2,13 +2,13 @@
 import 'dotenv/config';
 
 import { type Test } from './instrumentation';
-import { tests as tests1 } from './mysql-common-1.ts';
-import { tests as tests2 } from './mysql-common-2.ts';
-import { tests as tests3 } from './mysql-common-3.ts';
-import { tests as tests4 } from './mysql-common-4.ts';
-import { tests as tests5 } from './mysql-common-5.ts';
-import { tests as tests6 } from './mysql-common-6.ts';
-import { tests as tests7 } from './mysql-common-7.ts';
+import { tests as tests1 } from './mysql-common-1';
+import { tests as tests2 } from './mysql-common-2';
+import { tests as tests3 } from './mysql-common-3';
+import { tests as tests4 } from './mysql-common-4';
+import { tests as tests5 } from './mysql-common-5';
+import { tests as tests6 } from './mysql-common-6';
+import { tests as tests7 } from './mysql-common-7';
 
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
