@@ -5,6 +5,7 @@ import {
 	alias,
 	bigint,
 	boolean,
+	datetime,
 	int,
 	mysqlEnum,
 	mysqlTable,
@@ -16,7 +17,7 @@ import {
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { expect } from 'vitest';
 import { type Test } from './instrumentation';
-import { createUserTable, orders, usersMigratorTable, usersOnUpdate, usersTable } from './schema2';
+import { createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
@@ -49,7 +50,13 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(result[0]!.createdAt).toBeInstanceOf(Date);
 		// not timezone based timestamp, thats why it should not work here
 		// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-		expect(result).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'Jane',
+			verified: false,
+			jsonb: null,
+			createdAt: result[0]!.createdAt,
+		}]);
 	});
 
 	test.concurrent('update with returning partial', async ({ db, push }) => {
@@ -65,69 +72,99 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(updatedUsers[0].changedRows).toBe(1);
 
-		expect(result).toEqual([{ id: 1, name: 'Jane' }]);
+		expect(result).toStrictEqual([{ id: 1, name: 'Jane' }]);
 	});
 
-	test.concurrent('delete with returning all fields', async ({ db }) => {
-		await db.insert(usersTable).values({ name: 'John' });
-		const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+	test.concurrent('delete with returning all fields', async ({ db, push }) => {
+		const users = createUserTable('users_88');
+		await push({ users });
+
+		await db.insert(users).values({ name: 'John' });
+		const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 		expect(deletedUser[0].affectedRows).toBe(1);
 	});
 
-	test.concurrent('delete with returning partial', async ({ db }) => {
-		await db.insert(usersTable).values({ name: 'John' });
-		const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+	test.concurrent('delete with returning partial', async ({ db, push }) => {
+		const users = createUserTable('users_89');
+		await push({ users });
+
+		await db.insert(users).values({ name: 'John' });
+		const deletedUser = await db.delete(users).where(eq(users.name, 'John'));
 
 		expect(deletedUser[0].affectedRows).toBe(1);
 	});
 
-	test.concurrent('insert + select', async ({ db }) => {
-		await db.insert(usersTable).values({ name: 'John' });
-		const result = await db.select().from(usersTable);
-		expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	test.concurrent('insert + select', async ({ db, push }) => {
+		const users = createUserTable('users_90');
+		await push({ users });
 
-		await db.insert(usersTable).values({ name: 'Jane' });
-		const result2 = await db.select().from(usersTable);
-		expect(result2).toEqual([
+		await db.insert(users).values({ name: 'John' });
+		const result = await db.select().from(users);
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			verified: false,
+			jsonb: null,
+			createdAt: result[0]!.createdAt,
+		}]);
+
+		await db.insert(users).values({ name: 'Jane' });
+		const result2 = await db.select().from(users);
+		expect(result2).toStrictEqual([
 			{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 			{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
 		]);
 	});
 
-	test.concurrent('json insert', async ({ db }) => {
-		await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
+	test.concurrent('json insert', async ({ db, push }) => {
+		const users = createUserTable('users_91');
+		await push({ users });
+
+		await db.insert(users).values({ name: 'John', jsonb: ['foo', 'bar'] });
 		const result = await db.select({
-			id: usersTable.id,
-			name: usersTable.name,
-			jsonb: usersTable.jsonb,
-		}).from(usersTable);
+			id: users.id,
+			name: users.name,
+			jsonb: users.jsonb,
+		}).from(users);
 
-		expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
+		expect(result).toStrictEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 	});
 
-	test.concurrent('insert with overridden default values', async ({ db }) => {
-		await db.insert(usersTable).values({ name: 'John', verified: true });
-		const result = await db.select().from(usersTable);
+	test.concurrent('insert with overridden default values', async ({ db, push }) => {
+		const users = createUserTable('users_92');
+		await push({ users });
 
-		expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+		await db.insert(users).values({ name: 'John', verified: true });
+		const result = await db.select().from(users);
+
+		expect(result).toStrictEqual([{
+			id: 1,
+			name: 'John',
+			verified: true,
+			jsonb: null,
+			createdAt: result[0]!.createdAt,
+		}]);
 	});
 
-	test.concurrent('insert many', async ({ db }) => {
-		await db.insert(usersTable).values([
+	test.concurrent('insert many', async ({ db, push }) => {
+		const users = createUserTable('users_93');
+		await push({ users });
+
+		await db.insert(users).values([
 			{ name: 'John' },
 			{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 			{ name: 'Jane' },
 			{ name: 'Austin', verified: true },
 		]);
 		const result = await db.select({
-			id: usersTable.id,
-			name: usersTable.name,
-			jsonb: usersTable.jsonb,
-			verified: usersTable.verified,
-		}).from(usersTable);
+			id: users.id,
+			name: users.name,
+			jsonb: users.jsonb,
+			verified: users.verified,
+		}).from(users);
 
-		expect(result).toEqual([
+		expect(result).toStrictEqual([
 			{ id: 1, name: 'John', jsonb: null, verified: false },
 			{ id: 2, name: 'Bruce', jsonb: ['foo', 'bar'], verified: false },
 			{ id: 3, name: 'Jane', jsonb: null, verified: false },
@@ -135,8 +172,11 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
-	test.concurrent('insert many with returning', async ({ db }) => {
-		const result = await db.insert(usersTable).values([
+	test.concurrent('insert many with returning', async ({ db, push }) => {
+		const users = createUserTable('users_94');
+		await push({ users });
+
+		const result = await db.insert(users).values([
 			{ name: 'John' },
 			{ name: 'Bruce', jsonb: ['foo', 'bar'] },
 			{ name: 'Jane' },
@@ -145,24 +185,20 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(result[0].affectedRows).toBe(4);
 	});
-	test.concurrent('$default function', async ({ db }) => {
-		await db.execute(sql`drop table if exists \`orders\``);
-		await db.execute(
-			sql`
-						create table \`orders\` (
-							\`id\` serial primary key,
-							\`region\` text not null,
-							\`product\` text not null,
-							\`amount\` int not null,
-							\`quantity\` int not null
-						)
-					`,
-		);
+	test.concurrent('$default function', async ({ db, push }) => {
+		const orders = mysqlTable('orders', {
+			id: serial('id').primaryKey(),
+			region: text('region').notNull(),
+			product: text('product').notNull().$default(() => 'random_string'),
+			amount: int('amount').notNull(),
+			quantity: int('quantity').notNull(),
+		});
+		await push({ orders });
 
 		await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
 		const selectedOrder = await db.select().from(orders);
 
-		expect(selectedOrder).toEqual([{
+		expect(selectedOrder).toStrictEqual([{
 			id: 1,
 			amount: 1,
 			quantity: 1,
@@ -171,28 +207,18 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}]);
 	});
 
-	test.concurrent('$default with empty array', async ({ db }) => {
-		await db.execute(sql`drop table if exists \`s_orders\``);
-		await db.execute(
-			sql`
-						create table \`s_orders\` (
-							\`id\` serial primary key,
-							\`region\` text default ('Ukraine'),
-							\`product\` text not null
-						)
-					`,
-		);
-
-		const users = mysqlTable('s_orders', {
+	test.concurrent('$default with empty array', async ({ db, push }) => {
+		const sOrders = mysqlTable('s_orders', {
 			id: serial('id').primaryKey(),
 			region: text('region').default('Ukraine'),
 			product: text('product').$defaultFn(() => 'random_string'),
 		});
+		await push({ sOrders });
 
-		await db.insert(users).values({});
-		const selectedOrder = await db.select().from(users);
+		await db.insert(sOrders).values({});
+		const selectedOrder = await db.select().from(sOrders);
 
-		expect(selectedOrder).toEqual([{
+		expect(selectedOrder).toStrictEqual([{
 			id: 1,
 			region: 'Ukraine',
 			product: 'random_string',
@@ -201,100 +227,103 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// here
 
-	test.concurrent('Insert all defaults in 1 row', async ({ db }) => {
-		const users = mysqlTable('empty_insert_single', {
+	test.concurrent('Insert all defaults in 1 row', async ({ db, push }) => {
+		const users = mysqlTable('empty_insert_single_97', {
 			id: serial('id').primaryKey(),
 			name: text('name').default('Dan'),
 			state: text('state'),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-
-		await db.execute(
-			sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
-		);
+		await push({ users });
 
 		await db.insert(users).values({});
 
 		const res = await db.select().from(users);
 
-		expect(res).toEqual([{ id: 1, name: 'Dan', state: null }]);
+		expect(res).toStrictEqual([{ id: 1, name: 'Dan', state: null }]);
 	});
 
-	test.concurrent('Insert all defaults in multiple rows', async ({ db }) => {
-		const users = mysqlTable('empty_insert_multiple', {
+	test.concurrent('Insert all defaults in multiple rows', async ({ db, push }) => {
+		const users = mysqlTable('empty_insert_multiple_97', {
 			id: serial('id').primaryKey(),
 			name: text('name').default('Dan'),
 			state: text('state'),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-
-		await db.execute(
-			sql`create table ${users} (id serial primary key, name text default ('Dan'), state text)`,
-		);
+		await push({ users });
 
 		await db.insert(users).values([{}, {}]);
 
 		const res = await db.select().from(users);
 
-		expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+		expect(res).toStrictEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 	});
 
-	test.concurrent('insert with onDuplicate', async ({ db }) => {
-		await db.insert(usersTable)
+	test.concurrent('insert with onDuplicate', async ({ db, push }) => {
+		const users = createUserTable('users_98');
+		await push({ users });
+
+		await db.insert(users)
 			.values({ name: 'John' });
 
-		await db.insert(usersTable)
+		await db.insert(users)
 			.values({ id: 1, name: 'John' })
 			.onDuplicateKeyUpdate({ set: { name: 'John1' } });
 
-		const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-			eq(usersTable.id, 1),
+		const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+			eq(users.id, 1),
 		);
 
-		expect(res).toEqual([{ id: 1, name: 'John1' }]);
+		expect(res).toStrictEqual([{ id: 1, name: 'John1' }]);
 	});
 
-	test.concurrent('insert conflict', async ({ db }) => {
-		await db.insert(usersTable)
+	test.concurrent('insert conflict', async ({ db, push }) => {
+		const users = createUserTable('users_99');
+		await push({ users });
+
+		await db.insert(users)
 			.values({ name: 'John' });
 
 		await expect((async () => {
-			await db.insert(usersTable).values({ id: 1, name: 'John1' });
+			await db.insert(users).values({ id: 1, name: 'John1' });
 		})()).rejects.toThrowError();
 	});
 
-	test.concurrent('insert conflict with ignore', async ({ db }) => {
-		await db.insert(usersTable)
+	test.concurrent('insert conflict with ignore', async ({ db, push }) => {
+		const users = createUserTable('users_100');
+		await push({ users });
+
+		await db.insert(users)
 			.values({ name: 'John' });
 
-		await db.insert(usersTable)
+		await db.insert(users)
 			.ignore()
 			.values({ id: 1, name: 'John1' });
 
-		const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-			eq(usersTable.id, 1),
+		const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+			eq(users.id, 1),
 		);
 
-		expect(res).toEqual([{ id: 1, name: 'John' }]);
+		expect(res).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test.concurrent('insert sql', async ({ db }) => {
-		await db.insert(usersTable).values({ name: sql`${'John'}` });
-		const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
-		expect(result).toEqual([{ id: 1, name: 'John' }]);
+	test.concurrent('insert sql', async ({ db, push }) => {
+		const users = createUserTable('users_101');
+		await push({ users });
+
+		await db.insert(users).values({ name: sql`${'John'}` });
+		const result = await db.select({ id: users.id, name: users.name }).from(users);
+		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test.concurrent('full join with alias', async ({ db }) => {
+	test.concurrent('full join with alias', async ({ db, push }) => {
 		const mysqlTable = mysqlTableCreator((name) => `prefixed_${name}`);
-		const users = mysqlTable('users', {
+		const users = mysqlTable('users_102', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+		await push({ users });
 
 		const customers = alias(users, 'customer');
 
@@ -304,8 +333,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.leftJoin(customers, eq(customers.id, 11))
 			.where(eq(users.id, 10));
 
-		expect(result).toEqual([{
-			users: {
+		// TODO: revise: maybe query result should contain prefixed table name 'prefixed_users_102'
+		expect(result).toStrictEqual([{
+			users_102: {
 				id: 10,
 				name: 'Ivan',
 			},
@@ -314,20 +344,17 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				name: 'Hans',
 			},
 		}]);
-
-		await db.execute(sql`drop table ${users}`);
 	});
 
-	test.concurrent('select from alias', async ({ db }) => {
+	test.concurrent('select from alias', async ({ db, push }) => {
 		const mysqlTable = mysqlTableCreator((name) => `prefixed_${name}`);
 
-		const users = mysqlTable('users', {
+		const users = mysqlTable('users_103', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${users}`);
-		await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+		await push({ users });
 
 		const user = alias(users, 'user');
 		const customers = alias(users, 'customer');
@@ -339,7 +366,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.leftJoin(customers, eq(customers.id, 11))
 			.where(eq(user.id, 10));
 
-		expect(result).toEqual([{
+		expect(result).toStrictEqual([{
 			user: {
 				id: 10,
 				name: 'Ivan',
@@ -349,21 +376,25 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				name: 'Hans',
 			},
 		}]);
-
-		await db.execute(sql`drop table ${users}`);
 	});
 
-	test.concurrent('insert with spaces', async ({ db }) => {
-		await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
-		const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
+	test.concurrent('insert with spaces', async ({ db, push }) => {
+		const users = createUserTable('users_104');
+		await push({ users });
 
-		expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
+		await db.insert(users).values({ name: sql`'Jo   h     n'` });
+		const result = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(result).toStrictEqual([{ id: 1, name: 'Jo   h     n' }]);
 	});
 
-	test.concurrent('insert: placeholders on columns with encoder', async ({ db }) => {
+	test.concurrent('insert: placeholders on columns with encoder', async ({ db, push }) => {
+		const users = createUserTable('users_105');
+		await push({ users });
+
 		const date = new Date('2024-08-07T15:30:00Z');
 
-		const statement = db.insert(usersTable).values({
+		const statement = db.insert(users).values({
 			name: 'John',
 			createdAt: sql.placeholder('createdAt'),
 		}).prepare();
@@ -372,18 +403,21 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const result = await db
 			.select({
-				id: usersTable.id,
-				createdAt: usersTable.createdAt,
+				id: users.id,
+				createdAt: users.createdAt,
 			})
-			.from(usersTable);
+			.from(users);
 
-		expect(result).toEqual([
+		expect(result).toStrictEqual([
 			{ id: 1, createdAt: date },
 		]);
 	});
 
-	test.concurrent('prepared statement reuse', async ({ db }) => {
-		const stmt = db.insert(usersTable).values({
+	test.concurrent('prepared statement reuse', async ({ db, push }) => {
+		const users = createUserTable('users_106');
+		await push({ users });
+
+		const stmt = db.insert(users).values({
 			verified: true,
 			name: sql.placeholder('name'),
 		}).prepare();
@@ -393,12 +427,12 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 
 		const result = await db.select({
-			id: usersTable.id,
-			name: usersTable.name,
-			verified: usersTable.verified,
-		}).from(usersTable);
+			id: users.id,
+			name: users.name,
+			verified: users.verified,
+		}).from(users);
 
-		expect(result).toEqual([
+		expect(result).toStrictEqual([
 			{ id: 1, name: 'John 0', verified: true },
 			{ id: 2, name: 'John 1', verified: true },
 			{ id: 3, name: 'John 2', verified: true },
@@ -413,6 +447,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('migrator', async ({ db }) => {
+		// TODO: revise: not sure how to rewrite this test
 		await db.execute(sql`drop table if exists cities_migration`);
 		await db.execute(sql`drop table if exists users_migration`);
 		await db.execute(sql`drop table if exists users12`);
@@ -432,44 +467,41 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		await db.execute(sql`drop table __drizzle_migrations`);
 	});
 
-	test.concurrent('insert via db.execute + select via db.execute', async ({ db }) => {
-		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
+	test.concurrent('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const users = createUserTable('users_108');
+		await push({ users });
 
-		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
-		expect(result[0]).toEqual([{ id: 1, name: 'John' }]);
+		await db.execute(sql`insert into ${users} (${new Name(users.name.name)}) values (${'John'})`);
+
+		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${users}`);
+		expect(result[0]).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test.concurrent('insert via db.execute w/ query builder', async ({ db }) => {
+	test.concurrent('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const users = createUserTable('users_109');
+		await push({ users });
+
 		const inserted = await db.execute(
-			db.insert(usersTable).values({ name: 'John' }),
+			db.insert(users).values({ name: 'John' }),
 		);
 		expect(inserted[0].affectedRows).toBe(1);
 	});
 
-	test.concurrent('Mysql enum as ts enum', async ({ db }) => {
+	test.concurrent('Mysql enum as ts enum', async ({ db, push }) => {
 		enum Test {
 			a = 'a',
 			b = 'b',
 			c = 'c',
 		}
 
-		const tableWithTsEnums = mysqlTable('enums_test_case', {
+		const tableWithTsEnums = mysqlTable('enums_test_case_109', {
 			id: serial('id').primaryKey(),
 			enum1: mysqlEnum('enum1', Test).notNull(),
 			enum2: mysqlEnum('enum2', Test).default(Test.a),
 			enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
 		});
 
-		await db.execute(sql`drop table if exists \`enums_test_case\``);
-
-		await db.execute(sql`
-				create table \`enums_test_case\` (
-						\`id\` serial primary key,
-						\`enum1\` ENUM('a', 'b', 'c') not null,
-						\`enum2\` ENUM('a', 'b', 'c') default 'a',
-						\`enum3\` ENUM('a', 'b', 'c') not null default 'b'
-				)
-			`);
+		await push({ tableWithTsEnums });
 
 		await db.insert(tableWithTsEnums).values([
 			{ id: 1, enum1: Test.a, enum2: Test.b, enum3: Test.c },
@@ -479,29 +511,15 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const res = await db.select().from(tableWithTsEnums);
 
-		await db.execute(sql`drop table \`enums_test_case\``);
-
-		expect(res).toEqual([
+		expect(res).toStrictEqual([
 			{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
 			{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
 			{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
 		]);
 	});
-	test.concurrent('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
-		await db.execute(sql`drop table if exists ${usersOnUpdate}`);
-
-		await db.execute(
-			sql`
-					create table ${usersOnUpdate} (
-					id serial not null primary key,
-					name text not null,
-					update_counter integer default 1 not null,
-					updated_at datetime(3),
-					uppercase_name text,
-					always_null text
-					)
-				`,
-		);
+	test.concurrent('test $onUpdateFn and $onUpdate works as $default', async ({ db, push }) => {
+		const usersOnUpdate = createUsersOnUpdateTable('users_on_update_1');
+		await push({ usersOnUpdate });
 
 		await db.insert(usersOnUpdate).values([
 			{ name: 'John' },
@@ -515,7 +533,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const response = await db.select({ ...rest }).from(usersOnUpdate);
 
-		expect(response).toEqual([
+		expect(response).toStrictEqual([
 			{ name: 'John', id: 1, updateCounter: 1, uppercaseName: 'JOHN', alwaysNull: null },
 			{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
 			{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
@@ -528,21 +546,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 	});
 
-	test.concurrent('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
-		await db.execute(sql`drop table if exists ${usersOnUpdate}`);
-
-		await db.execute(
-			sql`
-					create table ${usersOnUpdate} (
-					id serial not null primary key,
-					name text not null,
-					update_counter integer default 1 not null,
-					updated_at datetime(3),
-					uppercase_name text,
-					always_null text
-					)
-				`,
-		);
+	test.concurrent('test $onUpdateFn and $onUpdate works updating', async ({ db, push }) => {
+		const usersOnUpdate = createUsersOnUpdateTable('users_on_update_2');
+		await push({ usersOnUpdate });
 
 		await db.insert(usersOnUpdate).values([
 			{ name: 'John', alwaysNull: 'this will will be null after updating' },
@@ -559,7 +565,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const response = await db.select({ ...rest }).from(usersOnUpdate);
 
-		expect(response).toEqual([
+		expect(response).toStrictEqual([
 			{ name: 'Angel', id: 1, updateCounter: 2, uppercaseName: null, alwaysNull: null },
 			{ name: 'Jane', id: 2, updateCounter: 1, uppercaseName: 'JANE', alwaysNull: null },
 			{ name: 'Jack', id: 3, updateCounter: 1, uppercaseName: 'JACK', alwaysNull: null },
@@ -574,30 +580,20 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 	});
 
-	test.concurrent('Object keys as column names', async ({ db }) => {
+	test.concurrent('Object keys as column names', async ({ db, push }) => {
 		// Tests the following:
 		// Column with required config
 		// Column with optional config without providing a value
 		// Column with optional config providing a value
 		// Column without config
-		const users = mysqlTable('users', {
+		const users = mysqlTable('users_114', {
 			id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
 			createdAt: timestamp(),
 			updatedAt: timestamp({ fsp: 3 }),
 			admin: boolean(),
 		});
 
-		await db.execute(sql`drop table if exists users`);
-		await db.execute(
-			sql`
-					create table users (
-						\`id\` bigint auto_increment primary key,
-						\`createdAt\` timestamp,
-						\`updatedAt\` timestamp(3),
-						\`admin\` boolean
-					)
-				`,
-		);
+		await push({ users });
 
 		await db.insert(users).values([
 			{ createdAt: sql`now() - interval 30 day`, updatedAt: sql`now() - interval 1 day`, admin: true },
@@ -614,76 +610,25 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				),
 			);
 
-		expect(result).toEqual([
+		expect(result).toStrictEqual([
 			{ id: 3, admin: false },
 		]);
-
-		await db.execute(sql`drop table users`);
 	});
 
-	test.concurrent('$count separate with filters', async ({ db }) => {
-		const countTestTable = mysqlTable('count_test', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
+	test.concurrent('update with limit and order by', async ({ db, push }) => {
+		const users = createUserTable('users_112');
+		await push({ users });
 
-		await db.execute(sql`drop table if exists ${countTestTable}`);
-		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
-
-		await db.insert(countTestTable).values([
-			{ id: 1, name: 'First' },
-			{ id: 2, name: 'Second' },
-			{ id: 3, name: 'Third' },
-			{ id: 4, name: 'Fourth' },
-		]);
-
-		const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
-
-		await db.execute(sql`drop table ${countTestTable}`);
-
-		expect(count).toStrictEqual(3);
-	});
-
-	test.concurrent('$count embedded with filters', async ({ db }) => {
-		const countTestTable = mysqlTable('count_test', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
-
-		await db.execute(sql`drop table if exists ${countTestTable}`);
-		await db.execute(sql`create table ${countTestTable} (id int, name text)`);
-
-		await db.insert(countTestTable).values([
-			{ id: 1, name: 'First' },
-			{ id: 2, name: 'Second' },
-			{ id: 3, name: 'Third' },
-			{ id: 4, name: 'Fourth' },
-		]);
-
-		const count = await db.select({
-			count: db.$count(countTestTable, gt(countTestTable.id, 1)),
-		}).from(countTestTable);
-
-		await db.execute(sql`drop table ${countTestTable}`);
-
-		expect(count).toStrictEqual([
-			{ count: 3 },
-			{ count: 3 },
-			{ count: 3 },
-			{ count: 3 },
-		]);
-	});
-	test.concurrent('update with limit and order by', async ({ db }) => {
-		await db.insert(usersTable).values([
+		await db.insert(users).values([
 			{ name: 'Barry', verified: false },
 			{ name: 'Alan', verified: false },
 			{ name: 'Carl', verified: false },
 		]);
 
-		await db.update(usersTable).set({ verified: true }).limit(2).orderBy(asc(usersTable.name));
+		await db.update(users).set({ verified: true }).limit(2).orderBy(asc(users.name));
 
-		const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
-			asc(usersTable.name),
+		const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+			asc(users.name),
 		);
 		expect(result).toStrictEqual([
 			{ name: 'Alan', verified: true },
@@ -692,17 +637,20 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
-	test.concurrent('delete with limit and order by', async ({ db }) => {
-		await db.insert(usersTable).values([
+	test.concurrent('delete with limit and order by', async ({ db, push }) => {
+		const users = createUserTable('users_113');
+		await push({ users });
+
+		await db.insert(users).values([
 			{ name: 'Barry', verified: false },
 			{ name: 'Alan', verified: false },
 			{ name: 'Carl', verified: false },
 		]);
 
-		await db.delete(usersTable).where(eq(usersTable.verified, false)).limit(1).orderBy(asc(usersTable.name));
+		await db.delete(users).where(eq(users.verified, false)).limit(1).orderBy(asc(users.name));
 
-		const result = await db.select({ name: usersTable.name, verified: usersTable.verified }).from(usersTable).orderBy(
-			asc(usersTable.name),
+		const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+			asc(users.name),
 		);
 		expect(result).toStrictEqual([
 			{ name: 'Barry', verified: false },
