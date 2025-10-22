@@ -248,3 +248,12 @@ export const citiesMySchemaTable = mySchema.table('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 });
+
+export const createMySchemaUsersTable = (name: string) =>
+	mySchema.table(name, {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: json('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	});

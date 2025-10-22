@@ -1,74 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import {
-	and,
-	asc,
-	avg,
-	avgDistinct,
-	count,
-	countDistinct,
-	eq,
-	exists,
-	gt,
-	gte,
-	inArray,
-	like,
-	lt,
-	max,
-	min,
-	not,
-	notInArray,
-	sql,
-	sum,
-	sumDistinct,
-	TransactionRollbackError,
-} from 'drizzle-orm';
-import {
-	alias,
-	bigint,
-	boolean,
-	date,
-	datetime,
-	decimal,
-	except,
-	exceptAll,
-	getTableConfig,
-	getViewConfig,
-	index,
-	int,
-	intersect,
-	intersectAll,
-	json,
-	mysqlEnum,
-	mysqlTable,
-	mysqlTableCreator,
-	mysqlView,
-	primaryKey,
-	serial,
-	text,
-	time,
-	timestamp,
-	union,
-	unionAll,
-	varchar,
-	year,
-} from 'drizzle-orm/mysql-core';
+import { eq, sql } from 'drizzle-orm';
+import { alias, getViewConfig, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { Expect, toLocalDate } from '~/utils.ts';
 import type { Equal } from '~/utils.ts';
 import { type Test } from './instrumentation';
 import {
-	aggregateTable,
-	allTypesTable,
-	cities3,
 	citiesMySchemaTable,
-	citiesTable,
-	createUserTable,
+	createMySchemaUsersTable,
 	mySchema,
-	orders,
 	users2MySchemaTable,
-	users2Table,
-	users3,
 	usersMySchemaTable,
 	usersTable,
 } from './schema2';
@@ -84,6 +25,82 @@ async function setupReturningFunctionsTest(batch: (s: string[]) => Promise<void>
 export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
+	});
+	// mySchema tests
+	test.only('mySchema :: select all fields', async ({ db, push }) => {
+		const mySchemaUsers = createMySchemaUsersTable('users_1');
+		await push({ mySchema, mySchemaUsers });
+		await db.insert(mySchemaUsers).values({ name: 'John' });
+		const result = await db.select().from(mySchemaUsers);
+
+		expect(result[0]!.createdAt).toBeInstanceOf(Date);
+		// not timezone based timestamp, thats why it should not work here
+		// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
+		expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+	});
+
+	test('mySchema :: select sql', async ({ db }) => {
+		await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
+
+		await db.insert(usersMySchemaTable).values({ name: 'John' });
+		const users = await db.select({
+			name: sql`upper(${usersMySchemaTable.name})`,
+		}).from(usersMySchemaTable);
+
+		expect(users).toEqual([{ name: 'JOHN' }]);
+	});
+
+	test('mySchema :: select typed sql', async ({ db }) => {
+		await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
+
+		await db.insert(usersMySchemaTable).values({ name: 'John' });
+		const users = await db.select({
+			name: sql<string>`upper(${usersMySchemaTable.name})`,
+		}).from(usersMySchemaTable);
+
+		expect(users).toEqual([{ name: 'JOHN' }]);
+	});
+
+	test('mySchema :: select distinct', async ({ db }) => {
+		const usersDistinctTable = mysqlTable('users_distinct', {
+			id: int('id').notNull(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersDistinctTable}`);
+		await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+
+		await db.insert(usersDistinctTable).values([
+			{ id: 1, name: 'John' },
+			{ id: 1, name: 'John' },
+			{ id: 2, name: 'John' },
+			{ id: 1, name: 'Jane' },
+		]);
+		const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
+			usersDistinctTable.id,
+			usersDistinctTable.name,
+		);
+
+		await db.execute(sql`drop table ${usersDistinctTable}`);
+
+		expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+	});
+
+	test('mySchema :: insert returning sql', async ({ db }) => {
+		await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
+
+		const [result, _] = await db.insert(usersMySchemaTable).values({ name: 'John' });
+
+		expect(result.insertId).toBe(1);
+	});
+
+	test('mySchema :: delete returning sql', async ({ db }) => {
+		await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
+
+		await db.insert(usersMySchemaTable).values({ name: 'John' });
+		const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John'));
+
+		expect(users[0].affectedRows).toBe(1);
 	});
 
 	test('mySchema :: update with returning partial', async ({ db }) => {
