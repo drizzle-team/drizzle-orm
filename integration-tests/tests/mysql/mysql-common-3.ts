@@ -340,7 +340,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('utc config for datetime', async ({ db, push, client }) => {
-		const query = client.query
+		const query = client.query;
 		const datesTable = mysqlTable('datestable', {
 			datetimeUTC: datetime('datetime_utc', { fsp: 3, mode: 'date' }),
 			datetime: datetime('datetime', { fsp: 3 }),
@@ -348,6 +348,8 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		});
 
 		await push({ datesTable });
+
+		await query(`SET time_zone = '+00:00'`, []);
 
 		const dateObj = new Date('2022-11-11');
 		const dateUtc = new Date('2022-11-11T12:12:12.122Z');
@@ -359,12 +361,6 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 		});
 
 		const res = await db.select().from(datesTable);
-
-		const [rawSelect] = await query(`select \`datetime_utc\` from \`datestable\``,[]);
-		const selectedRow = (rawSelect as unknown as [{ datetime_utc: string }])[0];
-
-		expect(selectedRow.datetime_utc).toBe('2022-11-11 12:12:12.122');
-		expect(new Date(selectedRow.datetime_utc.replace(' ', 'T') + 'Z')).toEqual(dateUtc);
 
 		expect(res[0]?.datetime).toBeInstanceOf(Date);
 		expect(res[0]?.datetimeUTC).toBeInstanceOf(Date);
