@@ -15,9 +15,11 @@ import {
 	longblob,
 	mediumblob,
 	mediumint,
+	MySqlColumn,
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
+	MySqlTableWithColumns,
 	real,
 	serial,
 	smallint,
@@ -131,13 +133,34 @@ export const cities3 = mysqlTable('cities3', {
 export const users2Table = mysqlTable('users2', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	cityId: int('city_id').references(() => citiesTable.id),
+	cityId: bigint('city_id', { mode: 'number', unsigned: true }).references(() => citiesTable.id),
 });
 
 export const citiesTable = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 });
+
+export const createCitiesTable = (name: string) =>
+	mysqlTable(name, {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+export const createUsers2Table = (
+	name: string,
+	citiesTable: MySqlTableWithColumns<{
+		name: string;
+		schema: undefined;
+		dialect: 'mysql';
+		columns: { id: MySqlColumn<any> };
+	}>,
+) =>
+	mysqlTable(name, {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id').references(() => citiesTable.id),
+	});
 
 export const usersOnUpdate = mysqlTable('users_on_update', {
 	id: serial('id').primaryKey(),
@@ -193,6 +216,16 @@ export const aggregateTable = mysqlTable('aggregate_table', {
 	c: int('c'),
 	nullOnly: int('null_only'),
 });
+
+export const createAggregateTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').notNull(),
+		name: text('name').notNull(),
+		a: int('a'),
+		b: int('b'),
+		c: int('c'),
+		nullOnly: int('null_only'),
+	});
 
 // To test another schema and multischema
 export const mySchema = mysqlSchema(`mySchema`);

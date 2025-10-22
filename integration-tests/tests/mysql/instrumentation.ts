@@ -13,7 +13,7 @@ import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
 import type { MysqlSchema } from '../../../drizzle-kit/tests/mysql/mocks';
-import { diff, push } from '../../../drizzle-kit/tests/mysql/mocks';
+import { diff } from '../../../drizzle-kit/tests/mysql/mocks';
 import { relations } from './schema';
 
 import { connect, type Connection } from '@tidbcloud/serverless';
@@ -113,9 +113,9 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 			};
 			db: MySqlDatabase<any, any, never, typeof relations>;
 			push: (schema: MysqlSchema) => Promise<void>;
-			seed: (
-				schema: MysqlSchema,
-				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
+			seed: <Schema extends MysqlSchema>(
+				schema: Schema,
+				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
 			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {
@@ -246,7 +246,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 			{ scope: 'worker' },
 		],
 		push: [
-			async ({ db, client }, use) => {
+			async ({ client }, use) => {
 				const { query } = client;
 				const push = (
 					schema: MysqlSchema,
@@ -257,7 +257,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 			{ scope: 'worker' },
 		],
 		seed: [
-			async ({ db, client }, use) => {
+			async ({ db }, use) => {
 				const seed = (
 					schema: MysqlSchema,
 					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, MysqlSchema>,
