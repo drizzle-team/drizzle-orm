@@ -63,7 +63,6 @@ export default defineConfig({
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
-			'tests/mysql/tidb-serverless.test.ts',
 			'js-tests/driver-init/module/planetscale.test.mjs',
 			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',
