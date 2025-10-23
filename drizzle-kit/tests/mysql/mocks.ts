@@ -9,6 +9,7 @@ import {
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
+import { v4 as uuid } from 'uuid';
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
@@ -28,7 +29,6 @@ import { serializeMysql } from '../../src/legacy/mysql-v5/serializer';
 import { DB } from '../../src/utils';
 import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
-import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -72,8 +72,8 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const mappedErrors1 = err1.map((it:any) => schemaError(it));
-	const mappedErrors2 = err2.map((it:any) => schemaError(it));
+	const mappedErrors1 = err1.map((it: any) => schemaError(it));
+	const mappedErrors2 = err2.map((it: any) => schemaError(it));
 
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,

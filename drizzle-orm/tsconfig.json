@@ -1,14 +1,14 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "~/*": ["src/*"]
-    },
-    "declaration": true,
-    "outDir": "dist",
-    "noEmit": true,
-    "allowImportingTsExtensions": true
-  },
-  "include": ["src", "scripts", "types-bench.ts"]
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"~/*": ["src/*"]
+		},
+		"declaration": true,
+		"outDir": "dist",
+		"noEmit": true,
+		"allowImportingTsExtensions": true
+	},
+	"include": ["src", "scripts", "types-bench.ts"]
 }
