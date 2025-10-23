@@ -6,10 +6,12 @@
 	"scripts": {
 		"p": "prisma generate --schema src/prisma/schema.prisma",
 		"build": "pnpm p && scripts/build.ts",
+		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
 	"main": "./index.cjs",
