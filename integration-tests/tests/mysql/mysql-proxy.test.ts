@@ -1,69 +1,7 @@
-import * as mysql from 'mysql2/promise';
-import { skipTests } from '~/common';
+import { proxyTest } from './instrumentation';
 import { tests } from './mysql-common';
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-class ServerSimulator {
-	constructor(private db: mysql.Connection) {}
-
-	async query(sql: string, params: any[], method: 'all' | 'execute') {
-		if (method === 'all') {
-			try {
-				const result = await this.db.query({
-					sql,
-					values: params,
-					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
-				});
-
-				return { data: result[0] as any };
-			} catch (e: any) {
-				return { error: e };
-			}
-		} else if (method === 'execute') {
-			try {
-				const result = await this.db.query({
-					sql,
-					values: params,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
-				});
-
-				return { data: result as any };
-			} catch (e: any) {
-				return { error: e };
-			}
-		} else {
-			return { error: 'Unknown method value' };
-		}
-	}
-
-	async migrations(queries: string[]) {
-		await this.db.query('START TRANSACTION');
-		try {
-			for (const query of queries) {
-				await this.db.query(query);
-			}
-			await this.db.query('COMMIT');
-		} catch (e) {
-			await this.db.query('ROLLBACK');
-			throw e;
-		}
-
-		return {};
-	}
-}
-
-skipTests([
+const omit = new Set([
 	'select iterator w/ prepared statement',
 	'select iterator',
 	'nested transaction rollback',
@@ -82,5 +20,4 @@ skipTests([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
-new ServerSimulator({} as any)
-tests("mysql",{} as any);
+tests(proxyTest, omit);
