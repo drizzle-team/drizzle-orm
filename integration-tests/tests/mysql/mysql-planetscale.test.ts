@@ -57,5 +57,5 @@ const omit = new Set([
 	'insert returning sql',
 ]);
 
-tests('planetscale', planetscaleTest, omit);
+tests(planetscaleTest, omit);
 cacheTests('planetscale', planetscaleTest);
