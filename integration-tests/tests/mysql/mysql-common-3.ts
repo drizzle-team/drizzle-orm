@@ -6,7 +6,7 @@ import { expect } from 'vitest';
 import { type Test } from './instrumentation';
 import { createCitiesTable, createUsers2Table, createUserTable } from './schema2';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});
@@ -341,7 +341,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 
 	test.concurrent('utc config for datetime', async ({ db, push, client }) => {
 		const query = client.query;
-		const datesTable = mysqlTable('datestable', {
+		const datesTable = mysqlTable('datestable_2', {
 			datetimeUTC: datetime('datetime_utc', { fsp: 3, mode: 'date' }),
 			datetime: datetime('datetime', { fsp: 3 }),
 			datetimeAsString: datetime('datetime_as_string', { mode: 'string' }),

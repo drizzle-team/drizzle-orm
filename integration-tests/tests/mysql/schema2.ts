@@ -59,11 +59,11 @@ export const allTypesTable = mysqlTable('all_types', {
 	}),
 	decimal: decimal('decimal'),
 	decimalNum: decimal('decimal_num', {
-		scale: 30,
+		precision: 30,
 		mode: 'number',
 	}),
 	decimalBig: decimal('decimal_big', {
-		scale: 30,
+		precision: 30,
 		mode: 'bigint',
 	}),
 	double: double('double'),
@@ -110,37 +110,6 @@ export const createUserTable = (name: string) => {
 	});
 };
 
-export const oneUser = createUserTable('one_user');
-export const threeUsers = createUserTable('three_users');
-export const ivanhans = createUserTable('ivanhans');
-export const usersTable = createUserTable('userstest');
-
-export const usersDistinct = mysqlTable('users_distinct', {
-	id: int('id').notNull(),
-	name: text('name').notNull(),
-});
-
-export const users3 = mysqlTable('users3', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: int('city_id').references(() => cities3.id),
-});
-export const cities3 = mysqlTable('cities3', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-});
-
-export const users2Table = mysqlTable('users2', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	cityId: bigint('city_id', { mode: 'number', unsigned: true }).references(() => citiesTable.id),
-});
-
-export const citiesTable = mysqlTable('cities', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-});
-
 export const createCitiesTable = (name: string) =>
 	mysqlTable(name, {
 		id: int('id').primaryKey(),
@@ -162,14 +131,21 @@ export const createUsers2Table = (
 		cityId: int('city_id').references(() => citiesTable.id),
 	});
 
-export const usersOnUpdate = mysqlTable('users_on_update', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
-	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
-	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
-});
+export const createUsersOnUpdateTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+		updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).$onUpdate(() => new Date()),
+		uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
+		alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
+	});
+
+export const createCountTestTable = (name: string) =>
+	mysqlTable(name, {
+		id: int('id').notNull(),
+		name: text('name').notNull(),
+	});
 
 export const datesTable = mysqlTable('datestable', {
 	date: date('date'),
@@ -193,13 +169,14 @@ export const courseCategoriesTable = mysqlTable('course_categories', {
 	name: text('name').notNull(),
 });
 
-export const orders = mysqlTable('orders', {
-	id: serial('id').primaryKey(),
-	region: text('region').notNull(),
-	product: text('product').notNull().$default(() => 'random_string'),
-	amount: int('amount').notNull(),
-	quantity: int('quantity').notNull(),
-});
+export const createOrdersTable = (name: string) =>
+	mysqlTable(name, {
+		id: serial('id').primaryKey(),
+		region: text('region').notNull(),
+		product: text('product').notNull().$default(() => 'random_string'),
+		amount: int('amount').notNull(),
+		quantity: int('quantity').notNull(),
+	});
 
 export const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
@@ -208,15 +185,6 @@ export const usersMigratorTable = mysqlTable('users12', {
 }, (table) => [uniqueIndex('').on(table.name).using('btree')]);
 
 // To test aggregate functions
-export const aggregateTable = mysqlTable('aggregate_table', {
-	id: serial('id').notNull(),
-	name: text('name').notNull(),
-	a: int('a'),
-	b: int('b'),
-	c: int('c'),
-	nullOnly: int('null_only'),
-});
-
 export const createAggregateTable = (name: string) =>
 	mysqlTable(name, {
 		id: serial('id').notNull(),
@@ -241,19 +209,10 @@ export const usersMySchemaTable = mySchema.table('userstest', {
 export const users2MySchemaTable = mySchema.table('users2', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	cityId: int('city_id').references(() => citiesTable.id),
+	cityId: int('city_id').references(() => citiesMySchemaTable.id),
 });
 
 export const citiesMySchemaTable = mySchema.table('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 });
-
-export const createMySchemaUsersTable = (name: string) =>
-	mySchema.table(name, {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		verified: boolean('verified').notNull().default(false),
-		jsonb: json('jsonb').$type<string[]>(),
-		createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
-	});

@@ -9,17 +9,19 @@ import { tests as tests4 } from './mysql-common-4';
 import { tests as tests5 } from './mysql-common-5';
 import { tests as tests6 } from './mysql-common-6';
 import { tests as tests7 } from './mysql-common-7';
+import { tests as tests8 } from './mysql-common-8';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});
 
-	tests1(vendor, test, exclude);
-	tests2(vendor, test, exclude);
-	tests3(vendor, test, exclude);
-	tests4(vendor, test, exclude);
+	tests1(test, exclude);
+	tests2(test, exclude);
+	tests3(test, exclude);
+	tests4(test, exclude);
 	tests5(test, exclude);
-	tests6(vendor, test, exclude);
-	// tests7(vendor, test, exclude);
+	tests6(test, exclude);
+	tests7(test, exclude);
+	tests8(test, exclude);
 }

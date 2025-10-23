@@ -47,7 +47,6 @@
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
 		"@js-temporal/polyfill": "^0.5.1",
-		"@vitest/utils": "4.0.0-beta.19",
 		"esbuild": "^0.25.10",
 		"esbuild-register": "^3.6.0"
 	},
