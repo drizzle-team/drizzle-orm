@@ -25,14 +25,6 @@ jobs:
         run: |
           pnpm fetch
           pnpm install --frozen-lockfile --prefer-offline
-      - name: Cache TS build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/*.tsbuildinfo
-            **/dist
-          key: tsc-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml', '**/tsconfig*.json', '**/src/**/*') }}
-          restore-keys: tsc-${{ runner.os }}-
       - name: Compute version suffix
         id: meta
         shell: bash
