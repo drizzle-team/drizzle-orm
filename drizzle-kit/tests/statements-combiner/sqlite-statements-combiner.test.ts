@@ -144,7 +144,7 @@ test(`renamed column and altered this column type`, async (t) => {
 	);
 });
 
-test(`renamed column and droped column "test"`, async (t) => {
+test(`renamed column and dropped column "test"`, async (t) => {
 	const statements: JsonStatement[] = [
 		{
 			type: 'alter_table_rename_column',
@@ -259,7 +259,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 	);
 });
 
-test(`droped column that is part of composite pk`, async (t) => {
+test(`dropped column that is part of composite pk`, async (t) => {
 	const statements: JsonStatement[] = [
 		{ type: 'delete_composite_pk', tableName: 'user', data: 'id,iq' },
 		{
@@ -642,7 +642,7 @@ test(`drop column "ref"."name", rename column "ref"."age". dropped primary key "
 	);
 });
 
-test(`create reference on exising column (table includes unique index). expect to recreate column and recreate index`, async (t) => {
+test(`create reference on existing column (table includes unique index). expect to recreate column and recreate index`, async (t) => {
 	const statements: JsonStatement[] = [
 		{
 			type: 'create_reference',
