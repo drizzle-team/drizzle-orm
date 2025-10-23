@@ -7,7 +7,6 @@ on:
   pull_request: {}
 
 concurrency:
-
   group: feature-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -34,7 +33,6 @@ jobs:
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
-
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
         uses: actions/upload-artifact@v4
@@ -43,30 +41,10 @@ jobs:
           path: |
             **/dist
             **/*.tsbuildinfo
-
-      # Pack & upload per-package tarballs (for attw/release)
-      - name: Pack drizzle-orm
-        working-directory: drizzle-orm
-        run: |
-          v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
-          npm version "$v"
-          npm run pack:artifact
+      - name: Pack
+        run: pnpm pack:artifact
       - uses: actions/upload-artifact@v4
-        with:
-          name: drizzle-orm
-          path: drizzle-orm/package.tgz
-
-      - name: Pack other packages
-        shell: bash
-        run: |
-          set -euxo pipefail
-          for p in drizzle-kit drizzle-zod drizzle-seed drizzle-typebox drizzle-valibot drizzle-arktype eslint-plugin-drizzle; do
-            pushd "$p"
-            v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
-            npm version "$v"
-            npm run pack:artifact
-            popd
-          done
+        with: { name: drizzle-orm, path: drizzle-orm/package.tgz }
       - uses: actions/upload-artifact@v4
         with: { name: drizzle-kit, path: drizzle-kit/package.tgz }
       - uses: actions/upload-artifact@v4
@@ -141,7 +119,7 @@ jobs:
             dbs: []
           - shard: int:other
             dbs: [postgres, mysql, mssql, cockroach, singlestore]
-
+    name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -230,14 +208,6 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            int:planetscale)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run \
-                  tests/mysql/mysql-planetscale.test.ts \
-                  tests/relational/mysql.planetscale-v1.test.ts \
-                  tests/relational/mysql.planetscale.test.ts
-              fi
-            ;;
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
             int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
@@ -252,7 +222,13 @@ jobs:
               pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
             int:mysql)
-              pnpm test:mysql 
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                TIDB_CONNECTION_STRING=${{ secrets.TIDB_CONNECTION_STRING }} \
+                PLANETSCALE_CONNECTION_STRING=${{ secrets.PLANETSCALE_CONNECTION_STRING }} \
+                pnpm test:mysql
+              else
+                pnpm test:mysql:default
+              fi
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
