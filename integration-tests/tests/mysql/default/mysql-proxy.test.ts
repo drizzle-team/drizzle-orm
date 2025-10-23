@@ -82,5 +82,5 @@ skipTests([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
-new ServerSimulator({} as any)
+new ServerSimulator({} as any);
 tests({} as any);

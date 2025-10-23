@@ -1,4 +1,5 @@
 import { Client } from '@planetscale/database';
+import { connect, type Connection } from '@tidbcloud/serverless';
 import { getTableName, is, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
@@ -7,16 +8,13 @@ import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
+import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
 import { FunctionsVersioning, InferCallbackType, seed } from 'drizzle-seed';
 import Keyv from 'keyv';
 import { createConnection } from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
 import { relations } from './schema';
-import { connect, type Connection } from '@tidbcloud/serverless';
-import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
-
-
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
@@ -94,7 +92,7 @@ const _push = async (
 	schema: any,
 	vendor: string,
 ) => {
-	const { diff } = await import('../../../drizzle-kit/tests/mysql/mocks' as string) ;
+	const { diff } = await import('../../../drizzle-kit/tests/mysql/mocks' as string);
 
 	const res = await diff({}, schema, []);
 	for (const s of res.sqlStatements) {
@@ -148,8 +146,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 		}
 	>({
 		client: [
-			// oxlint-disable-line no-empty-pattern
-			async ({}, use) => {
+			async (_, use) => {
 				if (vendor === 'mysql') {
 					const envurl = process.env['MYSQL_CONNECTION_STRING'];
 					if (!envurl) throw new Error('No mysql url provided');
