@@ -228,8 +228,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 		}
 	>({
 		client: [
-			// oxlint-disable-line no-empty-pattern
-			async ({}, use) => {
+			async (_, use) => {
 				if (vendor === 'mysql' || vendor === 'mysql-proxy') {
 					const envurl = process.env['MYSQL_CONNECTION_STRING'];
 					if (!envurl) throw new Error('No mysql url provided');

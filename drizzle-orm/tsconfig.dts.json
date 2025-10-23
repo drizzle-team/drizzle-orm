@@ -7,7 +7,7 @@
 		"declaration": true,
 		"noEmit": false,
 		"emitDeclarationOnly": true,
-		"incremental": false,
+		"incremental": false
 	},
 	"include": ["src"]
 }
