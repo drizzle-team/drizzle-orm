@@ -196,7 +196,7 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main`
+          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true

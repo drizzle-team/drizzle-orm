@@ -1,5 +1,5 @@
 services:
-  postgres:
+  gel:
     image: geldata/gel:latest
     environment:
       GEL_CLIENT_SECURITY: insecure_dev_mode  
