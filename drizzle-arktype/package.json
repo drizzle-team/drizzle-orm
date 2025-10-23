@@ -5,9 +5,11 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsx scripts/build.ts",
+		"build:artifact": "pnpm run build",
 		"b": "pnpm build",
 		"test:types": "cd tests && tsc",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
 		"test": "vitest run",
 		"bench:types": "tsx ./benchmarks/types.ts"

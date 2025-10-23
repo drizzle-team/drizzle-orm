@@ -4,10 +4,12 @@
 	"description": "Generate valibot schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
+		"build:artifact": "pnpm run build",
 		"build": "tsx scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd tests && tsc",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
 		"test": "vitest run"
 	},

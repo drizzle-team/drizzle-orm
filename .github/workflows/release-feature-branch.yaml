@@ -7,7 +7,6 @@ on:
   pull_request: {}
 
 concurrency:
-
   group: feature-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -15,24 +14,16 @@ jobs:
   prepare:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
-      - name: pnpm fetch + install
-        run: |
-          pnpm fetch
-          pnpm install --frozen-lockfile --prefer-offline
-      - name: Cache TS build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/*.tsbuildinfo
-            **/dist
-          key: tsc-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml', '**/tsconfig*.json', '**/src/**/*') }}
-          restore-keys: tsc-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
         shell: bash
@@ -41,8 +32,7 @@ jobs:
         working-directory: drizzle-orm
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
-        run: pnpm build
-
+        run: pnpm build:artifact
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
         uses: actions/upload-artifact@v4
@@ -51,30 +41,10 @@ jobs:
           path: |
             **/dist
             **/*.tsbuildinfo
-
-      # Pack & upload per-package tarballs (for attw/release)
-      - name: Pack drizzle-orm
-        working-directory: drizzle-orm
-        run: |
-          v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
-          npm version "$v"
-          npm run pack
+      - name: Pack
+        run: pnpm pack:artifact
       - uses: actions/upload-artifact@v4
-        with:
-          name: drizzle-orm
-          path: drizzle-orm/package.tgz
-
-      - name: Pack other packages
-        shell: bash
-        run: |
-          set -euxo pipefail
-          for p in drizzle-kit drizzle-zod drizzle-seed drizzle-typebox drizzle-valibot drizzle-arktype eslint-plugin-drizzle; do
-            pushd "$p"
-            v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
-            npm version "$v"
-            npm run pack
-            popd
-          done
+        with: { name: drizzle-orm, path: drizzle-orm/package.tgz }
       - uses: actions/upload-artifact@v4
         with: { name: drizzle-kit, path: drizzle-kit/package.tgz }
       - uses: actions/upload-artifact@v4
@@ -97,6 +67,8 @@ jobs:
         with:
           name: build-ready
           path: .gh/build-ready
+      - name: test:types & lint
+        run: pnpm test:types-lint
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
@@ -107,59 +79,53 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: gel
+          - shard: int:gel
             dbs: []
-          # - shard: planetscale
-          #   dbs: [mysql]
-          - shard: singlestore-core
+          - shard: int:singlestore-core
             dbs: [singlestore]
-          - shard: singlestore-proxy
+          - shard: int:singlestore-proxy
             dbs: [singlestore]
-          - shard: singlestore-prefixed
+          - shard: int:singlestore-prefixed
             dbs: [singlestore]
-          - shard: singlestore-custom
+          - shard: int:singlestore-custom
             dbs: [singlestore]
-          # - shard: neon-http
+          - shard: int:mysql
+            dbs: [mysql]
+          # - shard: int:neon-http
           #   dbs: []
-          # - shard: neon-serverless
+          # - shard: int:neon-serverless
           #   dbs: [neon]
-          - shard: cockroach
+          - shard: int:cockroach
             dbs: [cockroach]
-          - shard: mssql
+          - shard: int:mssql
             dbs: [mssql]
-          - shard: drizzle-orm
+          - shard: orm
             dbs: []
-          - shard: drizzle-kit
+          - shard: kit
             dbs: [postgres, mysql, mssql, cockroach]
-          - shard: drizzle-kit-cockroach
+          - shard: kit:cockroach
             dbs: [cockroach]
-          - shard: drizzle-kit-mssql
+          - shard: kit:mssql
             dbs: [mssql]
-          - shard: drizzle-zod
+          - shard: zod
             dbs: []
-          - shard: drizzle-seed
+          - shard: seed
             dbs: []
-          - shard: drizzle-typebox
+          - shard: typebox
             dbs: []
-          - shard: drizzle-valibot
+          - shard: valibot
             dbs: []
-          - shard: drizzle-arktype
+          - shard: arktype
             dbs: []
-          - shard: other
+          - shard: int:other
             dbs: [postgres, mysql, mssql, cockroach, singlestore]
-
+    name: ${{ matrix.shard }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-      - run: pnpm fetch
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -237,50 +203,53 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            gel)
+            int:gel)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            planetscale)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run \
-                  tests/mysql/mysql-planetscale.test.ts \
-                  tests/relational/mysql.planetscale-v1.test.ts \
-                  tests/relational/mysql.planetscale.test.ts
-              fi
-            ;;
-            singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
-            singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
-            singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
-            singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
-            neon-http)
+            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
+            int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
+            int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
+            int:neon-http)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
               fi
             ;;
-            neon-serverless)
+            int:neon-serverless)
               trap "docker compose -f docker-neon.yml down -v" EXIT
               pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
-            cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            drizzle-kit)
+            int:mysql)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                TIDB_CONNECTION_STRING=${{ secrets.TIDB_CONNECTION_STRING }} \
+                PLANETSCALE_CONNECTION_STRING=${{ secrets.PLANETSCALE_CONNECTION_STRING }} \
+                pnpm test:mysql
+              else
+                pnpm test:mysql:default
+              fi
+            ;;
+            int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            kit)
               cd ../drizzle-kit
               pnpm test:types
               pnpm --stream vitest --reporter=verbose --silent=false run --exclude tests/cockroach --exclude tests/mssql
             ;;
-            drizzle-kit-cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            drizzle-kit-mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
-              (cd .. && pnpm test --filter ${{ matrix.shard }})
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            orm|zod|seed|typebox|valibot|arktype)
+              (cd .. && pnpm test --filter drizzle-${{ matrix.shard }})
             ;;
-            other)
+            int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
                 --exclude tests/gel \
-                --exclude tests/mysql/mysql-planetscale.test.ts \
+                --exclude tests/mysql \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
+                --exclude tests/relational/mysql-v1.test.ts \
+                --exclude tests/relational/mysql.test.ts \
                 --exclude tests/singlestore/singlestore.test.ts \
                 --exclude tests/singlestore/singlestore-proxy.test.ts \
                 --exclude tests/singlestore/singlestore-prefixed.test.ts \
@@ -291,6 +260,7 @@ jobs:
                 --exclude tests/cockroach \
                 --exclude tests/mssql
             ;;
+            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
       - name: Stop DBs
