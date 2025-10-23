@@ -5,6 +5,7 @@ import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
@@ -12,6 +13,7 @@ import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
 import { FunctionsVersioning, InferCallbackType, seed } from 'drizzle-seed';
 import Keyv from 'keyv';
 import { createConnection } from 'mysql2/promise';
+import * as mysql from 'mysql2/promise';
 import type { Mock } from 'vitest';
 import { test as base, vi } from 'vitest';
 import { relations } from './schema';
@@ -78,6 +80,67 @@ export class TestCache extends Cache {
 	}
 }
 
+// eslint-disable-next-line drizzle-internal/require-entity-kind
+class ServerSimulator {
+	constructor(private db: mysql.Connection) {}
+
+	async query(sql: string, params: any[], method: 'all' | 'execute') {
+		if (method === 'all') {
+			try {
+				const result = await this.db.query({
+					sql,
+					values: params,
+					rowsAsArray: true,
+					typeCast: function(field: any, next: any) {
+						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+							return field.string();
+						}
+						return next();
+					},
+				});
+
+				return { data: result[0] as any };
+			} catch (e: any) {
+				return { error: e };
+			}
+		} else if (method === 'execute') {
+			try {
+				const result = await this.db.query({
+					sql,
+					values: params,
+					typeCast: function(field: any, next: any) {
+						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+							return field.string();
+						}
+						return next();
+					},
+				});
+
+				return { data: result as any };
+			} catch (e: any) {
+				return { error: e };
+			}
+		} else {
+			return { error: 'Unknown method value' };
+		}
+	}
+
+	async migrations(queries: string[]) {
+		await this.db.query('START TRANSACTION');
+		try {
+			for (const query of queries) {
+				await this.db.query(query);
+			}
+			await this.db.query('COMMIT');
+		} catch (e) {
+			await this.db.query('ROLLBACK');
+			throw e;
+		}
+
+		return {};
+	}
+}
+
 export type MysqlSchema = Record<
 	string,
 	MySqlTable<any> | MySqlSchema | MySqlView
@@ -113,7 +176,23 @@ const _seed = async <Schema extends MysqlSchema>(
 	return refineCallback === undefined ? seed(db, schema) : seed(db, schema).refine(refineCallback);
 };
 
-const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
+const createProxyHandler = (client: mysql.Connection) => {
+	const serverSimulator = new ServerSimulator(client);
+	const proxyHandler = async (sql: string, params: any[], method: any) => {
+		try {
+			const response = await serverSimulator.query(sql, params, method);
+			if (response.error !== undefined) {
+				throw response.error;
+			}
+			return { rows: response.data };
+		} catch (e: any) {
+			console.error('Error from mysql proxy server:', e.message);
+			throw e;
+		}
+	};
+	return proxyHandler;
+};
+const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') => {
 	return base.extend<
 		{
 			client: {
@@ -121,6 +200,9 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
+			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
+			// 	rows: any;
+			// }>;
 			db: MySqlDatabase<any, any, never, typeof relations>;
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
@@ -147,7 +229,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 	>({
 		client: [
 			async (_, use) => {
-				if (vendor === 'mysql') {
+				if (vendor === 'mysql' || vendor === 'mysql-proxy') {
 					const envurl = process.env['MYSQL_CONNECTION_STRING'];
 					if (!envurl) throw new Error('No mysql url provided');
 					const client = await createConnection({
@@ -249,7 +331,11 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 					? mysql2Drizzle({ client: client.client as AnyMySql2Connection, relations })
 					: vendor === 'tidb'
 					? drizzleTidb({ client: client.client as Connection, relations })
-					: psDrizzle({ client: client.client as Client, relations });
+					: vendor === 'planetscale'
+					? psDrizzle({ client: client.client as Client, relations })
+					: proxyDrizzle(createProxyHandler(client.client as mysql.Connection), {
+						relations,
+					});
 
 				await use(db as any);
 			},
@@ -281,16 +367,22 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 			async ({ client }, use) => {
 				const explicitCache = new TestCache('explicit');
 				const allCache = new TestCache('all');
+				const proxyHandler = createProxyHandler(client.client as mysql.Connection);
+
 				const withCacheExplicit = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: explicitCache })
 					: vendor === 'tidb'
 					? drizzleTidb({ client: client.client as Connection, relations, cache: explicitCache })
-					: psDrizzle({ client: client.client as any, cache: explicitCache });
+					: vendor === 'planetscale'
+					? psDrizzle({ client: client.client as any, cache: explicitCache })
+					: proxyDrizzle(proxyHandler, { cache: explicitCache });
 				const withCacheAll = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: allCache })
 					: vendor === 'tidb'
 					? drizzleTidb({ client: client.client as Connection, relations, cache: allCache })
-					: psDrizzle({ client: client.client as any, cache: allCache });
+					: vendor === 'planetscale'
+					? psDrizzle({ client: client.client as any, cache: allCache })
+					: proxyDrizzle(proxyHandler, { cache: allCache });
 
 				const drz = {
 					withCacheAll: {
@@ -330,4 +422,5 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb') => {
 export const mysqlTest = prepareTest('mysql');
 export const planetscaleTest = prepareTest('planetscale');
 export const tidbTest = prepareTest('tidb');
+export const proxyTest = prepareTest('mysql-proxy');
 export type Test = ReturnType<typeof prepareTest>;
