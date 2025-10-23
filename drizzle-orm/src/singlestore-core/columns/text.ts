@@ -48,7 +48,7 @@ export class SingleStoreText<T extends ColumnBaseConfig<'string', 'SingleStoreTe
 {
 	static override readonly [entityKind]: string = 'SingleStoreText';
 
-	private textType: SingleStoreTextColumnType = this.config.textType;
+	readonly textType: SingleStoreTextColumnType = this.config.textType;
 
 	override readonly enumValues = this.config.enumValues;
 

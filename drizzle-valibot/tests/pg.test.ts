@@ -1,5 +1,18 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { integer, pgEnum, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import {
+	customType,
+	integer,
+	json,
+	jsonb,
+	pgEnum,
+	pgMaterializedView,
+	pgSchema,
+	pgTable,
+	pgView,
+	serial,
+	text,
+} from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
@@ -209,7 +222,7 @@ test('nullability - update', (t) => {
 		c4: v.optional(integerSchema),
 		c7: v.optional(integerSchema),
 	});
-	table.c5.generated?.type;
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -230,6 +243,32 @@ test('refine table - select', (t) => {
 		c2: v.pipe(integerSchema, v.maxValue(1000)),
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (t) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
+	const result = createSelectSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+	const expected = v.object({
+		c1: v.nullable(integerSchema),
+		c2: v.pipe(integerSchema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -468,6 +507,20 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
+	const table = pgTable('test', {
+		json: json().$type<TopLevelCondition>().notNull(),
+		jsonb: jsonb().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		json: TopLevelCondition,
+		jsonb: v.nullable(TopLevelCondition),
+	});
+	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

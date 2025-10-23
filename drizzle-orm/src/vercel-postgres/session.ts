@@ -8,6 +8,9 @@ import {
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
+import type { Cache } from '~/cache/core/cache.ts';
+import { NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
@@ -15,7 +18,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
@@ -31,12 +34,18 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
 			name,
 			text: queryString,
@@ -53,6 +62,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
 						return (val: any) => val;
 					}
 					// @ts-ignore
@@ -79,6 +108,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -93,10 +142,14 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 		const { fields, rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
+			return this.queryWithCache(rawQuery.text, params, async () => {
+				return await client.query(rawQuery, params);
+			});
 		}
 
-		const { rows } = await client.query(query, params);
+		const { rows } = await this.queryWithCache(query.text, params, async () => {
+			return await client.query(query, params);
+		});
 
 		if (customResultMapper) {
 			return customResultMapper(rows);
@@ -108,13 +161,17 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.rawQuery, params).then((result) => result.rows);
+		return this.queryWithCache(this.rawQuery.text, params, async () => {
+			return await this.client.query(this.rawQuery, params);
+		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+		return this.queryWithCache(this.queryConfig.text, params, async () => {
+			return await this.client.query(this.queryConfig, params);
+		}).then((result) => result.rows);
 	}
 
 	/** @internal */
@@ -125,6 +182,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 export interface VercelPgSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class VercelPgSession<
@@ -134,6 +192,7 @@ export class VercelPgSession<
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: VercelPgClient,
@@ -143,6 +202,7 @@ export class VercelPgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -151,12 +211,20 @@ export class VercelPgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,
@@ -179,6 +247,12 @@ export class VercelPgSession<
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
+	}
+
+	override async count(sql: SQL): Promise<number> {
+		const result = await this.execute(sql);
+
+		return Number((result as any)['rows'][0]['count']);
 	}
 
 	override async transaction<T>(

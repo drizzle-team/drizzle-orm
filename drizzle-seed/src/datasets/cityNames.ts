@@ -42857,3 +42857,5 @@ export default [
 	'Garches',
 	'Chemini',
 ];
+
+export const maxStringLength = 49;

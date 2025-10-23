@@ -20,6 +20,7 @@ import {
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinConfig } from './select.types.ts';
 
@@ -40,7 +41,8 @@ export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
-			| SQLiteColumn;
+			| SQLiteColumn
+			| undefined;
 	}
 	& {};
 
@@ -425,6 +427,11 @@ export class SQLiteUpdateBase<
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
 			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
 		) as SQLiteUpdatePrepare<this>;
 	}
 

@@ -1,10 +1,23 @@
-import { Type as t } from '@sinclair/typebox';
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { integer, pgEnum, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import {
+	customType,
+	integer,
+	json,
+	jsonb,
+	pgEnum,
+	pgMaterializedView,
+	pgSchema,
+	pgTable,
+	pgView,
+	serial,
+	text,
+} from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX });
@@ -229,6 +242,32 @@ test('refine table - select', (tc) => {
 		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
+	expectSchemaShape(tc, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (tc) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
+	const result = createSelectSchema(table, {
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+	const expected = t.Object({
+		c1: t.Union([integerSchema, t.Null()]),
+		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c4: customTextSchema,
+	});
+
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -462,6 +501,20 @@ test('all data types', (tc) => {
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
+	const table = pgTable('test', {
+		json: json().$type<TopLevelCondition>().notNull(),
+		jsonb: jsonb().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = t.Object({
+		json: TopLevelCondition,
+		jsonb: t.Union([TopLevelCondition, t.Null()]),
+	});
+	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

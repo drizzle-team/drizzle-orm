@@ -18,6 +18,7 @@ import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SingleStoreUpdateConfig {
@@ -34,7 +35,8 @@ export type SingleStoreUpdateSetSource<TTable extends SingleStoreTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
-			| SQL;
+			| SQL
+			| undefined;
 	}
 	& {};
 
@@ -229,6 +231,13 @@ export class SingleStoreUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
+			undefined,
+			undefined,
+			undefined,
+			{
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			},
 		) as SingleStoreUpdatePrepare<this>;
 	}
 
