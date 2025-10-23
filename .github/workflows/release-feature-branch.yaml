@@ -89,8 +89,8 @@ jobs:
         with:
           name: build-ready
           path: .gh/build-ready
-      - name: test:types
-        run: pnpm test:types
+      - name: test:types & lint
+        run: pnpm test:types-lint
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
