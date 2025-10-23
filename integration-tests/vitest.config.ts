@@ -54,8 +54,8 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 100000,
-		hookTimeout: 200000,
+		testTimeout: 5000,
+		hookTimeout: 5000,
 		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],

@@ -248,7 +248,7 @@ jobs:
             kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             orm|zod|seed|typebox|valibot|arktype)
-              (cd .. && pnpm test --filter drizzle-${{ matrix.shard }})
+              (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
