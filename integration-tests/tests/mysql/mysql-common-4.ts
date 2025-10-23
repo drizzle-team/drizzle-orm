@@ -7,7 +7,7 @@ import { expect } from 'vitest';
 import { type Test } from './instrumentation';
 import { createAggregateTable, createCitiesTable, createUsers2Table } from './schema2';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
 	});

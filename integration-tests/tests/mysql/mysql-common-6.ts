@@ -1,22 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { eq, like, not, sql } from 'drizzle-orm';
-import { bigint, int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { eq, gt, like, not, sql } from 'drizzle-orm';
+import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import { type Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
-import {
-	cities3,
-	citiesTable,
-	createCitiesTable,
-	createUsers2Table,
-	createUserTable,
-	users2Table,
-	users3,
-	usersTable,
-} from './schema2';
+import { createCitiesTable, createCountTestTable, createUsers2Table, createUserTable } from './schema2';
 
-export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<string> = new Set<string>([])) {
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	let firstTime = true;
 	let resolveValue: (val: any) => void;
 	const promise = new Promise((resolve) => {
@@ -169,10 +160,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('$count separate', async ({ db, push }) => {
-		const countTestTable = mysqlTable('count_test_1', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
+		const countTestTable = createCountTestTable('count_test_1');
 
 		await push({ countTestTable });
 
@@ -189,10 +177,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('$count embedded', async ({ db, push }) => {
-		const countTestTable = mysqlTable('count_test_2', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
+		const countTestTable = createCountTestTable('count_test_2');
 
 		await push({ countTestTable });
 
@@ -216,10 +201,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('$count separate reuse', async ({ db, push }) => {
-		const countTestTable = mysqlTable('count_test_3', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
+		const countTestTable = createCountTestTable('count_test_3');
 
 		await push({ countTestTable });
 
@@ -248,10 +230,7 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 	});
 
 	test.concurrent('$count embedded reuse', async ({ db, push }) => {
-		const countTestTable = mysqlTable('count_test_4', {
-			id: int('id').notNull(),
-			name: text('name').notNull(),
-		});
+		const countTestTable = createCountTestTable('count_test_4');
 
 		await push({ countTestTable });
 
@@ -296,6 +275,47 @@ export function tests(vendor: 'mysql' | 'planetscale', test: Test, exclude: Set<
 			{ count: 6 },
 			{ count: 6 },
 			{ count: 6 },
+		]);
+	});
+
+	test.concurrent('$count separate with filters', async ({ db, push }) => {
+		const countTestTable = createCountTestTable('count_test_5');
+
+		await push({ countTestTable });
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.$count(countTestTable, gt(countTestTable.id, 1));
+
+		expect(count).toStrictEqual(3);
+	});
+
+	test.concurrent('$count embedded with filters', async ({ db, push }) => {
+		const countTestTable = createCountTestTable('count_test_6');
+
+		await push({ countTestTable });
+
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.select({
+			count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+		}).from(countTestTable);
+
+		expect(count).toStrictEqual([
+			{ count: 3 },
+			{ count: 3 },
+			{ count: 3 },
+			{ count: 3 },
 		]);
 	});
 
