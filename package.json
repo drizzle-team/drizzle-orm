@@ -32,7 +32,9 @@
 		"tsup": "^8.3.5",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
-		"typescript": "5.9.2"
+		"typescript": "5.9.2",
+		"vite-tsconfig-paths": "^4.3.2",
+		"vitest": "4.0.0-beta.19"
 	},
 	"packageManager": "pnpm@10.15.0",
 	"lint-staged": {
