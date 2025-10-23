@@ -9,10 +9,10 @@
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
-		"test:mysql": "turbo run test:mysql:default test:mysql:planetscale test:mysql:tidb",
-		"test:mysql:default": "vitest run ./mysql/default/ ./relational/mysql.test.ts ./relational/mysql-v1.test.ts",
-		"test:mysql:planetscale": "vitest run ./mysql/planetscale ./relational/mysql.planetscale",
-		"test:mysql:tidb": "vitest run ./mysql/tidb"
+		"test:mysql": "turbo run test:mysql:default test:mysql:planetscale test:mysql:tidb --env-mode=loose",
+		"test:mysql:default": "vitest run ./mysql/default/ ./relational/mysql.test.ts ./relational/mysql-v1.test.ts --env-mode=loose",
+		"test:mysql:planetscale": "vitest run ./mysql/planetscale ./relational/mysql.planetscale --env-mode=loose",
+		"test:mysql:tidb": "vitest run ./mysql/tidb --env-mode=loose"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
