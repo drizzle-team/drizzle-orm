@@ -101,45 +101,45 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: gel
+          - shard: int:gel
             dbs: []
-          # - shard: planetscale
-          #   dbs: [mysql]
-          - shard: singlestore-core
+          - shard: int:singlestore-core
             dbs: [singlestore]
-          - shard: singlestore-proxy
+          - shard: int:singlestore-proxy
             dbs: [singlestore]
-          - shard: singlestore-prefixed
+          - shard: int:singlestore-prefixed
             dbs: [singlestore]
-          - shard: singlestore-custom
+          - shard: int:singlestore-custom
             dbs: [singlestore]
-          # - shard: neon-http
+          - shard: int:mysql
+            dbs: [mysql]
+          # - shard: int:neon-http
           #   dbs: []
-          # - shard: neon-serverless
+          # - shard: int:neon-serverless
           #   dbs: [neon]
-          - shard: cockroach
+          - shard: int:cockroach
             dbs: [cockroach]
-          - shard: mssql
+          - shard: int:mssql
             dbs: [mssql]
-          - shard: drizzle-orm
+          - shard: orm
             dbs: []
-          - shard: drizzle-kit
+          - shard: kit
             dbs: [postgres, mysql, mssql, cockroach]
-          - shard: drizzle-kit-cockroach
+          - shard: kit:cockroach
             dbs: [cockroach]
-          - shard: drizzle-kit-mssql
+          - shard: kit:mssql
             dbs: [mssql]
-          - shard: drizzle-zod
+          - shard: zod
             dbs: []
-          - shard: drizzle-seed
+          - shard: seed
             dbs: []
-          - shard: drizzle-typebox
+          - shard: typebox
             dbs: []
-          - shard: drizzle-valibot
+          - shard: valibot
             dbs: []
-          - shard: drizzle-arktype
+          - shard: arktype
             dbs: []
-          - shard: other
+          - shard: int:other
             dbs: [postgres, mysql, mssql, cockroach, singlestore]
 
     steps:
@@ -225,12 +225,12 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            gel)
+            int:gel)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            planetscale)
+            int:planetscale)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run \
                   tests/mysql/mysql-planetscale.test.ts \
@@ -238,37 +238,42 @@ jobs:
                   tests/relational/mysql.planetscale.test.ts
               fi
             ;;
-            singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
-            singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
-            singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
-            singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
-            neon-http)
+            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
+            int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
+            int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
+            int:neon-http)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
               fi
             ;;
-            neon-serverless)
+            int:neon-serverless)
               trap "docker compose -f docker-neon.yml down -v" EXIT
               pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
-            cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            drizzle-kit)
+            int:mysql)
+              pnpm turbo run test:mysql 
+            ;;
+            int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            kit)
               cd ../drizzle-kit
               pnpm test:types
               pnpm --stream vitest --reporter=verbose --silent=false run --exclude tests/cockroach --exclude tests/mssql
             ;;
-            drizzle-kit-cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            drizzle-kit-mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
-              (cd .. && pnpm test --filter ${{ matrix.shard }})
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            orm|zod|seed|typebox|valibot|arktype)
+              (cd .. && pnpm test --filter drizzle-${{ matrix.shard }})
             ;;
-            other)
+            int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
                 --exclude tests/gel \
-                --exclude tests/mysql/mysql-planetscale.test.ts \
+                --exclude tests/mysql \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
+                --exclude tests/relational/mysql-v1.test.ts \
+                --exclude tests/relational/mysql.test.ts \
                 --exclude tests/singlestore/singlestore.test.ts \
                 --exclude tests/singlestore/singlestore-proxy.test.ts \
                 --exclude tests/singlestore/singlestore-prefixed.test.ts \
@@ -279,6 +284,7 @@ jobs:
                 --exclude tests/cockroach \
                 --exclude tests/mssql
             ;;
+            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
       - name: Stop DBs
