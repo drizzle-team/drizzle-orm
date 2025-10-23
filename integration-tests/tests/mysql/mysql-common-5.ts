@@ -17,7 +17,7 @@ async function setupReturningFunctionsTest(batch: (s: string[]) => Promise<void>
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	describe('mySchema_tests', () => {
 		test.beforeEach(async ({ task, skip, db }) => {
-			if (exclude.has(task.name)) skip();
+			if (exclude.has(task.name) || (task.suite?.name && exclude.has(task.suite.name))) skip();
 			await db.execute(sql`drop schema if exists \`mySchema\``);
 			await db.execute(sql`create schema if not exists \`mySchema\``);
 

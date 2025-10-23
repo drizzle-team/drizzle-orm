@@ -24,7 +24,7 @@ import {
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { expect } from 'vitest';
 import { Expect, toLocalDate } from '~/utils';
-import { mysqlTest as test } from './instrumentation';
+import { mysqlTest as test } from '../instrumentation';
 
 const tablePrefix = 'drizzle_tests_';
 
