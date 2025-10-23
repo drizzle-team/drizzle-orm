@@ -1,5 +1,6 @@
 import { AbstractGenerator } from '../Generators.ts';
 
+/* eslint-disable drizzle-internal/require-entity-kind */
 export class GenerateHashFromStringV3 extends AbstractGenerator<{}> {
 	static override readonly entityKind: string = 'GenerateHashFromString';
 	static override readonly version: number = 3;
