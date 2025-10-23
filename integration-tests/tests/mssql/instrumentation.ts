@@ -79,7 +79,8 @@ export const test = base.extend<
 	}
 >({
 	connection: [
-		async (_, use) => {
+		// oxlint-disable-next-line no-empty-pattern
+		async ({}, use) => {
 			const { client, close, url, url2, db } = await createClient();
 			try {
 				await use({ client, url, url2, db });
