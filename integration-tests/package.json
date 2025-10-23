@@ -8,7 +8,11 @@
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
-		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
+		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
+		"test:mysql": "turbo run test:mysql:default test:mysql:planetscale test:mysql:tidb",
+		"test:mysql:default": "vitest run ./mysql/default/",
+		"test:mysql:planetscale": "vitest run ./mysql/planetscale",
+		"test:mysql:tidb": "vitest run ./mysql/tidb"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
