@@ -78,7 +78,9 @@ export abstract class AbstractGenerator<T = {}> {
 		}
 	}
 
-	abstract generate(params: { i: number; columnName?: string }): number | string | boolean | unknown | undefined | void;
+	abstract generate(
+		params: { i?: number; columnName?: string; input?: string },
+	): number | string | boolean | unknown | undefined | void;
 
 	getEntityKind(): string {
 		const constructor = this.constructor as typeof AbstractGenerator;
@@ -135,6 +137,22 @@ export abstract class AbstractGenerator<T = {}> {
 }
 
 // Generators Classes -----------------------------------------------------------------------------------------------------------------------
+export class GenerateHashFromString extends AbstractGenerator<{}> {
+	static override readonly entityKind: string = 'GenerateHashFromString';
+	override init() {}
+	generate({ input }: { input: string }): number {
+		let hash = 0;
+		// p and m are prime numbers
+		const p = 53;
+		const m = 28871271685163;
+
+		for (let i = 0; i < input.length; i++) {
+			hash += ((input.codePointAt(i) || 0) * Math.pow(p, i)) % m;
+		}
+
+		return hash;
+	}
+}
 export class GenerateArray extends AbstractGenerator<{ baseColumnGen: AbstractGenerator<any>; size?: number }> {
 	static override readonly entityKind: string = 'GenerateArray';
 	public override arraySize = 10;
