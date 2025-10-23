@@ -1,6 +1,6 @@
 import * as mysql from 'mysql2/promise';
 import { skipTests } from '~/common';
-import { tests } from './mysql-common';
+import { tests } from '../mysql-common';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -83,4 +83,4 @@ skipTests([
 ]);
 
 new ServerSimulator({} as any)
-tests("mysql",{} as any);
+tests({} as any);

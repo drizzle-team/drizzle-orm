@@ -249,6 +249,18 @@
 				"tests/**/*.test.mjs"
 			],
 			"outputLogs": "new-only"
+		},
+		"integration-tests#test:mysql:default": {
+			"inputs": ["mysql/default/**/*.ts"],
+			"outputLogs": "new-only"
+		},
+		"integration-tests#test:mysql:planetscale": {
+			"inputs": ["mysql/planetscale/**/*.ts"],
+			"outputLogs": "new-only"
+		},
+		"integration-tests#test:mysql:tidb": {
+			"inputs": ["mysql/tidb/**/*.ts"],
+			"outputLogs": "new-only"
 		}
 	}
 }

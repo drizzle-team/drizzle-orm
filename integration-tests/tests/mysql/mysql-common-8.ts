@@ -28,13 +28,17 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const users = createUserTable('users_85');
 		await push({ users });
 
-		const [result, _] = await db.insert(users).values({ name: 'John' });
+		const res0 = await db.insert(users).values({ name: 'John' });
 		const res1 = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'));
 		const res2 = await db.delete(users).where(eq(users.name, 'Jane'));
 
-		expect(result.insertId).toBe(1);
-		expect(res1[0].changedRows).toBe(1);
-		expect(res2[0].affectedRows).toBe(1);
+		const insertId = res0.insertId ? Number(res0.insertId) : res0[0].insertId;
+		const changedRows = res1.rowsAffected ?? res1[0].changedRows;
+		const affectedRows = res2.rowsAffected ?? res2[0].affectedRows;
+
+		expect(insertId).toBe(1);
+		expect(changedRows).toBe(1);
+		expect(affectedRows).toBe(1);
 	});
 
 	test.concurrent('update with returning all fields + partial', async ({ db, push }) => {
@@ -46,7 +50,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const result = await db.select().from(users).where(eq(users.id, 1));
 
-		expect(updatedUsers[0].changedRows).toBe(1);
+		const countRows = updatedUsers[0]?.changedRows ?? updatedUsers.rowsAffected;
+		expect(countRows).toBe(1);
 		expect(result[0]!.createdAt).toBeInstanceOf(Date);
 		// not timezone based timestamp, thats why it should not work here
 		// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);

@@ -6,27 +6,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/mssql/**/*.test.ts',
-			'tests/seeder/**/*.test.ts',
-			'tests/extensions/postgis/**/*',
-			'tests/relational/**/*.test.ts',
-			'tests/pg/**/*.test.ts',
-			'tests/mysql/**/*.test.ts',
-			'tests/singlestore/**/*.test.ts',
-			'tests/sqlite/**/*.test.ts',
-			'tests/replicas/**/*',
-			'tests/imports/**/*',
-			'tests/extensions/vectors/**/*',
-			'tests/version.test.ts',
-			'tests/pg/node-postgres.test.ts',
-			'tests/utils/is-config.test.ts',
-			'js-tests/driver-init/commonjs/*.test.cjs',
-			'js-tests/driver-init/module/*.test.mjs',
-			'tests/gel/**/*.test.ts',
-			'tests/cockroach/**/*.test.ts',
+			'tests/**/*.test.ts',
+			'js-tests',
 		],
 		exclude: [
-			...(process.env.SKIP_EXTERNAL_DB_TESTS
+			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/relational/mysql.planetscale-v1.test.ts',
