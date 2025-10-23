@@ -1,5 +1,5 @@
-import { proxyTest } from './instrumentation';
-import { tests } from './mysql-common';
+import { proxyTest } from '../instrumentation';
+import { tests } from '../mysql-common';
 
 const omit = new Set([
 	'select iterator w/ prepared statement',

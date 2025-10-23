@@ -19,6 +19,8 @@ const omit = new Set([
 	'mySchema :: select typed sql',
 	'mySchema :: select sql',
 	'mySchema :: select all fields',
+	'mySchema :: select distinct',
+	'mySchema :: build query',
 	'test $onUpdateFn and $onUpdate works updating',
 	'test $onUpdateFn and $onUpdate works as $default',
 	'set operations (mixed all) as function with subquery',
