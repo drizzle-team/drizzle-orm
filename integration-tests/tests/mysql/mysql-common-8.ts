@@ -333,7 +333,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.leftJoin(customers, eq(customers.id, 11))
 			.where(eq(users.id, 10));
 
-		// TODO: revise: maybe query result should contain prefixed table name 'prefixed_users_102'
 		expect(result).toStrictEqual([{
 			users_102: {
 				id: 10,
@@ -447,12 +446,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('migrator', async ({ db }) => {
-		// TODO: revise: not sure how to rewrite this test
-		await db.execute(sql`drop table if exists cities_migration`);
-		await db.execute(sql`drop table if exists users_migration`);
-		await db.execute(sql`drop table if exists users12`);
-		await db.execute(sql`drop table if exists __drizzle_migrations`);
-
 		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -460,11 +453,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const result = await db.select().from(usersMigratorTable);
 
 		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table cities_migration`);
-		await db.execute(sql`drop table users_migration`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table __drizzle_migrations`);
 	});
 
 	test.concurrent('insert via db.execute + select via db.execute', async ({ db, push }) => {

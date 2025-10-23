@@ -39,7 +39,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(Math.abs(result[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 	});
 
-	test.concurrent('transaction', async ({ db, push }) => {
+	test('transaction', async ({ db, push }) => {
 		const users = mysqlTable('users_transactions_48', {
 			id: serial('id').primaryKey(),
 			balance: int('balance').notNull(),
@@ -91,7 +91,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}, { isolationLevel: 'serializable' });
 
 		const result = await db.select().from(users);
-		// TODO: revise: somehow test fails when .concurrent is set
 		expect(result).toEqual([{ id: 1, balance: 90 }]);
 	});
 
@@ -137,7 +136,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test('nested transaction rollback', async ({ db, push }) => {
-		// TODO: revise: test fails with .concurent but works fine without it
 		const users = mysqlTable('users_52', {
 			id: serial('id').primaryKey(),
 			balance: int('balance').notNull(),
