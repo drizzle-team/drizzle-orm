@@ -17,10 +17,10 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
       - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm' }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - name: pnpm fetch + install
         run: |
           pnpm fetch
