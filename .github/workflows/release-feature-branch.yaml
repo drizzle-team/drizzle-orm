@@ -50,7 +50,7 @@ jobs:
         run: |
           v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
           npm version "$v"
-          npm run pack
+          npm run pack:artifact
       - uses: actions/upload-artifact@v4
         with:
           name: drizzle-orm
@@ -64,7 +64,7 @@ jobs:
             pushd "$p"
             v="$(jq -r .version package.json)-${{ steps.meta.outputs.suffix }}"
             npm version "$v"
-            npm run pack
+            npm run pack:artifact
             popd
           done
       - uses: actions/upload-artifact@v4
@@ -89,6 +89,8 @@ jobs:
         with:
           name: build-ready
           path: .gh/build-ready
+      - name: test:types
+        run: pnpm test:types
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
