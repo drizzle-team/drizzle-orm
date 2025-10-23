@@ -33,7 +33,7 @@ jobs:
         working-directory: drizzle-orm
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
-        run: pnpm build
+        run: pnpm build:artifact
 
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
