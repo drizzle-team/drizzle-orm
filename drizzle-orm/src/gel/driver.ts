@@ -55,7 +55,7 @@ function construct<
 ): GelJsDatabase<TSchema> & {
 	$client: GelClient extends TClient ? Client : TClient;
 } {
-	const dialect = new GelDialect({ casing: config.casing });
+	const dialect = new GelDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

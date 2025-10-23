@@ -55,7 +55,7 @@ function construct<
 ): NeonDatabase<TSchema> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

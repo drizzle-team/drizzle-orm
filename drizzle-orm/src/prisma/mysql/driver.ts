@@ -15,8 +15,8 @@ export class PrismaMySqlDatabase
 {
 	static override readonly [entityKind]: string = 'PrismaMySqlDatabase';
 
-	constructor(client: PrismaClient, logger: Logger | undefined) {
-		const dialect = new MySqlDialect();
+	constructor(client: PrismaClient, logger: Logger | undefined, safeMutations: boolean = false) {
+		const dialect = new MySqlDialect({ safeMutations });
 		super(dialect, new PrismaMySqlSession(dialect, client, { logger }), undefined, 'default');
 	}
 }
@@ -35,7 +35,7 @@ export function drizzle(config: PrismaMySqlConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new PrismaMySqlDatabase(client, logger),
+				$drizzle: new PrismaMySqlDatabase(client, logger, config.safeMutations),
 			},
 		});
 	});

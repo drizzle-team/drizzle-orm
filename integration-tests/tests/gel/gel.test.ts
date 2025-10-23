@@ -5251,4 +5251,33 @@ describe('some', async () => {
 		// @ts-expect-error
 		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 	});
+	test('safeMutations: update without where clause', async (ctx) => {
+		const { db } = ctx.gel;
+
+		// @ts-expect-error Modify safeMutations to prevent updates without where clause
+		db.dialect.safeMutations = true;
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+		await expect(async () => await db.update(usersTable).set({ name: 'Maria' })).rejects.toThrowError();
+		await expect(db.update(usersTable).set({ name: 'Maria' }).where(eq(usersTable.name, 'John'))).resolves.not.toThrow();
+
+		// @ts-expect-error Modify safeMutations back to default
+		db.dialect.safeMutations = false;
+		await expect(db.update(usersTable).set({ name: 'John' })).resolves.not.toThrow();
+	});
+
+	test('safeMutations: delete without where clause', async (ctx) => {
+		const { db } = ctx.gel;
+
+		// @ts-expect-error Modify safeMutations to prevent deletes without where clause
+		db.dialect.safeMutations = true;
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+		await expect(async () => await db.delete(usersTable)).rejects.toThrowError();
+		await expect(db.delete(usersTable).where(eq(usersTable.name, 'John'))).resolves.not.toThrow();
+
+		// @ts-expect-error Modify safeMutations back to default
+		db.dialect.safeMutations = false;
+		await expect(db.delete(usersTable)).resolves.not.toThrow();
+	});
 });
