@@ -421,14 +421,8 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 			const db = {
 				query: async (sql: string, params: any[] = []) => {
-					const error = new Error();
-					try {
-						const res = await req.query(sql);
-						return res.recordset as any[];
-					} catch (err) {
-						(<{ cause?: unknown }> error).cause = err;
-						throw error;
-					}
+					const res = await req.query(sql);
+					return res.recordset as any[];
 				},
 			};
 			const close = async () => {

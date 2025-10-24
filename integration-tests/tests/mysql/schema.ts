@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm';
-import { bigint, type MySqlDatabase, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import { defineRelations } from 'drizzle-orm';
+import { bigint, int, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
 
 export const rqbUser = mysqlTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
@@ -20,25 +20,16 @@ export const rqbPost = mysqlTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const init = async (db: MySqlDatabase<any, any, any, any, any>) => {
-	await db.execute(sql`
-		CREATE TABLE ${rqbUser} (
-		        \`id\` SERIAL PRIMARY KEY NOT NULL,
-		        \`name\` TEXT NOT NULL,
-		        \`created_at\` TIMESTAMP NOT NULL
-		     )
-	`);
-	await db.execute(sql`
-		CREATE TABLE ${rqbPost} ( 
-		        \`id\` SERIAL PRIMARY KEY NOT NULL,
-		        \`user_id\` BIGINT(20) UNSIGNED NOT NULL,
-		        \`content\` TEXT,
-		        \`created_at\` TIMESTAMP NOT NULL
-		)
-	`);
-};
+export const empty = mysqlTable('empty', { id: int() });
 
-export const clear = async (db: MySqlDatabase<any, any, any, any, any>) => {
-	await db.execute(sql`DROP TABLE IF EXISTS ${rqbUser} CASCADE;`).catch(() => null);
-	await db.execute(sql`DROP TABLE IF EXISTS ${rqbPost} CASCADE;`).catch(() => null);
-};
+export const relations = defineRelations({ rqbUser, rqbPost, empty }, (r) => ({
+	rqbUser: {
+		posts: r.many.rqbPost(),
+	},
+	rqbPost: {
+		author: r.one.rqbUser({
+			from: r.rqbPost.userId,
+			to: r.rqbUser.id,
+		}),
+	},
+}));

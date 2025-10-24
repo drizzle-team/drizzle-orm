@@ -7,7 +7,7 @@ import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './pg.relations.ts';
+import relations from './pg.relations';
 import {
 	allTypesTable,
 	commentsTable,
@@ -23,7 +23,7 @@ import {
 	students,
 	usersTable,
 	usersToGroupsTable,
-} from './pg.schema.ts';
+} from './pg.schema';
 
 const { Client } = pg;
 

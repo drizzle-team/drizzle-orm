@@ -24,10 +24,10 @@ import {
 import { Resource } from 'sst';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
-import type { Equal } from '../utils.ts';
-import { Expect, randomString } from '../utils.ts';
-import relationsV2 from './relations.ts';
-import { clear, init, rqbPost, rqbUser } from './schema.ts';
+import type { Equal } from '../utils';
+import { Expect, randomString } from '../utils';
+import relationsV2 from './relations';
+import { clear, init, rqbPost, rqbUser } from './schema';
 
 dotenv.config();
 

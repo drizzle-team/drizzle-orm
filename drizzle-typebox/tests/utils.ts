@@ -1,5 +1,5 @@
 import type * as t from '@sinclair/typebox';
-import { expect, type TaskContext } from 'vitest';
+import { expect, type TestContext } from 'vitest';
 
 function removeKeysFromObject(obj: Record<string, any>, keys: string[]) {
 	for (const key of keys) {
@@ -8,7 +8,7 @@ function removeKeysFromObject(obj: Record<string, any>, keys: string[]) {
 	return obj;
 }
 
-export function expectSchemaShape<T extends t.TObject>(t: TaskContext, expected: T) {
+export function expectSchemaShape<T extends t.TObject>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(Object.keys(actual.properties)).toStrictEqual(Object.keys(expected.properties));
@@ -23,7 +23,7 @@ export function expectSchemaShape<T extends t.TObject>(t: TaskContext, expected:
 	};
 }
 
-export function expectEnumValues<T extends t.TEnum<any>>(t: TaskContext, expected: T) {
+export function expectEnumValues<T extends t.TEnum<any>>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(actual.anyOf).toStrictEqual(expected.anyOf);

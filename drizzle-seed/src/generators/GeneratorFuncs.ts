@@ -15,6 +15,7 @@ import {
 	GenerateFirstName,
 	GenerateFullName,
 	GenerateGeometry,
+	GenerateHashFromString,
 	GenerateInet,
 	GenerateInt,
 	GenerateInterval,
@@ -61,6 +62,7 @@ import {
 	WeightedRandomGenerator,
 } from './Generators.ts';
 import { GenerateStringV2, GenerateUniqueIntervalV2, GenerateUniqueStringV2 } from './versioning/v2.ts';
+import { GenerateHashFromStringV3 } from './versioning/v3.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params?: T) => GeneratorType,
@@ -898,7 +900,15 @@ export const generatorsFuncsV2 = {
 	...generatorsFuncs,
 };
 
+export const generatorsFuncsV3 = {
+	...generatorsFuncs,
+};
+
 export const generatorsMap = {
+	GenerateHashFromString: [
+		GenerateHashFromString,
+		GenerateHashFromStringV3,
+	],
 	HollowGenerator: [
 		HollowGenerator,
 	],
