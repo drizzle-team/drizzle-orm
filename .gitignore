@@ -14,6 +14,7 @@ rollup.config-*.mjs
 drizzle-seed/src/dev
 drizzle-orm/tmp
 drizzle-orm/types-bench.ts
+drizzle-orm/src/version.temp.ts
 typeperf-test/tmp.tsconfig.json
 typeperf-test/trace
 typeperf-test/lib/big-schema.ts
