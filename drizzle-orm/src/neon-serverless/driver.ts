@@ -7,7 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
@@ -96,9 +96,9 @@ export function drizzle<
 	TClient extends NeonClient = Pool,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -124,29 +124,25 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ws, ...drizzleConfig } = params[0] as {
-			connection?: PoolConfig | string;
-			ws?: any;
-			client?: TClient;
-		} & DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ws, ...drizzleConfig } = params[0] as {
+		connection?: PoolConfig | string;
+		ws?: any;
+		client?: TClient;
+	} & DrizzleConfig<TSchema, TRelations>;
 
-		if (ws) {
-			neonConfig.webSocketConstructor = ws;
-		}
-
-		if (client) return construct(client, drizzleConfig);
-
-		const instance = typeof connection === 'string'
-			? new Pool({
-				connectionString: connection,
-			})
-			: new Pool(connection);
-
-		return construct(instance, drizzleConfig) as any;
+	if (ws) {
+		neonConfig.webSocketConstructor = ws;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	if (client) return construct(client, drizzleConfig);
+
+	const instance = typeof connection === 'string'
+		? new Pool({
+			connectionString: connection,
+		})
+		: new Pool(connection);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

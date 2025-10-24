@@ -375,7 +375,7 @@ test('create composite primary key', async () => {
 	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
+		'CREATE TABLE "table" (\n\t"col1" integer,\n\t"col2" integer,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
 	];
 
 	expect(st).toStrictEqual(st0);

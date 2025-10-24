@@ -25,11 +25,11 @@ import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
-import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { hash } from 'src/dialects/common';
 import { tsc } from 'tests/utils';
 
 export type MssqlDBSchema = Record<
@@ -163,6 +163,7 @@ export const push = async (config: {
 	log?: 'statements' | 'none';
 	force?: boolean;
 	expectError?: boolean;
+	ignoreSubsequent?: boolean;
 }) => {
 	const { db, to, force, expectError, log } = config;
 	const casing = config.casing ?? 'camelCase';
@@ -221,6 +222,40 @@ export const push = async (config: {
 		}
 	}
 
+	// subsequent push
+	if (!config.ignoreSubsequent) {
+		{
+			const { schema } = await introspect(
+				db,
+				[],
+				schemas,
+				new EmptyProgressView(),
+			);
+			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+
+			const { sqlStatements, statements } = await ddlDiff(
+				ddl1,
+				ddl2,
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				mockResolver(renames),
+				'push',
+			);
+			if (sqlStatements.length > 0) {
+				console.error('---- subsequent push is not empty ----');
+				console.log(sqlStatements.join('\n'));
+				throw new Error();
+			}
+		}
+	}
+
 	return { sqlStatements, statements, hints, losses, error };
 };
 
@@ -257,9 +292,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	};
 
 	const { db, clear } = kit;
-	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init });
-	const { sqlStatements: st2 } = await push({ db, to: init });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	const { sqlStatements: st1 } = await push({ db, to: init, ignoreSubsequent: true });
+	const { sqlStatements: st2 } = await push({ db, to: init, ignoreSubsequent: true });
 
 	const expectedInit = `CREATE TABLE [${tableName}] (\n\t[${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
@@ -310,9 +345,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 		table: mssqlTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema1 });
-	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	await push({ db, to: schema1, ignoreSubsequent: true });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, ignoreSubsequent: true });
 
 	const expectedAlter = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
@@ -331,9 +366,9 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 		table: mssqlTable('table', { id: int().identity(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	if (pre) await push({ db, to: pre, ignoreSubsequent: true });
+	await push({ db, to: schema3, ignoreSubsequent: true });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, ignoreSubsequent: true });
 
 	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
@@ -386,14 +421,8 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 			const db = {
 				query: async (sql: string, params: any[] = []) => {
-					const error = new Error();
-					try {
-						const res = await req.query(sql);
-						return res.recordset as any[];
-					} catch (err) {
-						error.cause = err;
-						throw error;
-					}
+					const res = await req.query(sql);
+					return res.recordset as any[];
 				},
 			};
 			const close = async () => {

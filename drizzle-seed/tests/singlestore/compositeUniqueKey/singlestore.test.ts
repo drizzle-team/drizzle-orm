@@ -15,8 +15,14 @@ let client: Connection | undefined;
 let db: SingleStoreDriverDatabase;
 
 beforeAll(async () => {
-	const { url: connectionString, container } = await createDockerDB();
-	singleStoreContainer = container;
+	let connectionString: string;
+	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
+		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
+	} else {
+		const data = await createDockerDB();
+		connectionString = data.url;
+		singleStoreContainer = data.container;
+	}
 
 	client = await retry(async (_, _attemptNumber) => {
 		client = await createConnection({ uri: connectionString, supportBigNumbers: true });
@@ -33,9 +39,10 @@ beforeAll(async () => {
 		},
 	});
 
+	await client.query(`DROP DATABASE IF EXISTS drizzle;`);
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(
 		sql`

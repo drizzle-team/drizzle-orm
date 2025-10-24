@@ -26,7 +26,7 @@ test('add schema #1', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 
-	const { sqlStatements: pst } = await push({ db, to: to, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = ['CREATE SCHEMA [dev];\n'];
 	expect(st).toStrictEqual(st0);
@@ -98,7 +98,7 @@ test('rename schema #1', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, ['dev->dev2']);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dev->dev2'] });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dev->dev2'], ignoreSubsequent: true });
 
 	const st0 = [`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
@@ -123,7 +123,7 @@ test('rename schema #2', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, ['dev1->dev2']);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dev1->dev2'] });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dev1->dev2'], ignoreSubsequent: true });
 
 	const st0 = [`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),

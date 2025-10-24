@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema.ts';
+import * as schema from './pg.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -92,7 +92,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client, schema, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 afterAll(async () => {

@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import mssql, { type config, type ConnectionPool } from 'mssql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './mssql.schema.ts';
+import * as schema from './mssql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -84,7 +84,7 @@ beforeAll(async () => {
 		await mssqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING ? new DefaultLogger() : undefined, schema });
+	db = drizzle({ client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined, schema });
 });
 
 afterAll(async () => {

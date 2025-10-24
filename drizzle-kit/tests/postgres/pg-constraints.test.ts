@@ -1,5 +1,7 @@
+import { and, isNull, SQL } from 'drizzle-orm';
 import {
 	AnyPgColumn,
+	boolean,
 	foreignKey,
 	index,
 	integer,
@@ -7,7 +9,9 @@ import {
 	primaryKey,
 	serial,
 	text,
+	timestamp,
 	unique,
+	uuid,
 } from 'drizzle-orm/pg-core';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { EmptyProgressView } from 'src/cli/views';
@@ -1089,8 +1093,37 @@ test('pk #5', async () => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" DROP CONSTRAINT "users_pkey";']);
-	expect(pst).toStrictEqual(['ALTER TABLE "users" DROP CONSTRAINT "users_pkey";']);
+	const st0 = [
+		'ALTER TABLE "users" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users" ALTER COLUMN "name" DROP NOT NULL;',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('pk #6', async () => {
+	const from = {
+		users: pgTable('users', {
+			name: text().primaryKey(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			name: text(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "users" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users" ALTER COLUMN "name" DROP NOT NULL;',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4779
@@ -1143,14 +1176,18 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st4 } = await diff(n3, sch3, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
-	expect(st4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_pkey";']);
-	expect(pst4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_pkey";']);
+	const st04 = [
+		'ALTER TABLE "users2" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users2" ALTER COLUMN "name2" DROP NOT NULL;',
+	];
+	expect(st4).toStrictEqual(st04);
+	expect(pst4).toStrictEqual(st04);
 });
 
 test('pk multistep #2', async () => {
 	const sch1 = {
 		users: pgTable('users', {
-			name: text().primaryKey(),
+			name: text().primaryKey().notNull(),
 		}),
 	};
 
@@ -1162,7 +1199,7 @@ test('pk multistep #2', async () => {
 
 	const sch2 = {
 		users: pgTable('users2', {
-			name: text('name2'),
+			name: text('name2').notNull(),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
 
@@ -1188,7 +1225,7 @@ test('pk multistep #2', async () => {
 
 	const sch3 = {
 		users: pgTable('users2', {
-			name: text('name2'),
+			name: text('name2').notNull(),
 		}, (t) => [primaryKey({ name: 'users2_pk', columns: [t.name] })]),
 	};
 
@@ -1201,7 +1238,7 @@ test('pk multistep #2', async () => {
 
 	const sch4 = {
 		users: pgTable('users2', {
-			name: text('name2'),
+			name: text('name2').notNull(),
 		}),
 	};
 
@@ -1276,11 +1313,15 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
 
-	expect(st5).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users2_pk";']);
-	expect(pst5).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users2_pk";']);
+	const st05 = [
+		'ALTER TABLE "users2" DROP CONSTRAINT "users2_pk";',
+		'ALTER TABLE "users2" ALTER COLUMN "name2" DROP NOT NULL;',
+	];
+	expect(st5).toStrictEqual(st05);
+	expect(pst5).toStrictEqual(st05);
 });
 
-test('pk multistep #3', async () => {
+test('pk multistep #4', async () => {
 	const sch1 = {
 		users: pgTable('users', {
 			name: text().primaryKey(),
@@ -1384,7 +1425,7 @@ test('fk #3', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_Bvhqr6Z0Skyq_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_2Ge3281eRCJ5_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
@@ -1404,7 +1445,7 @@ test('fk #4', async () => {
 
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_1234567890_123456_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
-		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "Xi9rVl1SOACO_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
+		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "ydU6odH887YL_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
@@ -1742,4 +1783,146 @@ test('constraints order', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
+});
+
+test('generated + fk', async (t) => {
+	const table1 = pgTable(
+		'table_with_gen',
+		{
+			column1: timestamp('column1'),
+			column2: timestamp('column2'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table1.column1))!,
+				).unique()
+				.notNull(),
+		},
+	);
+	const table = pgTable('table', { bool: boolean().references(() => table1.bool) });
+
+	const schema1 = { tableWithGen: table1, table };
+
+	const table2 = pgTable(
+		'table_with_gen',
+		{
+			column1: timestamp('column1'),
+			column2: timestamp('column2'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table1.column2))!,
+				).unique()
+				.notNull(),
+		},
+	);
+	const schema2 = { tableWithGen: table2, table };
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "table" DROP CONSTRAINT "table_bool_table_with_gen_bool_fkey";',
+		`ALTER TABLE \"table_with_gen\" DROP COLUMN \"bool\";`,
+		`ALTER TABLE \"table_with_gen\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ("table_with_gen"."column2" is null) STORED;`,
+		'ALTER TABLE "table_with_gen" ADD CONSTRAINT "table_with_gen_bool_key" UNIQUE("bool");',
+		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_table_with_gen_bool_fkey" FOREIGN KEY ("bool") REFERENCES "table_with_gen"("bool");',
+	]);
+	// push is not triggered on generated change
+	expect(pst).toStrictEqual([]);
+});
+test('generated + unique', async (t) => {
+	const table1 = pgTable(
+		'table',
+		{
+			uid: uuid('uid').notNull(),
+			column1: timestamp('column1'),
+			column2: timestamp('column2'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table1.column1), isNull(table1.column2))!,
+				).unique()
+				.notNull(),
+		},
+	);
+	const schema1 = { table: table1 };
+
+	const table2 = pgTable(
+		'table',
+		{
+			uid: uuid('uid').notNull(),
+			column1: timestamp('column1'),
+			column3: timestamp('column3'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table2.column1), isNull(table2.column3))!,
+				).unique()
+				.notNull(),
+		},
+	);
+	const schema2 = { table: table2 };
+
+	const renames = ['public.table.column2->public.table.column3'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	expect(st).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
+		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_key" UNIQUE("bool");',
+	]);
+	// push is not triggered on generated change
+	expect(pst).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+	]);
+});
+test('generated + pk', async (t) => {
+	const table1 = pgTable(
+		'table',
+		{
+			uid: uuid('uid').notNull(),
+			column1: timestamp('column1'),
+			column2: timestamp('column2'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table1.column1), isNull(table1.column2))!,
+				).primaryKey()
+				.notNull(),
+		},
+	);
+	const schema1 = { table: table1 };
+
+	const table2 = pgTable(
+		'table',
+		{
+			uid: uuid('uid').notNull(),
+			column1: timestamp('column1'),
+			column3: timestamp('column3'),
+			bool: boolean('bool')
+				.generatedAlwaysAs(
+					(): SQL => and(isNull(table2.column1), isNull(table2.column3))!,
+				).primaryKey()
+				.notNull(),
+		},
+	);
+	const schema2 = { table: table2 };
+
+	const renames = ['public.table.column2->public.table.column3'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	expect(st).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
+	]);
+	// push is not triggered on generated change
+	expect(pst).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+	]);
 });

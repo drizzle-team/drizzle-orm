@@ -1,5 +1,5 @@
 import { defineRelations } from 'drizzle-orm';
-import * as schema from './singlestore.schema.ts';
+import * as schema from './singlestore.schema';
 
 export default defineRelations(schema, (r) => ({
 	usersView: {

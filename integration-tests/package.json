@@ -8,7 +8,9 @@
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
-		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
+		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
+		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/relational/mysql.test.ts tests/relational/mysql-v1.test.ts",
+		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/relational/mysql.planetscale"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
@@ -79,7 +81,6 @@
 		"sst": "^3.14.24",
 		"uuid": "^9.0.0",
 		"uvu": "^0.5.6",
-		"vitest": "4.0.0-beta.17",
 		"ws": "^8.18.2",
 		"zod": "^3.20.2"
 	}

@@ -511,14 +511,16 @@ test('index #4', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
-	const st0 = [
+	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
 		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
 		`CREATE INDEX "table_uid_bool_idx" ON "table" ("uid","bool");`,
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	]);
+	// push is not triggered on generated change
+	expect(pst).toStrictEqual([
+		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
+	]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4790

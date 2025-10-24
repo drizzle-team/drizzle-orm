@@ -36,7 +36,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle(new mssql.ConnectionPool({ server: '' }), { schema, casing: 'snake_case' });
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema, casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',

@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema.ts';
+import * as schema from './pg.schema';
 
 const { Client } = pg;
 
@@ -77,7 +77,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
+	db = drizzle({ client, schema, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

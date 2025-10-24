@@ -364,6 +364,7 @@ export const fromDatabase = async (
 		const withCheckOption = !checkOption || checkOption === 'NONE'
 			? null
 			: checkOption.toLowerCase();
+
 		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
 
 		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${name}\`;`);

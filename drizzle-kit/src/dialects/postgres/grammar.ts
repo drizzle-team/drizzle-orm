@@ -288,6 +288,7 @@ export const Char: SqlType = {
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
+		if (!value.startsWith("'") && !value.endsWith("'")) return { options, default: `sql\`${value}\`` };
 		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
 	},
@@ -1719,7 +1720,8 @@ export function minRangeForIdentityBasedOn(columnType: string) {
  */
 export const isSerialExpression = (expr: string, schema: string) => {
 	const schemaPrefix = schema === 'public' ? '' : `${schema}.`;
-	return expr.startsWith(`nextval('${schemaPrefix}`) && expr.endsWith(`_seq'::regclass)`);
+	return (expr.startsWith(`nextval('${schemaPrefix}`) || expr.startsWith(`nextval('"${schemaPrefix}`))
+		&& (expr.endsWith(`_seq'::regclass)`) || expr.endsWith(`_seq"'::regclass)`));
 };
 
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
@@ -1931,7 +1933,7 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 
 export const trimDefaultValueSuffix = (value: string) => {
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replace(/::["\w\s"]+(\([^\)]*\))?(["\w\s"]+)?(\[\])*$/g, '');
+	res = res.replace(/(::["\w.\s]+(?:\([^)]*\))?(?:\swith(?:out)?\stime\szone)?(?:\[\])?)+$/gi, '');
 	return res;
 };
 

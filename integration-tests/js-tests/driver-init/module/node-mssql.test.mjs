@@ -1,93 +1,62 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-mssql';
-import mssql from 'mssql';
-import { afterAll, beforeAll, describe, expect } from 'vitest';
-import { createDockerDB } from '../../../tests/mssql/mssql-common.ts';
-import { mssql as schema } from './schema.mjs';
+import { ConnectionPool as Pool } from 'mssql';
+import { expect } from 'vitest';
+import { test } from '../../../tests/mssql/instrumentation';
+import * as schema from './schema.mjs';
 
-const Pool = mssql.ConnectionPool;
-let container;
-let connectionString;
+test('mssql:drizzle(string)', async ({ url2 }) => {
+	const db = drizzle(url2);
 
-describe('node-mssql', async (it) => {
-	beforeAll(async () => {
-		if (process.env['MSSQL_CONNECTION_STRING']) {
-			connectionString = process.env['MSSQL_CONNECTION_STRING'];
-		} else {
-			const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-			container = contrainerObj;
-			connectionString = conStr;
-		}
+	const awaitedPool = await db.$client;
 
-		while (true) {
-			try {
-				await mssql.connect(connectionString);
-				break;
-			} catch (e) {
-				await new Promise((resolve) => setTimeout(resolve, 1000));
-			}
-		}
+	await awaitedPool.query('SELECT 1;');
+
+	expect(awaitedPool).toBeInstanceOf(Pool);
+});
+
+test('mssql:drizzle(string, config)', async ({ url2 }) => {
+	const db = drizzle(url2, {
+		schema,
 	});
 
-	afterAll(async () => {
-		await container?.stop();
+	const awaitedPool = await db.$client;
+
+	await awaitedPool.query('SELECT 1;');
+
+	expect(awaitedPool).toBeInstanceOf(Pool);
+	// expect(db.query.User).not.toStrictEqual(undefined);
+});
+
+test('mssql:drizzle({connection: string, ...config})', async ({ url2 }) => {
+	const db = drizzle({
+		connection: url2,
+		schema,
 	});
 
-	it('drizzle(string)', async () => {
-		const db = drizzle(connectionString);
+	const awaitedPool = await db.$client;
 
-		const awaitedPool = await db.$client;
+	await awaitedPool.query('SELECT 1;');
 
-		await awaitedPool.query('SELECT 1;');
+	expect(awaitedPool).toBeInstanceOf(Pool);
+	// expect(db.query.User).not.toStrictEqual(undefined);
+});
 
-		expect(awaitedPool).toBeInstanceOf(Pool);
+test('mssql:drizzle(client)', async ({ url, client }) => {
+	const db = drizzle(client);
+
+	await db.$client.query('SELECT 1;');
+
+	expect(db.$client).toBeInstanceOf(Pool);
+});
+
+test('mssql:drizzle(client, config)', async ({ url, client }) => {
+	const db = drizzle(client, {
+		schema,
 	});
 
-	it('drizzle(string, config)', async () => {
-		const db = drizzle(connectionString, {
-			schema,
-		});
+	await db.$client.query('SELECT 1;');
 
-		const awaitedPool = await db.$client;
-
-		await awaitedPool.query('SELECT 1;');
-
-		expect(awaitedPool).toBeInstanceOf(Pool);
-		// expect(db.query.User).not.toStrictEqual(undefined);
-	});
-
-	it('drizzle({connection: string, ...config})', async () => {
-		const db = drizzle({
-			connection: connectionString,
-			schema,
-		});
-
-		const awaitedPool = await db.$client;
-
-		await awaitedPool.query('SELECT 1;');
-
-		expect(awaitedPool).toBeInstanceOf(Pool);
-		// expect(db.query.User).not.toStrictEqual(undefined);
-	});
-
-	it('drizzle(client)', async () => {
-		const client = await mssql.connect(connectionString);
-		const db = drizzle(client);
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).toBeInstanceOf(Pool);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = await mssql.connect(connectionString);
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).toBeInstanceOf(Pool);
-		// expect(db.query.User).not.toStrictEqual(undefined);
-	});
+	expect(db.$client).toBeInstanceOf(Pool);
+	// expect(db.query.User).not.toStrictEqual(undefined);
 });

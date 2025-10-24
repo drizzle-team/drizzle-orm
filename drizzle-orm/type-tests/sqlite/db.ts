@@ -10,7 +10,7 @@ const bunClient = new BunDatabase(':memory:');
 declare const d1: D1Database;
 declare const durableSql: DurableObjectStorage;
 
-export const db = drizzleBetterSqlite3(client);
-export const bunDb = drizzleBun(bunClient);
+export const db = drizzleBetterSqlite3({ client });
+export const bunDb = drizzleBun({ client: bunClient });
 export const d1Db = drizzleD1(d1);
 export const durableSqliteDb = durableSqlite(durableSql);

@@ -1,42 +1,14 @@
-import 'dotenv/config';
+import { tidbTest as test } from './instrumentation';
+import { tests } from './mysql-common';
+import { runTests as cacheTests } from './mysql-common-cache';
 
-import { connect } from '@tidbcloud/serverless';
-import type { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
-import { drizzle } from 'drizzle-orm/tidb-serverless';
-import { beforeAll, beforeEach } from 'vitest';
-import { skipTests } from '~/common.ts';
-import { tests } from './mysql-common.ts';
-import relations from './relations.ts';
-
-const ENABLE_LOGGING = false;
-
-let db: TiDBServerlessDatabase<never, typeof relations>;
-
-beforeAll(async () => {
-	const connectionString = process.env['TIDB_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error('TIDB_CONNECTION_STRING is not set');
-	}
-
-	const client = connect({ url: connectionString });
-	db = drizzle(client!, { logger: ENABLE_LOGGING, relations });
-});
-
-beforeEach((ctx) => {
-	ctx.mysql = {
-		db,
-	};
-});
-
-skipTests([
+const skip = new Set([
 	'mySchema :: select with group by as field',
 	'mySchema :: delete with returning all fields',
 	'mySchema :: update with returning partial',
 	'mySchema :: delete returning sql',
 	'mySchema :: insert returning sql',
 	'test $onUpdateFn and $onUpdate works updating',
-	'set operations (mixed all) as function with subquery',
-	'set operations (union) from query builder with subquery',
 	'join on aliased sql from with clause',
 	'join on aliased sql from select',
 	'select from raw sql with joins',
@@ -56,13 +28,19 @@ skipTests([
 	'update returning sql',
 	'delete returning sql',
 	'insert returning sql',
+	'test $onUpdateFn and $onUpdate works as $default',
+	'MySqlTable :: select with join `use index` + `force index` incompatible hints',
+	'MySqlTable :: select with `use index` + `force index` incompatible hints',
 
 	// not supported
+	'set operations (mixed all) as function with subquery',
+	'set operations (union) from query builder with subquery',
 	'set operations (except all) as function',
 	'set operations (except all) from query builder',
 	'set operations (intersect all) as function',
 	'set operations (intersect all) from query builder',
 	'set operations (union all) as function',
+	'set operations (union) as function',
 	'tc config for datetime',
 	'select iterator w/ prepared statement',
 	'select iterator',
@@ -72,6 +50,18 @@ skipTests([
 	'Insert all defaults in 1 row',
 	'$default with empty array',
 	'utc config for datetime',
+	'insert into ... select',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 simple find many - with relation',
+	'RQB v2 simple find first - with relation',
+	'cross join (lateral)',
+	'inner join (lateral)',
+	'left join (lateral)',
+	'update with returning all fields + partial',
+	'insert+update+delete returning sql',
+	'all types',
 ]);
 
-tests();
+tests(test, skip);
+cacheTests('mysql', test);

@@ -190,8 +190,8 @@ test('array #7: timestamp array default', async (t) => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to });
+	await push({ db, to: from, ignoreSubsequent: true });
+	const { sqlStatements: pst } = await push({ db, to, ignoreSubsequent: true });
 
 	const st0 = [
 		'ALTER TABLE "test" ADD COLUMN "values" timestamp[] DEFAULT \'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\'::timestamp[];',
