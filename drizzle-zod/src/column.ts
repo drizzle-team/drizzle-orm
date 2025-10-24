@@ -131,6 +131,11 @@ export function columnToSchema(
 		schema = z.any();
 	}
 
+	// Apply metadata if available
+	if (column.meta && typeof column.meta === 'object') {
+		schema = schema.meta(column.meta);
+	}
+
 	return schema;
 }
 

@@ -115,6 +115,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
+	meta: Record<string, unknown> | undefined;
 } & TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
@@ -208,6 +209,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
+			meta: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 	}
 
@@ -287,6 +289,22 @@ export abstract class ColumnBuilder<
 	 * Alias for {@link $onUpdateFn}.
 	 */
 	$onUpdate = this.$onUpdateFn;
+
+	/**
+	 * Adds metadata to the column definition. This can be used by external tools like drizzle-zod
+	 * to add additional information to generated schemas.
+	 *
+	 * @example
+	 * ```ts
+	 * const users = pgTable('users', {
+	 *   age: integer('age').meta({ description: 'User age in years' }),
+	 * });
+	 * ```
+	 */
+	meta(meta: Record<string, unknown>): this {
+		this.config.meta = { ...this.config.meta, ...meta };
+		return this;
+	}
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
