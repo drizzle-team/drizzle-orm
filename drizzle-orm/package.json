@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"p": "prisma generate --schema src/prisma/schema.prisma",
-		"build": "pnpm p && scripts/build.ts",
+		"build": "pnpm p && bun scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
@@ -13,7 +13,7 @@
 		"publish": "npm publish package.tgz"
 	},
 	"main": "./index.cjs",
-	"module": "./index.js",
+	"module": "./index.mjs",
 	"types": "./index.d.ts",
 	"sideEffects": false,
 	"publishConfig": {
@@ -197,15 +197,16 @@
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
-		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
-		"glob": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
+		"poolifier-web-worker": "^0.5.14",
 		"postgres": "^3.3.5",
 		"prisma": "5.14.0",
 		"react": "^18.2.0",
+		"rolldown": "1.0.0-beta.44",
+		"rolldown-plugin-dts": "^0.16.12",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
 		"ts-morph": "^25.0.1",
@@ -213,7 +214,6 @@
 		"tsx": "^3.12.7",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "4.0.0-beta.17",
-		"zod": "^3.20.2",
-		"zx": "^7.2.2"
+		"zod": "^3.20.2"
 	}
 }

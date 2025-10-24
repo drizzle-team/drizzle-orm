@@ -3,6 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"postinstall": "pnpm husky",
 		"build:orm": "turbo run build --filter drizzle-orm --color",
 		"build": "turbo run build test:types //#lint --color",
 		"b": "pnpm build",
@@ -27,6 +28,8 @@
 		"glob": "^10.3.10",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.2.4",
+		"magic-string": "^0.30.19",
+		"oxc-parser": "^0.95.0",
 		"oxlint": "^1.22.0",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
