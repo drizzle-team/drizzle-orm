@@ -23,10 +23,10 @@ import {
 	time,
 	timestamp,
 	uuid,
+	varbit,
 	varchar,
 	vector,
 } from 'drizzle-orm/cockroach-core';
-import { varbit } from 'drizzle-orm/cockroach-core/columns/varbit';
 import { expect } from 'vitest';
 import { diffDefault, test } from './mocks';
 
