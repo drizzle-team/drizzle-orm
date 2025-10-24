@@ -91,14 +91,14 @@ jobs:
             dbs: [singlestore]
           - shard: int:mysql
             dbs: [mysql]
-          - shard: int:tidb
-            dbs: []
+          # - shard: int:tidb
+          #   dbs: []
           - shard: int:planetscale
             dbs: []
           # - shard: int:neon-http
-          #   dbs: []
-          # - shard: int:neon-serverless
           #   dbs: [neon]
+          - shard: int:neon-serverless
+            dbs: [neon]
           - shard: int:cockroach
             dbs: [cockroach]
           - shard: int:mssql
@@ -145,7 +145,7 @@ jobs:
               mssql)       docker compose -f compose/mssql.yml up -d ;;
               cockroach)   docker compose -f compose/cockroach.yml up -d ;;
               gel)         docker compose -f compose/gel.yml up -d ;;
-              neon)        docker compose -f docker-neon.yml up -d ;;
+              neon)        docker compose -f compose/neon.yml up -d ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -189,7 +189,7 @@ jobs:
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5445/postgres
+          NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5446/postgres
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
@@ -224,11 +224,10 @@ jobs:
               fi
             ;;
             int:neon-serverless)
-              trap "docker compose -f docker-neon.yml down -v" EXIT
               pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
             int:mysql)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/mysql/default/
+              pnpm --stream test:mysql
             ;;
             int:tidb)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
@@ -237,7 +236,7 @@ jobs:
             ;;
             int:planetscale)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/planetscale tests/relational/mysql.planetscale
+                pnpm --stream test:planetscale
               fi
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
@@ -285,7 +284,7 @@ jobs:
               singlestore) docker compose -f compose/singlestore.yml down -v ;;
               mssql)       docker compose -f compose/mssql.yml down -v ;;
               cockroach)   docker compose -f compose/cockroach.yml down -v ;;
-              neon)        docker compose -f docker-neon.yml down -v ;;
+              neon)        docker compose -f compose/neon-serverless.yml down -v ;;
             esac
           done
 

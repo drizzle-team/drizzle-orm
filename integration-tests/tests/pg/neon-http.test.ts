@@ -19,7 +19,7 @@ let cachedDb: NeonHttpDatabase;
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('NEON_CONNECTION_STRING is not defined');
+		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 
 	neonConfig.fetchEndpoint = (host) => {
