@@ -21,10 +21,11 @@ function handleColumns(
 	refinements: Record<string, any>,
 	conditions: Conditions,
 	factory?: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>,
 ): z.ZodType {
 	const columnSchemas: Record<string, z.ZodType> = {};
+	const zod: typeof z = factory?.zodInstance ?? z;
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
@@ -40,7 +41,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column, factory) : z.any();
+		const schema = column ? columnToSchema(column, factory) : zod.any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
@@ -59,8 +60,7 @@ function handleColumns(
 			}
 		}
 	}
-
-	return z.object(columnSchemas) as any;
+	return zod.object(columnSchemas) as any;
 }
 
 function handleEnum(
