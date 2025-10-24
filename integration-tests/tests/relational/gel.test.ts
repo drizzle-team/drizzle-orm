@@ -5,11 +5,11 @@ import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { alias } from 'drizzle-orm/gel-core';
 import createClient, { type Client } from 'gel';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './gel.relations.ts';
-import * as schema from './gel.schema.ts';
+import relations from './gel.relations';
+import * as schema from './gel.schema';
 import 'zx';
 import retry from 'async-retry';
-import { createDockerDB } from '~/gel/createInstance.ts';
+import { createDockerDB } from '~/gel/createInstance';
 
 $.quiet = true;
 const ENABLE_LOGGING = false;

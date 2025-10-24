@@ -5,7 +5,9 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsc -p ./tsconfig.json && tsx scripts/build.ts",
+		"build:artifact": "pnpm run build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"test": "vitest --config ./vitest.config.ts",
 		"test:types": "cd type-tests && tsc -p ./../tsconfig.json",
 		"generate-for-tests:pg": "drizzle-kit generate --config=./src/tests/pg/drizzle.config.ts",
@@ -100,7 +102,6 @@
 		"tslib": "^2.7.0",
 		"tsx": "^4.19.0",
 		"uuid": "^10.0.0",
-		"vitest": "^3.1.3",
 		"zx": "^8.1.5"
 	},
 	"dependencies": {

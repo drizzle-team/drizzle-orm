@@ -5,11 +5,14 @@
 	"scripts": {
 		"build:orm": "turbo run build --filter drizzle-orm --color",
 		"build": "turbo run build test:types //#lint --color",
+		"build:artifact": "turbo run build:artifact --color",
 		"b": "pnpm build",
 		"pack": "turbo run pack --color",
+		"pack:artifact": "turbo run pack:artifact --color",
 		"test": "turbo run test --color",
 		"t": "pnpm test",
 		"test:types": "turbo run test:types --color",
+		"test:types-lint": "turbo run test:types //#lint --color",
 		"lint": "pnpm oxlint",
 		"lint:check": "pnpm oxlint --max-warnings=0",
 		"format": "dprint fmt",
@@ -17,7 +20,6 @@
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
-		"@arethetypeswrong/cli": "0.15.3",
 		"bun-types": "^1.2.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
@@ -33,7 +35,9 @@
 		"tsup": "^8.3.5",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
-		"typescript": "5.9.2"
+		"typescript": "5.9.2",
+		"vite-tsconfig-paths": "^4.3.2",
+		"vitest": "4.0.0-beta.19"
 	},
 	"packageManager": "pnpm@10.15.0",
 	"lint-staged": {

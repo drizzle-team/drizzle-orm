@@ -6,10 +6,12 @@
 	"scripts": {
 		"p": "prisma generate --schema src/prisma/schema.prisma",
 		"build": "pnpm p && scripts/build.ts",
+		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
 	"main": "./index.cjs",
@@ -211,8 +213,6 @@
 		"ts-morph": "^25.0.1",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
-		"vite-tsconfig-paths": "^4.3.2",
-		"vitest": "4.0.0-beta.17",
 		"zod": "^3.20.2",
 		"zx": "^7.2.2"
 	}

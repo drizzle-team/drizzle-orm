@@ -1,11 +1,11 @@
 import type * as v from 'valibot';
-import { expect, type TaskContext } from 'vitest';
+import { expect, type TestContext } from 'vitest';
 
 function onlySpecifiedKeys(obj: Record<string, any>, keys: string[]) {
 	return Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)));
 }
 
-export function expectSchemaShape<T extends v.ObjectSchema<v.ObjectEntries, undefined>>(t: TaskContext, expected: T) {
+export function expectSchemaShape<T extends v.ObjectSchema<v.ObjectEntries, undefined>>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(Object.keys(actual.entries)).toStrictEqual(Object.keys(expected.entries));
@@ -32,7 +32,7 @@ export function expectSchemaShape<T extends v.ObjectSchema<v.ObjectEntries, unde
 	};
 }
 
-export function expectEnumValues<T extends v.EnumSchema<any, undefined>>(t: TaskContext, expected: T) {
+export function expectEnumValues<T extends v.EnumSchema<any, undefined>>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(actual.enum).toStrictEqual(expected.enum);

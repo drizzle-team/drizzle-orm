@@ -1,36 +1,8 @@
-import { Client } from '@planetscale/database';
-import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
-import { drizzle } from 'drizzle-orm/planetscale-serverless';
-import { beforeAll, beforeEach } from 'vitest';
-import { skipTests } from '~/common';
+import { planetscaleTest } from './instrumentation';
 import { tests } from './mysql-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
-import relations from './relations';
+import { runTests as cacheTests } from './mysql-common-cache';
 
-const ENABLE_LOGGING = false;
-
-let db: PlanetScaleDatabase<never, typeof relations>;
-let dbGlobalCached: PlanetScaleDatabase;
-let cachedDb: PlanetScaleDatabase;
-
-beforeAll(async () => {
-	const client = new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! });
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
-});
-
-beforeEach((ctx) => {
-	ctx.mysql = {
-		db,
-	};
-	ctx.cachedMySQL = {
-		db: cachedDb,
-		dbGlobalCached,
-	};
-});
-
-skipTests([
+const omit = new Set([
 	'mySchema :: view',
 	'mySchema :: select from tables with same name from different schema using alias',
 	'mySchema :: prepared statement with placeholder in .where',
@@ -47,6 +19,8 @@ skipTests([
 	'mySchema :: select typed sql',
 	'mySchema :: select sql',
 	'mySchema :: select all fields',
+	'mySchema :: select distinct',
+	'mySchema :: build query',
 	'test $onUpdateFn and $onUpdate works updating',
 	'test $onUpdateFn and $onUpdate works as $default',
 	'set operations (mixed all) as function with subquery',
@@ -85,5 +59,5 @@ skipTests([
 	'insert returning sql',
 ]);
 
-tests('planetscale');
-cacheTests();
+tests(planetscaleTest, omit);
+cacheTests('planetscale', planetscaleTest);

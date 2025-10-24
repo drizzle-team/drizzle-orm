@@ -1,0 +1,14 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "1"
+      MSSQL_SA_PASSWORD: "drizzle123PASSWORD!"
+      TZ: UTC
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 1433"]
+      interval: 2s
+      timeout: 3s
+      retries: 60

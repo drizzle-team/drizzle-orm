@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import util from 'node:util';
-import * as schema from './tables.ts';
+import * as schema from './tables';
 
 async function main() {
 	const bdb = new Database(process.env['SQLITE_DB_PATH']!);

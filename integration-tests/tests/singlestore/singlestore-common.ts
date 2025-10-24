@@ -71,8 +71,8 @@ import { migrate } from 'drizzle-orm/singlestore/migrator';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
-import { Expect, toLocalDate } from '~/utils.ts';
-import type { Equal } from '~/utils.ts';
+import { Expect, toLocalDate } from '~/utils';
+import type { Equal } from '~/utils';
 import type relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 

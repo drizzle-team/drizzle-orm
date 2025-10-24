@@ -3,8 +3,8 @@ import { type Client, createClient } from '@libsql/client';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './sqlite.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './sqlite.schema.ts';
+import relations from './sqlite.relations';
+import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './sqlite.schema';
 
 const ENABLE_LOGGING = false;
 

@@ -9,26 +9,26 @@ import {
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
-import { introspect } from 'src/cli/commands/pull-mysql';
-import { suggestions } from 'src/cli/commands/push-mysql';
-import { upToV6 } from 'src/cli/commands/up-mysql';
-import { CasingType } from 'src/cli/validations/common';
-import { mysqlSchemaError as schemaError } from 'src/cli/views';
-import { EmptyProgressView } from 'src/cli/views';
-import { hash } from 'src/dialects/common';
-import { MysqlDDL, MysqlEntity } from 'src/dialects/mysql/ddl';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
-import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
-import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
-import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
-import { diff as legacyDiff } from 'src/legacy/mysql-v5/mysqlDiff';
-import { serializeMysql } from 'src/legacy/mysql-v5/serializer';
-import { DB } from 'src/utils';
-import { mockResolver } from 'src/utils/mocks';
-import { tsc } from 'tests/utils';
 import { v4 as uuid } from 'uuid';
+import { introspect } from '../../src/cli/commands/pull-mysql';
+import { suggestions } from '../../src/cli/commands/push-mysql';
+import { upToV6 } from '../../src/cli/commands/up-mysql';
+import { CasingType } from '../../src/cli/validations/common';
+import { mysqlSchemaError as schemaError } from '../../src/cli/views';
+import { EmptyProgressView } from '../../src/cli/views';
+import { hash } from '../../src/dialects/common';
+import { MysqlDDL, MysqlEntity } from '../../src/dialects/mysql/ddl';
+import { createDDL, interimToDDL } from '../../src/dialects/mysql/ddl';
+import { ddlDiff, ddlDiffDry } from '../../src/dialects/mysql/diff';
+import { defaultFromColumn } from '../../src/dialects/mysql/drizzle';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../src/dialects/mysql/drizzle';
+import { fromDatabaseForDrizzle } from '../../src/dialects/mysql/introspect';
+import { ddlToTypeScript } from '../../src/dialects/mysql/typescript';
+import { diff as legacyDiff } from '../../src/legacy/mysql-v5/mysqlDiff';
+import { serializeMysql } from '../../src/legacy/mysql-v5/serializer';
+import { DB } from '../../src/utils';
+import { mockResolver } from '../../src/utils/mocks';
+import { tsc } from '../utils';
 import 'zx/globals';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -72,8 +72,8 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const mappedErrors1 = err1.map((it) => schemaError(it));
-	const mappedErrors2 = err2.map((it) => schemaError(it));
+	const mappedErrors1 = err1.map((it: any) => schemaError(it));
+	const mappedErrors2 = err2.map((it: any) => schemaError(it));
 
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
@@ -367,7 +367,7 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const envUrl = process.env.MYSQL_CONNECTION_STRING;
+	const envUrl = process.env['MYSQL_CONNECTION_STRING'];
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	const sleep = 1000;
