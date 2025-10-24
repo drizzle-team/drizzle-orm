@@ -115,7 +115,7 @@ describe('extensions tests group', async () => {
 	});
 
 	afterEach(async () => {
-		await $`gel query "DELETE default::User;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await client.querySQL(`DELETE FROM "User";`);
 	});
 
 	test('check that you can query from ext::auth schema in gel', async () => {

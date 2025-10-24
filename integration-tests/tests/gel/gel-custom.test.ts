@@ -70,8 +70,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await $`gel query "DROP TYPE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await Promise.all([
+		client.querySQL(`DELETE FROM "users_custom";`),
+		client.querySQL(`DELETE FROM "prefixed_users_custom";`),
+	]);
 
 	await client?.close();
 	await container?.stop().catch(console.error);
