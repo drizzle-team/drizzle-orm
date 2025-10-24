@@ -70,10 +70,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await Promise.all([
-		client.querySQL(`DELETE FROM "users_custom";`),
-		client.querySQL(`DELETE FROM "prefixed_users_custom";`),
-	]);
+	await $`gel query "DROP TYPE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "DROP TYPE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
 
 	await client?.close();
 	await container?.stop().catch(console.error);
@@ -86,8 +84,10 @@ beforeEach((ctx) => {
 });
 
 afterEach(async () => {
-	await $`gel query "DELETE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await Promise.all([
+		client.querySQL(`DELETE FROM "users_custom";`),
+		client.querySQL(`DELETE FROM "prefixed_users_custom";`),
+	]);
 });
 
 const customInteger = customType<{ data: number; notNull: false; default: false }>({
