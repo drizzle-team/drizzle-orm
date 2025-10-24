@@ -65,6 +65,8 @@ const misc = [
 
 const input = {
 	index: 'src/index.ts',
+	_relations: 'src/_relations.ts',
+	relations: 'src/relations.ts',
 	...dialects.reduce((acc, dialect) => {
 		acc[`${dialect}-core/index`] = `src/${dialect}-core/index.ts`;
 		return acc;

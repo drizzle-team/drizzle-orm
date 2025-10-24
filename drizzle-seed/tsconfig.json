@@ -40,7 +40,8 @@
 		"baseUrl": ".",
 		"declaration": true,
 		"paths": {
-			"~/*": ["src/*"]
+			"~/*": ["src/*"],
+			"~build": ["../build/index.ts"]
 		}
 	},
 	"exclude": ["**/dist", "src/dev"],
