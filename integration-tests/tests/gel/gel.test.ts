@@ -264,293 +264,252 @@ describe('some', async () => {
 	});
 	beforeAll(async () => {
 		await $`gel database wipe --tls-security=${tlsSecurity} --dsn=${dsn} --non-interactive`;
-		await $`gel restore --tls-security=${tlsSecurity} --dsn=${dsn} ./tests/gel/seed/gel-test-seed`;
 
-		// 	await $`gel query "CREATE TYPE default::users {
-		//         create property id1: int16 {
-		//             create constraint exclusive;
-		//         };
-		//         create required property name: str;
-		//   create required property verified: bool {
-		//       SET default := false;
-		//   };
-		//   create PROPERTY json: json;
-		//   create required property  created_at: datetime {
-		//       SET default := datetime_of_statement();
-		//   };
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE default::users_with_cities {
-		// create property id1: int16 {
-		//     create constraint exclusive;
-		// };
-		// create required property name: str;
-		// create required property cityId: int32;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE default::users_with_undefined {
-		//     create property id1: int16 {
-		//         create constraint exclusive;
-		//     };
-		//     create property name: str;
-		//     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_insert_select {
-		//         create property id1: int16 {
-		//             create constraint exclusive;
-		//         };
-		//         create property name: str;
-		//         };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE mySchema::users {
-		//         create property id1: int16;
-		//         create required property name: str;
-		//   create required property verified: bool {
-		//       SET default := false;
-		//   };
-		//   create PROPERTY json: json;
-		//   create required property  created_at: datetime {
-		//       SET default := datetime_of_statement();
-		//   };
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::orders {
-		// CREATE PROPERTY id1 -> int16;
-		// CREATE REQUIRED PROPERTY region -> str;
-		// CREATE REQUIRED PROPERTY product -> str;
-		// CREATE REQUIRED PROPERTY amount -> int64;
-		// CREATE REQUIRED PROPERTY quantity -> int64;
-		// };
-		// " --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_distinct {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// create required property age -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users3 {
-		// create property id1 -> int16;
-		// create required property name -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::cities {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// create property state -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::courses {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// create property categoryId -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::course_categories {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::jsontest {
-		// create property id1 -> int16;
-		// create required property json -> json;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::sal_emp {
-		// create property name -> str;
-		// create property pay_by_quarter -> array<int16>;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::some_new_users {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// create property cityId -> int32;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::aggregate_table {
-		// create property id1: int16;
-		// create required property name: str;
-		// create property a: int16;
-		// create property b: int16;
-		// create property c: int16;
-		// create PROPERTY nullOnly: int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::prefixed_users {
-		// CREATE PROPERTY id1 -> int16;
-		// CREATE REQUIRED PROPERTY name -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::empty_insert_single {
-		// CREATE PROPERTY id1 -> int16;
-		// CREATE REQUIRED PROPERTY name -> str {
-		// SET default := 'Dan';
-		// };
-		// CREATE PROPERTY state -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::empty_insert_multiple {
-		// CREATE PROPERTY id1 -> int16;
-		// CREATE REQUIRED PROPERTY name -> str {
-		// SET default := 'Dan';
-		// };
-		// CREATE PROPERTY state -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::products {
-		// CREATE PROPERTY id1 -> int16;
-		// CREATE REQUIRED PROPERTY price -> decimal;
-		// CREATE REQUIRED PROPERTY cheap -> bool {
-		// SET default := false
-		// };
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
-		// create property id1 -> int16;
-		// create required property name -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::metric_entry {
-		// create required property id1 -> uuid;
-		// create required property createdAt -> datetime;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_transactions {
-		// create required property id1 -> int16;
-		// create required property balance -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::products_transactions {
-		// create required property id1 -> int16;
-		// create required property price -> int16;
-		// create required property stock -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_transactions_rollback {
-		// create required property id1 -> int16;
-		// create required property balance -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_nested_transactions {
-		// create required property id1 -> int16;
-		// create required property balance -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::internal_staff {
-		// create required property userId -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::custom_user {
-		// create required property id1 -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::ticket {
-		// create required property staffId -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::posts {
-		// create required property id1 -> int16;
-		// create property tags -> array<str>;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE dates_column {
-		// create property datetimeColumn -> datetime;
-		// create property local_datetimeColumn -> cal::local_datetime;
-		// create property local_dateColumn -> cal::local_date;
-		// create property local_timeColumn -> cal::local_time;
-
-		// create property durationColumn -> duration;
-		// create property relative_durationColumn -> cal::relative_duration;
-		// create property dateDurationColumn -> cal::date_duration;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE users_with_insert {
-		// create required property username -> str;
-		// create required property admin -> bool;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE users_test_with_and_without_timezone {
-		// create required property username -> str;
-		// create required property admin -> bool;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::arrays_tests {
-		// create property id1: int16 {
-		//     create constraint exclusive;
-		// };
-		// create property tags: array<str>;
-		// create required property numbers: array<int32>;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_on_update {
-		// create required property id1 -> int16;
-		// create required property name -> str;
-		// create property update_counter -> int16 {
-		//     SET default := 1
-		// };
-		// create property always_null -> str;
-		// create property updated_at -> datetime;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::json_table {
-		// create PROPERTY json: json;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::notifications {
-		// create required property id1 -> int16;
-		//  create required property  sentAt: datetime {
-		//       SET default := datetime_of_statement();
-		//   };
-		// create property message -> str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE default::user_notifications {
-		// create required property userId -> int16;
-		// create required property notificationId -> int16;
-		// create property categoryId -> int16;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users1 {
-		// create required property id1: int16;
-		// create required property name: str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE default::users2 {
-		// create required property id1: int16;
-		// create required property name: str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::count_test {
-		// create required property id1: int16;
-		// create required property name: str;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_with_names {
-		// create required property id1: int16;
-		// create required property firstName: str;
-		// create required property lastName: str;
-		// create required property admin: bool;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::users_with_age {
-		//     create required property id1: int16;
-		//     create required property name: str;
-		//     create required property age: int32;
-		//     create required property city: str;
-		//     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		// 	await $`gel query "CREATE TYPE default::user_rqb_test {
-		//     create property custom_id: int32 {
-		//         create constraint exclusive;
-		//     };
-		//     create property name: str;
-		// 	create required property created_at -> datetime;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		// 	await $`gel query "CREATE TYPE default::post_rqb_test {
-		//     create property custom_id: int32 {
-		//         create constraint exclusive;
-		//     };
-		//     create required property user_id: int32;
-		//     create property content: str;
-		// 	create required property created_at -> datetime;
-		// };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "CREATE TYPE default::users {
+		        create property id1: int16 {
+		            create constraint exclusive;
+		        };
+		        create required property name: str;
+		  create required property verified: bool {
+		      SET default := false;
+		  };
+		  create PROPERTY json: json;
+		  create required property  created_at: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		};
+		CREATE TYPE default::users_with_cities {
+		create property id1: int16 {
+		    create constraint exclusive;
+		};
+		create required property name: str;
+		create required property cityId: int32;
+		};
+		CREATE TYPE default::users_with_undefined {
+		    create property id1: int16 {
+		        create constraint exclusive;
+		    };
+		    create property name: str;
+		    };
+		CREATE TYPE default::users_insert_select {
+		        create property id1: int16 {
+		            create constraint exclusive;
+		        };
+		        create property name: str;
+		        };
+		CREATE MODULE mySchema;
+		CREATE TYPE mySchema::users {
+		        create property id1: int16;
+		        create required property name: str;
+		  create required property verified: bool {
+		      SET default := false;
+		  };
+		  create PROPERTY json: json;
+		  create required property  created_at: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		};
+		CREATE TYPE default::orders {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY region -> str;
+		CREATE REQUIRED PROPERTY product -> str;
+		CREATE REQUIRED PROPERTY amount -> int64;
+		CREATE REQUIRED PROPERTY quantity -> int64;
+		};
+		CREATE TYPE default::users_distinct {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create required property age -> int16;
+		};
+		CREATE TYPE default::users3 {
+		create property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::cities {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property state -> str;
+		};
+		CREATE TYPE default::courses {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property categoryId -> int16;
+		};
+		CREATE TYPE default::course_categories {
+		create required property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::jsontest {
+		create property id1 -> int16;
+		create required property json -> json;
+		};
+		CREATE TYPE default::sal_emp {
+		create property name -> str;
+		create property pay_by_quarter -> array<int16>;
+		};
+		CREATE TYPE default::some_new_users {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property cityId -> int32;
+		};
+		CREATE TYPE default::aggregate_table {
+		create property id1: int16;
+		create required property name: str;
+		create property a: int16;
+		create property b: int16;
+		create property c: int16;
+		create PROPERTY nullOnly: int16;
+		};
+		CREATE TYPE default::prefixed_users {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str;
+		};
+		CREATE TYPE default::empty_insert_single {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str {
+		SET default := 'Dan';
+		};
+		CREATE PROPERTY state -> str;
+		};
+		CREATE TYPE default::empty_insert_multiple {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str {
+		SET default := 'Dan';
+		};
+		CREATE PROPERTY state -> str;
+		};
+		CREATE TYPE default::products {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY price -> decimal;
+		CREATE REQUIRED PROPERTY cheap -> bool {
+		SET default := false
+		};
+		};
+		CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
+		create property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::metric_entry {
+		create required property id1 -> uuid;
+		create required property createdAt -> datetime;
+		};
+		CREATE TYPE default::users_transactions {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::products_transactions {
+		create required property id1 -> int16;
+		create required property price -> int16;
+		create required property stock -> int16;
+		};
+		CREATE TYPE default::users_transactions_rollback {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::users_nested_transactions {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::internal_staff {
+		create required property userId -> int16;
+		};
+		CREATE TYPE default::custom_user {
+		create required property id1 -> int16;
+		};
+		CREATE TYPE default::ticket {
+		create required property staffId -> int16;
+		};
+		CREATE TYPE default::posts {
+		create required property id1 -> int16;
+		create property tags -> array<str>;
+		};
+		CREATE TYPE dates_column {
+		create property datetimeColumn -> datetime;
+		create property local_datetimeColumn -> cal::local_datetime;
+		create property local_dateColumn -> cal::local_date;
+		create property local_timeColumn -> cal::local_time;
+		create property durationColumn -> duration;
+		create property relative_durationColumn -> cal::relative_duration;
+		create property dateDurationColumn -> cal::date_duration;
+		};
+		CREATE TYPE users_with_insert {
+		create required property username -> str;
+		create required property admin -> bool;
+		};
+		CREATE TYPE users_test_with_and_without_timezone {
+		create required property username -> str;
+		create required property admin -> bool;
+		};
+		CREATE TYPE default::arrays_tests {
+		create property id1: int16 {
+		    create constraint exclusive;
+		};
+		create property tags: array<str>;
+		create required property numbers: array<int32>;
+		};
+		CREATE TYPE default::users_on_update {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property update_counter -> int16 {
+		    SET default := 1
+		};
+		create property always_null -> str;
+		create property updated_at -> datetime;
+		};
+		CREATE TYPE default::json_table {
+		create PROPERTY json: json;
+		};
+		CREATE TYPE default::notifications {
+		create required property id1 -> int16;
+		 create required property  sentAt: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		create property message -> str;
+		};
+		CREATE TYPE default::user_notifications {
+		create required property userId -> int16;
+		create required property notificationId -> int16;
+		create property categoryId -> int16;
+		};
+		CREATE TYPE default::users1 {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::users2 {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::count_test {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::users_with_names {
+		create required property id1: int16;
+		create required property firstName: str;
+		create required property lastName: str;
+		create required property admin: bool;
+		};
+		CREATE TYPE default::users_with_age {
+		    create required property id1: int16;
+		    create required property name: str;
+		    create required property age: int32;
+		    create required property city: str;
+		    };
+		CREATE TYPE default::user_rqb_test {
+		    create property custom_id: int32 {
+		        create constraint exclusive;
+		    };
+		    create property name: str;
+			create required property created_at -> datetime;
+		};
+		CREATE TYPE default::post_rqb_test {
+		    create property custom_id: int32 {
+		        create constraint exclusive;
+		    };
+		    create required property user_id: int32;
+		    create property content: str;
+			create required property created_at -> datetime;
+		}" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {

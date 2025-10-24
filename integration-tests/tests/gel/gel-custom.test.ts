@@ -59,14 +59,14 @@ beforeAll(async () => {
 		  SET default := false;
 		};
 		create property json: json;
-	};" ${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE TYPE default::prefixed_users_custom {
+	};
+		CREATE TYPE default::prefixed_users_custom {
 		create property id1: int16 {
 			create constraint exclusive;
 		};
 		create required property name: str;
-};" ${tlsSecurity} --dsn=${dsn}`;
+	};
+	" ${tlsSecurity} --dsn=${dsn}`;
 });
 
 afterAll(async () => {
