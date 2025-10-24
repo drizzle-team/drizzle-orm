@@ -315,7 +315,7 @@ test('instrospect all column types', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect all column array types', async () => {
+test('introspect all column array types', async () => {
 	const client = new PGlite();
 
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -358,7 +358,6 @@ test('instrospect all column array types', async () => {
 		schema,
 		'introspect-all-columns-array-types',
 	);
-
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
@@ -456,7 +455,7 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect strings with single quotes', async () => {
+test('introspect strings with single quotes', async () => {
 	const client = new PGlite();
 
 	const myEnum = pgEnum('my_enum', ['escape\'s quotes " ']);
@@ -466,6 +465,99 @@ test('instrospect strings with single quotes', async () => {
 			enum: myEnum('my_enum').default('escape\'s quotes " '),
 			text: text('text').default('escape\'s quotes " '),
 			varchar: varchar('varchar').default('escape\'s quotes " '),
+			// A single regular character
+			text_single_char: text('text_single_char').default('a'),
+			varchar_single_char: varchar('varchar_single_char', { length: 255 }).default('a'),
+
+			// A single quote character
+			text_single_quote: text('text_single_quote').default("'"),
+			varchar_single_quote: varchar('varchar_single_quote', { length: 255 }).default("'"),
+
+			// Two adjacent single quotes
+			text_two_quotes: text('text_two_quotes').default("''"),
+			varchar_two_quotes: varchar('varchar_two_quotes', { length: 255 }).default("''"),
+
+			// Three adjacent single quotes
+			text_three_quotes: text('text_three_quotes').default("'''"),
+			varchar_three_quotes: varchar('varchar_three_quotes', { length: 255 }).default("'''"),
+
+			// Four adjacent single quotes
+			text_four_quotes: text('text_four_quotes').default("''''"),
+			varchar_four_quotes: varchar('varchar_four_quotes', { length: 255 }).default("''''"),
+
+			// Starts with two single quotes
+			text_starts_with_quotes: text('text_starts_with_quotes').default("''a"),
+			varchar_starts_with_quotes: varchar('varchar_starts_with_quotes', { length: 255 }).default("''a"),
+
+			// Ends with two single quotes
+			text_ends_with_quotes: text('text_ends_with_quotes').default("a''"),
+			varchar_ends_with_quotes: varchar('varchar_ends_with_quotes', { length: 255 }).default("a''"),
+
+			// Starts and ends with single quotes
+			text_wrapped_in_single: text('text_wrapped_in_single').default("'a'"),
+			varchar_wrapped_in_single: varchar('varchar_wrapped_in_single', { length: 255 }).default("'a'"),
+
+			// Starts and ends with two single quotes
+			text_wrapped_in_double: text('text_wrapped_in_double').default("''a''"),
+			varchar_wrapped_in_double: varchar('varchar_wrapped_in_double', { length: 255 }).default("''a''"),
+
+			// Single quote surrounded by spaces
+			text_space_quote_space: text('text_space_quote_space').default(" ' "),
+			varchar_space_quote_space: varchar('varchar_space_quote_space', { length: 255 }).default(" ' "),
+
+			// Two single quotes surrounded by spaces
+			text_space_quotes_space: text('text_space_quotes_space').default(" '' "),
+			varchar_space_quotes_space: varchar('varchar_space_quotes_space', { length: 255 }).default(" '' "),
+
+			// A backslash followed by a single quote
+			text_backslash_quote: text('text_backslash_quote').default("\\'"),
+			varchar_backslash_quote: varchar('varchar_backslash_quote', { length: 255 }).default("\\'"),
+
+			// Two backslashes followed by a single quote
+			text_two_backslash_quote: text('text_two_backslash_quote').default("\\\\'"),
+			varchar_two_backslash_quote: varchar('varchar_two_backslash_quote', { length: 255 }).default("\\\\'"),
+
+			// A single quote followed by a backslash
+			text_quote_backslash: text('text_quote_backslash').default("'\\"),
+			varchar_quote_backslash: varchar('varchar_quote_backslash', { length: 255 }).default("'\\"),
+
+			// Multiple groups of adjacent single quotes
+			text_multiple_quote_groups: text('text_multiple_quote_groups').default("a''b'''c"),
+			varchar_multiple_quote_groups: varchar('varchar_multiple_quote_groups', { length: 255 }).default("a''b'''c"),
+
+			// A single double-quote character
+			text_double_quote: text('text_double_quote').default('"'),
+			varchar_double_quote: varchar('varchar_double_quote', { length: 255 }).default('"'),
+
+			// Mixed single and double quotes
+			text_mixed_quotes: text('text_mixed_quotes').default('it\'s a "test"'),
+			varchar_mixed_quotes: varchar('varchar_mixed_quotes', { length: 255 }).default('it\'s a "test"'),
+
+			// String containing characters that might be in a regex
+			text_regex_like: text('text_regex_like').default('^(?!$)[a-z]+.*$'),
+			varchar_regex_like: varchar('varchar_regex_like', { length: 255 }).default('^(?!$)[a-z]+.*$'),
+
+			// Newline characters mixed with quotes
+			text_newline_quotes: text('text_newline_quotes').default("start\\n''\\nmiddle\\'\\nend"),
+			varchar_newline_quotes: varchar('varchar_newline_quotes', { length: 255 }).default(
+				"start\\n''\\nmiddle\\'\\nend",
+			),
+
+			// Special characters
+			text_special_chars: text('text_special_chars').default('\\b\\f\\n\\r\\t\\v\\0'),
+			varchar_special_chars: varchar({ length: 50 }).default('\\b\\f\\n\\r\\t\\v\\0'),
+
+			// Control characters
+			text_control_chars: text('text_control_chars').default('\u0001\u0002\u0003'),
+			varchar_control_chars: varchar({ length: 50 }).default('\u0001\u0002\u0003'),
+
+			// Unicode and emoji
+			text_unicode: text('text_unicode').default('你好世界🌍'),
+			varchar_unicode: varchar({ length: 50 }).default('你好世界🌍'),
+
+			// Complex mix
+			text_complex: text('text_complex').default("a''b\\n'c\\t\"de"),
+			varchar_complex: varchar({ length: 50 }).default("a''b\\n'c\\t\"de"),
 		}),
 	};
 
@@ -475,6 +567,26 @@ test('instrospect strings with single quotes', async () => {
 		'introspect-strings-with-single-quotes',
 	);
 
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect strings with empty string as default', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		columns: pgTable('columns', {
+			// Empty string
+			text_empty: text('text_empty').default(''),
+			varchar_empty: varchar('varchar_empty', { length: 255 }).default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-strings-with-empty-string-as-default',
+	);
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
