@@ -203,17 +203,12 @@
 		"gel": "^2.0.0",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
-		"poolifier-web-worker": "^0.5.14",
 		"postgres": "^3.3.5",
 		"prisma": "5.14.0",
 		"react": "^18.2.0",
-		"rolldown": "1.0.0-beta.44",
-		"rolldown-plugin-dts": "^0.16.12",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
 		"ts-morph": "^25.0.1",
-		"tslib": "^2.5.2",
-		"tsx": "^3.12.7",
 		"zod": "^3.20.2"
 	}
 }

@@ -2,14 +2,11 @@ import MagicString from 'magic-string';
 import path from 'node:path';
 import { parseSync, Visitor } from 'oxc-parser';
 import { ThreadWorker } from 'poolifier-web-worker';
+import type { WorkerIn, WorkerOut } from '.';
 
-export default new ThreadWorker<{
-	content: string;
-	name: string;
-	extension: string;
-}[], any>(async (data) => {
-	if (!data) return;
-	const files = [];
+export default new ThreadWorker<WorkerIn, WorkerOut>(async (data) => {
+	if (!data) return [];
+	const files: WorkerOut = [];
 
 	for (const { content, name, extension } of data) {
 		const code = parseSync(name, content);
@@ -55,7 +52,6 @@ export default new ThreadWorker<{
 		});
 
 		visitor.visit(code.program);
-
 		files.push({
 			code: magic.toString(),
 			name,
@@ -67,7 +63,7 @@ export default new ThreadWorker<{
 
 function resolvePathAlias(importPath: string, file: string) {
 	if (importPath.startsWith('~/')) {
-		const relativePath = path.relative(path.dirname(file), path.resolve('dist.new', importPath.slice(2)));
+		const relativePath = path.relative(path.dirname(file), path.resolve('dist', importPath.slice(2)));
 		importPath = relativePath.startsWith('.') ? relativePath : './' + relativePath;
 	}
 

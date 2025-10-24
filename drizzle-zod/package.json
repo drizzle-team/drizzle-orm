@@ -73,9 +73,6 @@
 		"@types/node": "^18.15.10",
 		"drizzle-orm": "link:../drizzle-orm/dist",
 		"json-rules-engine": "^7.3.1",
-		"poolifier-web-worker": "^0.5.14",
-		"rolldown": "1.0.0-beta.44",
-		"rolldown-plugin-dts": "^0.16.12",
 		"zod": "3.25.1"
 	}
 }

@@ -8,6 +8,7 @@ const dialects = [
 	'mssql',
 	'mysql',
 	'pg',
+	'singlestore',
 	'sqlite',
 ];
 
