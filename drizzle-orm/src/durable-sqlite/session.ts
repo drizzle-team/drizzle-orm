@@ -96,10 +96,7 @@ export class SQLiteDOSession<
 		_config?: SQLiteTransactionConfig,
 	): T {
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, this.schema, undefined, false, true);
-		this.client.transactionSync(() => {
-			transaction(tx);
-		});
-		return {} as any;
+		return this.client.transactionSync(() => transaction(tx));
 	}
 }
 
@@ -129,9 +126,7 @@ export class SQLiteDOTransaction<
 			false,
 			true,
 		);
-		this.session.transaction(() => transaction(tx));
-
-		return {} as any;
+		return this.session.transaction(() => transaction(tx));
 	}
 }
 
@@ -168,6 +163,7 @@ export class SQLiteDOPreparedQuery<
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
+		// oxlint-disable-next-line no-unused-expressions
 		params.length > 0 ? this.client.sql.exec(this.query.sql, ...params) : this.client.sql.exec(this.query.sql);
 	}
 
