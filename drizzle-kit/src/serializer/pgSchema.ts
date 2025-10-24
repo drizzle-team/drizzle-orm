@@ -183,7 +183,7 @@ const column = object({
 	uniqueName: string().optional(),
 	nullsNotDistinct: boolean().optional(),
 	generated: object({
-		type: literal('stored'),
+		type: enumType(['virtual', 'stored']),
 		as: string(),
 	}).optional(),
 	identity: sequenceSchema
@@ -207,7 +207,7 @@ const columnSquashed = object({
 	uniqueName: string().optional(),
 	nullsNotDistinct: boolean().optional(),
 	generated: object({
-		type: literal('stored'),
+		type: enumType(['virtual', 'stored']),
 		as: string(),
 	}).optional(),
 	identity: string().optional(),
