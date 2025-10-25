@@ -20,8 +20,7 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { GelCredentials, gelCredentials } from '../validations/gel';
-import { printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import {
 	LibSQLCredentials,
 	libSQLCredentials,
@@ -739,7 +738,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema } = result.data;
+	const { dialect, schema, casing } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -755,6 +754,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -771,6 +771,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -787,6 +788,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -803,6 +805,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -819,6 +822,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 

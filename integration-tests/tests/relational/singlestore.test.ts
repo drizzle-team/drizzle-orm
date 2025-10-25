@@ -1489,6 +1489,9 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 					},
 				},
 				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
 				extras: ({
 					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
@@ -1500,6 +1503,9 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 		extras: ({
 			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
+		orderBy: {
+			id: 'asc',
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
