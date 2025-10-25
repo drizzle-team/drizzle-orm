@@ -1556,6 +1556,55 @@ export class GenerateUUID extends AbstractGenerator<{
 	}
 }
 
+export class GenerateULID extends AbstractGenerator<{
+	arraySize?: number;
+}> {
+	static override readonly entityKind: string = 'GenerateULID';
+	
+	public override isUnique = true;
+	
+	private state: { rng: prand.RandomGenerator } | undefined;
+	
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+		
+		const rng = prand.xoroshiro128plus(seed);
+		this.state = { rng };
+	}
+	
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+		// TODO generate ulid using string generator
+		const stringChars = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ' as const; // Base32 alphabet for ULID
+		let idx: number,
+			currStr: string;
+		const strLength = 26 as const; // ULID length: 26 characters
+		
+		const timeStamp = Date.now();
+		const ulidTemplate = 'TTTTTTTTTTXXXXXXXXXXXXXXXX' as const; // T = timestamp, X = random portion
+		
+		currStr = '';
+		for (let i = 0; i < strLength; i++) {
+			if (ulidTemplate[i] === 'T') {
+				const timeIdx = Math.floor(timeStamp / Math.pow(32, 9 - i)) % 32; // Encode timestamp as Base32
+				currStr += stringChars[timeIdx];
+				continue;
+			}
+			
+			[idx, this.state.rng] = prand.uniformIntDistribution(
+				0,
+				stringChars.length - 1,
+				this.state.rng,
+			);
+			
+			currStr += stringChars[idx];
+		}
+		return currStr;
+	}
+}
+
 export class GenerateFirstName extends AbstractGenerator<{
 	isUnique?: boolean;
 	arraySize?: number;
