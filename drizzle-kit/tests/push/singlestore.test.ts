@@ -35,7 +35,7 @@ async function createDockerDB(context: any): Promise<string> {
 	const port = await getPort({ port: 3306 });
 	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
-	const pullStream = await docker.pull(image);
+	const pullStream = await docker.pull(image, {platform: 'linux/amd64'});
 	await new Promise((resolve, reject) =>
 		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
 	);
