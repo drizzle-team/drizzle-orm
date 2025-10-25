@@ -4,7 +4,13 @@
 	"description": "",
 	"type": "module",
 	"scripts": {
-		"test": "tsx test"
+		"run-test": "tsx test",
+		"test": "echo skip...",
+		"build": "echo skip...",
+		"build:artifact": "pnpm run build",
+		"pack": "echo skip...",
+		"pack:artifact": "pnpm run pack",
+		"test:types": "echo skip..."
 	},
 	"keywords": [],
 	"author": "Drizzle Team",

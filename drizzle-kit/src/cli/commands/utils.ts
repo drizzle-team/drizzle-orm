@@ -3,11 +3,13 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
-import { assertUnreachable } from '../../global';
-import { type Dialect, dialect } from '../../schemaValidator';
-import { prepareFilenames } from '../../serializer';
+import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { type Dialect, dialect } from '../../utils/schemaValidator';
+import { prepareFilenames } from '../../utils/utils-node';
+import { safeRegister } from '../../utils/utils-node';
 import { Entities, pullParams, pushParams } from '../validations/cli';
+import { CockroachCredentials, cockroachCredentials } from '../validations/cockroach';
+import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import {
 	Casing,
 	CasingType,
@@ -24,6 +26,8 @@ import {
 	libSQLCredentials,
 	printConfigConnectionIssues as printIssuesLibSQL,
 } from '../validations/libsql';
+import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
+import { MssqlCredentials, mssqlCredentials } from '../validations/mssql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -47,47 +51,6 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
-
-// NextJs default config is target: es5, which esbuild-register can't consume
-const assertES5 = async (unregister: () => void) => {
-	try {
-		require('./_es5.ts');
-	} catch (e: any) {
-		if ('errors' in e && Array.isArray(e.errors) && e.errors.length > 0) {
-			const es5Error = (e.errors as any[]).filter((it) => it.text?.includes(`("es5") is not supported yet`)).length > 0;
-			if (es5Error) {
-				console.log(
-					error(
-						`Please change compilerOptions.target from 'es5' to 'es6' or above in your tsconfig.json`,
-					),
-				);
-				process.exit(1);
-			}
-		}
-		console.error(e);
-		process.exit(1);
-	}
-};
-
-export const safeRegister = async () => {
-	const { register } = await import('esbuild-register/dist/node');
-	let res: { unregister: () => void };
-	try {
-		res = register({
-			format: 'cjs',
-			loader: 'ts',
-		});
-	} catch {
-		// tsx fallback
-		res = {
-			unregister: () => {},
-		};
-	}
-
-	// has to be outside try catch to be able to run with tsx
-	await assertES5(res.unregister);
-	return res;
-};
 
 export const prepareCheckParams = async (
 	options: {
@@ -153,6 +116,7 @@ export type ExportConfig = {
 	dialect: Dialect;
 	schema: string | string[];
 	sql: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -211,12 +175,13 @@ export const prepareExportConfig = async (
 		schema?: string;
 		dialect?: Dialect;
 		sql: boolean;
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
 
-	const { schema, dialect, sql } = config;
+	const { schema, dialect, sql, config: conf } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -231,6 +196,7 @@ export const prepareExportConfig = async (
 		process.exit(0);
 	}
 	return {
+		casing: config.casing,
 		dialect: dialect,
 		schema: schema,
 		sql: sql,
@@ -264,7 +230,7 @@ export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
 ): Promise<
-	(
+	& (
 		| {
 			dialect: 'mysql';
 			credentials: MysqlCredentials;
@@ -285,7 +251,16 @@ export const preparePushConfig = async (
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
-	) & {
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
+		| {
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
+		}
+	)
+	& {
 		schemaPath: string | string[];
 		verbose: boolean;
 		strict: boolean;
@@ -315,6 +290,12 @@ export const preparePushConfig = async (
 	}
 
 	const config = parsed.data;
+
+	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
+	if (isEmptySchemaFilter) {
+		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
+		config.schemaFilter = [defaultSchema];
+	}
 
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
@@ -445,6 +426,46 @@ export const preparePushConfig = async (
 		process.exit(1);
 	}
 
+	if (config.dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesSqlite(config, 'push'); // TODO print issues
+			process.exit(1);
+		}
+		return {
+			dialect: 'mssql',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
+	if (config.dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'cockroach',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+			entities: config.entities,
+		};
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -477,6 +498,14 @@ export const preparePullConfig = async (
 			dialect: 'gel';
 			credentials?: GelCredentials;
 		}
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
+		| {
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
+		}
 	) & {
 		out: string;
 		breakpoints: boolean;
@@ -502,6 +531,12 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
+
+	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
+	if (isEmptySchemaFilter) {
+		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
+		config.schemaFilter = [defaultSchema];
+	}
 
 	const tablesFilterConfig = config.tablesFilter;
 	const tablesFilter = tablesFilterConfig
@@ -644,6 +679,46 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesPg(config); // TODO add issues printing
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -760,6 +835,31 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
+	if (dialect === 'mssql') {
+		console.log(
+			error(
+				`You can't use 'studio' command with MsSql dialect yet`,
+			),
+		);
+		process.exit(1);
+	}
+
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -870,6 +970,38 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		process.exit(1);
 	}
 
+	if (dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printMssqlIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -908,10 +1040,11 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
-	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
-	const content = required.default ?? required;
-	unregister();
+	const content = await safeRegister(async () => {
+		const required = require(`${path}`);
+		const content = required.default ?? required;
+		return content;
+	});
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);

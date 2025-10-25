@@ -9,7 +9,7 @@ import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
@@ -135,9 +135,9 @@ export function drizzle<
 	TClient extends AnyMySql2Connection = CallbackPool,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		MySql2DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -161,25 +161,21 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: PoolOptions | string; client?: TClient }
-			& MySql2DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: PoolOptions | string; client?: TClient }
+		& MySql2DrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? createPool({
-				uri: connection,
-				supportBigNumbers: true,
-			})
-			: createPool(connection!);
-		const db = construct(instance, drizzleConfig);
+	const instance = typeof connection === 'string'
+		? createPool({
+			uri: connection,
+			supportBigNumbers: true,
+		})
+		: createPool(connection!);
+	const db = construct(instance, drizzleConfig);
 
-		return db as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as MySql2DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return db as any;
 }
 
 export namespace drizzle {

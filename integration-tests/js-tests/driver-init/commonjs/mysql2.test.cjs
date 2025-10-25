@@ -61,30 +61,15 @@ describe('mysql2', async (it) => {
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = createPool({
 			uri: process.env['MYSQL_CONNECTION_STRING'],
 		});
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.$client.getConnection).not.toStrictEqual(undefined);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = createPool({
-			uri: process.env['MYSQL_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-			mode: 'default',
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).not.toStrictEqual(undefined);
 	});
 
@@ -107,30 +92,15 @@ describe('mysql2', async (it) => {
 });
 
 describe('mysql2:connection', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = createConnection({
 			uri: process.env['MYSQL_CONNECTION_STRING'],
 		});
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.execute('SELECT 1;');
 
-		expect(db.$client.getConnection).toStrictEqual(undefined);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = createConnection({
-			uri: process.env['MYSQL_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-			mode: 'default',
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client.getConnection).toStrictEqual(undefined);
 	});
 

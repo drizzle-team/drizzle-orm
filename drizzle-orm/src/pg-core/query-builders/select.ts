@@ -32,9 +32,9 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	type NeonAuthToken,
+	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { extractUsedTable } from '../utils.ts';
 import type {

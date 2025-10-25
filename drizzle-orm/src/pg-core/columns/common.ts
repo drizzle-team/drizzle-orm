@@ -16,14 +16,14 @@ import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
 export type PgColumns = Record<string, PgColumn<any>>;
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
-	actions: {
+	config: {
+		name?: string;
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
@@ -54,9 +54,9 @@ export abstract class PgColumnBuilder<
 
 	references(
 		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
+		config: ReferenceConfig['config'] = {},
 	): this {
-		this.foreignKeyConfigs.push({ ref, actions });
+		this.foreignKeyConfigs.push({ ref, config });
 		return this;
 	}
 
@@ -85,23 +85,23 @@ export abstract class PgColumnBuilder<
 
 	/** @internal */
 	buildForeignKeys(column: PgColumn, table: PgTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
+		return this.foreignKeyConfigs.map(({ ref, config }) => {
 			return iife(
-				(ref, actions) => {
+				(ref, config) => {
 					const builder = new ForeignKeyBuilder(() => {
 						const foreignColumn = ref();
-						return { columns: [column], foreignColumns: [foreignColumn] };
+						return { name: config.name, columns: [column], foreignColumns: [foreignColumn] };
 					});
-					if (actions.onUpdate) {
-						builder.onUpdate(actions.onUpdate);
+					if (config.onUpdate) {
+						builder.onUpdate(config.onUpdate);
 					}
-					if (actions.onDelete) {
-						builder.onDelete(actions.onDelete);
+					if (config.onDelete) {
+						builder.onDelete(config.onDelete);
 					}
 					return builder.build(table);
 				},
 				ref,
-				actions,
+				config,
 			);
 		});
 	}
@@ -131,9 +131,6 @@ export abstract class PgColumn<
 		table: PgTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}
@@ -266,7 +263,7 @@ export class PgArrayBuilder<
 		length: number | undefined;
 	}
 > {
-	static override readonly [entityKind] = 'PgArrayBuilder';
+	static override readonly [entityKind]: string = 'PgArrayBuilder';
 
 	constructor(
 		name: string,

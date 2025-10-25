@@ -10,7 +10,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';

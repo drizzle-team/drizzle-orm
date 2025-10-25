@@ -79,9 +79,7 @@ export const usersToGroupsTable = singlestoreTable(
 		userId: bigint({ mode: 'number' }).notNull(),
 		groupId: bigint({ mode: 'number' }).notNull(),
 	},
-	(t) => ({
-		pk: primaryKey(t.userId, t.groupId),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {

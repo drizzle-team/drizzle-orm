@@ -6,7 +6,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlTimeBuilder extends MySqlColumnBuilder<
 	{
-		name: string;
 		dataType: 'string time';
 		data: string;
 		driverParam: string | number;

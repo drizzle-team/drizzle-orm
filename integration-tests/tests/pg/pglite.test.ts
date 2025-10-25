@@ -17,15 +17,9 @@ let client: PGlite;
 
 beforeAll(async () => {
 	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestCache(),
-	});
-	dbGlobalCached = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestGlobalCache(),
-	});
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {

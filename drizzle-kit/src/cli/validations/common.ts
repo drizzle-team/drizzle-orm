@@ -1,7 +1,7 @@
 import chalk from 'chalk';
-import { UnionToIntersection } from 'hono/utils/types';
+import type { UnionToIntersection } from 'hono/utils/types';
 import { any, boolean, enum as enum_, literal, object, string, TypeOf, union } from 'zod';
-import { dialect } from '../../schemaValidator';
+import { dialect } from '../../utils/schemaValidator';
 import { outputs } from './outputs';
 
 export type Commands =
@@ -108,7 +108,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
+	schemaFilter: union([string(), string().array()]).optional(),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
 	casing: casingType.optional(),

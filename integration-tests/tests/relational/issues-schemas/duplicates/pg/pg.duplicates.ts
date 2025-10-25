@@ -33,12 +33,12 @@ export const artistsToMembers = pgTable(
 		memberId: integer('member_id').notNull(),
 		artistId: integer('artist_id').notNull(),
 	},
-	(table) => ({
-		memberArtistIndex: index('artist_to_member__artist_id__member_id__idx').on(
+	(table) => [
+		index('artist_to_member__artist_id__member_id__idx').on(
 			table.memberId,
 			table.artistId,
 		),
-	}),
+	],
 );
 
 export const albums = pgTable(
@@ -53,9 +53,7 @@ export const albums = pgTable(
 			.default(sql`CURRENT_TIMESTAMP`),
 		artistId: integer('artist_id').notNull(),
 	},
-	(table) => ({
-		artistIndex: index('albums__artist_id__idx').on(table.artistId),
-	}),
+	(table) => [index('albums__artist_id__idx').on(table.artistId)],
 );
 
 // relations

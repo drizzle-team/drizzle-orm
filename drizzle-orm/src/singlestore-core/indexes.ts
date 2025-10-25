@@ -87,9 +87,11 @@ export class Index {
 	static readonly [entityKind]: string = 'SingleStoreIndex';
 
 	readonly config: IndexConfig & { table: SingleStoreTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: SingleStoreTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

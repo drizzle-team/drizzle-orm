@@ -4,7 +4,7 @@ import { drizzle } from '~/gel/index.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
-const db = drizzle(gel.createClient(), { schema });
+const db = drizzle({ client: gel.createClient(), schema });
 
 {
 	const result = await db._query.users.findMany({

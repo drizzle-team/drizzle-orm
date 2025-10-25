@@ -305,7 +305,7 @@ export class NeonSession<
 		transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
-		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
+		const session = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
 			? new NeonSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
 		const tx = new NeonTransaction<TFullSchema, TRelations, TSchema>(
@@ -323,7 +323,7 @@ export class NeonSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
+			if (this.client instanceof Pool) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}

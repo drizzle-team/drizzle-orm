@@ -15,7 +15,7 @@ let client: Database.Database;
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 	client = new Database(dbPath);
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

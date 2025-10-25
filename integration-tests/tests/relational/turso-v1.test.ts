@@ -3,7 +3,7 @@ import { type Client, createClient } from '@libsql/client';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './sqlite.schema.ts';
+import * as schema from './sqlite.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -42,7 +42,7 @@ beforeAll(async () => {
 		console.error('Cannot connect to libsql');
 		throw lastError;
 	}
-	db = drizzle(client!, { logger: ENABLE_LOGGING, schema, casing: 'snake_case' });
+	db = drizzle({ client: client!, logger: ENABLE_LOGGING, schema, casing: 'snake_case' });
 });
 
 beforeEach(async () => {

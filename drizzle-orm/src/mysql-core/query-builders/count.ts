@@ -9,7 +9,7 @@ export class MySqlCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 
-	static override readonly [entityKind] = 'MySqlCountBuilder';
+	static override readonly [entityKind]: string = 'MySqlCountBuilder';
 	[Symbol.toStringTag] = 'MySqlCountBuilder';
 
 	private session: TSession;

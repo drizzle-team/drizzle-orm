@@ -80,7 +80,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import relations from '~/pg/relations';
@@ -201,7 +200,7 @@ const jsonTestTable = pgTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-let pgContainer: Docker.Container | undefined;
+let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
@@ -227,7 +226,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: false, relations });
+	db = drizzle({ client, logger: false, relations });
 });
 
 afterAll(async () => {
@@ -443,10 +442,7 @@ test('table configs: unique third param', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: char('state', { length: 2 }),
-	}, (t) => ({
-		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-		f1: unique('custom_name1').on(t.name, t.state),
-	}));
+	}, (t) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)]);
 
 	const tableConfig = getTableConfig(cities1Table);
 
@@ -473,7 +469,7 @@ test('table configs: unique in column', async () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-	expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toBe(undefined);
 	expect(columnName?.isUnique).toBe(true);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -491,9 +487,7 @@ test('table config: foreign keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-	}));
+	}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -506,9 +500,9 @@ test('table config: primary keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-	}));
+	}, (t) => [
+		primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -4711,10 +4705,10 @@ test('policy', () => {
 		const table = pgTable('table_with_policy', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
-		}, () => ({
+		}, () => [
 			p1,
 			p2,
-		}));
+		]);
 		const config = getTableConfig(table);
 		expect(config.policies).toHaveLength(2);
 		expect(config.policies[0]).toBe(p1);
@@ -4733,8 +4727,13 @@ test('neon: policy', () => {
 		for (const it of Object.values(policy)) {
 			expect(is(it, PgPolicy)).toBe(true);
 			expect(it?.to).toStrictEqual(authenticatedRole);
-			it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
-			it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+
+			if (it?.using) {
+				expect(it.using).toStrictEqual(sql`true`);
+			}
+			if (it?.withCheck) {
+				expect(it.withCheck).toStrictEqual(sql`true`);
+			}
 		}
 	}
 

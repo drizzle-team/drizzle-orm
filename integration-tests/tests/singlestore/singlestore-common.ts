@@ -61,7 +61,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	uniqueKeyName,
 	varbinary,
 	varchar,
 	vector,
@@ -72,8 +71,8 @@ import { migrate } from 'drizzle-orm/singlestore/migrator';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
-import { Expect, toLocalDate } from '~/utils.ts';
-import type { Equal } from '~/utils.ts';
+import { Expect, toLocalDate } from '~/utils';
+import type { Equal } from '~/utils';
 import type relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 
@@ -232,11 +231,9 @@ const usersMigratorTable = singlestoreTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
-});
+}, (table) => [
+	uniqueIndex('').on(table.name).using('btree'),
+]);
 
 // To test aggregate functions
 const aggregateTable = singlestoreTable('aggregate_table', {
@@ -562,9 +559,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -577,10 +572,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			}, (t) => [unique('custom_name').on(t.name, t.state), unique('custom_name1').on(t.name, t.state)]);
 
 			const tableConfig = getTableConfig(cities1Table);
 
@@ -604,7 +596,7 @@ export function tests(driver?: string) {
 			const tableConfig = getTableConfig(cities1Table);
 
 			const columnName = tableConfig.columns.find((it) => it.name === 'name');
-			expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+			expect(columnName?.uniqueName).toBe(undefined);
 			expect(columnName?.isUnique).toBeTruthy();
 
 			const columnState = tableConfig.columns.find((it) => it.name === 'state');

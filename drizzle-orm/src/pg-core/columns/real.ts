@@ -5,7 +5,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgRealBuilder extends PgColumnBuilder<
 	{
-		name: string;
 		dataType: 'number float';
 		data: number;
 		driverParam: string | number;

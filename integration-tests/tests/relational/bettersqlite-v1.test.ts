@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './sqlite.schema.ts';
+import * as schema from './sqlite.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
 
@@ -19,7 +19,7 @@ let db: BetterSQLite3Database<typeof schema>;
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	db = drizzle(new Database(dbPath), { schema, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client: new Database(dbPath), schema, logger: ENABLE_LOGGING, casing: 'snake_case' });
 });
 
 beforeEach(() => {

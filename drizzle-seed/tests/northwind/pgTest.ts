@@ -19,7 +19,7 @@ const pgPool = new PgPool({
 	// ssl: true
 });
 
-const db = drizzle(pgPool);
+const db = drizzle({ client: pgPool });
 
 console.log('database connection was established successfully.');
 

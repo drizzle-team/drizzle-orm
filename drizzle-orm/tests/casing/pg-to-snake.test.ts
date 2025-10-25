@@ -29,7 +29,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle(postgres(''), { schema, casing: 'snake_case' });
+const db = drizzle({ client: postgres(''), schema, casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',

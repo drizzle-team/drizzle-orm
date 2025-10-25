@@ -69,6 +69,7 @@ export class ForeignKey {
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
+	readonly name?: string;
 
 	constructor(readonly table: PgTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
@@ -87,6 +88,10 @@ export class ForeignKey {
 			...foreignColumnNames,
 		];
 		return name ?? `${chunks.join('_')}_fk`;
+	}
+
+	isNameExplicit(): boolean {
+		return !!this.reference().name;
 	}
 }
 

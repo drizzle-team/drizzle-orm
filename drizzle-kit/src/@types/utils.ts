@@ -5,7 +5,6 @@ declare global {
 		capitalise(): string;
 		camelCase(): string;
 		snake_case(): string;
-
 		concatIf(it: string, condition: boolean): string;
 	}
 

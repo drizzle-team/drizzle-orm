@@ -10,7 +10,7 @@ import type { PgColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { pgTable } from './table.ts';
 import { PgViewBase } from './view-base.ts';
-import { PgViewConfig } from './view-common.ts';
+import { PgMaterializedViewConfig, PgViewConfig } from './view-common.ts';
 
 export type ViewWithConfig = RequireAtLeastOne<{
 	checkOption: 'local' | 'cascaded';
@@ -334,8 +334,6 @@ export type PgViewWithSelection<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = PgView<TName, TExisting, TSelectedFields> & TSelectedFields;
-
-export const PgMaterializedViewConfig = Symbol.for('drizzle:PgMaterializedViewConfig');
 
 export class PgMaterializedView<
 	TName extends string = string,

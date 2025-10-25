@@ -3,25 +3,28 @@ import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
-import { assertUnreachable } from '../global';
-import type { ProxyParams } from '../serializer/studio';
-import {
-	type DB,
-	LibSQLDB,
-	normalisePGliteUrl,
-	normaliseSQLiteUrl,
-	type Proxy,
-	type SQLiteDB,
-	type TransactionProxy,
-} from '../utils';
+import { assertUnreachable, TransactionProxy } from '../utils';
+import { type DB, LibSQLDB, type Proxy, type SQLiteDB } from '../utils';
+import { normaliseSQLiteUrl } from '../utils/utils-node';
+import { JSONB } from '../utils/when-json-met-bigint';
+import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
+import { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+
+const normalisePGliteUrl = (it: string) => {
+	if (it.startsWith('file:')) {
+		return it.substring(5);
+	}
+
+	return it;
+};
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
@@ -67,7 +70,7 @@ export const preparePostgresDB = async (
 				undefined,
 			);
 
-			const db = drizzle(rdsClient, config);
+			const db = drizzle({ client: rdsClient, ...config });
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(db, config);
 			};
@@ -126,7 +129,7 @@ export const preparePostgresDB = async (
 
 			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
 			await pglite.waitReady;
-			const drzl = drizzle(pglite);
+			const drzl = drizzle({ client: pglite });
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(drzl, config);
 			};
@@ -209,6 +212,9 @@ export const preparePostgresDB = async (
 				if (typeId === pg.types.builtins.INTERVAL) {
 					return (val: any) => val;
 				}
+				if (typeId === pg.types.builtins.JSON || typeId === pg.types.builtins.JSONB) {
+					return (val: any) => JSONB.parse(val);
+				}
 				// @ts-ignore
 				return pg.types.getTypeParser(typeId, format);
 			},
@@ -218,7 +224,7 @@ export const preparePostgresDB = async (
 			? new pg.Pool({ connectionString: credentials.url, max: 1 })
 			: new pg.Pool({ ...credentials, ssl, max: 1 });
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -290,7 +296,7 @@ export const preparePostgresDB = async (
 		client.options.serializers['114'] = transparentParser;
 		client.options.serializers['3802'] = transparentParser;
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -374,7 +380,7 @@ export const preparePostgresDB = async (
 
 		await client.connect();
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -474,7 +480,7 @@ export const preparePostgresDB = async (
 			: new Pool({ ...credentials, max: 1, ssl });
 		neonConfig.webSocketConstructor = ws;
 
-		const db = drizzle(client);
+		const db = drizzle({ client: client as any });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -525,6 +531,87 @@ export const preparePostgresDB = async (
 
 	console.error(
 		"To connect to Postgres database - please install either of 'pg', 'postgres', '@neondatabase/serverless' or '@vercel/postgres' drivers",
+	);
+	process.exit(1);
+};
+
+export const prepareCockroach = async (
+	credentials: PostgresCredentials,
+): Promise<
+	DB & {
+		proxy: Proxy;
+		migrate: (config: string | MigrationConfig) => Promise<void>;
+	}
+> => {
+	if (await checkPackage('pg')) {
+		const { default: pg } = await import('pg');
+		const { drizzle } = await import('drizzle-orm/cockroach');
+		const { migrate } = await import('drizzle-orm/cockroach/migrator');
+
+		const ssl = 'ssl' in credentials
+			? credentials.ssl === 'prefer'
+					|| credentials.ssl === 'require'
+					|| credentials.ssl === 'allow'
+				? { rejectUnauthorized: false }
+				: credentials.ssl === 'verify-full'
+				? {}
+				: credentials.ssl
+			: {};
+
+		// Override pg default date parsers
+		const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+					return (val: any) => val;
+				}
+				if (typeId === pg.types.builtins.TIMESTAMP) {
+					return (val: any) => val;
+				}
+				if (typeId === pg.types.builtins.DATE) {
+					return (val: any) => val;
+				}
+				if (typeId === pg.types.builtins.INTERVAL) {
+					return (val: any) => val;
+				}
+				// @ts-ignore
+				return pg.types.getTypeParser(typeId, format);
+			},
+		};
+
+		const client = 'url' in credentials
+			? new pg.Pool({ connectionString: credentials.url, max: 1 })
+			: new pg.Pool({ ...credentials, ssl, max: 1 });
+
+		const db = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
+			return result.rows;
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const result = await client.query({
+				text: params.sql,
+				values: params.params,
+				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
+			});
+			return result.rows;
+		};
+
+		return { query, proxy, migrate: migrateFn };
+	}
+
+	console.error(
+		"To connect to Cockroach - please install 'pg' package",
 	);
 	process.exit(1);
 };
@@ -656,7 +743,7 @@ export const connectToSingleStore = async (
 			? await createConnection(result.url)
 			: await createConnection(result.credentials!); // needed for some reason!
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -755,7 +842,7 @@ export const connectToMySQL = async (
 			? await createConnection(result.url)
 			: await createConnection(result.credentials!); // needed for some reason!
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -825,7 +912,7 @@ export const connectToMySQL = async (
 
 		const connection = new Client(result);
 
-		const db = drizzle(connection);
+		const db = drizzle({ client: connection });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(db, config);
 		};
@@ -870,6 +957,59 @@ export const connectToMySQL = async (
 
 	console.error(
 		"To connect to MySQL database - please install either of 'mysql2' or '@planetscale/database' drivers",
+	);
+	process.exit(1);
+};
+
+const parseMssqlCredentials = (credentials: MssqlCredentials) => {
+	if ('url' in credentials) {
+		const url = credentials.url;
+		return { url };
+	} else {
+		return {
+			database: credentials.database,
+			credentials,
+		};
+	}
+};
+
+export const connectToMsSQL = async (
+	it: MssqlCredentials,
+): Promise<{
+	db: DB;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	const result = parseMssqlCredentials(it);
+
+	if (await checkPackage('mssql')) {
+		const mssql = await import('mssql');
+		const { drizzle } = await import('drizzle-orm/node-mssql');
+		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
+
+		const connection = result.url
+			? await mssql.default.connect(result.url)
+			: await mssql.default.connect(result.credentials!);
+
+		const db = drizzle({ client: connection });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query: DB['query'] = async <T>(
+			sql: string,
+		): Promise<T[]> => {
+			const res = await connection.query(sql);
+			return res.recordset as any;
+		};
+
+		return {
+			db: { query },
+			migrate: migrateFn,
+		};
+	}
+
+	console.error(
+		"To connect to MsSQL database - please install 'mssql' driver",
 	);
 	process.exit(1);
 };
@@ -1071,7 +1211,7 @@ export const connectToSQLite = async (
 		const client = createClient({
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 		});
-		const drzl = drizzle(client);
+		const drzl = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
@@ -1132,7 +1272,7 @@ export const connectToSQLite = async (
 		const sqlite = new Database(
 			normaliseSQLiteUrl(credentials.url, 'better-sqlite'),
 		);
-		const drzl = drizzle(sqlite);
+		const drzl = drizzle({ client: sqlite });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
@@ -1217,7 +1357,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 			authToken: credentials.authToken,
 		});
-		const drzl = drizzle(client);
+		const drzl = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};

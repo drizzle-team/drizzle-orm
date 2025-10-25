@@ -4,10 +4,12 @@
 	"description": "Generate valibot schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
+		"build:artifact": "pnpm run build",
 		"build": "tsx scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd tests && tsc",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
 		"test": "vitest run"
 	},
@@ -67,8 +69,6 @@
 		"rimraf": "^5.0.0",
 		"rollup": "^3.29.5",
 		"valibot": "1.0.0-beta.7",
-		"vite-tsconfig-paths": "^4.3.2",
-		"vitest": "^3.1.3",
 		"zx": "^7.2.2"
 	}
 }

@@ -8,7 +8,7 @@ import type { GelQueryResultHKT } from '~/gel-core/session.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { GelClient } from './session.ts';
 import { GelDbSession } from './session.ts';
 
@@ -91,8 +91,8 @@ export function drizzle<
 	TClient extends GelClient = Client,
 >(
 	...params:
-		| [TClient | string]
-		| [TClient | string, DrizzleConfig<TSchema, TRelations>]
+		| [string]
+		| [string, DrizzleConfig<TSchema, TRelations>]
 		| [
 			& DrizzleConfig<TSchema, TRelations>
 			& (
@@ -113,20 +113,16 @@ export function drizzle<
 		return construct(instance, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as (
-			& ({ connection?: ConnectOptions | string; client?: TClient })
-			& DrizzleConfig<TSchema, TRelations>
-		);
+	const { connection, client, ...drizzleConfig } = params[0] as (
+		& ({ connection?: ConnectOptions | string; client?: TClient })
+		& DrizzleConfig<TSchema, TRelations>
+	);
 
-		if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, drizzleConfig);
 
-		const instance = createClient(connection);
+	const instance = createClient(connection);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

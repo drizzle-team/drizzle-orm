@@ -24,10 +24,10 @@ import {
 import { Resource } from 'sst';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
-import type { Equal } from '../utils.ts';
-import { Expect, randomString } from '../utils.ts';
-import relationsV2 from './relations.ts';
-import { clear, init, rqbPost, rqbUser } from './schema.ts';
+import type { Equal } from '../utils';
+import { Expect, randomString } from '../utils';
+import relationsV2 from './relations';
+import { clear, init, rqbPost, rqbUser } from './schema';
 
 dotenv.config();
 
@@ -102,7 +102,8 @@ let db: AwsDataApiPgDatabase<typeof schema, typeof relationsV2>;
 beforeAll(async () => {
 	const rdsClient = new RDSDataClient();
 
-	db = drizzle(rdsClient, {
+	db = drizzle({
+		client: rdsClient,
 		// @ts-ignore
 		database: Resource.Postgres.database,
 		// @ts-ignore
@@ -1477,7 +1478,7 @@ test.skip('all date and time columns with timezone', async () => {
 	]);
 
 	expect(result[0]?.timestampTimeZones.getTime()).toEqual(
-		new Date((result2.rows?.[0] as any).timestamp_date_2 as any).getTime(),
+		new Date((result2.rows?.[0]?.timestamp_date_2) as any).getTime(),
 	);
 
 	await db.execute(sql`drop table if exists ${table}`);
@@ -1574,12 +1575,12 @@ test('all date and time columns without timezone', async () => {
 		},
 	]);
 
-	expect((result2.rows?.[0] as any).timestamp_string).toEqual(
+	expect(result2.rows?.[0]?.timestamp_string).toEqual(
 		'2022-01-01 00:00:00.123456',
 	);
 	// need to add the 'Z', otherwise javascript assumes it's in local time
 	expect(
-		new Date(((result2.rows?.[0] as any).timestamp_date + 'Z') as any).getTime(),
+		new Date((result2.rows?.[0]?.timestamp_date + 'Z') as any).getTime(),
 	).toEqual(timestampDate.getTime());
 
 	await db.execute(sql`drop table if exists ${table}`);

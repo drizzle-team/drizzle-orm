@@ -7,10 +7,10 @@ import { migrate } from 'drizzle-orm/xata-http/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { getXataClient } from '../xata/xata.ts';
+import { getXataClient } from '../xata/xata';
 import { tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache } from './pg-common-cache.ts';
-import relations from './relations.ts';
+import { TestCache, TestGlobalCache } from './pg-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 

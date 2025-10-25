@@ -49,6 +49,7 @@ import type { MySqlView } from './view.ts';
 
 export interface MySqlDialectConfig {
 	casing?: Casing;
+	escapeParam?: (num: number) => string;
 }
 
 export class MySqlDialect {
@@ -59,6 +60,10 @@ export class MySqlDialect {
 
 	constructor(config?: MySqlDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
+
+		if (config?.escapeParam) {
+			this.escapeParam = config.escapeParam;
+		}
 	}
 
 	async migrate(

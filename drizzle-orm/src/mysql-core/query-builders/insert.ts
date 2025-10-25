@@ -38,7 +38,7 @@ export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
 export type MySqlInsertValue<
 	TTable extends MySqlTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
@@ -47,7 +47,7 @@ export type MySqlInsertValue<
 
 export type MySqlInsertSelectQueryBuilder<
 	TTable extends MySqlTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > = TypedQueryBuilder<
 	{ [K in keyof TModel]: AnyMySqlColumn | SQL | SQL.Aliased | TModel[K] }
 >;

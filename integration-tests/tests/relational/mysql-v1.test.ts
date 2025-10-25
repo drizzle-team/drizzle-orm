@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './mysql.schema.ts';
+import * as schema from './mysql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
 
@@ -83,7 +83,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
+	db = drizzle({ client, schema, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
 });
 
 afterAll(async () => {

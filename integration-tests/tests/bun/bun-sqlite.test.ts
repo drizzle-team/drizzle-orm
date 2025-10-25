@@ -236,9 +236,9 @@ let client: SQL;
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 	client = new SQL(dbPath);
-	db = drizzle.sqlite(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle.sqlite(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle.sqlite(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	db = drizzle.sqlite({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -3866,7 +3866,7 @@ test('table configs: unique in column', () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 	expect(columnName?.isUnique).toBeTruthy();
-	expect(columnName?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toStrictEqual(undefined);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
 	expect(columnState?.isUnique).toBeTruthy();
@@ -3874,7 +3874,7 @@ test('table configs: unique in column', () => {
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	expect(columnField?.isUnique).toBeTruthy();
-	expect(columnField?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnField!.name]));
+	expect(columnField?.uniqueName).toStrictEqual(undefined);
 });
 
 test('update ... from', async () => {

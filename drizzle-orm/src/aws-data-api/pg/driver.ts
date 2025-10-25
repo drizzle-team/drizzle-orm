@@ -142,9 +142,6 @@ export function drizzle<
 	TClient extends AwsDataApiClient = RDSDataClient,
 >(
 	...params: [
-		TClient,
-		DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
-	] | [
 		(
 			| (
 				& DrizzleConfig<TSchema, TRelations>
@@ -163,11 +160,6 @@ export function drizzle<
 ): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof RDSDataClient || params[0].constructor.name !== 'Object') {
-		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema, TRelations>) as any;
-	}
-
 	if ((params[0] as { client?: TClient }).client) {
 		const { client, ...drizzleConfig } = params[0] as {
 			client: TClient;

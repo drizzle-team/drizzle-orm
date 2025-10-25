@@ -59,11 +59,13 @@ export class UniqueConstraint {
 
 	readonly columns: PgColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 	readonly nullsNotDistinct: boolean = false;
 
 	constructor(readonly table: PgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		this.isNameExplicit = !!name;
 		this.nullsNotDistinct = nullsNotDistinct;
 	}
 

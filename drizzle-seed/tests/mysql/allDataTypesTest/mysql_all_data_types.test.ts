@@ -11,7 +11,7 @@ import { seed } from '../../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
 let mysqlContainer: Docker.Container;
-let client: Connection | undefined;
+let client: Connection | undefined; // oxlint-disable-line no-unassigned-vars
 let db: MySql2Database;
 
 async function createDockerDB(): Promise<string> {
@@ -28,7 +28,7 @@ async function createDockerDB(): Promise<string> {
 	mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
+		name: `drizzle-seed-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
@@ -53,7 +53,7 @@ beforeAll(async () => {
 		try {
 			const client = await createConnection(connectionString);
 			await client.connect();
-			db = drizzle(client);
+			db = drizzle({ client });
 			connected = true;
 			break;
 		} catch (e) {

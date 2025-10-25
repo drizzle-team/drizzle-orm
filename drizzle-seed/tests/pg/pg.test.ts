@@ -13,7 +13,7 @@ let db: PgliteDatabase;
 beforeAll(async () => {
 	client = new PGlite();
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
 	await db.execute(

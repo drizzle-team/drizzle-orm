@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { reset, seed } from 'drizzle-seed';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import * as schema from './sqliteSchema.ts';
+import * as schema from './sqliteSchema';
 
 let client: BetterSqlite3.Database;
 let db: BetterSQLite3Database;
@@ -12,7 +12,7 @@ let db: BetterSQLite3Database;
 beforeAll(async () => {
 	client = new BetterSqlite3(':memory:');
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	db.run(
 		sql.raw(`

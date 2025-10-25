@@ -1,21 +1,20 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'array geometry';
 	data: [number, number];
 	driverParam: string;
-}> {
+}, { srid: number | undefined }> {
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
-	constructor(name: string) {
+	constructor(name: string, srid?: number) {
 		super(name, 'array geometry', 'PgGeometry');
+		this.config.srid = srid;
 	}
 
 	/** @internal */
@@ -27,17 +26,22 @@ export class PgGeometryBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends PgColumn<T> {
+export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>>
+	extends PgColumn<T, { srid: number | undefined }>
+{
 	static override readonly [entityKind]: string = 'PgGeometry';
 
+	readonly srid = this.config.srid;
+	readonly mode = 'tuple';
+
 	getSQLType(): string {
-		return 'geometry(point)';
+		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
 	override mapFromDriverValue(value: string | [number, number]): [number, number] {
 		if (typeof value !== 'string') return value as [number, number];
 
-		return parseEWKB(value);
+		return parseEWKB(value).point;
 	}
 
 	override mapToDriverValue(value: [number, number]): string {
@@ -46,15 +50,15 @@ export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends Pg
 }
 
 export class PgGeometryObjectBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'object geometry';
 	data: { x: number; y: number };
 	driverParam: string;
-}> {
+}, { srid?: number }> {
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
-	constructor(name: string) {
+	constructor(name: string, srid: number | undefined) {
 		super(name, 'object geometry', 'PgGeometryObject');
+		this.config.srid = srid;
 	}
 
 	/** @internal */
@@ -66,16 +70,21 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> extends PgColumn<T> {
+export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
+	extends PgColumn<T, { srid: number | undefined }>
+{
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
+	readonly srid = this.config.srid;
+	readonly mode = 'object';
+
 	getSQLType(): string {
-		return 'geometry(point)';
+		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
 	override mapFromDriverValue(value: string): { x: number; y: number } {
 		const parsed = parseEWKB(value);
-		return { x: parsed[0], y: parsed[1] };
+		return { x: parsed.point[0], y: parsed.point[1] };
 	}
 
 	override mapToDriverValue(value: { x: number; y: number }): string {
@@ -99,7 +108,7 @@ export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
 export function geometry(a?: string | PgGeometryConfig, b?: PgGeometryConfig) {
 	const { name, config } = getColumnNameAndConfig<PgGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgGeometryBuilder(name);
+		return new PgGeometryBuilder(name, config?.srid);
 	}
-	return new PgGeometryObjectBuilder(name);
+	return new PgGeometryObjectBuilder(name, config?.srid);
 }

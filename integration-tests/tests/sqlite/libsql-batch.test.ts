@@ -45,9 +45,7 @@ export const usersToGroupsTable = sqliteTable(
 			() => groupsTable.id,
 		),
 	},
-	(t) => ({
-		pk: primaryKey({ columns: [t.userId, t.groupId] }),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {
@@ -159,7 +157,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, relations: relationsV2 });
+	db = drizzle({ client, schema, logger: ENABLE_LOGGING, relations: relationsV2 });
 });
 
 afterAll(async () => {
