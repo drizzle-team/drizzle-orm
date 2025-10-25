@@ -228,6 +228,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 		}
 	>({
 		client: [
+			// oxlint-disable-next-line
 			async ({}, use) => {
 				if (vendor === 'mysql' || vendor === 'mysql-proxy') {
 					const envurl = process.env['MYSQL_CONNECTION_STRING'];

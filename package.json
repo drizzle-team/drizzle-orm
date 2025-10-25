@@ -3,6 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"postinstall": "pnpm husky",
 		"build:orm": "turbo run build --filter drizzle-orm --color",
 		"build": "turbo run build test:types //#lint --color",
 		"build:artifact": "turbo run build:artifact --color",
@@ -29,7 +30,7 @@
 		"glob": "^10.3.10",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.2.4",
-		"oxlint": "^1.22.0",
+		"oxlint": "^1.24.0",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
 		"tsup": "^8.3.5",
@@ -40,10 +41,16 @@
 		"vitest": "4.0.0-beta.19"
 	},
 	"packageManager": "pnpm@10.15.0",
+	"engines": {
+		"node": ">=24"
+	},
 	"lint-staged": {
 		"*": [
 			"pnpm format:check",
 			"pnpm lint:check"
 		]
+	},
+	"volta": {
+		"node": "24.10.0"
 	}
 }
