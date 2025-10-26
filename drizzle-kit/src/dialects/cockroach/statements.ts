@@ -78,6 +78,20 @@ export interface JsonAlterEnum {
 	}[];
 }
 
+export interface JsonAlterColumnAddNotNull {
+	type: 'alter_add_column_not_null';
+	table: string;
+	schema: string;
+	column: string;
+}
+
+export interface JsonAlterColumnDropNotNull {
+	type: 'alter_drop_column_not_null';
+	table: string;
+	schema: string;
+	column: string;
+}
+
 export interface JsonCreateRole {
 	type: 'create_role';
 	role: Role;
@@ -431,7 +445,9 @@ export type JsonStatement =
 	| JsonRenameView
 	| JsonAlterCheck
 	| JsonDropValueFromEnum
-	| JsonRecreatePrimaryKey;
+	| JsonRecreatePrimaryKey
+	| JsonAlterColumnAddNotNull
+	| JsonAlterColumnDropNotNull;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

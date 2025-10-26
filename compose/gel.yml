@@ -1,0 +1,10 @@
+services:
+  gel:
+    image: geldata/gel:latest
+    environment:
+      GEL_CLIENT_SECURITY: insecure_dev_mode  
+      GEL_SERVER_SECURITY: insecure_dev_mode
+      GEL_CLIENT_TLS_SECURITY: no_host_verification
+      GEL_SERVER_PASSWORD: password  
+    ports:
+      - "56565:5656"

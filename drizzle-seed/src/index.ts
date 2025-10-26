@@ -21,7 +21,7 @@ import type { SingleStoreColumn, SingleStoreSchema, SingleStoreTable } from 'dri
 import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 
 import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
-import { generatorsFuncs, generatorsFuncsV2 } from './generators/GeneratorFuncs.ts';
+import { generatorsFuncs, generatorsFuncsV2, generatorsFuncsV3 } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
 import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts';
 import { filterMysqlTables, resetMySql, seedMySql } from './mysql-core/index.ts';
@@ -48,7 +48,7 @@ type SchemaValuesType =
 	| Relations
 	| any;
 
-type RefineTypes<SCHEMA, TableT, ColumnT> = SCHEMA extends {
+export type RefineTypes<SCHEMA, TableT, ColumnT> = SCHEMA extends {
 	[key: string]: SchemaValuesType;
 } ? {
 		// iterates through schema fields. example -> schema: {"tableName": PgTable}
@@ -62,7 +62,7 @@ type RefineTypes<SCHEMA, TableT, ColumnT> = SCHEMA extends {
 				[
 					column in keyof SCHEMA[fieldName] as SCHEMA[fieldName][column] extends ColumnT ? column
 						: never
-				]?: AbstractGenerator<any>;
+				]?: AbstractGenerator<any> | false;
 			};
 			with?: {
 				[
@@ -76,7 +76,7 @@ type RefineTypes<SCHEMA, TableT, ColumnT> = SCHEMA extends {
 	}
 	: {};
 
-type InferCallbackType<
+export type InferCallbackType<
 	DB extends DbType,
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
@@ -157,9 +157,11 @@ class SeedPromise<
 	}
 }
 
-type FunctionsVersioning<VERSION extends string | undefined> = VERSION extends `1` ? typeof generatorsFuncs
+export type FunctionsVersioning<VERSION extends string | undefined = undefined> = VERSION extends `1`
+	? typeof generatorsFuncs
 	: VERSION extends `2` ? typeof generatorsFuncsV2
-	: typeof generatorsFuncsV2;
+	: VERSION extends `3` ? typeof generatorsFuncsV3
+	: typeof generatorsFuncsV3;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -306,7 +308,7 @@ export function seed<
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
-	VERSION extends '2' | '1' | undefined,
+	VERSION extends '3' | '2' | '1' | undefined,
 >(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
 	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }

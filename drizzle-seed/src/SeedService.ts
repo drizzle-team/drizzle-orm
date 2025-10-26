@@ -11,6 +11,7 @@ import type {
 	AbstractGenerator,
 	GenerateArray,
 	GenerateCompositeUniqueKey,
+	GenerateHashFromString,
 	GenerateWeightedCount,
 } from './generators/Generators.ts';
 import type {
@@ -37,7 +38,7 @@ import { selectGeneratorForMysqlColumn } from './mysql-core/selectGensForColumn.
 import { selectGeneratorForPostgresColumn } from './pg-core/selectGensForColumn.ts';
 import { selectGeneratorForSingleStoreColumn } from './singlestore-core/selectGensForColumn.ts';
 import { selectGeneratorForSqlite } from './sqlite-core/selectGensForColumn.ts';
-import { equalSets, generateHashFromString } from './utils.ts';
+import { equalSets } from './utils.ts';
 
 export class SeedService {
 	static readonly entityKind: string = 'SeedService';
@@ -51,6 +52,7 @@ export class SeedService {
 	private sqliteMaxParametersNumber = 32766;
 	private mssqlMaxParametersNumber = 2100;
 	private version?: number;
+	private hashFromStringGenerator: GenerateHashFromString | undefined;
 
 	generatePossibleGenerators = (
 		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach' | 'singlestore',
@@ -66,6 +68,9 @@ export class SeedService {
 		if (Number.isNaN(this.version) || this.version < 1 || this.version > latestVersion) {
 			throw new Error(`Version should be in range [1, ${latestVersion}].`);
 		}
+		this.hashFromStringGenerator = this.selectVersionOfGenerator(
+			new generatorsMap.GenerateHashFromString[0](),
+		) as GenerateHashFromString;
 
 		// sorting table in order which they will be filled up (tables with foreign keys case)
 		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
@@ -161,7 +166,7 @@ export class SeedService {
 									}[];
 
 								weightedCountSeed = customSeed
-									+ generateHashFromString(`${table.name}.${fkTableName}`);
+									+ this.hashFromStringGenerator.generate({ input: `${table.name}.${fkTableName}` });
 
 								newTableWithCount = this.getWeightedWithCount(
 									weightedRepeatedValuesCount,
@@ -209,6 +214,22 @@ export class SeedService {
 					&& refinements[table.name]!.columns[col.name] !== undefined
 				) {
 					const genObj = refinements[table.name]!.columns[col.name]!;
+					if (genObj === false) {
+						if (col.notNull === true && col.hasDefault === false) {
+							throw new Error(
+								`You cannot set the '${col.name}' column in the '${table.name}' table to false in your refinements.`
+									+ `\nDoing so will result in a null value being inserted into the '${col.name}' column,`
+									+ `\nwhich will cause an error because the column has a not null constraint and no default value.`,
+							);
+						}
+
+						// Generating undefined as a value for a column and then inserting it via drizzle-orm
+						// will result in the value not being inserted into that column.
+						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: undefined });
+						columnPossibleGenerator.wasRefined = true;
+
+						continue;
+					}
 
 					if (col.columnType.match(/\[\w*]/g) !== null) {
 						if (
@@ -682,10 +703,12 @@ export class SeedService {
 				pRNGSeed = (columnRelations.length !== 0
 						&& columnRelations[0]!.columns.length >= 2)
 					? (customSeed
-						+ generateHashFromString(`${columnRelations[0]!.table}.${columnRelations[0]!.columns.join('_')}`))
+						+ this.hashFromStringGenerator!.generate({
+							input: `${columnRelations[0]!.table}.${columnRelations[0]!.columns.join('_')}`,
+						}))
 					: col.generator?.uniqueKey === undefined
-					? (customSeed + generateHashFromString(`${table.tableName}.${col.columnName}`))
-					: (customSeed + generateHashFromString(col.generator.uniqueKey));
+					? (customSeed + this.hashFromStringGenerator!.generate({ input: `${table.tableName}.${col.columnName}` }))
+					: (customSeed + this.hashFromStringGenerator!.generate({ input: col.generator.uniqueKey }));
 
 				tableGenerators[col.columnName] = {
 					pRNGSeed,
@@ -720,9 +743,9 @@ export class SeedService {
 							&& tableGenerators[rel.columns[colIdx]!]?.wasRefined === false
 						) {
 							const refColName = rel.refColumns[colIdx] as string;
-							pRNGSeed = generateHashFromString(
-								`${table.tableName}.${refColName}`,
-							);
+							pRNGSeed = this.hashFromStringGenerator!.generate({
+								input: `${table.tableName}.${refColName}`,
+							});
 
 							const refColumnGenerator: typeof tableGenerators = {};
 							refColumnGenerator[refColName] = {

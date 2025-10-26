@@ -411,7 +411,7 @@ test('rename column #3. Part of check constraint', async (t) => {
 		'new_schema.users.id->new_schema.users.id1',
 	]);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,

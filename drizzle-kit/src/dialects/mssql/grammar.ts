@@ -1,9 +1,9 @@
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { assertUnreachable, trimChar } from '../../utils';
+import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { DefaultConstraint, MssqlEntities } from './ddl';
 import type { Import } from './typescript';
-import { hash } from './utils';
 
 const getDefaultOptions = (x: keyof typeof defaults.options): string | null => {
 	return defaults.options[x as keyof typeof defaults.options]

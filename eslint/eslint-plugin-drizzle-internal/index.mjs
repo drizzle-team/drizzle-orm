@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { definePlugin, defineRule } from 'oxlint';
 
-const plugin = definePlugin({
+export default definePlugin({
 	meta: { name: 'drizzle-internal' },
 	rules: {
 		'no-instanceof': defineRule({
@@ -49,5 +49,3 @@ const plugin = definePlugin({
 		}),
 	},
 });
-
-export default plugin;

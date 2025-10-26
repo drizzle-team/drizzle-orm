@@ -713,6 +713,7 @@ export const studio = command({
 			port,
 			host,
 			credentials,
+			casing,
 		} = await prepareStudioConfig(opts);
 
 		const {
@@ -756,22 +757,22 @@ export const studio = command({
 				const { schema, relations, files } = schemaPath
 					? await preparePgSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForPostgres(credentials, schema, relations, files);
+				setup = await drizzleForPostgres(credentials, schema, relations, files, casing);
 			} else if (dialect === 'mysql') {
 				const { schema, relations, files } = schemaPath
 					? await prepareMySqlSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForMySQL(credentials, schema, relations, files);
+				setup = await drizzleForMySQL(credentials, schema, relations, files, casing);
 			} else if (dialect === 'sqlite') {
 				const { schema, relations, files } = schemaPath
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForSQLite(credentials, schema, relations, files);
+				setup = await drizzleForSQLite(credentials, schema, relations, files, casing);
 			} else if (dialect === 'turso') {
 				const { schema, relations, files } = schemaPath
 					? await prepareSQLiteSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForLibSQL(credentials, schema, relations, files);
+				setup = await drizzleForLibSQL(credentials, schema, relations, files, casing);
 			} else if (dialect === 'singlestore') {
 				const { schema, relations, files } = schemaPath
 					? await prepareSingleStoreSchema(schemaPath)
@@ -781,6 +782,7 @@ export const studio = command({
 					schema,
 					relations,
 					files,
+					casing,
 				);
 			} else if (dialect === 'cockroach') {
 				console.log(
