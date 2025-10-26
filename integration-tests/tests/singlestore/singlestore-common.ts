@@ -68,6 +68,7 @@ import {
 import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import { beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
+import { promise } from 'zod';
 import { Expect, toLocalDate } from '~/utils';
 import type { Equal } from '~/utils';
 import type relations from './relations';
@@ -272,76 +273,69 @@ export function tests(driver?: string) {
 	describe('common', () => {
 		beforeEach(async (ctx) => {
 			const { db } = ctx.singlestore;
-			await db.execute(
-				sql`
-					drop table if exists userstest;
-					drop table if exists users2;
-					drop table if exists cities;
-					drop table if exists ${allTypesTable};
-					drop table if exists ${rqbUser};
-					drop table if exists ${rqbPost};
-					drop schema if exists \`mySchema\`;
-				`,
-			);
-			await db.execute(sql`
-				create schema if not exists \`mySchema\`;
-				create table userstest (
+			await Promise.all([
+				db.execute(sql`drop table if exists userstest;`),
+				db.execute(sql`drop table if exists users2;`),
+				db.execute(sql`drop table if exists cities;`),
+				db.execute(sql`drop table if exists ${allTypesTable};`),
+				db.execute(sql`drop table if exists ${rqbUser};`),
+				db.execute(sql`drop table if exists ${rqbPost};`),
+				db.execute(sql`drop schema if exists \`mySchema\`;`),
+			]);
+			await db.execute(sql`create schema if not exists \`mySchema\`;`);
+			await Promise.all([
+				db.execute(sql`create table userstest (
 						id serial primary key,
 						name text not null,
 						verified boolean not null default false,
 						jsonb json,
 						created_at timestamp not null default now()
-					);
-				create table users2 (
+					);`),
+				db.execute(sql`create table users2 (
 						id serial primary key,
 						name text not null,
 						city_id int
-				);
-				create table cities (
+				);`),
+				db.execute(sql`create table cities (
 					id serial primary key,
 					name text not null
-				);
-				create table \`mySchema\`.\`userstest\` (
+				);`),
+				db.execute(sql`create table \`mySchema\`.\`userstest\` (
 					id serial primary key,
 					name text not null,
 					verified boolean not null default false,
 					jsonb json,
 					created_at timestamp not null default now()
-				);
-				create table \`mySchema\`.\`cities\` (
+				);`),
+				db.execute(sql`create table \`mySchema\`.\`cities\` (
 					\`id\` serial primary key,
 					\`name\` text not null
-				);
-				create table \`mySchema\`.\`users2\` (
+				);`),
+				db.execute(sql`create table \`mySchema\`.\`users2\` (
 					\`id\` serial primary key,
 					\`name\` text not null,
 					\`city_id\` int 
-				);
-				CREATE TABLE ${rqbUser} (
+				);`),
+				db.execute(sql`CREATE TABLE ${rqbUser} (
 					\`id\` SERIAL PRIMARY KEY NOT NULL,
 					\`name\` TEXT NOT NULL,
 					\`created_at\` TIMESTAMP NOT NULL
-				);
-				CREATE TABLE ${rqbPost} ( 
+				);`),
+				db.execute(sql`CREATE TABLE ${rqbPost} ( 
 					\`id\` SERIAL PRIMARY KEY NOT NULL,
 					\`user_id\` BIGINT(20) UNSIGNED NOT NULL,
 					\`content\` TEXT,
 					\`created_at\` TIMESTAMP NOT NULL
-				);
-				create table \`vector_search\` (
-					\`id\` integer primary key auto_increment not null,
-					\`text\` text not null,
-					\`embedding\` vector(10) not null
-				);
-				create table \`aggregate_table\` (
+				);`),
+				db.execute(sql`create table \`aggregate_table\` (
 					\`id\` integer primary key auto_increment not null,
 					\`name\` text not null,
 					\`a\` integer,
 					\`b\` integer,
 					\`c\` integer,
 					\`null_only\` integer
-				);
-			`);
+				);`),
+			]);
 		});
 
 		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
@@ -349,7 +343,7 @@ export function tests(driver?: string) {
 		}
 
 		async function setupSetOperationTest(db: TestSingleStoreDB) {
-			await db.execute(sql`truncate table \`users2\`; truncate table \`cities\`;`);
+			await Promise.all([db.execute(sql`truncate table \`users2\`;`), db.execute(sql`truncate table \`cities\``)]);
 			await Promise.all(
 				[
 					db.insert(citiesTable).values([
