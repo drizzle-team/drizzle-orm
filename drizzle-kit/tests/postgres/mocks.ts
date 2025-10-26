@@ -63,8 +63,10 @@ import { DB } from 'src/utils';
 import 'zx/globals';
 import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
+import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
+import { getReasonsFromStatements } from 'src/utils/commutativity';
 import { tsc } from 'tests/utils';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });
@@ -698,3 +700,45 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 	};
 	return { db, close, clear, client };
 };
+
+type SchemaShape = {
+	id: string;
+	prevId?: string;
+	schema: Record<string, PgTable>;
+};
+
+export async function conflictsFromSchema(
+	{ parent, child1, child2 }: {
+		parent: SchemaShape;
+		child1: SchemaShape;
+		child2: SchemaShape;
+	},
+) {
+	const parentInterim = fromDrizzleSchema({
+		tables: Object.values(parent.schema),
+		schemas: [],
+		enums: [],
+		sequences: [],
+		roles: [],
+		policies: [],
+		views: [],
+		matViews: [],
+	}, undefined);
+
+	const parentSnapshot = {
+		version: '8',
+		dialect: 'postgres',
+		id: parent.id,
+		prevId: parent.prevId ?? '',
+		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
+		renames: [],
+	} satisfies PostgresSnapshot;
+
+	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
+	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
+
+	console.log('st1', st1)
+	console.log('st2', st2)
+
+	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+}

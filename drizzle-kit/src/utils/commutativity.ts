@@ -53,6 +53,7 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'recreate_column',
 		'rename_column',
 		'alter_rls',
+		'create_index',
 	],
 	rename_table: [
 		'create_table',
@@ -282,6 +283,7 @@ function extractStatementInfo(
 
 		// Index operations
 		case 'create_index':
+			break;
 		case 'drop_index':
 			schema = statement.index.schema;
 			objectName = statement.index.name;
@@ -466,11 +468,11 @@ export function footprint(statement: JsonStatement, snapshot?: PostgresSnapshot)
 	return [statementFootprint, conflictFootprints];
 }
 
-function getFolderNameFromNodeId(node: SnapshotNode<any>): string {
-	// path pattern: "path/to/folder/snapshot.json"
-	const folderPath = dirname(node.path);
-	return folderPath.split('/').pop() || '';
-}
+// function getFolderNameFromNodeId(node: SnapshotNode<any>): string {
+// 	// path pattern: "path/to/folder/snapshot.json"
+// 	const folderPath = dirname(node.path);
+// 	return folderPath.split('/').pop() || '';
+// }
 
 function generateLeafFootprints(statements: JsonStatement[], snapshot?: PostgresSnapshot): {
 	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
@@ -521,6 +523,10 @@ function expandFootprintsFromSnapshot(
 				expandedFootprints.push(formatFootprint(conflictType, entity.schema, entity.objectName, entity.columnName));
 			}
 		}
+		// all indexes in changed tables should make a conflict in this case
+		// maybe we need to make other fields optional
+		// TODO: revise formatFootprint
+		expandedFootprints.push(formatFootprint('create_index', '', '', ''))
 	}
 
 	return expandedFootprints;
@@ -616,24 +622,28 @@ function findFootprintIntersections(
 	// return intersections;
 }
 
-// export const getReasonsFromStatements = async (aStatements: JsonStatement[], bStatements: JsonStatement[], snapshot?: PostgresSnapshot) => {
-// 	const parentSnapshot = snapshot ?? drySnapshot;
-// 						const branchAFootprints = generateLeafFootprints(
-// 							aStatements,
-// 							parentSnapshot,
-// 						);
-// 						const branchBFootprints = generateLeafFootprints(
-// 							bStatements,
-// 							parentSnapshot,
-// 						);
+export const getReasonsFromStatements = async (
+	aStatements: JsonStatement[],
+	bStatements: JsonStatement[],
+	snapshot?: PostgresSnapshot,
+) => {
+	const parentSnapshot = snapshot ?? drySnapshot;
+	const branchAFootprints = generateLeafFootprints(
+		aStatements,
+		parentSnapshot,
+	);
+	const branchBFootprints = generateLeafFootprints(
+		bStatements,
+		parentSnapshot,
+	);
 
-// 						const reasons = findFootprintIntersections(
-// 							branchAFootprints.statementHashes,
-// 							branchAFootprints.conflictFootprints,
-// 							branchBFootprints.statementHashes,
-// 							branchBFootprints.conflictFootprints,
-// 						);
-// }
+	return findFootprintIntersections(
+		branchAFootprints.statementHashes,
+		branchAFootprints.conflictFootprints,
+		branchBFootprints.statementHashes,
+		branchBFootprints.conflictFootprints,
+	);
+};
 
 export const detectNonCommutative = async (
 	snapshotsPaths: string[],
@@ -685,21 +695,9 @@ export const detectNonCommutative = async (
 						const bStatements = leafStatements[bId]!.statements;
 
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
-						const branchAFootprints = generateLeafFootprints(
-							aStatements,
-							parentSnapshot,
-						);
-						const branchBFootprints = generateLeafFootprints(
-							bStatements,
-							parentSnapshot,
-						);
 
-						const intersectedHashed = findFootprintIntersections(
-							branchAFootprints.statementHashes,
-							branchAFootprints.conflictFootprints,
-							branchBFootprints.statementHashes,
-							branchBFootprints.conflictFootprints,
-						);
+						// function that accepts statements are respond with conflicts
+						const intersectedHashed = await getReasonsFromStatements(aStatements, bStatements, parentSnapshot);
 
 						if (intersectedHashed) {
 							// parentId and parentPath is a head of a branched leaves
@@ -744,8 +742,8 @@ function collectLeaves<TSnapshot extends { id: string; prevId: string }>(
 ): string[] {
 	const leaves: string[] = [];
 	const stack: string[] = [startId];
-	// Build reverse edges prevId -> children lazily
 	const prevToChildren: Record<string, string[]> = {};
+
 	for (const node of Object.values(graph)) {
 		const arr = prevToChildren[node.prevId] ?? [];
 		arr.push(node.id);
