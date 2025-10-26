@@ -274,13 +274,13 @@ export function tests(driver?: string) {
 		beforeEach(async (ctx) => {
 			const { db } = ctx.singlestore;
 			await Promise.all([
+				db.execute(sql`drop schema if exists \`mySchema\`;`),
 				db.execute(sql`drop table if exists userstest;`),
 				db.execute(sql`drop table if exists users2;`),
 				db.execute(sql`drop table if exists cities;`),
 				db.execute(sql`drop table if exists ${allTypesTable};`),
 				db.execute(sql`drop table if exists ${rqbUser};`),
 				db.execute(sql`drop table if exists ${rqbPost};`),
-				db.execute(sql`drop schema if exists \`mySchema\`;`),
 				db.execute(sql`drop table if exists aggregate_table;`),
 				db.execute(sql`drop table if exists vector_search;`),
 				db.execute(sql`drop table if exists users_default_fn;`),
