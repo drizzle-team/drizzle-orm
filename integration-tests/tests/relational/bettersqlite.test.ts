@@ -4,7 +4,7 @@ import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './sqlite.relations.ts';
+import relations from './sqlite.relations';
 import {
 	allTypesTable,
 	commentsTable,
@@ -16,7 +16,7 @@ import {
 	students,
 	usersTable,
 	usersToGroupsTable,
-} from './sqlite.schema.ts';
+} from './sqlite.schema';
 
 const ENABLE_LOGGING = false;
 

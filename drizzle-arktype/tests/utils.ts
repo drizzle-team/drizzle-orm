@@ -1,7 +1,7 @@
 import { Type } from 'arktype';
-import { expect, type TaskContext } from 'vitest';
+import { expect, type TestContext } from 'vitest';
 
-export function expectSchemaShape<T extends Type<any, any>>(t: TaskContext, expected: T) {
+export function expectSchemaShape<T extends Type<any, any>>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
 			expect(actual.json).toStrictEqual(expected.json);

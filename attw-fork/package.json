@@ -17,7 +17,13 @@
 		"access": "public"
 	},
 	"scripts": {
-		"run": "bun --bun run src/run.ts"
+		"run": "bun --bun run src/run.ts",
+		"build": "echo skip...",
+		"build:artifact": "pnpm run build",
+		"pack": "echo skip...",
+		"pack:artifact": "pnpm run pack",
+		"test": "echo skip...",
+		"test:types": "echo skip..."
 	},
 	"type": "module",
 	"dependencies": {

@@ -6,27 +6,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/mssql/**/*.test.ts',
-			'tests/seeder/**/*.test.ts',
-			'tests/extensions/postgis/**/*',
-			'tests/relational/**/*.test.ts',
-			'tests/pg/**/*.test.ts',
-			'tests/mysql/**/*.test.ts',
-			'tests/singlestore/**/*.test.ts',
-			'tests/sqlite/**/*.test.ts',
-			'tests/replicas/**/*',
-			'tests/imports/**/*',
-			'tests/extensions/vectors/**/*',
-			'tests/version.test.ts',
-			'tests/pg/node-postgres.test.ts',
-			'tests/utils/is-config.test.ts',
-			'js-tests/driver-init/commonjs/*.test.cjs',
-			'js-tests/driver-init/module/*.test.mjs',
-			'tests/gel/**/*.test.ts',
-			'tests/cockroach/**/*.test.ts',
+			'tests/**/*.test.ts',
+			'js-tests',
 		],
 		exclude: [
-			...(process.env.SKIP_EXTERNAL_DB_TESTS
+			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/relational/mysql.planetscale-v1.test.ts',
@@ -63,7 +47,6 @@ export default defineConfig({
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
-			'tests/mysql/tidb-serverless.test.ts',
 			'js-tests/driver-init/module/planetscale.test.mjs',
 			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',
@@ -71,15 +54,8 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 100000,
-		hookTimeout: 200000,
-		isolate: true,
-		poolOptions: {
-			threads: {
-				singleThread: true,
-			},
-		},
-		maxWorkers: 1,
+		testTimeout: 30000,
+		hookTimeout: 60000,
 		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],

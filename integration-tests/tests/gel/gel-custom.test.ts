@@ -59,14 +59,14 @@ beforeAll(async () => {
 		  SET default := false;
 		};
 		create property json: json;
-	};" ${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE TYPE default::prefixed_users_custom {
+	};
+		CREATE TYPE default::prefixed_users_custom {
 		create property id1: int16 {
 			create constraint exclusive;
 		};
 		create required property name: str;
-};" ${tlsSecurity} --dsn=${dsn}`;
+	};
+	" ${tlsSecurity} --dsn=${dsn}`;
 });
 
 afterAll(async () => {
@@ -84,8 +84,10 @@ beforeEach((ctx) => {
 });
 
 afterEach(async () => {
-	await $`gel query "DELETE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
+	await Promise.all([
+		client.querySQL(`DELETE FROM "users_custom";`),
+		client.querySQL(`DELETE FROM "prefixed_users_custom";`),
+	]);
 });
 
 const customInteger = customType<{ data: number; notNull: false; default: false }>({

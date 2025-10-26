@@ -7,8 +7,8 @@ import getPort from 'get-port';
 import postgres from 'postgres';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './pg.relations.ts';
-import * as schema from './pg.schema.ts';
+import relations from './pg.relations';
+import * as schema from './pg.schema';
 
 const ENABLE_LOGGING = false;
 

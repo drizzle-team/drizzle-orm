@@ -6,8 +6,8 @@ import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './pg.relations.ts';
-import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './pg.schema.ts';
+import relations from './pg.relations';
+import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './pg.schema';
 
 const ENABLE_LOGGING = false;
 

@@ -7,7 +7,7 @@ import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './singlestore.relations.ts';
+import relations from './singlestore.relations';
 import {
 	allTypesTable,
 	commentsTable,
@@ -23,7 +23,7 @@ import {
 	students,
 	usersTable,
 	usersToGroupsTable,
-} from './singlestore.schema.ts';
+} from './singlestore.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -1489,6 +1489,9 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 					},
 				},
 				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
 				extras: ({
 					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
@@ -1500,6 +1503,9 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 		extras: ({
 			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
+		orderBy: {
+			id: 'asc',
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
