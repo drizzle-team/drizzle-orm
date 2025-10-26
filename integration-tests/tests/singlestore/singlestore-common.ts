@@ -342,6 +342,10 @@ export function tests(driver?: string) {
 					text text not null,
 					embedding vector(10) not null
 				);`),
+				db.execute(sql`create table \`users_default_fn\` (
+						\`id\` varchar(256) primary key,
+						\`name\` text not null
+					);`),
 			]);
 		});
 
