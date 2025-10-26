@@ -282,7 +282,7 @@ export function tests(driver?: string) {
 				db.execute(sql`drop table if exists ${rqbPost};`),
 				db.execute(sql`drop schema if exists \`mySchema\`;`),
 				db.execute(sql`drop schema if exists aggregate_table;`),
-				// db.execute(sql`drop schema if exists \`mySchema\`;`),
+				db.execute(sql`drop schema if exists vector_search;`),
 			]);
 			await db.execute(sql`create schema if not exists \`mySchema\`;`);
 			await Promise.all([
@@ -324,18 +324,23 @@ export function tests(driver?: string) {
 					\`created_at\` TIMESTAMP NOT NULL
 				);`),
 				db.execute(sql`CREATE TABLE ${rqbPost} ( 
-					\`id\` SERIAL PRIMARY KEY NOT NULL,
-					\`user_id\` BIGINT(20) UNSIGNED NOT NULL,
-					\`content\` TEXT,
-					\`created_at\` TIMESTAMP NOT NULL
+					id SERIAL PRIMARY KEY NOT NULL,
+					user_id BIGINT(20) UNSIGNED NOT NULL,
+					content TEXT,
+					created_at TIMESTAMP NOT NULL
 				);`),
-				db.execute(sql`create table \`aggregate_table\` (
-					\`id\` integer primary key auto_increment not null,
-					\`name\` text not null,
-					\`a\` integer,
-					\`b\` integer,
-					\`c\` integer,
-					\`null_only\` integer
+				db.execute(sql`create table aggregate_table (
+					id integer primary key auto_increment not null,
+					name text not null,
+					a integer,
+					b integer,
+					c integer,
+					null_only integer
+				);`),
+				db.execute(sql`create table vector_search (
+					id integer primary key auto_increment not null,
+					text text not null,
+					embedding vector(10) not null
 				);`),
 			]);
 		});
