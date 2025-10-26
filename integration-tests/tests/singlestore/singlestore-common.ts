@@ -67,9 +67,7 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
-import getPort from 'get-port';
-import { v4 as uuid } from 'uuid';
-import { afterAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { Expect, toLocalDate } from '~/utils';
 import type { Equal } from '~/utils';
 import type relations from './relations';
@@ -275,7 +273,15 @@ export function tests(driver?: string) {
 		beforeEach(async (ctx) => {
 			const { db } = ctx.singlestore;
 			await db.execute(
-				sql`drop table if exists userstest, users2, cities, ${allTypesTable}, ${rqbUser}, ${rqbPost}; drop schema if exists \`mySchema\``,
+				sql`
+					drop table if exists userstest;
+					drop table if exists users2;
+					drop table if exists cities;
+					drop table if exists ${allTypesTable};
+					drop table if exists ${rqbUser};
+					drop table if exists ${rqbPost};
+					drop schema if exists \`mySchema\`;
+				`,
 			);
 			await db.execute(sql`
 				create schema if not exists \`mySchema\`;
