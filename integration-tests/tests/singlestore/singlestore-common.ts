@@ -281,6 +281,8 @@ export function tests(driver?: string) {
 				db.execute(sql`drop table if exists ${rqbUser};`),
 				db.execute(sql`drop table if exists ${rqbPost};`),
 				db.execute(sql`drop schema if exists \`mySchema\`;`),
+				db.execute(sql`drop schema if exists aggregate_table;`),
+				// db.execute(sql`drop schema if exists \`mySchema\`;`),
 			]);
 			await db.execute(sql`create schema if not exists \`mySchema\`;`);
 			await Promise.all([
