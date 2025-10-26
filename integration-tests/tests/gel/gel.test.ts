@@ -5504,7 +5504,7 @@ describe('some', async () => {
 	test('test force invalidate', async (ctx) => {
 		const { db } = ctx.cachedGel;
 
-		const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 		await db.$cache?.invalidate({ tables: 'users' });
 		expect(spyInvalidate).toHaveBeenCalledTimes(1);
 	});
@@ -5513,11 +5513,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable);
 
@@ -5530,11 +5530,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache();
 
@@ -5547,11 +5547,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ config: { ex: 1 } });
 
@@ -5574,11 +5574,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
 
@@ -5596,11 +5596,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache(false);
 
@@ -5613,11 +5613,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable);
 
@@ -5630,11 +5630,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache(false);
 
@@ -5647,11 +5647,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ autoInvalidate: false });
 
@@ -5674,11 +5674,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false });
 
