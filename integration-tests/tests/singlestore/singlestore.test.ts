@@ -5,7 +5,7 @@ import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import relations from './relations';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './singlestore-cache';
-import { createDockerDB, tests } from './singlestore-common';
+import { tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
@@ -15,15 +15,15 @@ let cachedDb: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
-	}
+	let connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
+	if (!connectionString) throw new Error();
+
 	client = await retry(async () => {
-		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
+		client = await mysql2.createConnection({
+			uri: connectionString,
+			supportBigNumbers: true,
+			multipleStatements: true,
+		});
 		await client.connect();
 		return client;
 	}, {

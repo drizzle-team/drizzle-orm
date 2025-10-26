@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import Docker from 'dockerode';
 import {
 	and,
 	asc,
@@ -85,8 +84,6 @@ declare module 'vitest' {
 		};
 	}
 }
-
-const ENABLE_LOGGING = false;
 
 const allTypesTable = singlestoreTable('all_types', {
 	serial: serial('scol'),
@@ -273,203 +270,103 @@ const citiesMySchemaTable = mySchema.table('cities', {
 	name: text('name').notNull(),
 });
 
-let singlestoreContainer: Docker.Container;
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	singlestoreContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ROOT_PASSWORD=singlestore'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await singlestoreContainer.start();
-	await new Promise((resolve) => setTimeout(resolve, 4000));
-
-	return {
-		connectionString: `singlestore://root:singlestore@localhost:${port}/`,
-		container: singlestoreContainer,
-	};
-}
-
 export function tests(driver?: string) {
 	describe('common', () => {
-		afterAll(async () => {
-			await singlestoreContainer?.stop().catch(console.error);
-		});
-
 		beforeEach(async (ctx) => {
 			const { db } = ctx.singlestore;
-			await db.execute(sql`drop table if exists userstest`);
-			await db.execute(sql`drop table if exists users2`);
-			await db.execute(sql`drop table if exists cities`);
-			await db.execute(sql`drop table if exists ${allTypesTable}`);
-			await db.execute(sql`DROP TABLE IF EXISTS ${rqbUser};`);
-			await db.execute(sql`DROP TABLE IF EXISTS ${rqbPost};`);
-
-			await db.execute(sql`drop schema if exists \`mySchema\``);
-			await db.execute(sql`create schema if not exists \`mySchema\``);
-
 			await db.execute(
-				sql`
-					create table userstest (
+				sql`drop table if exists userstest, users2, cities, ${allTypesTable}, ${rqbUser}, ${rqbPost}; drop schema if exists \`mySchema\``,
+			);
+			await db.execute(sql`
+				create schema if not exists \`mySchema\`;
+				create table userstest (
 						id serial primary key,
 						name text not null,
 						verified boolean not null default false,
 						jsonb json,
 						created_at timestamp not null default now()
-					)
-				`,
-			);
-
-			await db.execute(
-				sql`
-					create table users2 (
+					);
+				create table users2 (
 						id serial primary key,
 						name text not null,
 						city_id int
-					)
-				`,
-			);
-
-			await db.execute(
-				sql`
-					create table cities (
-						id serial primary key,
-						name text not null
-					)
-				`,
-			);
-
-			// mySchema
-			await db.execute(
-				sql`
-					create table \`mySchema\`.\`userstest\` (
-						\`id\` serial primary key,
-						\`name\` text not null,
-						\`verified\` boolean not null default false,
-						\`jsonb\` json,
-						\`created_at\` timestamp not null default now()
-					)
-				`,
-			);
-
-			await db.execute(
-				sql`
-					create table \`mySchema\`.\`cities\` (
-						\`id\` serial primary key,
-						\`name\` text not null
-					)
-				`,
-			);
-
-			await db.execute(
-				sql`
-					create table \`mySchema\`.\`users2\` (
-						\`id\` serial primary key,
-						\`name\` text not null,
-						\`city_id\` int 
-					)
-				`,
-			);
-
-			await db.execute(sql`
+				);
+				create table cities (
+					id serial primary key,
+					name text not null
+				);
+				create table \`mySchema\`.\`userstest\` (
+					id serial primary key,
+					name text not null,
+					verified boolean not null default false,
+					jsonb json,
+					created_at timestamp not null default now()
+				);
+				create table \`mySchema\`.\`cities\` (
+					\`id\` serial primary key,
+					\`name\` text not null
+				);
+				create table \`mySchema\`.\`users2\` (
+					\`id\` serial primary key,
+					\`name\` text not null,
+					\`city_id\` int 
+				);
 				CREATE TABLE ${rqbUser} (
-				        \`id\` SERIAL PRIMARY KEY NOT NULL,
-				        \`name\` TEXT NOT NULL,
-				        \`created_at\` TIMESTAMP NOT NULL
-				     )
-			`);
-
-			await db.execute(sql`
+					\`id\` SERIAL PRIMARY KEY NOT NULL,
+					\`name\` TEXT NOT NULL,
+					\`created_at\` TIMESTAMP NOT NULL
+				);
 				CREATE TABLE ${rqbPost} ( 
-				        \`id\` SERIAL PRIMARY KEY NOT NULL,
-				        \`user_id\` BIGINT(20) UNSIGNED NOT NULL,
-				        \`content\` TEXT,
-				        \`created_at\` TIMESTAMP NOT NULL
-				)
+					\`id\` SERIAL PRIMARY KEY NOT NULL,
+					\`user_id\` BIGINT(20) UNSIGNED NOT NULL,
+					\`content\` TEXT,
+					\`created_at\` TIMESTAMP NOT NULL
+				);
+				create table \`vector_search\` (
+					\`id\` integer primary key auto_increment not null,
+					\`text\` text not null,
+					\`embedding\` vector(10) not null
+				);
+				create table \`aggregate_table\` (
+					\`id\` integer primary key auto_increment not null,
+					\`name\` text not null,
+					\`a\` integer,
+					\`b\` integer,
+					\`c\` integer,
+					\`null_only\` integer
+				);
 			`);
 		});
 
 		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
-			await db.execute(sql`drop table if exists \`users_default_fn\``);
-			await db.execute(
-				sql`
-					create table \`users_default_fn\` (
-						\`id\` varchar(256) primary key,
-						\`name\` text not null
-					);
-				`,
-			);
+			await db.execute(sql`truncate table users_default_fn`);
 		}
 
 		async function setupSetOperationTest(db: TestSingleStoreDB) {
-			await db.execute(sql`drop table if exists \`users2\``);
-			await db.execute(sql`drop table if exists \`cities\``);
-			await db.execute(
-				sql`
-					create table \`users2\` (
-					    \`id\` serial primary key,
-					    \`name\` text not null,
-					    \`city_id\` int
-					)
-				`,
+			await db.execute(sql`truncate table \`users2\`; truncate table \`cities\`;`);
+			await Promise.all(
+				[
+					db.insert(citiesTable).values([
+						{ id: 1, name: 'New York' },
+						{ id: 2, name: 'London' },
+						{ id: 3, name: 'Tampa' },
+					]),
+					db.insert(users2Table).values([
+						{ id: 1, name: 'John', cityId: 1 },
+						{ id: 2, name: 'Jane', cityId: 2 },
+						{ id: 3, name: 'Jack', cityId: 3 },
+						{ id: 4, name: 'Peter', cityId: 3 },
+						{ id: 5, name: 'Ben', cityId: 2 },
+						{ id: 6, name: 'Jill', cityId: 1 },
+						{ id: 7, name: 'Mary', cityId: 2 },
+						{ id: 8, name: 'Sally', cityId: 1 },
+					]),
+				],
 			);
-
-			await db.execute(
-				sql`
-					create table \`cities\` (
-					    \`id\` serial primary key,
-					    \`name\` text not null
-					)
-				`,
-			);
-
-			await db.insert(citiesTable).values([
-				{ id: 1, name: 'New York' },
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
-
-			await db.insert(users2Table).values([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 2 },
-				{ id: 3, name: 'Jack', cityId: 3 },
-				{ id: 4, name: 'Peter', cityId: 3 },
-				{ id: 5, name: 'Ben', cityId: 2 },
-				{ id: 6, name: 'Jill', cityId: 1 },
-				{ id: 7, name: 'Mary', cityId: 2 },
-				{ id: 8, name: 'Sally', cityId: 1 },
-			]);
 		}
 
 		async function setupAggregateFunctionsTest(db: TestSingleStoreDB) {
-			await db.execute(sql`drop table if exists \`aggregate_table\``);
-			await db.execute(
-				sql`
-					create table \`aggregate_table\` (
-					    \`id\` integer primary key auto_increment not null,
-					    \`name\` text not null,
-					    \`a\` integer,
-					    \`b\` integer,
-					    \`c\` integer,
-					    \`null_only\` integer
-					);
-				`,
-			);
+			await db.execute(sql`truncate table aggregate_table`);
 			await db.insert(aggregateTable).values([
 				{ id: 1, name: 'value 1', a: 5, b: 10, c: 20 },
 				{ id: 2, name: 'value 1', a: 5, b: 20, c: 30 },
@@ -482,16 +379,7 @@ export function tests(driver?: string) {
 		}
 
 		async function setupVectorSearchTest(db: TestSingleStoreDB) {
-			await db.execute(sql`drop table if exists \`vector_search\``);
-			await db.execute(
-				sql`
-					create table \`vector_search\` (
-						\`id\` integer primary key auto_increment not null,
-						\`text\` text not null,
-						\`embedding\` vector(10) not null
-					)
-				`,
-			);
+			await db.execute(sql`truncate table vector_search`);
 			await db.insert(vectorSearchTable).values([
 				{
 					id: 1,
