@@ -283,6 +283,7 @@ export function tests(driver?: string) {
 				db.execute(sql`drop schema if exists \`mySchema\`;`),
 				db.execute(sql`drop table if exists aggregate_table;`),
 				db.execute(sql`drop table if exists vector_search;`),
+				db.execute(sql`drop table if exists users_default_fn;`),
 			]);
 			await db.execute(sql`create schema if not exists \`mySchema\`;`);
 			await Promise.all([
@@ -342,10 +343,10 @@ export function tests(driver?: string) {
 					text text not null,
 					embedding vector(10) not null
 				);`),
-				db.execute(sql`create table \`users_default_fn\` (
-						\`id\` varchar(256) primary key,
-						\`name\` text not null
-					);`),
+				db.execute(sql`create table users_default_fn (
+					id varchar(256) primary key,
+					name text not null
+				);`),
 			]);
 		});
 
