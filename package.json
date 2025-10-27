@@ -32,8 +32,8 @@
 		"lint-staged": "^16.2.4",
 		"magic-string": "^0.30.19",
 		"oxc-parser": "^0.95.0",
-		"oxlint": "^1.22.0",
 		"poolifier-web-worker": "^0.5.14",
+		"oxlint": "^1.24.0",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
 		"rolldown": "1.0.0-beta.44",
@@ -46,10 +46,16 @@
 		"vitest": "4.0.0-beta.19"
 	},
 	"packageManager": "pnpm@10.15.0",
+	"engines": {
+		"node": ">=24"
+	},
 	"lint-staged": {
 		"*": [
 			"pnpm format:check",
 			"pnpm lint:check"
 		]
+	},
+	"volta": {
+		"node": "24.10.0"
 	}
 }

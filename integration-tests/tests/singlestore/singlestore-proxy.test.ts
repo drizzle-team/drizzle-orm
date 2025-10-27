@@ -5,9 +5,7 @@ import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
 import relations from './relations';
-import { createDockerDB, tests } from './singlestore-common';
-
-const ENABLE_LOGGING = false;
+import { tests } from './singlestore-common';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -75,13 +73,9 @@ let client: mysql2.Connection;
 let serverSimulator: ServerSimulator;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
-	}
+	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
+	if (!connectionString) throw new Error();
+
 	client = await retry(async () => {
 		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
@@ -114,7 +108,7 @@ beforeAll(async () => {
 			console.error('Error from singlestore proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING, relations });
+	}, { relations });
 });
 
 afterAll(async () => {
