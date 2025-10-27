@@ -3,6 +3,8 @@ import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
 import { AnyColumn, AnyTable, is } from 'drizzle-orm';
+import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -12,8 +14,6 @@ import {
 	Relations,
 	TablesRelationalConfig,
 } from 'drizzle-orm/relations';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
 	AnySingleStoreTable,
 	getTableConfig as singlestoreTableConfig,

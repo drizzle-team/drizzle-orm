@@ -1,5 +1,4 @@
 import { is } from 'drizzle-orm';
-import { Relations } from 'drizzle-orm/relations';
 import {
 	AnyPgTable,
 	isPgEnum,
@@ -15,6 +14,7 @@ import {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
+import { Relations } from 'drizzle-orm/relations';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
