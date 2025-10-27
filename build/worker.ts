@@ -43,12 +43,30 @@ export default new ThreadWorker<WorkerIn, WorkerOut>(async (data) => {
 			//     path.value.argument.value = resolvePathAlias(path.value.argument.value, name);
 			//     this.traverse(path);
 			//   },
-			// AwaitExpression(node) {
-			//   const nodeStr = magic.slice(node.start, node.end);
-			//   if (nodeStr.startsWith(`await import(`) && (nodeStr.includes(`"./`) || nodeStr.includes(`'./`))) {
-			//     console.log(magic.slice(node.start, node.end));
-			//   }
-			// },
+			AwaitExpression(node) {
+				const nodeStr = magic.slice(node.start, node.end);
+				if (nodeStr.startsWith(`await import(`)) {
+					const fullImportPath = magic.slice(node.start, node.end);
+					let importPath = magic.slice(node.start + 'await import('.length + 1, node.end - 2);
+
+					if (nodeStr.includes('./')) {
+						importPath = fixImportPath(
+							importPath,
+							name,
+							extension,
+						);
+					}
+
+					const statement = fullImportPath.includes('await import(') && extension === '.cjs'
+						? 'require('
+						: 'await import(';
+					magic.overwrite(
+						node.start,
+						node.end,
+						`${statement}"${importPath}")`,
+					);
+				}
+			},
 		});
 
 		visitor.visit(code.program);

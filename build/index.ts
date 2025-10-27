@@ -15,10 +15,14 @@ export type WorkerOut = {
 
 export async function build(config: {
 	readme: string;
+	skip?: {
+		distDelete?: boolean;
+		resolveTsPaths?: boolean;
+	};
 }) {
-	await rm('dist', { recursive: true, force: true });
+	if (!config.skip?.distDelete) await rm('dist', { recursive: true, force: true });
 	await $`rolldown --config rolldown.config.ts`;
-	await $`resolve-tspaths`;
+	if (!config.skip?.resolveTsPaths) await $`resolve-tspaths`;
 	await Promise.all([
 		Bun.write('dist/README.md', Bun.file(config.readme)),
 		Bun.write('dist/package.json', Bun.file('package.json')),

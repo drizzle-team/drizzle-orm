@@ -69,6 +69,7 @@ const input = {
 	relations: 'src/relations.ts',
 	migrator: 'src/migrator.ts',
 	version: 'src/version.temp.ts',
+	casing: 'src/casing.ts',
 	...dialects.reduce((acc, dialect) => {
 		acc[`${dialect}-core/index`] = `src/${dialect}-core/index.ts`;
 		return acc;
