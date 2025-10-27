@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
-import { Relations } from 'drizzle-orm/_relations';
+import { Relations } from 'drizzle-orm/relations';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';

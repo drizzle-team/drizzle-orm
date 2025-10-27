@@ -1,5 +1,5 @@
 import { is } from 'drizzle-orm';
-import { Relations } from 'drizzle-orm/_relations';
+import { Relations } from 'drizzle-orm/relations';
 import {
 	AnyPgTable,
 	isPgEnum,
