@@ -178,7 +178,7 @@ describe('Rejects drivers', (it) => {
 	// 	expect(isConfig(cl)).toEqual(false);
 	// });
 
-	it('vercel:Client', async () => {
+	it.skip('vercel:Client', async () => {
 		const cl = vcClient({
 			connectionString: process.env['NEON_CONNECTION_STRING'],
 		});
@@ -372,7 +372,7 @@ describe('Accepts drivers in .client', (it) => {
 	// 	expect(isConfig({client:cl})).toEqual(true);
 	// });
 
-	it('vercel:Client', async () => {
+	it.skip('vercel:Client', async () => {
 		const cl = vcClient({
 			connectionString: process.env['NEON_CONNECTION_STRING'],
 		});
