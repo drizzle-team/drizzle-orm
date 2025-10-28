@@ -109,7 +109,7 @@ export const diffAfterPull = async (
 
 	rmSync(path);
 
-	return { sqlStatements, statements, resultDdl: ddl2 };
+	return { sqlStatements, statements, initDDL, ddlAfterPull: ddl1, resultDdl: ddl2 };
 };
 
 export const push = async (config: {
