@@ -1,12 +1,13 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: MySqlRemoteDatabase<TSchema>,
+export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: MySqlRemoteDatabase<TSchema, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 ) {
@@ -27,7 +28,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
 	}).from(sql.identifier(migrationsTable).getSQL()).orderBy(
-		sql.raw('created_at desc')
+		sql.raw('created_at desc'),
 	).limit(1);
 
 	const lastDbMigration = dbMigrations[0];
@@ -41,7 +42,9 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`insert into ${sql.identifier(migrationsTable).value} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
+				`insert into ${
+					sql.identifier(migrationsTable).value
+				} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
 			);
 		}
 	}

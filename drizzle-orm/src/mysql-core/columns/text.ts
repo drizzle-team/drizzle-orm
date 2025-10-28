@@ -1,47 +1,59 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
 
-export type MySqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlTextBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlText';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-}>;
-
-export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlText'>> extends MySqlColumnBuilder<
-	T,
-	{ textType: MySqlTextColumnType; enumValues: T['enumValues'] }
+export class MySqlTextBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<
+	{
+		name: string;
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+	},
+	{ textType: MySqlTextColumnType; enumValues?: TEnum; length: number }
 > {
-	static readonly [entityKind]: string = 'MySqlTextBuilder';
+	static override readonly [entityKind]: string = 'MySqlTextBuilder';
 
-	constructor(name: T['name'], textType: MySqlTextColumnType, config: MySqlTextConfig<T['enumValues']>) {
-		super(name, 'string', 'MySqlText');
+	constructor(name: string, textType: MySqlTextColumnType, config: MySqlTextConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'MySqlText');
 		this.config.textType = textType;
 		this.config.enumValues = config.enum;
+		switch (textType) {
+			case 'tinytext': {
+				this.config.length = 255;
+				break;
+			}
+			case 'text': {
+				this.config.length = 65535;
+				break;
+			}
+			case 'mediumtext': {
+				this.config.length = 16777215;
+				break;
+			}
+			case 'longtext': {
+				this.config.length = 4294967295;
+				break;
+			}
+		}
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlText<MakeColumnConfig<T, TTableName>> {
-		return new MySqlText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: MySqlTable) {
+		return new MySqlText(table, this.config as any);
 	}
 }
 
-export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
+export class MySqlText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 	extends MySqlColumn<T, { textType: MySqlTextColumnType; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'MySqlText';
+	static override readonly [entityKind]: string = 'MySqlText';
 
-	private textType: MySqlTextColumnType = this.config.textType;
+	readonly textType: MySqlTextColumnType = this.config.textType;
 
 	override readonly enumValues = this.config.enumValues;
 
@@ -50,34 +62,56 @@ export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
 	}
 }
 
-export interface MySqlTextConfig<TEnum extends readonly string[] | string[] | undefined> {
+export interface MySqlTextConfig<
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+> {
 	enum?: TEnum;
 }
 
-export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'text', config);
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function text(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'text', config as any);
 }
 
-export function tinytext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'tinytext', config);
+export function tinytext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function tinytext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function tinytext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'tinytext', config as any);
 }
 
-export function mediumtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'mediumtext', config);
+export function mediumtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function mediumtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function mediumtext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'mediumtext', config as any);
 }
 
-export function longtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
-	config: MySqlTextConfig<T | Writable<T>> = {},
-): MySqlTextBuilderInitial<TName, Writable<T>> {
-	return new MySqlTextBuilder(name, 'longtext', config);
+export function longtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function longtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
+	config?: MySqlTextConfig<T | Writable<T>>,
+): MySqlTextBuilder<Writable<T>>;
+export function longtext(a?: string | MySqlTextConfig, b: MySqlTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<MySqlTextConfig>(a, b);
+	return new MySqlTextBuilder(name, 'longtext', config as any);
 }

@@ -1,41 +1,34 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '../table.ts';
+import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgCidr';
+export class PgCidrBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'string cidr';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgCidrBuilder';
 
-export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgCidrBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'string', 'PgCidr');
+	constructor(name: string) {
+		super(name, 'string cidr', 'PgCidr');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgCidr<MakeColumnConfig<T, TTableName>> {
-		return new PgCidr<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgCidr(table, this.config as any);
 	}
 }
 
-export class PgCidr<T extends ColumnBaseConfig<'string', 'PgCidr'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgCidr';
+export class PgCidr<T extends ColumnBaseConfig<'string cidr'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgCidr';
 
 	getSQLType(): string {
 		return 'cidr';
 	}
 }
 
-export function cidr<TName extends string>(name: TName): PgCidrBuilderInitial<TName> {
-	return new PgCidrBuilder(name);
+export function cidr(name?: string): PgCidrBuilder {
+	return new PgCidrBuilder(name ?? '');
 }

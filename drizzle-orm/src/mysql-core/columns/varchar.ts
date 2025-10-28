@@ -1,66 +1,66 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlVarCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlVarCharBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MySqlVarChar';
-		data: TEnum[number];
-		driverParam: number | string;
-		enumValues: TEnum;
-	}
->;
-
-export class MySqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarChar'>>
-	extends MySqlColumnBuilder<T, MySqlVarCharConfig<T['enumValues']>>
-{
-	static readonly [entityKind]: string = 'MySqlVarCharBuilder';
+export class MySqlVarCharBuilder<
+	TEnum extends [string, ...string[]],
+> extends MySqlColumnBuilder<{
+	name: string;
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
+	data: TEnum[number];
+	driverParam: number | string;
+	enumValues: TEnum;
+}, MySqlVarCharConfig<TEnum>> {
+	static override readonly [entityKind]: string = 'MySqlVarCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarCharConfig<T['enumValues']>) {
-		super(name, 'string', 'MySqlVarChar');
+	constructor(name: string, config: MySqlVarCharConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string text', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlVarChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
-		return new MySqlVarChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
+	override build(table: MySqlTable) {
+		return new MySqlVarChar(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlVarChar<T extends ColumnBaseConfig<'string', 'MySqlVarChar'>>
-	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues']>>
-{
-	static readonly [entityKind]: string = 'MySqlVarChar';
-
-	readonly length: number | undefined = this.config.length;
+export class MySqlVarChar<
+	T extends ColumnBaseConfig<'string' | 'string enum'> & { length: number },
+> extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues']>> {
+	static override readonly [entityKind]: string = 'MySqlVarChar';
 
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {
-		return this.length === undefined ? `varchar` : `varchar(${this.length})`;
+		return `varchar(${this.length})`;
 	}
 }
 
-export interface MySqlVarCharConfig<TEnum extends string[] | readonly string[] | undefined> {
-	length: number;
+export interface MySqlVarCharConfig<
+	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
+> {
 	enum?: TEnum;
+	length: number;
 }
 
-export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config: MySqlVarCharConfig<T | Writable<T>>,
-): MySqlVarCharBuilderInitial<TName, Writable<T>> {
-	return new MySqlVarCharBuilder(name, config);
+): MySqlVarCharBuilder<Writable<T>>;
+export function varchar<
+	U extends string,
+	T extends Readonly<[U, ...U[]]>,
+>(
+	name: string,
+	config: MySqlVarCharConfig<T | Writable<T>>,
+): MySqlVarCharBuilder<Writable<T>>;
+export function varchar(a: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
+	const { name, config } = getColumnNameAndConfig<MySqlVarCharConfig>(a, b);
+	return new MySqlVarCharBuilder(name, config as any);
 }

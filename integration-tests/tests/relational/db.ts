@@ -9,7 +9,7 @@ async function main() {
 	const bdb = new Database(process.env['SQLITE_DB_PATH']!);
 	const db = drizzle(bdb, { schema, logger: true });
 
-	const result = db.query.users.findMany({
+	const result = db._query.users.findMany({
 		columns: {
 			id: true,
 			name: true,

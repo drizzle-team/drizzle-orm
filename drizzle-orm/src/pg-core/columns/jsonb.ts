@@ -1,37 +1,30 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgJsonb';
+export class PgJsonbBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'object json';
 	data: unknown;
 	driverParam: unknown;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgJsonbBuilder';
 
-export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgJsonbBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'json', 'PgJsonb');
+	constructor(name: string) {
+		super(name, 'object json', 'PgJsonb');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgJsonb<MakeColumnConfig<T, TTableName>> {
-		return new PgJsonb<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgJsonb(table, this.config as any);
 	}
 }
 
-export class PgJsonb<T extends ColumnBaseConfig<'json', 'PgJsonb'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgJsonb';
+export class PgJsonb<T extends ColumnBaseConfig<'object json'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgJsonb';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonbBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgJsonbBuilder['config']) {
 		super(table, config);
 	}
 
@@ -55,6 +48,6 @@ export class PgJsonb<T extends ColumnBaseConfig<'json', 'PgJsonb'>> extends PgCo
 	}
 }
 
-export function jsonb<TName extends string>(name: TName): PgJsonbBuilderInitial<TName> {
-	return new PgJsonbBuilder(name);
+export function jsonb(name?: string): PgJsonbBuilder {
+	return new PgJsonbBuilder(name ?? '');
 }

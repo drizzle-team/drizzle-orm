@@ -1,35 +1,29 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgSmallInt';
+export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
+	name: string;
+	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgSmallIntBuilder';
 
-export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgSmallIntBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'number', 'PgSmallInt');
+	constructor(name: string) {
+		super(name, 'number int16', 'PgSmallInt');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgSmallInt<MakeColumnConfig<T, TTableName>> {
-		return new PgSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgSmallInt(table, this.config as any);
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgSmallInt';
+export class PgSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint16'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {
 		return 'smallint';
@@ -42,7 +36,6 @@ export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> exte
 		return value;
 	};
 }
-
-export function smallint<TName extends string>(name: TName): PgSmallIntBuilderInitial<TName> {
-	return new PgSmallIntBuilder(name);
+export function smallint(name?: string): PgSmallIntBuilder {
+	return new PgSmallIntBuilder(name ?? '');
 }

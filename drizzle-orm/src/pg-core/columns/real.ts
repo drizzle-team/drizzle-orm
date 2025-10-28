@@ -1,41 +1,34 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgReal';
-	data: number;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>> extends PgColumnBuilder<
-	T,
+export class PgRealBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'number float';
+		data: number;
+		driverParam: string | number;
+	},
 	{ length: number | undefined }
 > {
-	static readonly [entityKind]: string = 'PgRealBuilder';
+	static override readonly [entityKind]: string = 'PgRealBuilder';
 
 	constructor(name: string, length?: number) {
-		super(name, 'number', 'PgReal');
+		super(name, 'number float', 'PgReal');
 		this.config.length = length;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgReal<MakeColumnConfig<T, TTableName>> {
-		return new PgReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgReal(table, this.config as any);
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgReal';
+export class PgReal<T extends ColumnBaseConfig<'number float' | 'number ufloat'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgReal';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgRealBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {
 		super(table, config);
 	}
 
@@ -51,6 +44,6 @@ export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgCo
 	};
 }
 
-export function real<TName extends string>(name: TName): PgRealBuilderInitial<TName> {
-	return new PgRealBuilder(name);
+export function real(name?: string): PgRealBuilder {
+	return new PgRealBuilder(name ?? '');
 }

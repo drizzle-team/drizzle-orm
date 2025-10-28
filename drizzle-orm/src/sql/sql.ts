@@ -1,11 +1,15 @@
+import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { SelectedFields } from '~/operations.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import type { SelectResult } from '~/query-builders/select.types.ts';
+import { Subquery } from '~/subquery.ts';
+import { TableName } from '~/table.utils.ts';
 import { tracer } from '~/tracing.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { Table } from '../table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -27,12 +31,14 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
+	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
+	invokeSource?: 'indexes' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -57,13 +63,13 @@ export interface QueryWithTypings extends Query {
  * - `Placeholder`
  * - `Param`
  */
-export interface SQLWrapper {
-	getSQL(): SQL;
+export interface SQLWrapper<T = unknown> {
+	getSQL(): SQL<T>;
+	shouldOmitSQLParens?(): boolean;
 }
 
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
-	return typeof value === 'object' && value !== null && 'getSQL' in value
-		&& typeof (value as any).getSQL === 'function';
+	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
 function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
@@ -95,7 +101,7 @@ export class StringChunk implements SQLWrapper {
 	}
 }
 
-export class SQL<T = unknown> implements SQLWrapper {
+export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
 
 	declare _: {
@@ -107,7 +113,22 @@ export class SQL<T = unknown> implements SQLWrapper {
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
 	private shouldInlineParams = false;
 
-	constructor(readonly queryChunks: SQLChunk[]) {}
+	/** @internal */
+	usedTables: string[] = [];
+
+	constructor(readonly queryChunks: SQLChunk[]) {
+		for (const chunk of queryChunks) {
+			if (is(chunk, Table)) {
+				const schemaName = chunk[Table.Symbol.Schema];
+
+				this.usedTables.push(
+					schemaName === undefined
+						? chunk[Table.Symbol.Name]
+						: schemaName + '.' + chunk[Table.Symbol.Name],
+				);
+			}
+		}
+	}
 
 	append(query: SQL): this {
 		this.queryChunks.push(...query.queryChunks);
@@ -132,6 +153,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		});
 
 		const {
+			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
@@ -175,7 +197,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)
 						: escapeName(schemaName) + '.' + escapeName(tableName),
 					params: [],
@@ -183,14 +205,26 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Column)) {
-				return { sql: escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(chunk.name), params: [] };
+				const columnName = casing.getColumnCasing(chunk);
+				if (_config.invokeSource === 'indexes') {
+					return { sql: escapeName(columnName), params: [] };
+				}
+
+				const schemaName = chunk.table[Table.Symbol.Schema];
+				return {
+					sql: chunk.table[IsAlias] || schemaName === undefined
+						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
+						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
+							+ escapeName(columnName),
+					params: [],
+				};
 			}
 
 			if (is(chunk, View)) {
 				const schemaName = chunk[ViewBaseConfig].schema;
 				const viewName = chunk[ViewBaseConfig].name;
 				return {
-					sql: schemaName === undefined
+					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
 						? escapeName(viewName)
 						: escapeName(schemaName) + '.' + escapeName(viewName),
 					params: [],
@@ -198,7 +232,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Param)) {
-				const mappedValue = (chunk.value === null) ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				if (is(chunk.value, Placeholder)) {
+					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				}
+
+				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);
@@ -208,8 +246,8 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] | undefined;
-				if (prepareTyping !== undefined) {
+				let typings: QueryTypingsValue[] = ['none'];
+				if (prepareTyping) {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
@@ -217,7 +255,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
@@ -225,18 +263,28 @@ export class SQL<T = unknown> implements SQLWrapper {
 			}
 
 			if (is(chunk, Subquery)) {
-				if (chunk[SubqueryConfig].isWith) {
-					return { sql: escapeName(chunk[SubqueryConfig].alias), params: [] };
+				if (chunk._.isWith) {
+					return { sql: escapeName(chunk._.alias), params: [] };
 				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
-					chunk[SubqueryConfig].sql,
+					chunk._.sql,
 					new StringChunk(') '),
-					new Name(chunk[SubqueryConfig].alias),
+					new Name(chunk._.alias),
 				], config);
 			}
 
+			if (isPgEnum(chunk)) {
+				if (chunk.schema) {
+					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
+				}
+				return { sql: escapeName(chunk.enumName), params: [] };
+			}
+
 			if (isSQLWrapper(chunk)) {
+				if (chunk.shouldOmitSQLParens?.()) {
+					return this.buildQueryFromSourceParams([chunk.getSQL()], config);
+				}
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
 					chunk.getSQL(),
@@ -248,7 +296,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 		}));
 	}
 
@@ -275,7 +323,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		throw new Error('Unexpected param value: ' + chunk);
 	}
 
-	getSQL(): SQL {
+	getSQL(): SQL<T> {
 		return this;
 	}
 
@@ -311,6 +359,16 @@ export class SQL<T = unknown> implements SQLWrapper {
 	inlineParams(): this {
 		this.shouldInlineParams = true;
 		return this;
+	}
+
+	/**
+	 * This method is used to conditionally include a part of the query.
+	 *
+	 * @param condition - Condition to check
+	 * @returns itself if the condition is `true`, otherwise `undefined`
+	 */
+	if(condition: any | undefined): this | undefined {
+		return condition ? this : undefined;
 	}
 }
 
@@ -418,13 +476,14 @@ export type SQLChunk =
 	| FakePrimitiveParam
 	| Placeholder;
 
+export type SQLGenerator<T = unknown> = typeof sql<T>;
+
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
-	The type of `params` is specified as `SQLSourceParam[]`, but that's slightly incorrect -
+	The type of `params` is specified as `SQLChunk[]`, but that's slightly incorrect -
 	in runtime, users won't pass `FakePrimitiveParam` instances as `params` - they will pass primitive values
-	which will be wrapped in `Param` using `buildChunksFromParam(...)`. That's why the overload
-	specify `params` as `any[]` and not as `SQLSourceParam[]`. This type is used to make our lives easier and
-	the type checker happy.
+	which will be wrapped in `Param`. That's why the overload specifies `params` as `any[]` and not as `SQLSourceParam[]`.
+	This type is used to make our lives easier and the type checker happy.
 */
 export function sql(strings: TemplateStringsArray, ...params: SQLChunk[]): SQL {
 	const queryChunks: SQLChunk[] = [];
@@ -509,7 +568,7 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
@@ -521,17 +580,17 @@ export namespace SQL {
 		isSelectionField = false;
 
 		constructor(
-			readonly sql: SQL,
+			readonly sql: SQL<T>,
 			readonly fieldAlias: string,
 		) {}
 
-		getSQL(): SQL {
-			return this.sql;
+		getSQL(): SQL<T> {
+			return this.sql as SQL<T>;
 		}
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased<T>(this.sql, this.fieldAlias);
 		}
 	}
 }
@@ -559,7 +618,16 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 			if (!(p.name in values)) {
 				throw new Error(`No value for placeholder "${p.name}" was provided`);
 			}
+
 			return values[p.name];
+		}
+
+		if (is(p, Param) && is(p.value, Placeholder)) {
+			if (!(p.value.name in values)) {
+				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
+			}
+
+			return p.encoder.mapToDriverValue(values[p.value.name]);
 		}
 
 		return p;
@@ -567,6 +635,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 }
 
 export type ColumnsSelection = Record<string, unknown>;
+
+const IsDrizzleView = Symbol.for('drizzle:IsDrizzleView');
 
 export abstract class View<
 	TName extends string = string,
@@ -588,17 +658,47 @@ export abstract class View<
 		name: TName;
 		originalName: TName;
 		schema: string | undefined;
-		selectedFields: SelectedFields<AnyColumn, Table>;
+		selectedFields: ColumnsSelection;
 		isExisting: TExisting;
 		query: TExisting extends true ? undefined : SQL;
 		isAlias: boolean;
 	};
 
+	/** @internal */
+	[IsDrizzleView] = true;
+
+	/** @internal */
+	public get [TableName]() {
+		return this[ViewBaseConfig].name;
+	}
+
+	/** @internal */
+	public get [TableSchema]() {
+		return this[ViewBaseConfig].schema;
+	}
+
+	/** @internal */
+	public get [IsAlias]() {
+		return this[ViewBaseConfig].isAlias;
+	}
+
+	/** @internal */
+	public get [OriginalName]() {
+		return this[ViewBaseConfig].originalName;
+	}
+
+	/** @internal */
+	public get [TableColumns]() {
+		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
+	}
+
+	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
+
 	constructor(
 		{ name, schema, selectedFields, query }: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields<AnyColumn, Table>;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		},
 	) {
@@ -617,6 +717,22 @@ export abstract class View<
 		return new SQL([this]);
 	}
 }
+
+export function isView(view: unknown): view is View {
+	return typeof view === 'object' && view !== null && IsDrizzleView in view;
+}
+
+export function getViewName<T extends View>(view: T): T['_']['name'] {
+	return view[ViewBaseConfig].name;
+}
+
+export type InferSelectViewModel<TView extends View> =
+	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
+		: SelectResult<
+			TView['_']['selectedFields'],
+			'single',
+			Record<TView['_']['name'], 'not-null'>
+		>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {

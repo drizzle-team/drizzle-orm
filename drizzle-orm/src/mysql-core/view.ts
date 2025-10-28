@@ -1,20 +1,18 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
+import type { MySqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 import { MySqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
 	algorithm?: 'undefined' | 'merge' | 'temptable';
-	definer?: string;
 	sqlSecurity?: 'definer' | 'invoker';
 	withCheckOption?: 'cascaded' | 'local';
 }
@@ -41,13 +39,6 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		return this;
 	}
 
-	definer(
-		definer: Exclude<ViewBuilderConfig['definer'], undefined>,
-	): this {
-		this.config.definer = definer;
-		return this;
-	}
-
 	sqlSecurity(
 		sqlSecurity: Exclude<ViewBuilderConfig['sqlSecurity'], undefined>,
 	): this {
@@ -64,9 +55,9 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
-	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static override readonly [entityKind]: string = 'MySqlViewBuilder';
 
-	as<TSelectedFields extends SelectedFields>(
+	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>> {
 		if (typeof qb === 'function') {
@@ -96,9 +87,9 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, MySqlColumnBuilderBase> = Record<string, MySqlColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
-	static readonly [entityKind]: string = 'MySqlManualViewBuilder';
+	static override readonly [entityKind]: string = 'MySqlManualViewBuilder';
 
 	private columns: Record<string, MySqlColumn>;
 
@@ -157,7 +148,7 @@ export class MySqlView<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends MySqlViewBase<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'MySqlView';
+	static override readonly [entityKind]: string = 'MySqlView';
 
 	declare protected $MySqlViewBrand: 'MySqlView';
 
@@ -168,7 +159,7 @@ export class MySqlView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
 	}) {
@@ -186,7 +177,7 @@ export type MySqlViewWithSelection<
 /** @internal */
 export function mysqlViewWithSchema(
 	name: string,
-	selection: Record<string, MySqlColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -196,13 +187,13 @@ export function mysqlViewWithSchema(
 }
 
 export function mysqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mysqlView<TName extends string, TColumns extends Record<string, MySqlColumnBuilderBase>>(
+export function mysqlView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
 export function mysqlView(
 	name: string,
-	selection?: Record<string, MySqlColumnBuilderBase>,
+	selection?: Record<string, ColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
 	return mysqlViewWithSchema(name, selection, undefined);
 }

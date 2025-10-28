@@ -10,3 +10,12 @@ dist.new
 .rollup.cache
 dist-dts
 rollup.config-*.mjs
+*.log
+.DS_Store
+drizzle-seed/src/dev
+drizzle-orm/tmp
+drizzle-orm/types-bench.ts
+typeperf-test/tmp.tsconfig.json
+typeperf-test/trace
+typeperf-test/lib/big-schema.ts
+typeperf-test/lib/big-schema-rels.ts

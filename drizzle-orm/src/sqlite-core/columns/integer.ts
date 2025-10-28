@@ -1,17 +1,10 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
-	HasDefault,
-	MakeColumnConfig,
-	NotNull,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnType, HasDefault, IsPrimaryKey, NotNull } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
-import type { Equal, Or } from '~/utils.ts';
-import type { AnySQLiteTable } from '../table.ts';
+import { type Equal, getColumnNameAndConfig, type Or } from '~/utils.ts';
+import type { SQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export interface PrimaryKeyConfig {
@@ -20,40 +13,34 @@ export interface PrimaryKeyConfig {
 }
 
 export abstract class SQLiteBaseIntegerBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumnBuilder<
 	T,
 	TRuntimeConfig & { autoIncrement: boolean },
-	{},
 	{ primaryKeyHasDefault: true }
 > {
-	static readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';
+	static override readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';
 
-	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: string, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}
 
-	override primaryKey(config?: PrimaryKeyConfig): HasDefault<NotNull<this>> {
+	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<HasDefault<NotNull<this>>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		this.config.hasDefault = true;
-		return super.primaryKey() as HasDefault<NotNull<this>>;
+		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
 	}
-
-	/** @internal */
-	abstract override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBaseInteger<MakeColumnConfig<T, TTableName>>;
 }
 
 export abstract class SQLiteBaseInteger<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumn<T, TRuntimeConfig & { autoIncrement: boolean }> {
-	static readonly [entityKind]: string = 'SQLiteBaseInteger';
+	static override readonly [entityKind]: string = 'SQLiteBaseInteger';
 
 	readonly autoIncrement: boolean = this.config.autoIncrement;
 
@@ -62,54 +49,40 @@ export abstract class SQLiteBaseInteger<
 	}
 }
 
-export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SQLiteInteger';
+export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
+	name: string;
+	dataType: 'number int53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
 
-export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>>
-	extends SQLiteBaseIntegerBuilder<T>
-{
-	static readonly [entityKind]: string = 'SQLiteIntegerBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'number', 'SQLiteInteger');
+	constructor(name: string) {
+		super(name, 'number int53', 'SQLiteInteger');
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteInteger<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteInteger<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteInteger(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig<'number', 'SQLiteInteger'>> extends SQLiteBaseInteger<T> {
-	static readonly [entityKind]: string = 'SQLiteInteger';
+export class SQLiteInteger<T extends ColumnBaseConfig<'number int53'>> extends SQLiteBaseInteger<T> {
+	static override readonly [entityKind]: string = 'SQLiteInteger';
 }
 
-export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'SQLiteTimestamp';
+export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
+	name: string;
+	dataType: 'object date';
 	data: Date;
 	driverParam: number;
-	enumValues: undefined;
-}>;
+}, { mode: 'timestamp' | 'timestamp_ms' }> {
+	static override readonly [entityKind]: string = 'SQLiteTimestampBuilder';
 
-export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>>
-	extends SQLiteBaseIntegerBuilder<T, { mode: 'timestamp' | 'timestamp_ms' }>
-{
-	static readonly [entityKind]: string = 'SQLiteTimestampBuilder';
-
-	constructor(name: T['name'], mode: 'timestamp' | 'timestamp_ms') {
-		super(name, 'date', 'SQLiteTimestamp');
+	constructor(name: string, mode: 'timestamp' | 'timestamp_ms') {
+		super(name, 'object date', 'SQLiteTimestamp');
 		this.config.mode = mode;
 	}
 
@@ -122,20 +95,18 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 		return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`) as any;
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteTimestamp<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteTimestamp(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp'>>
+export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 	extends SQLiteBaseInteger<T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
-	static readonly [entityKind]: string = 'SQLiteTimestamp';
+	static override readonly [entityKind]: string = 'SQLiteTimestamp';
 
 	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
 
@@ -155,39 +126,29 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp
 	}
 }
 
-export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<{
-	name: TName;
+export class SQLiteBooleanBuilder extends SQLiteBaseIntegerBuilder<{
+	name: string;
 	dataType: 'boolean';
-	columnType: 'SQLiteBoolean';
 	data: boolean;
 	driverParam: number;
-	enumValues: undefined;
-}>;
+}, { mode: 'boolean' }> {
+	static override readonly [entityKind]: string = 'SQLiteBooleanBuilder';
 
-export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>>
-	extends SQLiteBaseIntegerBuilder<T, { mode: 'boolean' }>
-{
-	static readonly [entityKind]: string = 'SQLiteBooleanBuilder';
-
-	constructor(name: T['name'], mode: 'boolean') {
+	constructor(name: string, mode: 'boolean') {
 		super(name, 'boolean', 'SQLiteBoolean');
 		this.config.mode = mode;
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBoolean<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteBoolean<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteBoolean(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'>>
-	extends SQLiteBaseInteger<T, { mode: 'boolean' }>
-{
-	static readonly [entityKind]: string = 'SQLiteBoolean';
+export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean'>> extends SQLiteBaseInteger<T, { mode: 'boolean' }> {
+	static override readonly [entityKind]: string = 'SQLiteBoolean';
 
 	readonly mode: 'boolean' = this.config.mode;
 
@@ -210,13 +171,19 @@ export interface IntegerConfig<
 	mode: TMode;
 }
 
-export function integer<TName extends string, TMode extends IntegerConfig['mode']>(
-	name: TName,
+export function integer<TMode extends IntegerConfig['mode']>(
 	config?: IntegerConfig<TMode>,
-): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
-	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
-	: SQLiteIntegerBuilderInitial<TName>;
-export function integer(name: string, config?: IntegerConfig) {
+): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilder
+	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilder
+	: SQLiteIntegerBuilder;
+export function integer<TMode extends IntegerConfig['mode']>(
+	name: string,
+	config?: IntegerConfig<TMode>,
+): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilder
+	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilder
+	: SQLiteIntegerBuilder;
+export function integer(a?: string | IntegerConfig, b?: IntegerConfig) {
+	const { name, config } = getColumnNameAndConfig<IntegerConfig | undefined>(a, b);
 	if (config?.mode === 'timestamp' || config?.mode === 'timestamp_ms') {
 		return new SQLiteTimestampBuilder(name, config.mode);
 	}

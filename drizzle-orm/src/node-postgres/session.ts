@@ -1,49 +1,144 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
+import type * as V1 from '~/_relations.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-const { Pool } = pg;
+const { Pool, types } = pg;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
-export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'NodePgPreparedQuery';
+export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PgPreparedQuery<T>
+{
+	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
 
 	constructor(
 		private client: NodePgClient,
-		queryString: string,
+		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private _isResponseInArrayMode: boolean,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId as number === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId as number === 1115) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId as number === 1185) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId as number === 1187) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId as number === 1182) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 		this.queryConfig = {
 			name,
 			text: queryString,
 			rowMode: 'array',
+			types: {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId as number === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId as number === 1115) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId as number === 1185) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId as number === 1187) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId as number === 1182) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return types.getTypeParser(typeId, format);
+				},
+			},
 		};
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		return tracer.startActiveSpan('drizzle.execute', async () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 
@@ -58,7 +153,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 						'drizzle.query.text': rawQuery.text,
 						'drizzle.query.params': JSON.stringify(params),
 					});
-					return client.query(rawQuery, params);
+					return this.queryWithCache(rawQuery.text, params, async () => {
+						return await client.query(rawQuery, params);
+					});
 				});
 			}
 
@@ -68,13 +165,38 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': query.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return client.query(query, params);
+				return this.queryWithCache(query.text, params, async () => {
+					return await client.query(query, params);
+				});
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return customResultMapper
-					? customResultMapper(result.rows)
+					? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
 					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+			});
+		});
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		return tracer.startActiveSpan('drizzle.execute', async () => {
+			const params = fillPlaceholders(this.params, placeholderValues);
+
+			this.logger.logQuery(this.rawQueryConfig.text, params);
+
+			const { rawQueryConfig: rawQuery, client, customResultMapper } = this;
+
+			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
+				span?.setAttributes({
+					'drizzle.query.name': rawQuery.name,
+					'drizzle.query.text': rawQuery.text,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+				return client.query(rawQuery, params);
+			});
+
+			return tracer.startActiveSpan('drizzle.mapResponse', () => {
+				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 			});
 		});
 	}
@@ -89,51 +211,108 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': this.rawQueryConfig.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
+				return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
+					return this.client.query(this.rawQueryConfig, params);
+				}).then((result) => result.rows);
 			});
 		});
+	}
+
+	/** @internal */
+	isResponseInArrayMode(): boolean {
+		return this._isResponseInArrayMode;
 	}
 }
 
 export interface NodePgSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NodePgSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgSession';
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgSession<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NodePgClient,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: NodePgSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
+		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new NodePgPreparedQuery(this.client, query.sql, query.params, this.logger, fields, name, customResultMapper);
+		return new NodePgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			fields,
+			name,
+			isResponseInArrayMode,
+			customResultMapper,
+		);
+	}
+
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+	): PgPreparedQuery<T> {
+		return new NodePgPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			name,
+			false,
+			customResultMapper,
+			true,
+		);
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
-			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new NodePgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
-		const tx = new NodePgTransaction(this.dialect, session, this.schema);
+		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
+			this.dialect,
+			session,
+			this.relations,
+			this.schema,
+		);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -148,17 +327,33 @@ export class NodePgSession<
 			}
 		}
 	}
+
+	override async count(sql: SQL): Promise<number> {
+		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
+		return Number(
+			res['rows'][0]['count'],
+		);
+	}
 }
 
 export class NodePgTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'NodePgTransaction';
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'NodePgTransaction';
 
-	override async transaction<T>(transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NodePgTransaction(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -171,6 +366,6 @@ export class NodePgTransaction<
 	}
 }
 
-export interface NodePgQueryResultHKT extends QueryResultHKT {
+export interface NodePgQueryResultHKT extends PgQueryResultHKT {
 	type: QueryResult<Assume<this['row'], QueryResultRow>>;
 }
