@@ -97,6 +97,9 @@ const allTypesTable = singlestoreTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
+	bigintString: bigint('bigint_string', {
+		mode: 'string',
+	}),
 	binary: binary('binary'),
 	boolean: boolean('boolean'),
 	char: char('char'),
@@ -4381,6 +4384,7 @@ export function tests(driver?: string) {
 						\`scol\` serial,
 						\`bigint53\` bigint,
 						\`bigint64\` bigint,
+						\`bigint_string\` bigint,
 						\`binary\` binary,
 						\`boolean\` boolean,
 						\`char\` char,
@@ -4421,6 +4425,7 @@ export function tests(driver?: string) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				binary: '1',
 				boolean: true,
 				char: 'c',
@@ -4476,6 +4481,7 @@ export function tests(driver?: string) {
 				serial: number;
 				bigint53: number | null;
 				bigint64: bigint | null;
+				bigintString: string | null;
 				binary: string | null;
 				boolean: boolean | null;
 				char: string | null;
@@ -4515,6 +4521,7 @@ export function tests(driver?: string) {
 					serial: 1,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
+					bigintString: '5044565289845416380',
 					binary: '1',
 					boolean: true,
 					char: 'c',

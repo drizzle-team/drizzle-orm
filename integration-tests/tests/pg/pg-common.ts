@@ -128,6 +128,9 @@ export const allTypesTable = pgTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
+	bigintString: bigint('bigint_string', {
+		mode: 'string',
+	}),
 	bool: boolean('bool'),
 	bytea: bytea('bytea'),
 	char: char('char'),
@@ -192,6 +195,9 @@ export const allTypesTable = pgTable('all_types', {
 	}).array(),
 	arrbigint64: bigint('arrbigint64', {
 		mode: 'bigint',
+	}).array(),
+	arrbigintString: bigint('arrbigint_string', {
+		mode: 'string',
 	}).array(),
 	arrbool: boolean('arrbool').array(),
 	arrbytea: bytea('arrbytea').array(),
@@ -6083,6 +6089,7 @@ export function tests() {
 					"int" integer,
 					"bigint53" bigint,
 					"bigint64" bigint,
+					"bigint_string" bigint,
 					"bool" boolean,
 					"bytea" bytea,
 					"char" char,
@@ -6118,6 +6125,7 @@ export function tests() {
 					"arrint" integer[],
 					"arrbigint53" bigint[],
 					"arrbigint64" bigint[],
+					"arrbigint_string" bigint[],
 					"arrbool" boolean[],
 					"arrbytea" bytea[],
 					"arrchar" char[],
@@ -6157,6 +6165,7 @@ export function tests() {
 				smallserial: 15,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				bigserial53: 9007199254740991,
 				bigserial64: 5044565289845416380n,
 				bool: true,
@@ -6206,6 +6215,7 @@ export function tests() {
 				varchar: 'C4-',
 				arrbigint53: [9007199254740991],
 				arrbigint64: [5044565289845416380n],
+				arrbigintString: ['5044565289845416380'],
 				arrbool: [true],
 				arrbytea: [Buffer.from('BYTES')],
 				arrchar: ['c'],
@@ -6262,6 +6272,7 @@ export function tests() {
 				int: number | null;
 				bigint53: number | null;
 				bigint64: bigint | null;
+				bigintString: string | null;
 				bool: boolean | null;
 				bytea: Buffer | null;
 				char: string | null;
@@ -6304,6 +6315,7 @@ export function tests() {
 				arrint: number[] | null;
 				arrbigint53: number[] | null;
 				arrbigint64: bigint[] | null;
+				arrbigintString: string[] | null;
 				arrbool: boolean[] | null;
 				arrbytea: Buffer[] | null;
 				arrchar: string[] | null;
@@ -6349,6 +6361,7 @@ export function tests() {
 					int: 621,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
+					bigintString: '5044565289845416380',
 					bool: true,
 					bytea: Buffer.from('BYTES'),
 					char: 'c',
@@ -6384,6 +6397,7 @@ export function tests() {
 					arrint: [621],
 					arrbigint53: [9007199254740991],
 					arrbigint64: [5044565289845416380n],
+					arrbigintString: ['5044565289845416380'],
 					arrbool: [true],
 					arrbytea: [Buffer.from('BYTES')],
 					arrchar: ['c'],

@@ -194,6 +194,9 @@ export const allTypesTable = singlestoreTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
+	bigintString: bigint('bigint_string', {
+		mode: 'string',
+	}),
 	binary: binary('binary'),
 	boolean: boolean('boolean'),
 	char: char('char'),

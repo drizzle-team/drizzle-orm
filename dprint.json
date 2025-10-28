@@ -22,6 +22,7 @@
 		"**/_journal.json",
 		"**/tsup.config*.mjs",
 		"**/.sst",
+		"rollup.config-*.mjs",
 		"integration-tests/tests/prisma/*/client",
 		"integration-tests/tests/prisma/*/drizzle"
 	],
