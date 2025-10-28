@@ -103,7 +103,7 @@ export class MySqlBigIntStringBuilder<TUnsigned extends boolean | undefined>
 
 	/** @internal */
 	override build(table: MySqlTable) {
-		return new MySqlBigInt53(
+		return new MySqlBigIntString(
 			table,
 			this.config as any,
 		);

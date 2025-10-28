@@ -104,7 +104,7 @@ const allTypesTable = mysqlTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
-	bigintString: bigint('bigint64', {
+	bigintString: bigint('bigint_string', {
 		mode: 'string',
 	}),
 	binary: binary('binary'),
