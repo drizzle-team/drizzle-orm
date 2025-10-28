@@ -17,7 +17,7 @@
 		"lint": "pnpm oxlint",
 		"lint:check": "pnpm oxlint --max-warnings=0",
 		"format": "dprint fmt",
-		"format:check": "dprint check --list-different",
+		"format:check": "dprint check --list-different --allow-no-files",
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
