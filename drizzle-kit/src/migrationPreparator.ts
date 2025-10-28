@@ -3,7 +3,7 @@ import fs from 'fs';
 import { CasingType } from './cli/validations/common';
 import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
-import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
+import { dryPg, PgSchema, pgSchema } from './serializer/pgSchema';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
 import { drySQLite, SQLiteSchema, sqliteSchema } from './serializer/sqliteSchema';
 
@@ -168,19 +168,6 @@ export const prepareSqliteMigrationSnapshot = async (
 	return { prev: prevSnapshot, cur: result, custom };
 };
 
-export const fillPgSnapshot = ({
-	serialized,
-	id,
-	idPrev,
-}: {
-	serialized: PgSchemaInternal;
-	id: string;
-	idPrev: string;
-}): PgSchema => {
-	// const id = randomUUID();
-	return { id, prevId: idPrev, ...serialized };
-};
-
 export const preparePgMigrationSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
@@ -199,7 +186,11 @@ export const preparePgMigrationSnapshot = async (
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: PgSchema = fillPgSnapshot({ serialized: prevRest, id, idPrev });
+	const custom: PgSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
 
 	return { prev: prevSnapshot, cur: result, custom };
 };

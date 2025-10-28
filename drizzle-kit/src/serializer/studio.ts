@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
@@ -273,7 +274,10 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 };
 
 export const drizzleForPostgres = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 	pgSchema: Record<string, Record<string, AnyPgTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
@@ -290,7 +294,7 @@ export const drizzleForPostgres = async (
 		if (driver === 'aws-data-api') {
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
-			dbUrl = credentials.url;
+			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
 		} else {
 			assertUnreachable(driver);
 		}

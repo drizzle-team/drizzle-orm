@@ -82,12 +82,45 @@ esbuild.buildSync({
 
 const main = async () => {
 	await tsup.build({
-		entryPoints: ['./src/index.ts', './src/api.ts'],
+		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
 		external: ['bun:sqlite'],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
+		outExtension: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return {
+					dts: '.d.ts',
+					js: '.js',
+				};
+			}
+			return {
+				dts: '.d.mts',
+				js: '.mjs',
+			};
+		},
+	});
+
+	await tsup.build({
+		entryPoints: ['./src/api.ts'],
+		outDir: './dist',
+		external: ['bun:sqlite'],
+		splitting: false,
+		dts: true,
+		format: ['cjs', 'esm'],
+		banner: (ctx) => {
+			/**
+			 * fix dynamic require in ESM ("glob" -> "fs.realpath" requires 'fs' module)
+			 * @link https://github.com/drizzle-team/drizzle-orm/issues/2853
+			 */
+			if (ctx.format === 'esm') {
+				return {
+					js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+				};
+			}
+			return undefined;
+		},
 		outExtension: (ctx) => {
 			if (ctx.format === 'cjs') {
 				return {
