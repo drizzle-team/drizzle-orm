@@ -9,7 +9,6 @@ import { randomString } from '~/utils';
 import { allTypesTable, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 import relations from './relations';
-import { createAllColumnsTable } from './schema';
 
 const ENABLE_LOGGING = false;
 
@@ -203,7 +202,10 @@ describe('default', () => {
 	});
 
 	test.concurrent('all date and time columns without timezone first case mode string', async () => {
-		const table = createAllColumnsTable('all_columns_1');
+		const table = pgTable('all_columns_1', {
+			id: serial('id').primaryKey(),
+			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+		});
 
 		await push({ table });
 
@@ -227,7 +229,10 @@ describe('default', () => {
 	});
 
 	test.concurrent('all date and time columns without timezone second case mode string', async () => {
-		const table = createAllColumnsTable('all_columns_2');
+		const table = pgTable('all_columns_2', {
+			id: serial('id').primaryKey(),
+			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
+		});
 
 		await push({ table });
 

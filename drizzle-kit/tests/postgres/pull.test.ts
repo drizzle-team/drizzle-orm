@@ -337,6 +337,9 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4632
+// https://github.com/drizzle-team/drizzle-orm/issues/4644
+// https://github.com/drizzle-team/drizzle-orm/issues/4730
 // https://github.com/drizzle-team/drizzle-orm/issues/4760
 // https://github.com/drizzle-team/drizzle-orm/issues/4916
 test('introspect all column types', async () => {
@@ -356,8 +359,11 @@ test('introspect all column types', async () => {
 			text: text('text').default('abc'),
 			text1: text('text1').default(sql`gen_random_uuid()`),
 			text2: text('text2').default('``'),
+			text3: text('text3').default(''),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
+			varchar1: varchar('varchar1', { length: 25 }).default(''),
 			char: char('char', { length: 3 }).default('abc'),
+			char1: char('char1', { length: 3 }).default(''),
 			serial: serial('serial'),
 			bigserial: bigserial('bigserial', { mode: 'number' }),
 			smallserial: smallserial('smallserial'),
@@ -664,7 +670,7 @@ test('introspect view #3', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-	throw new Error(); // will remove when test is fixed
+	throw new Error(); // remove when test is fixed
 });
 
 test('introspect view in other schema', async () => {
