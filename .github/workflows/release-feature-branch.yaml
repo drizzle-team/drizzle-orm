@@ -117,7 +117,7 @@ jobs:
           - shard: zod
             dbs: []
           - shard: seed
-            dbs: []
+            dbs: [singlestore]
           - shard: typebox
             dbs: []
           - shard: valibot
