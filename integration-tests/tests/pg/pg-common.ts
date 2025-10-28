@@ -196,7 +196,7 @@ export const allTypesTable = pgTable('all_types', {
 	arrbigint64: bigint('arrbigint64', {
 		mode: 'bigint',
 	}).array(),
-	arrbigintString: bigint('bigint_string', {
+	arrbigintString: bigint('arrbigint_string', {
 		mode: 'string',
 	}).array(),
 	arrbool: boolean('arrbool').array(),
