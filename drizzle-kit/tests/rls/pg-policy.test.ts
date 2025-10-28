@@ -14,7 +14,20 @@ test('add policy + enable rls', async (t) => {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
 		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
+			rls: pgPolicy('test_B', {
+				as: 'permissive',
+				for: 'delete',
+				to: 'public',
+				using: sql`1 + 2 = 3`,
+				withCheck: sql`4 + 5 = 9`,
+			}),
+			rls2: pgPolicy('test_A', {
+				as: 'permissive',
+				for: 'select',
+				to: 'public',
+				using: sql`6 + 7 = 13`,
+				withCheck: sql`8 + 9 = 17`,
+			}),
 		})),
 	};
 
@@ -22,7 +35,8 @@ test('add policy + enable rls', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
-		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+		'CREATE POLICY "test_B" ON "users" AS PERMISSIVE FOR DELETE TO public USING (1 + 2 = 3) WITH CHECK (4 + 5 = 9);',
+		'CREATE POLICY "test_A" ON "users" AS PERMISSIVE FOR SELECT TO public USING (6 + 7 = 13) WITH CHECK (8 + 9 = 17);',
 	]);
 	expect(statements).toStrictEqual([
 		{
@@ -33,12 +47,30 @@ test('add policy + enable rls', async (t) => {
 		{
 			data: {
 				as: 'PERMISSIVE',
-				for: 'ALL',
-				name: 'test',
-				to: ['public'],
+				for: 'DELETE',
+				name: 'test_B',
 				on: undefined,
-				using: undefined,
-				withCheck: undefined,
+				to: [
+					'public',
+				],
+				using: '1 + 2 = 3',
+				withCheck: '4 + 5 = 9',
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'SELECT',
+				name: 'test_A',
+				on: undefined,
+				to: [
+					'public',
+				],
+				using: '6 + 7 = 13',
+				withCheck: '8 + 9 = 17',
 			},
 			schema: '',
 			tableName: 'users',

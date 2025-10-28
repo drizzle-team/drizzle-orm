@@ -9,6 +9,7 @@ import {
 	cidr,
 	date,
 	doublePrecision,
+	foreignKey,
 	index,
 	inet,
 	integer,
@@ -25,6 +26,7 @@ import {
 	pgSchema,
 	pgTable,
 	pgView,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -32,6 +34,7 @@ import {
 	text,
 	time,
 	timestamp,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -925,4 +928,325 @@ test('multiple policies with roles from schema', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('verify table declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		f: pgTable('f', { id: integer('id').notNull() }),
+		e: pgTable('e', { id: integer('id').notNull() }),
+		d: pgTable('d', { id: integer('id').notNull() }),
+		c: pgTable('b', { id: integer('id').notNull() }),
+		b: pgTable('c', { id: integer('id').notNull() }),
+		a: pgTable('a', { id: integer('id').notNull() }),
+	};
+
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-table-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	if (!schemaTypescriptFile) {
+		throw new Error('File is missing');
+	}
+
+	// Extract table variable names from the declarations string
+	const declarations = schemaTypescriptFile.declarations;
+	const exportPattern = /export const (\w+) = pgTable/g;
+	const tableNames: string[] = [];
+	let match;
+
+	while ((match = exportPattern.exec(declarations)) !== null) {
+		tableNames.push(match[1]);
+	}
+	expect(tableNames.length).toBe(6);
+
+	// Verify tables are declared in alphabetical order
+	const sortedTableNames = [...tableNames].sort();
+	expect(tableNames).toEqual(sortedTableNames);
+
+	// Additional assertion with descriptive message
+	if (JSON.stringify(tableNames) !== JSON.stringify(sortedTableNames)) {
+		throw new Error(
+			`Tables are not in alphabetical order. Found: [${tableNames.join(', ')}], Expected: [${
+				sortedTableNames.join(', ')
+			}]`,
+		);
+	}
+});
+test('verify column declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		z: pgTable('z', {
+			f: integer('f').notNull(),
+			e: integer('e').notNull(),
+		}),
+		y: pgTable('y', {
+			b: integer('b').notNull(),
+			d: integer('d').notNull(),
+			c: integer('c').notNull(),
+			a: integer('a').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-column-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements.length).toBe(0);
+	if (!schemaTypescriptFile) {
+		throw new Error('File is missing');
+	}
+
+	// Extract column variable names from the declarations string
+	const declarations = schemaTypescriptFile.declarations;
+	const exportPattern = /(\w+):\s+integer/g;
+	const columnNames: string[] = [];
+	let match;
+
+	while ((match = exportPattern.exec(declarations)) !== null) {
+		columnNames.push(match[1]);
+	}
+	expect(columnNames.length).toBe(6);
+
+	// Verify columns are declared in alphabetical order
+	const sortedColumnNames = [...columnNames].sort();
+	expect(columnNames).toEqual(sortedColumnNames);
+
+	// Additional assertion with descriptive message
+	if (JSON.stringify(columnNames) !== JSON.stringify(sortedColumnNames)) {
+		throw new Error(
+			`Columns are not in alphabetical order. Found: [${columnNames.join(', ')}], Expected: [${
+				sortedColumnNames.join(', ')
+			}]`,
+		);
+	}
+});
+
+test('verify policy declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		z: pgTable('z', {
+			f: integer('f').notNull(),
+			e: integer('e').notNull(),
+		}, () => ({
+			rls: pgPolicy('test_B', {
+				as: 'permissive',
+				for: 'update',
+				to: 'public',
+				using: sql`1 + 2 = 3`,
+				withCheck: sql`4 + 5 = 9`,
+			}),
+			rls2: pgPolicy('test_A', { as: 'permissive', for: 'select', to: 'public', using: sql`6 + 7 = 13` }),
+		})),
+		y: pgTable('y', {
+			b: integer('b').notNull(),
+			d: integer('d').notNull(),
+			c: integer('c').notNull(),
+			a: integer('a').notNull(),
+		}, () => ({
+			rls: pgPolicy('test_R', { as: 'permissive', for: 'delete', to: 'public', using: sql`11 + 21 = 32` }),
+			rls2: pgPolicy('test_M', {
+				as: 'permissive',
+				for: 'update',
+				to: 'public',
+				using: sql`67 + 72 = 143`,
+				withCheck: sql`48 + 49 = 147`,
+			}),
+		})),
+	};
+
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-policy-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements.length).toBe(0);
+	if (!schemaTypescriptFile) {
+		throw new Error('File is missing');
+	}
+
+	const declarations = schemaTypescriptFile.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
+	const expectedCode = `export const y = pgTable("y", {
+a: integer().notNull(),
+b: integer().notNull(),
+c: integer().notNull(),
+d: integer().notNull(),
+}, (table) => [
+pgPolicy("test_M", { as: "permissive", for: "update", to: ["public"], using: sql\`((67 + 72) = 143)\`, withCheck: sql\`((48 + 49) = 147)\`  }),
+pgPolicy("test_R", { as: "permissive", for: "delete", to: ["public"], using: sql\`((11 + 21) = 32)\` }),
+]);
+
+export const z = pgTable("z", {
+e: integer().notNull(),
+f: integer().notNull(),
+}, (table) => [
+pgPolicy("test_A", { as: "permissive", for: "select", to: ["public"], using: sql\`((6 + 7) = 13)\` }),
+pgPolicy("test_B", { as: "permissive", for: "update", to: ["public"], using: sql\`((1 + 2) = 3)\`, withCheck: sql\`((4 + 5) = 9)\`  }),
+]);`.replace(/ {2}/g, ' ').trim();
+
+	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
+	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
+	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
+	expect(declarations).toEqual(expectedCode);
+});
+
+test('verify that keys are generated in alphabetical order by name but columns are in the order defined by the schema definition', async () => {
+	const client = new PGlite();
+
+	const child = pgTable('child', {
+		key2: integer('key2').notNull(),
+		key1: integer('key1').notNull(),
+		keyA: integer('keyA').notNull(),
+		keyD: uuid('keyD').notNull(),
+		keyC: integer('keyC').notNull(),
+	}, (table) => [
+		foreignKey({
+			columns: [table.key2, table.key1],
+			foreignColumns: [parent1.key4, parent1.key3],
+			name: 'child_parent1_fkey',
+		}),
+		foreignKey({
+			columns: [table.key2, table.key1],
+			foreignColumns: [parent2.key5, parent2.key6],
+			name: 'child_parent2_fkey',
+		}),
+		primaryKey({ columns: [table.key2, table.key1], name: 'child_pkey' }),
+		uniqueIndex('child_keyA_uniq').using(
+			'btree',
+			table.keyA.asc().nullsLast().op('int4_ops'),
+		),
+		index('child_keyC_keyD').using(
+			'btree',
+			table.keyC.asc().nullsLast().op('int4_ops'),
+			table.keyD.asc().nullsLast().op('uuid_ops'),
+		),
+	]);
+
+	const parent1 = pgTable('parent1', {
+		key4: integer('key4').notNull(),
+		key3: integer('key3').notNull(),
+	}, (table) => [
+		primaryKey({ columns: [table.key4, table.key3], name: 'parent1_pkey' }),
+	]);
+	const parent2 = pgTable('parent2', {
+		key5: integer('key5').notNull(),
+		key6: integer('key6').notNull(),
+	}, (table) => [
+		primaryKey({ columns: [table.key5, table.key6], name: 'parent2_pkey' }),
+	]);
+	const schema = { child, parent1, parent2 };
+
+	const { statements, sqlStatements, schemaTypescriptFile, relationsTypescriptFile } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-key-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements.length).toBe(0);
+	if (!schemaTypescriptFile || !relationsTypescriptFile) {
+		throw new Error(
+			`File is missing. relationsTypescriptFile: ${relationsTypescriptFile}, schemaTypescriptFile: ${schemaTypescriptFile}`,
+		);
+	}
+
+	const schemaDeclarations = schemaTypescriptFile.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
+	const expectedSchemaDeclarations = `export const child = pgTable("child", {
+key1: integer().notNull(),
+key2: integer().notNull(),
+keyA: integer().notNull(),
+keyC: integer().notNull(),
+keyD: uuid().notNull(),
+}, (table) => [
+uniqueIndex("child_keyA_uniq").using("btree", table.keyA.asc().nullsLast().op("int4_ops")),
+index("child_keyC_keyD").using("btree", table.keyC.asc().nullsLast().op("int4_ops"), table.keyD.asc().nullsLast().op("uuid_ops")),
+foreignKey({
+columns: [table.key2, table.key1],
+foreignColumns: [parent1.key4, parent1.key3],
+name: "child_parent1_fkey"
+}),
+foreignKey({
+columns: [table.key2, table.key1],
+foreignColumns: [parent2.key5, parent2.key6],
+name: "child_parent2_fkey"
+}),
+primaryKey({ columns: [table.key2, table.key1], name: "child_pkey"}),
+]);
+
+export const parent1 = pgTable("parent1", {
+key3: integer().notNull(),
+key4: integer().notNull(),
+}, (table) => [
+primaryKey({ columns: [table.key4, table.key3], name: "parent1_pkey"}),
+]);
+
+export const parent2 = pgTable("parent2", {
+key5: integer().notNull(),
+key6: integer().notNull(),
+}, (table) => [
+primaryKey({ columns: [table.key5, table.key6], name: "parent2_pkey"}),
+]);`.replace(/ {2}/g, ' ').trim();
+
+	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
+	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
+	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
+	expect(schemaDeclarations).toEqual(expectedSchemaDeclarations);
+
+	// And then do similar with the relations
+	const relationsDeclarations = relationsTypescriptFile.file.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ')
+		.trim();
+	const expectedRelationsDeclarations = `import { relations } from "drizzle-orm/relations";
+import { child, parent1, parent2 } from "./schema";
+
+export const childRelations = relations(child, ({one}) => ({
+parent1: one(parent1, {
+fields: [child.key2, child.key1],
+references: [parent1.key4, parent1.key3]
+}),
+parent2: one(parent2, {
+fields: [child.key2, child.key1],
+references: [parent2.key5, parent2.key6]
+}),
+}));
+
+export const parent1Relations = relations(parent1, ({many}) => ({
+children: many(child),
+}));
+
+export const parent2Relations = relations(parent2, ({many}) => ({
+children: many(child),
+}));`.replace(/ {2}/g, ' ').trim();
+
+	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
+	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
+	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
+	expect(relationsDeclarations).toEqual(expectedRelationsDeclarations);
 });

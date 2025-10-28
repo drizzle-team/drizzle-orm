@@ -359,7 +359,6 @@ export const introspectMysql = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
 
 	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
@@ -779,22 +778,21 @@ export const relationsToTypeScript = (
 			type: 'one' | 'many';
 			tableFrom: string;
 			schemaFrom?: string;
-			columnFrom: string;
+			columnFrom: string[];
 			tableTo: string;
 			schemaTo?: string;
-			columnTo: string;
+			columnTo: string[];
 			relationName?: string;
 		}[]
 	> = {};
-
 	Object.values(schema.tables).forEach((table) => {
 		Object.values(table.foreignKeys).forEach((fk) => {
 			const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
 			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
 			const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
 			const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
-			const columnFrom = withCasing(fk.columnsFrom[0], casing);
-			const columnTo = withCasing(fk.columnsTo[0], casing);
+			const columnFrom = fk.columnsFrom.map((cf) => withCasing(cf, casing));
+			const columnTo = fk.columnsTo.map((cf) => withCasing(cf, casing));
 
 			imports.push(tableTo, tableFrom);
 
@@ -835,7 +833,7 @@ export const relationsToTypeScript = (
 	const uniqueImports = [...new Set(imports)];
 
 	const importsTs = `import { relations } from "drizzle-orm/relations";\nimport { ${
-		uniqueImports.join(
+		uniqueImports.sort().join(
 			', ',
 		)
 	} } from "./schema";\n\n`;
@@ -873,14 +871,20 @@ export const relationsToTypeScript = (
 			);
 
 			const fields = preparedRelations.map((relation) => {
+				const tTo = relation.tableTo;
+				const cTo = relation.columnTo;
+				const tFrom = relation.tableFrom;
+				const cFrom = relation.columnFrom;
 				if (relation.type === 'one') {
-					return `\t${relation.name}: one(${relation.tableTo}, {\n\t\tfields: [${relation.tableFrom}.${relation.columnFrom}],\n\t\treferences: [${relation.tableTo}.${relation.columnTo}]${
+					return `\t${relation.name}: one(${tTo}, {\n\t\tfields: [${
+						cFrom.map((c) => `${tFrom}.${c}`).join(', ')
+					}],\n\t\treferences: [${cTo.map((c) => `${tTo}.${c}`).join(', ')}]${
 						relation.relationName
 							? `,\n\t\trelationName: "${relation.relationName}"`
 							: ''
 					}\n\t}),`;
 				} else {
-					return `\t${relation.name}: many(${relation.tableTo}${
+					return `\t${relation.name}: many(${tTo}${
 						relation.relationName
 							? `, {\n\t\trelationName: "${relation.relationName}"\n\t}`
 							: ''
@@ -890,11 +894,13 @@ export const relationsToTypeScript = (
 
 			return `export const ${table}Relations = relations(${table}, ({${hasOne ? 'one' : ''}${
 				hasOne && hasMany ? ', ' : ''
-			}${hasMany ? 'many' : ''}}) => ({\n${fields.join('\n')}\n}));`;
+			}${hasMany ? 'many' : ''}}) => ({\n${fields.sort().join('\n')}\n}));`;
 		},
 	);
 
 	return {
-		file: importsTs + relationStatements.join('\n\n'),
+		file: importsTs + relationStatements.sort().join('\n\n'),
+		imports: importsTs,
+		relationStatements,
 	};
 };
