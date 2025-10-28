@@ -1,40 +1,32 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlInt';
+export class MySqlIntBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
+	dataType: Equal<TUnsigned, true> extends true ? 'number uint32' : 'number int32';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
+}, MySqlIntConfig> {
+	static override readonly [entityKind]: string = 'MySqlIntBuilder';
 
-export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
-{
-	static readonly [entityKind]: string = 'MySqlIntBuilder';
-
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlInt');
+	constructor(name: string, config?: MySqlIntConfig) {
+		super(name, config?.unsigned ? 'number uint32' : 'number int32' as any, 'MySqlInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: MySqlTable) {
+		return new MySqlInt(table, this.config as any);
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
+export class MySqlInt<T extends ColumnBaseConfig<'number int32' | 'number uint32'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlInt';
+	static override readonly [entityKind]: string = 'MySqlInt';
 
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
@@ -48,10 +40,18 @@ export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
 	}
 }
 
-export interface MySqlIntConfig {
-	unsigned?: boolean;
+export interface MySqlIntConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
+	unsigned?: TUnsigned;
 }
 
-export function int<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlIntBuilderInitial<TName> {
+export function int<TUnsigned extends boolean | undefined>(
+	config?: MySqlIntConfig<TUnsigned>,
+): MySqlIntBuilder<TUnsigned>;
+export function int<TUnsigned extends boolean | undefined>(
+	name: string,
+	config?: MySqlIntConfig,
+): MySqlIntBuilder<TUnsigned>;
+export function int(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlIntBuilder(name, config);
 }

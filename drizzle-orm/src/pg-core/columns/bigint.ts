@@ -1,36 +1,30 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-import { PgColumn, PgColumnBuilder } from './common.ts';
-
-export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgBigInt53';
+export class PgBigInt53Builder extends PgIntColumnBaseBuilder<{
+	name: string;
+	dataType: 'number int53';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgBigInt53Builder';
 
-export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgBigInt53Builder';
-
-	constructor(name: T['name']) {
-		super(name, 'number', 'PgBigInt53');
+	constructor(name: string) {
+		super(name, 'number int53', 'PgBigInt53');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBigInt53<MakeColumnConfig<T, TTableName>> {
-		return new PgBigInt53<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgBigInt53(table, this.config as any);
 	}
 }
 
-export class PgBigInt53<T extends ColumnBaseConfig<'number', 'PgBigInt53'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgBigInt53';
+export class PgBigInt53<T extends ColumnBaseConfig<'number int53'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgBigInt53';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -44,35 +38,26 @@ export class PgBigInt53<T extends ColumnBaseConfig<'number', 'PgBigInt53'>> exte
 	}
 }
 
-export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'PgBigInt64';
+export class PgBigInt64Builder extends PgIntColumnBaseBuilder<{
+	name: string;
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgBigInt64Builder';
 
-export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>> extends PgColumnBuilder<T> {
-	static readonly [entityKind]: string = 'PgBigInt64Builder';
-
-	constructor(name: T['name']) {
-		super(name, 'bigint', 'PgBigInt64');
+	constructor(name: string) {
+		super(name, 'bigint int64', 'PgBigInt64');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBigInt64<MakeColumnConfig<T, TTableName>> {
-		return new PgBigInt64<MakeColumnConfig<T, TTableName>>(
-			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-		);
+	override build(table: PgTable<any>) {
+		return new PgBigInt64(table, this.config as any);
 	}
 }
 
-export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgBigInt64';
+export class PgBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgBigInt64';
 
 	getSQLType(): string {
 		return 'bigint';
@@ -84,61 +69,51 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> exte
 	}
 }
 
-export type PgBigIntStringBuilderInitial<TName extends string> = PgBigIntStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgBigIntString';
+export class PgBigIntStringBuilder extends PgIntColumnBaseBuilder<{
+	name: string;
+	dataType: 'string int64';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgBigIntStringBuilder';
 
-export class PgBigIntStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBigIntString'>>
-	extends PgColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'PgBigIntStringBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'string', 'PgBigIntString');
+	constructor(name: string) {
+		super(name, 'string int64', 'PgBigIntString');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBigIntString<MakeColumnConfig<T, TTableName>> {
-		return new PgBigIntString<MakeColumnConfig<T, TTableName>>(
-			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-		);
+	override build(table: PgTable<any>) {
+		return new PgBigIntString(table, this.config as any);
 	}
 }
 
-export class PgBigIntString<T extends ColumnBaseConfig<'string', 'PgBigIntString'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgBigIntString';
+export class PgBigIntString<T extends ColumnBaseConfig<'string int64'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgBigIntString';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue(value: number | string): string {
-		if (typeof value === 'number') {
-			return String(value);
-		}
-		return value;
+	override mapFromDriverValue(value: string | number): string {
+		if (typeof value === 'string') return value;
+
+		return String(value);
 	}
 }
 
-interface PgBigIntConfig<T extends 'number' | 'string' | 'bigint' = 'number' | 'string' | 'bigint'> {
+export interface PgBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {
 	mode: T;
 }
 
-export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
-	name: TName,
+export function bigint<TMode extends PgBigIntConfig['mode']>(
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53BuilderInitial<TName>
-	: TMode extends 'string' ? PgBigIntStringBuilderInitial<TName>
-	: PgBigInt64BuilderInitial<TName>;
-export function bigint(name: string, config: PgBigIntConfig) {
+): TMode extends 'string' ? PgBigIntStringBuilder : TMode extends 'bigint' ? PgBigInt64Builder : PgBigInt53Builder;
+export function bigint<TMode extends PgBigIntConfig['mode']>(
+	name: string,
+	config: PgBigIntConfig<TMode>,
+): TMode extends 'string' ? PgBigIntStringBuilder : TMode extends 'bigint' ? PgBigInt64Builder : PgBigInt53Builder;
+export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);
 	}

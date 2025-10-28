@@ -1,9 +1,12 @@
 import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
+import type * as V1 from '~/_relations.ts';
 import type { BatchItem as BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -19,27 +22,32 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class LibSQLSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'LibSQLSession';
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<'async', ResultSet, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'LibSQLSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: Client,
 		dialect: SQLiteAsyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: LibSQLSessionOptions,
 		private tx: Transaction | undefined,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -48,16 +56,46 @@ export class LibSQLSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): LibSQLPreparedQuery<T> {
 		return new LibSQLPreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			this.tx,
 			executeMethod,
 			isResponseInArrayMode,
 			customResultMapper,
+		);
+	}
+
+	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): LibSQLPreparedQuery<T, true> {
+		return new LibSQLPreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			this.tx,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
 		);
 	}
 
@@ -76,20 +114,42 @@ export class LibSQLSession<
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
+	async migrate<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+		const preparedQueries: PreparedQuery[] = [];
+		const builtQueries: InStatement[] = [];
+
+		for (const query of queries) {
+			const preparedQuery = query._prepare();
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries.push(preparedQuery);
+			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
+		}
+
+		const batchResults = await this.client.migrate(builtQueries);
+		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+	}
+
 	override async transaction<T>(
-		transaction: (db: LibSQLTransaction<TFullSchema, TSchema>) => T | Promise<T>,
+		transaction: (db: LibSQLTransaction<TFullSchema, TRelations, TSchema>) => T | Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
-		const session = new LibSQLSession<TFullSchema, TSchema>(
+		const session = new LibSQLSession<TFullSchema, TRelations, TSchema>(
 			this.client,
 			this.dialect,
+			this.relations,
 			this.schema,
 			this.options,
 			libsqlTx,
 		);
-		const tx = new LibSQLTransaction<TFullSchema, TSchema>('async', this.dialect, session, this.schema);
+		const tx = new LibSQLTransaction<TFullSchema, TRelations, TSchema>(
+			'async',
+			this.dialect,
+			session,
+			this.relations,
+			this.schema,
+		);
 		try {
 			const result = await transaction(tx);
 			await libsqlTx.commit();
@@ -115,13 +175,23 @@ export class LibSQLSession<
 
 export class LibSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'LibSQLTransaction';
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'LibSQLTransaction';
 
-	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: LibSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new LibSQLTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new LibSQLTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -134,48 +204,78 @@ export class LibSQLTransaction<
 	}
 }
 
-export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
-	static readonly [entityKind]: string = 'LibSQLPreparedQuery';
+export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends SQLitePreparedQuery<
+		{ type: 'async'; run: ResultSet; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	>
+{
+	static override readonly [entityKind]: string = 'LibSQLPreparedQuery';
 
 	constructor(
 		private client: Client,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
-		/** @internal */ public customResultMapper?: (
-			rows: unknown[][],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super('async', executeMethod, query);
+		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 		this.customResultMapper = customResultMapper;
 		this.fields = fields;
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
+	async run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const stmt: InStatement = { sql: this.query.sql, args: params as InArgs };
-		return this.tx ? this.tx.execute(stmt) : this.client.execute(stmt);
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			const stmt: InStatement = { sql: this.query.sql, args: params as InArgs };
+			return this.tx ? this.tx.execute(stmt) : this.client.execute(stmt);
+		});
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+
 		const { fields, logger, query, tx, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			const stmt: InStatement = { sql: query.sql, args: params as InArgs };
-			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => this.mapAllResult(rows));
+			return await this.queryWithCache(query.sql, params, async () => {
+				const stmt: InStatement = { sql: query.sql, args: params as InArgs };
+				return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => this.mapAllResult(rows));
+			});
 		}
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
 		return this.mapAllResult(rows);
+	}
+
+	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const { logger, query, tx, client, customResultMapper } = this;
+
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+		const stmt: InStatement = { sql: query.sql, args: params as InArgs };
+
+		const rows = await (tx ?? client).execute(stmt).then(({ rows }) => rows.map((row) => normalizeRow(row)));
+
+		return (customResultMapper as (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown)(rows as Record<string, unknown>[], normalizeFieldValue) as T['all'];
 	}
 
 	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -188,7 +288,10 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][], normalizeFieldValue) as T['all'];
+			return (this.customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['all'];
 		}
 
 		return (rows as unknown[]).map((row) => {
@@ -201,17 +304,39 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+
 		const { fields, logger, query, tx, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			const stmt: InStatement = { sql: query.sql, args: params as InArgs };
-			return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => this.mapGetResult(rows));
+			return await this.queryWithCache(query.sql, params, async () => {
+				const stmt: InStatement = { sql: query.sql, args: params as InArgs };
+				return (tx ? tx.execute(stmt) : client.execute(stmt)).then(({ rows }) => this.mapGetResult(rows));
+			});
 		}
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
 		return this.mapGetResult(rows);
+	}
+
+	private async getRqbV2(placeholderValues?: Record<string, unknown>) {
+		const { logger, query, tx, client, customResultMapper } = this;
+
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+		const stmt: InStatement = { sql: query.sql, args: params as InArgs };
+
+		const { rows } = await (tx ?? client).execute(stmt);
+		if (rows[0] === undefined) return;
+
+		const row = normalizeRow((rows as unknown[])[0]);
+
+		return (customResultMapper as (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown)([row] as Record<string, unknown>[], normalizeFieldValue) as T['get'];
 	}
 
 	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -230,7 +355,10 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][], normalizeFieldValue) as T['get'];
+			return (this.customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['get'];
 		}
 
 		return mapResultRow(
@@ -240,13 +368,15 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const stmt: InStatement = { sql: this.query.sql, args: params as InArgs };
-		return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
-			T['values']
-		>;
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			const stmt: InStatement = { sql: this.query.sql, args: params as InArgs };
+			return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
+				T['values']
+			>;
+		});
 	}
 
 	/** @internal */

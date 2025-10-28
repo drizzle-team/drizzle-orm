@@ -1,13 +1,17 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
+import type * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
+import { NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgTransactionConfig, PreparedQueryConfig, QueryResultHKT } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 
@@ -21,21 +25,34 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 	rowAsArray: ArrayMode extends 'array' ? true : false;
 }
 
-export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static readonly [entityKind]: string = 'XataHttpPreparedQuery';
+export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends PgPreparedQuery<T>
+{
+	static override readonly [entityKind]: string = 'XataHttpPreparedQuery';
 
 	constructor(
 		private client: XataHttpClient,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(query);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
 		this.logger.logQuery(this.query.sql, params);
@@ -43,28 +60,53 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, client, query, customResultMapper, joinsNotNullableMap } = this;
 
 		if (!fields && !customResultMapper) {
-			return await client.sql<Record<string, any>>({ statement: query.sql, params });
-			// return { rowCount: result.records.length, rows: result.records, rowAsArray: false };
+			return this.queryWithCache(query.sql, params, async () => {
+				return await client.sql<Record<string, any>>({ statement: query.sql, params });
+			});
 		}
 
-		const { rows, warning } = await client.sql({ statement: query.sql, params, responseType: 'array' });
+		const { rows, warning } = await this.queryWithCache(query.sql, params, async () => {
+			return await client.sql({ statement: query.sql, params, responseType: 'array' });
+		});
+
 		if (warning) console.warn(warning);
 
 		return customResultMapper
-			? customResultMapper(rows as unknown[][])
+			? (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][])
 			: rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+
+		this.logger.logQuery(this.query.sql, params);
+
+		const { client, query, customResultMapper } = this;
+
+		const { warning, records } = await client.sql<Record<string, any>>({
+			statement: query.sql,
+			params,
+			responseType: 'json',
+		});
+		if (warning) console.warn(warning);
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(records);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.sql({ statement: this.query.sql, params, responseType: 'array' }).then((result) => result.rows);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return this.client.sql({ statement: this.query.sql, params, responseType: 'array' });
+		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.sql({ statement: this.query.sql, params }).then((result) => result.records);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return this.client.sql({ statement: this.query.sql, params });
+		}).then((result) => result.records);
 	}
 
 	/** @internal */
@@ -75,27 +117,34 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 export interface XataHttpSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
-export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends PgSession<
-		XataHttpQueryResultHKT,
-		TFullSchema,
-		TSchema
-	>
-{
-	static readonly [entityKind]: string = 'XataHttpSession';
+export class XataHttpSession<
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgSession<
+	XataHttpQueryResultHKT,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
+	static override readonly [entityKind]: string = 'XataHttpSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: XataHttpClient,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: XataHttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -104,14 +153,42 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
+		);
+	}
+
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+	): PgPreparedQuery<T> {
+		return new XataHttpPreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			false,
+			customResultMapper,
+			true,
 		);
 	}
 
@@ -137,7 +214,7 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: XataTransaction<TFullSchema, TSchema>) => Promise<T>,
+		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		_config: PgTransactionConfig = {},
 	): Promise<T> {
@@ -145,20 +222,25 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 	}
 }
 
-export class XataTransaction<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends PgTransaction<
-		XataHttpQueryResultHKT,
-		TFullSchema,
-		TSchema
-	>
-{
-	static readonly [entityKind]: string = 'XataHttpTransaction';
+export class XataTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgTransaction<
+	XataHttpQueryResultHKT,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
+	static override readonly [entityKind]: string = 'XataHttpTransaction';
 
-	override async transaction<T>(_transaction: (tx: XataTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+	): Promise<T> {
 		throw new Error('No transactions support in Xata Http driver');
 	}
 }
 
-export interface XataHttpQueryResultHKT extends QueryResultHKT {
+export interface XataHttpQueryResultHKT extends PgQueryResultHKT {
 	type: SQLQueryResult<this['row']>;
 }

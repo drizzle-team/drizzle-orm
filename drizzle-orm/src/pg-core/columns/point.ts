@@ -1,42 +1,33 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuilder<{
-	name: TName;
-	dataType: 'array';
-	columnType: 'PgPointTuple';
+export class PgPointTupleBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'array point';
 	data: [number, number];
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgPointTupleBuilder';
 
-export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgPointTuple'>>
-	extends PgColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'PgPointTupleBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'array', 'PgPointTuple');
+	constructor(name: string) {
+		super(name, 'array point', 'PgPointTuple');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgPointTuple<MakeColumnConfig<T, TTableName>> {
-		return new PgPointTuple<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgPointTuple(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgPointTuple<T extends ColumnBaseConfig<'array', 'PgPointTuple'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgPointTuple';
+export class PgPointTuple<T extends ColumnBaseConfig<'array point'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgPointTuple';
 
 	getSQLType(): string {
 		return 'point';
@@ -55,37 +46,29 @@ export class PgPointTuple<T extends ColumnBaseConfig<'array', 'PgPointTuple'>> e
 	}
 }
 
-export type PgPointObjectBuilderInitial<TName extends string> = PgPointObjectBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgPointObject';
+export class PgPointObjectBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'object point';
 	data: { x: number; y: number };
 	driverParam: string;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'PgPointObjectBuilder';
 
-export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgPointObject'>>
-	extends PgColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'PgPointObjectBuilder';
-
-	constructor(name: T['name']) {
-		super(name, 'json', 'PgPointObject');
+	constructor(name: string) {
+		super(name, 'object point', 'PgPointObject');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgPointObject<MakeColumnConfig<T, TTableName>> {
-		return new PgPointObject<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgPointObject(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgPointObject<T extends ColumnBaseConfig<'json', 'PgPointObject'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgPointObject';
+export class PgPointObject<T extends ColumnBaseConfig<'object point'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgPointObject';
 
 	getSQLType(): string {
 		return 'point';
@@ -108,12 +91,17 @@ export interface PgPointConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
 	mode?: T;
 }
 
-export function point<TName extends string, TMode extends PgPointConfig['mode'] & {}>(
-	name: TName,
+export function point<TMode extends PgPointConfig['mode'] & {}>(
 	config?: PgPointConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilderInitial<TName>
-	: PgPointTupleBuilderInitial<TName>;
-export function point(name: string, config?: PgPointConfig) {
+): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilder
+	: PgPointTupleBuilder;
+export function point<TMode extends PgPointConfig['mode'] & {}>(
+	name: string,
+	config?: PgPointConfig<TMode>,
+): Equal<TMode, 'xy'> extends true ? PgPointObjectBuilder
+	: PgPointTupleBuilder;
+export function point(a?: string | PgPointConfig, b?: PgPointConfig) {
+	const { name, config } = getColumnNameAndConfig<PgPointConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
 		return new PgPointTupleBuilder(name);
 	}

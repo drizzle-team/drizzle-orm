@@ -1,40 +1,31 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
-	name: TName;
+export class MySqlBooleanBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'boolean';
-	columnType: 'MySqlBoolean';
 	data: boolean;
 	driverParam: number | boolean;
-	enumValues: undefined;
-}>;
+}> {
+	static override readonly [entityKind]: string = 'MySqlBooleanBuilder';
 
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
-	extends MySqlColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'MySqlBooleanBuilder';
-
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'MySqlBoolean');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBoolean<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBoolean<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlBoolean(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
-	static readonly [entityKind]: string = 'MySqlBoolean';
+export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlColumn<T> {
+	static override readonly [entityKind]: string = 'MySqlBoolean';
 
 	getSQLType(): string {
 		return 'boolean';
@@ -48,6 +39,6 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>>
 	}
 }
 
-export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName> {
-	return new MySqlBooleanBuilder(name);
+export function boolean(name?: string): MySqlBooleanBuilder {
+	return new MySqlBooleanBuilder(name ?? '');
 }

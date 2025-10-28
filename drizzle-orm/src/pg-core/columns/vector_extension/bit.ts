@@ -1,51 +1,40 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgBinaryVectorBuilderInitial<TName extends string> = PgBinaryVectorBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgBinaryVector';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgBinaryVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgBinaryVector'>>
-	extends PgColumnBuilder<
-		T,
-		{ dimensions: number | undefined }
-	>
-{
-	static readonly [entityKind]: string = 'PgBinaryVectorBuilder';
+export class PgBinaryVectorBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'string binary';
+		data: string;
+		driverParam: string;
+	},
+	{ length: number; isLengthExact: true }
+> {
+	static override readonly [entityKind]: string = 'PgBinaryVectorBuilder';
 
 	constructor(name: string, config: PgBinaryVectorConfig) {
-		super(name, 'string', 'PgBinaryVector');
-		this.config.dimensions = config.dimensions;
+		super(name, 'string binary', 'PgBinaryVector');
+		this.config.length = config.dimensions;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBinaryVector<MakeColumnConfig<T, TTableName>> {
-		return new PgBinaryVector<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgBinaryVector(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgBinaryVector<T extends ColumnBaseConfig<'string', 'PgBinaryVector'>>
-	extends PgColumn<T, { dimensions: number | undefined }>
-{
-	static readonly [entityKind]: string = 'PgBinaryVector';
-
-	readonly dimensions = this.config.dimensions;
+export class PgBinaryVector<T extends ColumnBaseConfig<'string binary'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgBinaryVector';
 
 	getSQLType(): string {
-		return `bit(${this.dimensions})`;
+		return `bit(${this.length})`;
 	}
 }
 
@@ -53,9 +42,14 @@ export interface PgBinaryVectorConfig {
 	dimensions: number;
 }
 
-export function bit<TName extends string>(
-	name: TName,
+export function bit(
 	config: PgBinaryVectorConfig,
-): PgBinaryVectorBuilderInitial<TName> {
+): PgBinaryVectorBuilder;
+export function bit(
+	name: string,
+	config: PgBinaryVectorConfig,
+): PgBinaryVectorBuilder;
+export function bit(a: string | PgBinaryVectorConfig, b?: PgBinaryVectorConfig) {
+	const { name, config } = getColumnNameAndConfig<PgBinaryVectorConfig>(a, b);
 	return new PgBinaryVectorBuilder(name, config);
 }

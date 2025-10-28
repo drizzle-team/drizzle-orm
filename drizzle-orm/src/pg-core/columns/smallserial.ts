@@ -1,58 +1,41 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	HasDefault,
-	MakeColumnConfig,
-	NotNull,
-} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgSmallSerialBuilderInitial<TName extends string> = NotNull<
-	HasDefault<
-		PgSmallSerialBuilder<{
-			name: TName;
-			dataType: 'number';
-			columnType: 'PgSmallSerial';
-			data: number;
-			driverParam: number;
-			enumValues: undefined;
-		}>
-	>
->;
-
-export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallSerial'>>
-	extends PgColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'PgSmallSerialBuilder';
+export class PgSmallSerialBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'number int16';
+	data: number;
+	driverParam: number;
+	notNull: true;
+	hasDefault: true;
+}> {
+	static override readonly [entityKind]: string = 'PgSmallSerialBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'PgSmallSerial');
+		super(name, 'number int16', 'PgSmallSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgSmallSerial<MakeColumnConfig<T, TTableName>> {
-		return new PgSmallSerial<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgSmallSerial(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgSmallSerial<T extends ColumnBaseConfig<'number', 'PgSmallSerial'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgSmallSerial';
+export class PgSmallSerial<T extends ColumnBaseConfig<'number int16'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgSmallSerial';
 
 	getSQLType(): string {
 		return 'smallserial';
 	}
 }
 
-export function smallserial<TName extends string>(name: TName): PgSmallSerialBuilderInitial<TName> {
-	return new PgSmallSerialBuilder(name) as PgSmallSerialBuilderInitial<TName>;
+export function smallserial(name?: string): PgSmallSerialBuilder {
+	return new PgSmallSerialBuilder(name ?? '');
 }

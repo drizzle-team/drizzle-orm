@@ -1,44 +1,36 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
-export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'MySqlTinyInt';
+export class MySqlTinyIntBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
+	dataType: Equal<TUnsigned, true> extends true ? 'number uint8' : 'number int8';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
+}, MySqlIntConfig> {
+	static override readonly [entityKind]: string = 'MySqlTinyIntBuilder';
 
-export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlTinyInt'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
-{
-	static readonly [entityKind]: string = 'MySqlTinyIntBuilder';
-
-	constructor(name: T['name'], config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlTinyInt');
+	constructor(name: string, config?: MySqlIntConfig) {
+		super(name, config?.unsigned ? 'number uint8' : 'number int8' as any, 'MySqlTinyInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTinyInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTinyInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlTinyInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
+export class MySqlTinyInt<T extends ColumnBaseConfig<'number int8' | 'number uint8'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
-	static readonly [entityKind]: string = 'MySqlTinyInt';
+	static override readonly [entityKind]: string = 'MySqlTinyInt';
 
 	getSQLType(): string {
 		return `tinyint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -52,6 +44,14 @@ export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
 	}
 }
 
-export function tinyint<TName extends string>(name: TName, config?: MySqlIntConfig): MySqlTinyIntBuilderInitial<TName> {
+export function tinyint<TUnsigned extends boolean | undefined>(
+	config?: MySqlIntConfig<TUnsigned>,
+): MySqlTinyIntBuilder<TUnsigned>;
+export function tinyint<TUnsigned extends boolean | undefined>(
+	name: string,
+	config?: MySqlIntConfig<TUnsigned>,
+): MySqlTinyIntBuilder<TUnsigned>;
+export function tinyint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlTinyIntBuilder(name, config);
 }

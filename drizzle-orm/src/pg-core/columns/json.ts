@@ -1,39 +1,32 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgJson';
-	data: unknown;
-	driverParam: unknown;
-	enumValues: undefined;
-}>;
-
-export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> extends PgColumnBuilder<
-	T
+export class PgJsonBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'object json';
+		data: unknown;
+		driverParam: unknown;
+	}
 > {
-	static readonly [entityKind]: string = 'PgJsonBuilder';
+	static override readonly [entityKind]: string = 'PgJsonBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'PgJson');
+	constructor(name: string) {
+		super(name, 'object json', 'PgJson');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgJson<MakeColumnConfig<T, TTableName>> {
-		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgJson(table, this.config as any);
 	}
 }
 
-export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColumn<T> {
-	static readonly [entityKind]: string = 'PgJson';
+export class PgJson<T extends ColumnBaseConfig<'object json'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgJson';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
 		super(table, config);
 	}
 
@@ -57,6 +50,6 @@ export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColu
 	}
 }
 
-export function json<TName extends string>(name: TName): PgJsonBuilderInitial<TName> {
-	return new PgJsonBuilder(name);
+export function json(name?: string): PgJsonBuilder {
+	return new PgJsonBuilder(name ?? '');
 }

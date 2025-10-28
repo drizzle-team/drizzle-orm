@@ -21,15 +21,17 @@ export class Subquery<
 		selectedFields: TSelectedFields;
 		alias: TAlias;
 		isWith: boolean;
+		usedTables?: string[];
 	};
 
-	constructor(sql: SQL, selection: Record<string, unknown>, alias: string, isWith = false) {
+	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: string[] = []) {
 		this._ = {
 			brand: 'Subquery',
 			sql,
-			selectedFields: selection as TSelectedFields,
+			selectedFields: fields as TSelectedFields,
 			alias: alias as TAlias,
 			isWith,
+			usedTables,
 		};
 	}
 
@@ -42,5 +44,7 @@ export class WithSubquery<
 	TAlias extends string = string,
 	TSelection extends Record<string, unknown> = Record<string, unknown>,
 > extends Subquery<TAlias, TSelection> {
-	static readonly [entityKind]: string = 'WithSubquery';
+	static override readonly [entityKind]: string = 'WithSubquery';
 }
+
+export type WithSubqueryWithoutSelection<TAlias extends string> = WithSubquery<TAlias, {}>;

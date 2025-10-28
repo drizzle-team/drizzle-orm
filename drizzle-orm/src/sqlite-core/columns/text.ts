@@ -1,51 +1,48 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import type { Equal, Writable } from '~/utils.ts';
+import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
+import { type Assume, type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
-export type SQLiteTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = SQLiteTextBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'SQLiteText';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-}>;
-
-export class SQLiteTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SQLiteText'>> extends SQLiteColumnBuilder<
-	T,
-	{ length: number | undefined; enumValues: T['enumValues'] }
+export class SQLiteTextBuilder<
+	TEnum extends [string, ...string[]],
+> extends SQLiteColumnBuilder<
+	{
+		name: string;
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+	},
+	{ enumValues: TEnum; length: number | undefined }
 > {
-	static readonly [entityKind]: string = 'SQLiteTextBuilder';
+	static override readonly [entityKind]: string = 'SQLiteTextBuilder';
 
-	constructor(name: T['name'], config: SQLiteTextConfig<'text', T['enumValues']>) {
-		super(name, 'string', 'SQLiteText');
-		this.config.enumValues = config.enum;
-		this.config.length = config.length;
+	constructor(name: string, config: SQLiteTextConfig<'text', TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'SQLiteText');
+		this.config.enumValues = config.enum!;
+		this.config.length = config.length!;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteText<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: SQLiteTable) {
+		return new SQLiteText(
+			table,
+			this.config as any,
+		);
 	}
 }
 
-export class SQLiteText<T extends ColumnBaseConfig<'string', 'SQLiteText'>>
+export class SQLiteText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'SQLiteText';
+	static override readonly [entityKind]: string = 'SQLiteText';
 
 	override readonly enumValues = this.config.enumValues;
 
-	readonly length: number | undefined = this.config.length;
-
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
-		config: SQLiteTextBuilder<T>['config'],
+		config: SQLiteTextBuilder<Assume<T['enumValues'], [string, ...string[]]>>['config'],
 	) {
 		super(table, config);
 	}
@@ -55,39 +52,33 @@ export class SQLiteText<T extends ColumnBaseConfig<'string', 'SQLiteText'>>
 	}
 }
 
-export type SQLiteTextJsonBuilderInitial<TName extends string> = SQLiteTextJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'SQLiteTextJson';
+export class SQLiteTextJsonBuilder extends SQLiteColumnBuilder<{
+	name: string;
+	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
-	enumValues: undefined;
-}>;
 
-export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteTextJson'>>
-	extends SQLiteColumnBuilder<T>
-{
-	static readonly [entityKind]: string = 'SQLiteTextJsonBuilder';
+	generated: undefined;
+}> {
+	static override readonly [entityKind]: string = 'SQLiteTextJsonBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'SQLiteTextJson');
+	constructor(name: string) {
+		super(name, 'object json', 'SQLiteTextJson');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteTextJson<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteTextJson<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteTextJson(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>>
+export class SQLiteTextJson<T extends ColumnBaseConfig<'object json'>>
 	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
-	static readonly [entityKind]: string = 'SQLiteTextJson';
+	static override readonly [entityKind]: string = 'SQLiteTextJson';
 
 	getSQLType(): string {
 		return 'text';
@@ -103,8 +94,8 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 }
 
 export type SQLiteTextConfig<
-	TMode extends 'text' | 'json',
-	TEnum extends readonly string[] | string[] | undefined,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
 		length?: number;
@@ -115,19 +106,26 @@ export type SQLiteTextConfig<
 	};
 
 export function text<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	TMode extends 'text' | 'json' = 'text' | 'json',
 >(
-	name: TName,
-	config: SQLiteTextConfig<TMode, T | Writable<T>> = {} as SQLiteTextConfig<TMode, T | Writable<T>>,
-): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilderInitial<TName>
-	: SQLiteTextBuilderInitial<TName, Writable<T>>
-{
-	return (config.mode === 'json'
-		? new SQLiteTextJsonBuilder(name)
-		: new SQLiteTextBuilder(name, config as SQLiteTextConfig<'text', Writable<T>>)) as Equal<TMode, 'json'> extends true
-			? SQLiteTextJsonBuilderInitial<TName>
-			: SQLiteTextBuilderInitial<TName, Writable<T>>;
+	config?: SQLiteTextConfig<TMode, T | Writable<T>>,
+): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilder
+	: SQLiteTextBuilder<Writable<T>>;
+export function text<
+	U extends string,
+	T extends Readonly<[U, ...U[]]>,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+>(
+	name: string,
+	config?: SQLiteTextConfig<TMode, T | Writable<T>>,
+): Equal<TMode, 'json'> extends true ? SQLiteTextJsonBuilder
+	: SQLiteTextBuilder<Writable<T>>;
+export function text(a?: string | SQLiteTextConfig, b: SQLiteTextConfig = {}): any {
+	const { name, config } = getColumnNameAndConfig<SQLiteTextConfig>(a, b);
+	if (config.mode === 'json') {
+		return new SQLiteTextJsonBuilder(name);
+	}
+	return new SQLiteTextBuilder(name, config as any);
 }

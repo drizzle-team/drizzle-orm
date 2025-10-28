@@ -1,43 +1,34 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, ColumnDataType } from './column-builder.ts';
+import type {
+	ColumnBuilderRuntimeConfig,
+	ColumnType,
+	GeneratedColumnConfig,
+	GeneratedIdentityConfig,
+} from './column-builder.ts';
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
-export interface ColumnBaseConfig<
-	TDataType extends ColumnDataType,
-	TColumnType extends string,
-> extends ColumnBuilderBaseConfig<TDataType, TColumnType> {
+export type Columns = Record<string, Column<any>>;
+
+export interface ColumnBaseConfig<TDataType extends ColumnType> {
+	name: string;
+	dataType: TDataType;
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
+	isPrimaryKey: boolean;
+	isAutoincrement: boolean;
+	hasRuntimeDefault: boolean;
+	data: unknown;
+	driverParam: unknown;
+	enumValues: string[] | undefined;
 }
 
-export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
-	brand: 'Column';
-	tableName: T['tableName'];
-	name: T['name'];
-	dataType: T['dataType'];
-	columnType: T['columnType'];
-	data: T['data'];
-	driverParam: T['driverParam'];
-	notNull: T['notNull'];
-	hasDefault: T['hasDefault'];
-	enumValues: T['enumValues'];
-	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
-} & TTypeConfig;
-
-export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
-	TData,
-	TRuntimeConfig
->;
-
 export interface Column<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRuntimeConfig extends object = object,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTypeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
 }
@@ -47,15 +38,17 @@ export interface Column<
 	See `GetColumnData` for example usage of inferring.
 */
 export abstract class Column<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
-	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
+	declare readonly _: T & {
+		identity: undefined | 'always' | 'byDefault';
+	};
 
 	readonly name: string;
+	readonly keyAsName: boolean;
 	readonly primary: boolean;
 	readonly notNull: boolean;
 	readonly default: T['data'] | SQL | undefined;
@@ -66,17 +59,32 @@ export abstract class Column<
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
 	readonly dataType: T['dataType'];
-	readonly columnType: T['columnType'];
+	readonly columnType: string;
 	readonly enumValues: T['enumValues'] = undefined;
+	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
+	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
+	readonly length: number | undefined;
+	readonly isLengthExact: boolean | undefined;
 
-	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
+	/** @internal */
+	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
+
+	/** @internal */
+	readonly table: Table;
+
+	/** @internal */
+	protected onInit(): void {}
 
 	constructor(
-		readonly table: Table,
-		config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>,
+		table: Table,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		this.config = config;
+		this.onInit();
+		this.table = table;
+
 		this.name = config.name;
+		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
 		this.defaultFn = config.defaultFn;
@@ -88,6 +96,10 @@ export abstract class Column<
 		this.uniqueType = config.uniqueType;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
+		this.generated = config.generated;
+		this.generatedIdentity = config.generatedIdentity;
+		this.length = (<{ length?: number }> config)['length'];
+		this.isLengthExact = (<{ isLengthExact?: boolean }> config)['isLengthExact'];
 	}
 
 	abstract getSQLType(): string;
@@ -99,15 +111,20 @@ export abstract class Column<
 	mapToDriverValue(value: unknown): unknown {
 		return value;
 	}
+
+	// ** @internal */
+	shouldDisableInsert(): boolean {
+		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
+	}
 }
 
 export type UpdateColConfig<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
-	TUpdate extends Partial<ColumnBaseConfig<ColumnDataType, string>>,
+	T extends ColumnBaseConfig<ColumnType>,
+	TUpdate extends Partial<ColumnBaseConfig<ColumnType>>,
 > = Update<T, TUpdate>;
 
-export type AnyColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = Column<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = Column<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
 export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | 'raw' = 'query'> =
@@ -121,3 +138,7 @@ export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | '
 export type InferColumnsDataTypes<TColumns extends Record<string, Column>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
+
+export function getColumnTable<TTable extends Table<any> = Table<any>>(column: Column<any>): TTable {
+	return column.table as TTable;
+}

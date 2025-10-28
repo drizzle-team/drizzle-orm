@@ -1,18 +1,15 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { LibSQLDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: LibSQLDatabase<TSchema>,
+export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: LibSQLDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	const migrationsTable = config === undefined
-		? '__drizzle_migrations'
-		: typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
@@ -47,5 +44,5 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		}
 	}
 
-	await db.session.batch(statementToBatch);
+	await db.session.migrate(statementToBatch);
 }

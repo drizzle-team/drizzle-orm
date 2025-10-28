@@ -1,10 +1,11 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.31.0",
+	"version": "1.0.0-beta.1",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"build": "scripts/build.ts",
+		"p": "prisma generate --schema src/prisma/schema.prisma",
+		"build": "pnpm p && scripts/build.ts",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
 		"test": "vitest run",
@@ -28,6 +29,7 @@
 		"orm",
 		"pg",
 		"mysql",
+		"singlestore",
 		"postgresql",
 		"postgres",
 		"sqlite",
@@ -44,28 +46,32 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
-		"@cloudflare/workers-types": ">=3",
-		"@electric-sql/pglite": ">=0.1.1",
-		"@libsql/client": "*",
-		"@neondatabase/serverless": ">=0.1",
+		"@cloudflare/workers-types": ">=4",
+		"@electric-sql/pglite": ">=0.2.0",
+		"@libsql/client": ">=0.10.0",
+		"@libsql/client-wasm": ">=0.10.0",
+		"@neondatabase/serverless": ">=0.10.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
-		"@planetscale/database": ">=1",
+		"@planetscale/database": ">=1.13",
+		"@prisma/client": "*",
+		"@tidbcloud/serverless": "*",
+		"@tursodatabase/database": ">=0.2.1",
+		"@tursodatabase/database-common": ">=0.2.1",
+		"@tursodatabase/database-wasm": ">=0.2.1",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
-		"@types/react": ">=18",
 		"@types/sql.js": "*",
+		"@upstash/redis": ">=1.34.7",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
-		"better-sqlite3": ">=7",
+		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
-		"expo-sqlite": ">=13.2.0",
-		"knex": "*",
-		"kysely": "*",
+		"expo-sqlite": ">=14.0.0",
+		"gel": ">=2",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
-		"react": ">=18",
 		"sql.js": ">=1",
 		"sqlite3": ">=5"
 	},
@@ -118,13 +124,10 @@
 		"@planetscale/database": {
 			"optional": true
 		},
-		"knex": {
-			"optional": true
-		},
-		"kysely": {
-			"optional": true
-		},
 		"@libsql/client": {
+			"optional": true
+		},
+		"@libsql/client-wasm": {
 			"optional": true
 		},
 		"@opentelemetry/api": {
@@ -133,52 +136,81 @@
 		"expo-sqlite": {
 			"optional": true
 		},
+		"gel": {
+			"optional": true
+		},
 		"@op-engineering/op-sqlite": {
-			"optional": true
-		},
-		"react": {
-			"optional": true
-		},
-		"@types/react": {
 			"optional": true
 		},
 		"@electric-sql/pglite": {
 			"optional": true
+		},
+		"@tidbcloud/serverless": {
+			"optional": true
+		},
+		"prisma": {
+			"optional": true
+		},
+		"@prisma/client": {
+			"optional": true
+		},
+		"@tursodatabase/database": {
+			"optional": true
+		},
+		"@tursodatabase/database-wasm": {
+			"optional": true
+		},
+		"@tursodatabase/database-common": {
+			"optional": true
+		},
+		"@upstash/redis": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.549.0",
-		"@cloudflare/workers-types": "^4.20230904.0",
-		"@electric-sql/pglite": "^0.1.1",
-		"@libsql/client": "^0.5.6",
-		"@neondatabase/serverless": "^0.9.0",
+		"@cloudflare/workers-types": "^4.20251004.0",
+		"@electric-sql/pglite": "^0.2.12",
+		"@libsql/client": "^0.10.0",
+		"@libsql/client-wasm": "^0.10.0",
+		"@miniflare/d1": "^2.14.4",
+		"@neondatabase/serverless": "^0.10.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
-		"@types/better-sqlite3": "^7.6.4",
+		"@prisma/client": "5.14.0",
+		"@tidbcloud/serverless": "^0.1.1",
+		"@tursodatabase/database": "0.2.1",
+		"@tursodatabase/database-common": "^0.2.1",
+		"@tursodatabase/database-wasm": "^0.2.1",
+		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^20.2.5",
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
+		"@upstash/redis": "^1.34.3",
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
-		"better-sqlite3": "^8.4.0",
-		"bun-types": "^0.6.6",
+		"better-sqlite3": "^11.9.1",
+		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
-		"expo-sqlite": "^13.2.0",
-		"knex": "^2.4.2",
-		"kysely": "^0.25.0",
-		"mysql2": "^3.3.3",
+		"expo-sqlite": "^14.0.0",
+		"gel": "^2.0.0",
+		"glob": "^11.0.1",
+		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
+		"prisma": "5.14.0",
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
+		"ts-morph": "^25.0.1",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
-		"vite-tsconfig-paths": "^4.2.0",
-		"vitest": "^0.31.4",
+		"vite-tsconfig-paths": "^4.3.2",
+		"vitest": "^3.1.3",
 		"zod": "^3.20.2",
 		"zx": "^7.2.2"
 	}
