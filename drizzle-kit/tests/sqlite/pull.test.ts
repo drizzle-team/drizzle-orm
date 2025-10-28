@@ -42,6 +42,46 @@ test('generated always column virtual: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('complex generated always', async () => {
+	const sqlite = new Database(':memory:');
+
+	const generatedExpression = `trim(
+		coalesce(\`first_name\`, '') || ' ' || coalesce(\`last_name\`, '') ||
+		(CASE WHEN nullif(trim(coalesce(\`suffix\`, '')), '') IS NOT NULL THEN ' ' || trim(coalesce(\`suffix\`, '')) ELSE '' END)
+	)`;
+
+	const schema = {
+		users: sqliteTable('users', {
+			id: int('id'),
+			firstName: text('first_name'),
+			lastName: text('last_name'),
+			suffix: text('suffix'),
+			fullName: text('full_name').generatedAlwaysAs((): SQL => sql.raw(generatedExpression), { mode: 'virtual' }),
+		}),
+	};
+
+	const { statements, sqlStatements, initDDL, resultDdl } = await diffAfterPull(
+		sqlite,
+		schema,
+		'complex generated always',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	expect(
+		initDDL.columns.one({ name: 'full_name' })?.generated,
+	).toEqual({
+		as: `(${generatedExpression})`,
+		type: 'virtual',
+	});
+	expect(
+		resultDdl.columns.one({ name: 'full_name' })?.generated,
+	).toEqual({
+		as: `(${generatedExpression})`,
+		type: 'virtual',
+	});
+});
+
 test('instrospect strings with single quotes', async () => {
 	const sqlite = new Database(':memory:');
 
