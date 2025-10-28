@@ -70,8 +70,10 @@ const input = {
 	migrator: 'src/migrator.ts',
 	version: 'src/version.temp.ts',
 	casing: 'src/casing.ts',
+	'cache/core/types': 'src/cache/core/types.ts',
 	...dialects.reduce((acc, dialect) => {
 		acc[`${dialect}-core/index`] = `src/${dialect}-core/index.ts`;
+		acc[`${dialect}-core/expressions`] = `src/${dialect}-core/expressions.ts`;
 		return acc;
 	}, {} as Record<string, string>),
 	...drivers.reduce((acc, driver) => {
