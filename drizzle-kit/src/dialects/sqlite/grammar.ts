@@ -3,8 +3,8 @@ import { parse, stringify } from '../../utils/when-json-met-bigint';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s*["'`\[]?(\w+)["'`\]]?\s*CHECK\s*\((.*)\)/gi;
-const unnamedCheckPattern = /CHECK\s*\((.*)\)/gi;
+const namedCheckPattern = /CONSTRAINT\s+["'`\[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
+const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
@@ -367,30 +367,34 @@ export interface Generated {
 
 export function extractGeneratedColumns(input: string): Record<string, Generated> {
 	const columns: Record<string, Generated> = {};
-	const lines = input.split(/,\s*(?![^()]*\))/); // Split by commas outside parentheses
+	const regex = /["'`\[]?(\w+)["'`\]]?\s+(\w+)\s+GENERATED\s+ALWAYS\s+AS\s*\(/gi;
 
-	for (const line of lines) {
-		if (line.includes('GENERATED ALWAYS AS')) {
-			const parts = line.trim().split(/\s+/);
-			const columnName = parts[0].replace(/[`'"]/g, ''); // Remove quotes around the column name
-			const expression = line
-				.substring(line.indexOf('('), line.indexOf(')') + 1)
-				.trim();
+	let match: RegExpExecArray | null;
+	while ((match = regex.exec(input)) !== null) {
+		const columnName = match[1];
+		let startIndex = regex.lastIndex - 1; // position of '('
+		let depth = 1;
+		let endIndex = startIndex + 1;
 
-			// Extract type ensuring to remove any trailing characters like ')'
-			const typeIndex = parts.findIndex((part) => part.match(/(stored|virtual)/i));
-			let type: Generated['type'] = 'virtual';
-			if (typeIndex !== -1) {
-				type = parts[typeIndex]
-					.replace(/[^a-z]/gi, '')
-					.toLowerCase() as Generated['type'];
-			}
-
-			columns[columnName] = {
-				as: expression,
-				type,
-			};
+		// Find matching closing parenthesis
+		while (endIndex < input.length && depth > 0) {
+			const char = input[endIndex];
+			if (char === '(') depth++;
+			else if (char === ')') depth--;
+			endIndex++;
 		}
+
+		const expression = input.slice(startIndex, endIndex).trim();
+
+		// Find STORED/VIRTUAL type after the expression
+		const afterExpr = input.slice(endIndex);
+		const typeMatch = afterExpr.match(/\b(STORED|VIRTUAL)\b/i);
+		const type = typeMatch ? typeMatch[1].toLowerCase() as Generated['type'] : 'virtual';
+
+		columns[columnName] = {
+			as: expression,
+			type,
+		};
 	}
 	return columns;
 }
