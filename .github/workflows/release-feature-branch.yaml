@@ -114,7 +114,7 @@ jobs:
           - shard: zod
             dbs: []
           - shard: seed
-            dbs: []
+            dbs: [cockroach, mysql, mssql, postgres, singlestore]
           - shard: typebox
             dbs: []
           - shard: valibot
