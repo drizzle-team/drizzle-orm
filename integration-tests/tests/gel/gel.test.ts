@@ -77,7 +77,7 @@ import createClient, {
 	RelativeDuration,
 } from 'gel';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test, vi } from 'vitest';
 import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
@@ -1861,6 +1861,78 @@ describe('some', async () => {
 				},
 			},
 		]);
+	});
+
+	test('select from a many subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			population: db.select({ count: count().as('count') }).from(users2Table).where(
+				eq(users2Table.cityId, citiesTable.id1),
+			).as(
+				'population',
+			),
+			name: citiesTable.name,
+		}).from(citiesTable);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			population: number;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			population: 1,
+			name: 'Paris',
+		}, {
+			population: 2,
+			name: 'London',
+		}]);
+	});
+
+	test('select from a one subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id1))
+				.as(
+					'cityName',
+				),
+			name: users2Table.name,
+		}).from(users2Table);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			cityName: string;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			cityName: 'Paris',
+			name: 'John',
+		}, {
+			cityName: 'London',
+			name: 'Jane',
+		}, {
+			cityName: 'London',
+			name: 'Jack',
+		}]);
 	});
 
 	test('join subquery', async (ctx) => {

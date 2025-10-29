@@ -1506,6 +1506,82 @@ export function tests(driver?: string) {
 			]);
 		});
 
+		test('select from a many subquery', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					population: number;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]));
+		});
+
+		test('select from a one subquery', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					cityName: string;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]));
+		});
+
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
