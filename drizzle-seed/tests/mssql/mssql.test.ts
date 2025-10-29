@@ -1,51 +1,25 @@
 import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
-
-import { drizzle } from 'drizzle-orm/node-mssql';
-import mssql from 'mssql';
-
-import type { Container } from 'dockerode';
-import type { MsSqlDatabase } from 'drizzle-orm/node-mssql';
-import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
+import { mssqlTest as test } from './instrumentation.ts';
 import * as schema from './mssqlSchema.ts';
-import { createDockerDB } from './utils.ts';
 
-let mssqlContainer: Container;
-let client: mssql.ConnectionPool;
-let db: MsSqlDatabase<any, any>;
+test.afterEach(async ({ db }) => {
+	await reset(db, schema);
+});
 
-beforeAll(async () => {
-	const { options, container } = await createDockerDB('mssql');
-	mssqlContainer = container;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(options);
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			// console.log('mssql test connection is successfull.')
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await mssqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [customer] (
 				[id] varchar(256) NOT NULL,
 				[company_name] varchar(max) NOT NULL,
@@ -61,10 +35,10 @@ beforeAll(async () => {
 				CONSTRAINT [customer_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [order_detail] (
 				[unit_price] float NOT NULL,
 				[quantity] int NOT NULL,
@@ -73,10 +47,10 @@ beforeAll(async () => {
 				[product_id] int NOT NULL
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [employee] (
 				[id] int NOT NULL,
 				[last_name] varchar(max) NOT NULL,
@@ -97,10 +71,10 @@ beforeAll(async () => {
 				CONSTRAINT [employee_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [order] (
 				[id] int NOT NULL,
 				[order_date] datetime NOT NULL,
@@ -118,10 +92,10 @@ beforeAll(async () => {
 				CONSTRAINT [order_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [product] (
 				[id] int NOT NULL,
 				[name] varchar(max) NOT NULL,
@@ -135,10 +109,10 @@ beforeAll(async () => {
 				CONSTRAINT [product_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [supplier] (
 				[id] int NOT NULL,
 				[company_name] varchar(max) NOT NULL,
@@ -153,10 +127,10 @@ beforeAll(async () => {
 				CONSTRAINT [supplier_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [users] (
 				[id] int,
 				[name] varchar(max),
@@ -164,10 +138,10 @@ beforeAll(async () => {
 				CONSTRAINT [users_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [posts] (
 				[id] int,
 				[name] varchar(max),
@@ -176,67 +150,63 @@ beforeAll(async () => {
 				CONSTRAINT [posts_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [order_detail] ADD CONSTRAINT [order_detail_order_id_order_id_fk] FOREIGN KEY ([order_id]) REFERENCES [order]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [order_detail] ADD CONSTRAINT [order_detail_product_id_product_id_fk] FOREIGN KEY ([product_id]) REFERENCES [product]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [employee] ADD CONSTRAINT [employee_reports_to_employee_id_fk] FOREIGN KEY ([reports_to]) REFERENCES [employee]([id]) ON DELETE no action ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [order] ADD CONSTRAINT [order_customer_id_customer_id_fk] FOREIGN KEY ([customer_id]) REFERENCES [customer]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [order] ADD CONSTRAINT [order_employee_id_employee_id_fk] FOREIGN KEY ([employee_id]) REFERENCES [employee]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [product] ADD CONSTRAINT [product_supplier_id_supplier_id_fk] FOREIGN KEY ([supplier_id]) REFERENCES [supplier]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [users] ADD CONSTRAINT [users_invitedBy_users_id_fk] FOREIGN KEY ([invitedBy]) REFERENCES [users]([id]) ON DELETE no action ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			ALTER TABLE [posts] ADD CONSTRAINT [posts_userId_users_id_fk] FOREIGN KEY ([userId]) REFERENCES [users]([id]) ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await mssqlContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
-	await reset(db, schema);
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	await seed(db, schema);
 
 	const customers = await db.select().from(schema.customers);
@@ -254,7 +224,7 @@ test('basic seed test', async () => {
 	expect(suppliers.length).toBe(10);
 });
 
-test('seed with options.count:11 test', async () => {
+test('seed with options.count:11 test', async ({ db }) => {
 	await seed(db, schema, { count: 11 });
 
 	const customers = await db.select().from(schema.customers);
@@ -272,7 +242,7 @@ test('seed with options.count:11 test', async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('redefine(refine) customers count', async () => {
+test('redefine(refine) customers count', async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
@@ -294,7 +264,7 @@ test('redefine(refine) customers count', async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('redefine(refine) all tables count', async () => {
+test('redefine(refine) all tables count', async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
@@ -331,7 +301,7 @@ test('redefine(refine) all tables count', async () => {
 	expect(suppliers.length).toBe(17);
 });
 
-test("redefine(refine) orders count using 'with' in customers", async () => {
+test("redefine(refine) orders count using 'with' in customers", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
@@ -359,7 +329,7 @@ test("redefine(refine) orders count using 'with' in customers", async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test("sequential using of 'with'", async () => {
+test("sequential using of 'with'", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
@@ -390,7 +360,7 @@ test("sequential using of 'with'", async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('overlapping a foreign key constraint with a one-to-many relation', async () => {
+test('overlapping a foreign key constraint with a one-to-many relation', async ({ db }) => {
 	const postsRelation = relations(schema.posts, ({ one }) => ({
 		user: one(schema.users, { fields: [schema.posts.userId], references: [schema.users.id] }),
 	}));

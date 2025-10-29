@@ -1,50 +1,20 @@
 import { sql } from 'drizzle-orm';
-
-import { drizzle } from 'drizzle-orm/node-mssql';
-import mssql from 'mssql';
-
-import type { Container } from 'dockerode';
-import type { MsSqlDatabase } from 'drizzle-orm/node-mssql';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { mssqlTest as test } from '../instrumentation.ts';
 import * as schema from './mssqlSchema.ts';
 
-let mssqlContainer: Container;
-let client: mssql.ConnectionPool;
-let db: MsSqlDatabase<any, any>;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { options, container } = await createDockerDB('mssql');
-	mssqlContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(options);
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			// console.log('mssql test connection is successfull.')
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await mssqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE [composite_example] (
 				[id] int not null,
 				[name] varchar(256) not null,
@@ -52,20 +22,20 @@ beforeAll(async () => {
 				CONSTRAINT [custom_name] UNIQUE([id],[name])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE [unique_column_in_composite_of_two_0] (
 				[id] int not null unique,
 				[name] varchar(256) not null,
 				CONSTRAINT [custom_name0] UNIQUE([id],[name])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE [unique_column_in_composite_of_two_1] (
 				[id] int not null,
 				[name] varchar(256) not null,
@@ -73,10 +43,10 @@ beforeAll(async () => {
 				CONSTRAINT [custom_name1_id] UNIQUE([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE [unique_column_in_composite_of_three_0] (
 				[id] int not null unique,
 				[name] varchar(256) not null,
@@ -84,10 +54,10 @@ beforeAll(async () => {
 				CONSTRAINT [custom_name2] UNIQUE([id],[name],[slug])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE [unique_column_in_composite_of_three_1] (
 				[id] int not null,
 				[name] varchar(256) not null,
@@ -96,19 +66,18 @@ beforeAll(async () => {
 				CONSTRAINT [custom_name3_id] UNIQUE([id])
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await mssqlContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	const currSchema = { composite: schema.composite };
 	await seed(db, currSchema, { count: 16 });
 
@@ -160,7 +129,7 @@ test('basic seed test', async () => {
 	await reset(db, currSchema);
 });
 
-test('unique column in composite of 2 columns', async () => {
+test('unique column in composite of 2 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfTwo0: schema.uniqueColumnInCompositeOfTwo0 };
 	await seed(db, currSchema0, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo0: {
@@ -192,7 +161,7 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema1);
 });
 
-test('unique column in composite of 3 columns', async () => {
+test('unique column in composite of 3 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfThree0: schema.uniqueColumnInCompositeOfThree0 };
 	await seed(db, currSchema0, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree0: {

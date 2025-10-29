@@ -1,49 +1,20 @@
 import { sql } from 'drizzle-orm';
-
-import { drizzle } from 'drizzle-orm/node-mssql';
-import mssql from 'mssql';
-
-import type { Container } from 'dockerode';
-import type { MsSqlDatabase } from 'drizzle-orm/node-mssql';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { mssqlTest as test } from '../instrumentation.ts';
 import * as schema from './mssqlSchema.ts';
 
-let mssqlContainer: Container;
-let client: mssql.ConnectionPool;
-let db: MsSqlDatabase<any, any>;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { options, container } = await createDockerDB('soft_relations');
-	mssqlContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(options);
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await mssqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [customer] (
 				[id] varchar(256) NOT NULL,
 				[company_name] text NOT NULL,
@@ -59,10 +30,10 @@ beforeAll(async () => {
 				CONSTRAINT [customer_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [order_detail] (
 				[unit_price] float NOT NULL,
 				[quantity] int NOT NULL,
@@ -71,10 +42,10 @@ beforeAll(async () => {
 				[product_id] int NOT NULL
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [employee] (
 				[id] int NOT NULL,
 				[last_name] text NOT NULL,
@@ -95,10 +66,10 @@ beforeAll(async () => {
 				CONSTRAINT [employee_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [order] (
 				[id] int NOT NULL,
 				[order_date] datetime NOT NULL,
@@ -116,10 +87,10 @@ beforeAll(async () => {
 				CONSTRAINT [order_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [product] (
 				[id] int NOT NULL,
 				[name] text NOT NULL,
@@ -133,10 +104,10 @@ beforeAll(async () => {
 				CONSTRAINT [product_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 				CREATE TABLE [supplier] (
 				[id] int NOT NULL,
 				[company_name] text NOT NULL,
@@ -151,15 +122,15 @@ beforeAll(async () => {
 				CONSTRAINT [supplier_id] PRIMARY KEY([id])
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await mssqlContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
@@ -203,7 +174,7 @@ const checkSoftRelations = (
 	expect(detailsPredicate2).toBe(true);
 };
 
-test('basic seed, soft relations test', async () => {
+test('basic seed, soft relations test', async ({ db }) => {
 	await seed(db, schema);
 
 	const customers = await db.select().from(schema.customers);
@@ -223,7 +194,7 @@ test('basic seed, soft relations test', async () => {
 	checkSoftRelations(customers, details, employees, orders, products, suppliers);
 });
 
-test("redefine(refine) orders count using 'with' in customers, soft relations test", async () => {
+test("redefine(refine) orders count using 'with' in customers, soft relations test", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
@@ -253,7 +224,7 @@ test("redefine(refine) orders count using 'with' in customers, soft relations te
 	checkSoftRelations(customers, details, employees, orders, products, suppliers);
 });
 
-test("sequential using of 'with', soft relations test", async () => {
+test("sequential using of 'with', soft relations test", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
