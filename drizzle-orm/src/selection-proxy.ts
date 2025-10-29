@@ -2,7 +2,7 @@ import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { SQL, View } from './sql/sql.ts';
-import { Subquery, SubqueryConfig } from './subquery.ts';
+import { Subquery } from './subquery.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
 export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> | View>
@@ -45,11 +45,11 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 	}
 
 	get(subquery: T, prop: string | symbol): any {
-		if (prop === SubqueryConfig) {
+		if (prop === '_') {
 			return {
-				...subquery[SubqueryConfig as keyof typeof subquery],
-				selection: new Proxy(
-					(subquery as Subquery)[SubqueryConfig].selection,
+				...subquery['_' as keyof typeof subquery],
+				selectedFields: new Proxy(
+					(subquery as Subquery)._.selectedFields,
 					this as ProxyHandler<Record<string, unknown>>,
 				),
 			};
@@ -70,7 +70,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		}
 
 		const columns = is(subquery, Subquery)
-			? subquery[SubqueryConfig].selection
+			? subquery._.selectedFields
 			: is(subquery, View)
 			? subquery[ViewBaseConfig].selectedFields
 			: subquery;

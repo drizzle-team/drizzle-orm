@@ -1,5 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
-import { eq } from '~/expressions.ts';
+import { eq } from '~/sql/expressions/index.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -151,4 +151,8 @@ Expect<Equal<any[][], typeof deleteValuesBunReturningPartial>>;
 		.returning()
 		// @ts-expect-error method was already called
 		.returning();
+}
+
+{
+	db.delete(users).where(sql``).limit(1).orderBy(sql``);
 }

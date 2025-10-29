@@ -15,7 +15,7 @@ export interface SqliteRemoteResult<T = unknown> {
 export class SqliteRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > extends BaseSQLiteDatabase<'async', SqliteRemoteResult, TSchema> {
-	static readonly [entityKind]: string = 'SqliteRemoteDatabase';
+	static override readonly [entityKind]: string = 'SqliteRemoteDatabase';
 
 	/** @internal */
 	declare readonly session: SQLiteRemoteSession<TSchema, ExtractTablesWithRelations<TSchema>>;
@@ -55,8 +55,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema>,
 	config?: DrizzleConfig<TSchema>,
 ): SqliteRemoteDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
+	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
 	let _config: DrizzleConfig<TSchema> = {};
 
@@ -73,6 +74,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 			logger = new DefaultLogger();
 		} else if (_config.logger !== false) {
 			logger = _config.logger;
+			cache = _config.cache;
 		}
 	}
 
@@ -89,6 +91,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger });
-	return new SqliteRemoteDatabase('async', dialect, session, schema) as SqliteRemoteDatabase<TSchema>;
+	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger, cache });
+	const db = new SqliteRemoteDatabase('async', dialect, session, schema) as SqliteRemoteDatabase<TSchema>;
+	(<any> db).$cache = cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = cache?.onMutate;
+	}
+	return db;
 }
