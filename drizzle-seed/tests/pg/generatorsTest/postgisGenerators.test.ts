@@ -1,99 +1,64 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import type { Client as ClientT } from 'pg';
-import pg from 'pg';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerPostgis } from '../utils.ts';
+import { pgPostgisTest as test } from '../instrumentation.ts';
 import * as schema from './pgPostgisSchema.ts';
 
-const { Client } = pg;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-let pgContainer: Container;
-let pgClient: ClientT;
-let db: NodePgDatabase;
-
-beforeAll(async () => {
-	const { url, container } = await createDockerPostgis();
-	pgContainer = container;
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError;
-
-	do {
-		try {
-			pgClient = new Client({ connectionString: url });
-			await pgClient.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await pgClient!.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await pgClient.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
-
-	db = drizzle({ client: pgClient });
-
-	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."geometry_table" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "geometry_table" (
 				"geometry_point_tuple" geometry(point, 0),
 				"geometry_point_xy" geometry(point, 0)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."geometry_unique_table" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "geometry_unique_table" (
 				"geometry_point_tuple" geometry(point, 0) unique,
 				"geometry_point_xy" geometry(point, 0) unique
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."geometry_array_table" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "geometry_array_table" (
 				"geometry_point_tuple" geometry(point, 0)[],
 				"geometry_point_xy" geometry(point, 0)[]
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."composite_unique_key_table" (
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS "composite_unique_key_table" (
 			"id" integer,
 			"geometry_point" geometry(point, 0),
 			CONSTRAINT "custom_name" UNIQUE("id","geometry_point")
 			);
 		`,
-	);
-});
+		);
 
-afterAll(async () => {
-	await pgClient.end().catch(console.error);
-	await pgContainer.stop().catch(console.error);
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
 const count = 1000;
 
-test('geometry generator test', async () => {
+test('geometry generator test', async ({ db }) => {
 	await reset(db, { geometryTable: schema.geometryTable });
 	await seed(db, { geometryTable: schema.geometryTable }).refine((funcs) => ({
 		geometryTable: {
@@ -120,7 +85,7 @@ test('geometry generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('geometry unique generator test', async () => {
+test('geometry unique generator test', async ({ db }) => {
 	await reset(db, { geometryUniqueTable: schema.geometryUniqueTable });
 	await seed(db, { geometryUniqueTable: schema.geometryUniqueTable }).refine((funcs) => ({
 		geometryUniqueTable: {
@@ -149,7 +114,7 @@ test('geometry unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('geometry array generator test', async () => {
+test('geometry array generator test', async ({ db }) => {
 	await reset(db, { geometryArrayTable: schema.geometryArrayTable });
 	await seed(db, { geometryArrayTable: schema.geometryArrayTable }).refine((funcs) => ({
 		geometryArrayTable: {
@@ -178,7 +143,7 @@ test('geometry array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('composite unique key generator test', async () => {
+test('composite unique key generator test', async ({ db }) => {
 	await reset(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable });
 	await seed(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable }, { count: 10000 }).refine((funcs) => ({
 		compositeUniqueKeyTable: {

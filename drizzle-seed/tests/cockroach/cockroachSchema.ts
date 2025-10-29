@@ -1,9 +1,7 @@
 import type { AnyCockroachColumn } from 'drizzle-orm/cockroach-core';
-import { cockroachSchema, int4, numeric, text, timestamp, varchar } from 'drizzle-orm/cockroach-core';
+import { cockroachTable, int4, numeric, text, timestamp, varchar } from 'drizzle-orm/cockroach-core';
 
-export const schema = cockroachSchema('seeder_lib_pg');
-
-export const customers = schema.table('customer', {
+export const customers = cockroachTable('customer', {
 	id: varchar('id', { length: 256 }).primaryKey(),
 	companyName: text('company_name').notNull(),
 	contactName: text('contact_name').notNull(),
@@ -17,7 +15,7 @@ export const customers = schema.table('customer', {
 	fax: text('fax'),
 });
 
-export const employees = schema.table(
+export const employees = cockroachTable(
 	'employee',
 	{
 		id: int4('id').primaryKey(),
@@ -39,7 +37,7 @@ export const employees = schema.table(
 	},
 );
 
-export const orders = schema.table('order', {
+export const orders = cockroachTable('order', {
 	id: int4('id').primaryKey(),
 	orderDate: timestamp('order_date').notNull(),
 	requiredDate: timestamp('required_date').notNull(),
@@ -61,7 +59,7 @@ export const orders = schema.table('order', {
 		.references(() => employees.id, { onDelete: 'cascade' }),
 });
 
-export const suppliers = schema.table('supplier', {
+export const suppliers = cockroachTable('supplier', {
 	id: int4('id').primaryKey(),
 	companyName: text('company_name').notNull(),
 	contactName: text('contact_name').notNull(),
@@ -74,7 +72,7 @@ export const suppliers = schema.table('supplier', {
 	phone: text('phone').notNull(),
 });
 
-export const products = schema.table('product', {
+export const products = cockroachTable('product', {
 	id: int4('id').primaryKey(),
 	name: text('name').notNull(),
 	quantityPerUnit: text('quantity_per_unit').notNull(),
@@ -89,7 +87,7 @@ export const products = schema.table('product', {
 		.references(() => suppliers.id, { onDelete: 'cascade' }),
 });
 
-export const details = schema.table('order_detail', {
+export const details = cockroachTable('order_detail', {
 	unitPrice: numeric('unit_price').notNull(),
 	quantity: int4('quantity').notNull(),
 	discount: numeric('discount').notNull(),
@@ -103,13 +101,13 @@ export const details = schema.table('order_detail', {
 		.references(() => products.id, { onDelete: 'cascade' }),
 });
 
-export const identityColumnsTable = schema.table('identity_columns_table', {
+export const identityColumnsTable = cockroachTable('identity_columns_table', {
 	id: int4().generatedAlwaysAsIdentity(),
 	id1: int4().generatedByDefaultAsIdentity(),
 	name: text(),
 });
 
-export const users = schema.table(
+export const users = cockroachTable(
 	'users',
 	{
 		id: int4().primaryKey(),
@@ -118,7 +116,7 @@ export const users = schema.table(
 	},
 );
 
-export const posts = schema.table(
+export const posts = cockroachTable(
 	'posts',
 	{
 		id: int4().primaryKey(),

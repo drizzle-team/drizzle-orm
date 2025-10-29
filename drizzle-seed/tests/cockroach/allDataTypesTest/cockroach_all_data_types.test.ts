@@ -1,58 +1,27 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
-import { drizzle } from 'drizzle-orm/cockroach';
-import { Client } from 'pg';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { cockroachTest as test } from '../instrumentation.ts';
 import * as schema from './cockroachSchema.ts';
 
-let client: Client;
-let db: NodeCockroachDatabase;
-let cockroachContainer: Container;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { connectionString, container } = await createDockerDB();
-	cockroachContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client({ connectionString });
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.end().catch(console.error);
-		await cockroachContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	db = drizzle({ client });
-
-	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
-
-	await db.execute(
-		sql`
-			CREATE TYPE "seeder_lib_pg"."mood_enum" AS ENUM('sad', 'ok', 'happy');
+		await db.execute(
+			sql`
+			CREATE TYPE "mood_enum" AS ENUM('sad', 'ok', 'happy');
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_data_types" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "all_data_types" (
 				"int2" int2,
 				"int4" int4,
 				"int8" int8,
@@ -73,18 +42,18 @@ beforeAll(async () => {
 				"date_string" date,
 				"date" date,
 				"interval" interval,
-				"mood_enum" "seeder_lib_pg"."mood_enum",
+				"mood_enum" "mood_enum",
 				"uuid" uuid,
 				"inet" inet,
 				"geometry" geometry(point, 0),
 				"vector" vector(3)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_array_data_types" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "all_array_data_types" (
 				"int2_array" int2[],
 				"int4_array" int4[],
 				"int8_array" int8[],
@@ -104,17 +73,17 @@ beforeAll(async () => {
 				"date_string_array" date[],
 				"date_array" date[],
 				"interval_array" interval[],
-				"mood_enum_array" "seeder_lib_pg"."mood_enum"[],
+				"mood_enum_array" "mood_enum"[],
 				"uuid_array" uuid[],
 				"inet_array" inet[],
 				"geometry_array" geometry(point, 0)[]
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."intervals" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "intervals" (
 				"intervalYear" interval year,
 				"intervalYearToMonth" interval year to month,
 				"intervalMonth" interval month,
@@ -130,19 +99,19 @@ beforeAll(async () => {
 				"intervalSecond" interval second
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await cockroachContainer?.stop().catch(console.error);
-});
-
-test('all data types test', async () => {
+test('all data types test', async ({ db }) => {
 	await seed(db, { allDataTypes: schema.allDataTypes }, { count: 10000 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
@@ -152,7 +121,7 @@ test('all data types test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('all array data types test', async () => {
+test('all array data types test', async ({ db }) => {
 	await seed(db, { allArrayDataTypes: schema.allArrayDataTypes }, { count: 1 });
 
 	const allArrayDataTypes = await db.select().from(schema.allArrayDataTypes);
@@ -164,7 +133,7 @@ test('all array data types test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('intervals test', async () => {
+test('intervals test', async ({ db }) => {
 	await seed(db, { intervals: schema.intervals }, { count: 1000 });
 
 	const intervals = await db.select().from(schema.intervals);
