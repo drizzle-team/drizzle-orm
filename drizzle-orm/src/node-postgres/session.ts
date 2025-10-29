@@ -14,8 +14,8 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-const { Pool, native, types } = pg;
-const NativePool = native?.Pool;
+const { Pool, types } = pg;
+const NativePool = (<any> pg).native ? (<{ Pool: typeof Pool }> (<any> pg).native).Pool : undefined;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
