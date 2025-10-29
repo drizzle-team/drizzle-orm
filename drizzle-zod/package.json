@@ -20,7 +20,7 @@
 				"default": "./index.mjs"
 			},
 			"require": {
-				"types": "./index.d.cjs",
+				"types": "./index.d.cts",
 				"default": "./index.cjs"
 			},
 			"types": "./index.d.ts",

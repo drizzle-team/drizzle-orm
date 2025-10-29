@@ -14,6 +14,116 @@
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
+	"exports": {
+		".": {
+			"import": {
+				"types": "./index.d.mts",
+				"default": "./index.mjs"
+			},
+			"require": {
+				"types": "./index.d.cts",
+				"default": "./index.cjs"
+			},
+			"types": "./index.d.ts",
+			"default": "./index.mjs"
+		},
+		"./_relations": {
+			"import": {
+				"types": "./_relations.d.mts",
+				"default": "./_relations.mjs"
+			},
+			"require": {
+				"types": "./_relations.d.cts",
+				"default": "./_relations.cjs"
+			},
+			"types": "./_relations.d.ts",
+			"default": "./_relations.mjs"
+		},
+		"./casing": {
+			"import": {
+				"types": "./casing.d.mts",
+				"default": "./casing.mjs"
+			},
+			"require": {
+				"types": "./casing.d.cts",
+				"default": "./casing.cjs"
+			},
+			"types": "./casing.d.ts",
+			"default": "./casing.mjs"
+		},
+		"./migrator": {
+			"import": {
+				"types": "./migrator.d.mts",
+				"default": "./migrator.mjs"
+			},
+			"require": {
+				"types": "./migrator.d.cts",
+				"default": "./migrator.cjs"
+			},
+			"types": "./migrator.d.ts",
+			"default": "./migrator.mjs"
+		},
+		"./version": {
+			"import": {
+				"types": "./version.d.mts",
+				"default": "./version.mjs"
+			},
+			"require": {
+				"types": "./version.d.cts",
+				"default": "./version.cjs"
+			},
+			"types": "./version.d.ts",
+			"default": "./version.mjs"
+		},
+		"./cache/core/types": {
+			"import": {
+				"types": "./cache/core/types.d.mts",
+				"default": "./cache/core/types.mjs"
+			},
+			"require": {
+				"types": "./cache/core/types.d.cts",
+				"default": "./cache/core/types.cjs"
+			},
+			"types": "./cache/core/types.d.ts",
+			"default": "./cache/core/types.mjs"
+		},
+		"./*": {
+			"import": {
+				"types": "./*/index.d.mts",
+				"default": "./*/index.mjs"
+			},
+			"require": {
+				"types": "./*/index.d.cts",
+				"default": "./*/index.cjs"
+			},
+			"types": "./*/index.d.ts",
+			"default": "./*/index.mjs"
+		},
+		"./*/migrator": {
+			"import": {
+				"types": "./*/migrator.d.mts",
+				"default": "./*/migrator.mjs"
+			},
+			"require": {
+				"types": "./*/migrator.d.cts",
+				"default": "./*/migrator.cjs"
+			},
+			"types": "./*/migrator.d.ts",
+			"default": "./*/migrator.mjs"
+		},
+		"./*/expressions": {
+			"import": {
+				"types": "./*/expressions.d.mts",
+				"default": "./*/expressions.mjs"
+			},
+			"require": {
+				"types": "./*/expressions.d.cts",
+				"default": "./*/expressions.cjs"
+			},
+			"types": "./*/expressions.d.ts",
+			"default": "./*/expressions.mjs"
+		}
+	},
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
