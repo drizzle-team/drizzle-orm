@@ -1,12 +1,12 @@
-import type { ChangeColumnTableName, Dialect } from '~/column-builder.ts';
-import type { AnyColumn, Column, GetColumnData, UpdateColConfig } from '~/column.ts';
+import type { ChangeColumnTableName, ColumnDataType, Dialect } from '~/column-builder.ts';
+import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
 import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsAny, IsUnion, Not, Simplify } from '~/utils.ts';
 
-export type JoinType = 'inner' | 'left' | 'right' | 'full';
+export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross';
 
 export type JoinNullability = 'nullable' | 'not-null';
 
@@ -17,9 +17,12 @@ export type ApplyNullability<T, TNullability extends JoinNullability> = TNullabi
 export type ApplyNullabilityToColumn<TColumn extends Column, TNullability extends JoinNullability> =
 	TNullability extends 'not-null' ? TColumn
 		: Column<
-			UpdateColConfig<TColumn['_'], {
-				notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
-			}>
+			Assume<
+				UpdateColConfig<TColumn['_'], {
+					notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
+				}>,
+				ColumnBaseConfig<ColumnDataType, string>
+			>
 		>;
 
 export type ApplyNotNullMapToJoins<TResult, TNullabilityMap extends Record<string, JoinNullability>> =
@@ -91,6 +94,7 @@ export type AddAliasToSelection<
 		: {
 			[Key in keyof TSelection]: TSelection[Key] extends Column
 				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>
+				: TSelection[Key] extends Table ? AddAliasToSelection<TSelection[Key]['_']['columns'], TAlias, TDialect>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>
 				: never;
@@ -104,7 +108,7 @@ export type AppendToResult<
 	TSelectedFields extends SelectedFields<Column, Table>,
 	TOldSelectMode extends SelectMode,
 > = TOldSelectMode extends 'partial' ? TResult
-	: TOldSelectMode extends 'single' ? 
+	: TOldSelectMode extends 'single' ?
 			& (TTableName extends string ? Record<TTableName, TResult> : TResult)
 			& (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields)
 	: TResult & (TJoinedName extends string ? Record<TJoinedName, TSelectedFields> : TSelectedFields);
@@ -113,11 +117,12 @@ export type BuildSubquerySelection<
 	TSelection extends ColumnsSelection,
 	TNullability extends Record<string, JoinNullability>,
 > = TSelection extends never ? any
-	: 
+	:
 		& {
 			[Key in keyof TSelection]: TSelection[Key] extends SQL
 				? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
 				: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Table ? BuildSubquerySelection<TSelection[Key]['_']['columns'], TNullability>
 				: TSelection[Key] extends Column
 					? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
 				: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
@@ -136,6 +141,7 @@ export type AppendToNullabilityMap<
 > = TJoinedName extends string ? 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
 	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
+	: 'cross' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
 	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
 	: never
 	: TJoinsNotNull;
@@ -162,7 +168,7 @@ export type SelectResultField<T, TDeep extends boolean = true> = T extends Drizz
 
 export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<
 	{
-		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
+		[Key in keyof TSelectedFields]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}
 >;
 

@@ -51,6 +51,36 @@ ruleTester.run('enforce update with where (default options)', myRule, {
         .set()`,
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
 		},
+		{
+			code: `const a = getDatabase().update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+		},
+		{
+			code: `const a = this.dataSource.getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.dataSource.getDatabase(...)' } }],
+		},
+		{
+			code: `const a = this.getDataSource().getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).getDatabase(...)' },
+			}],
+		},
+		{
+			code: `const a = this.getDataSource().db.update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).db' },
+			}],
+		},
 	],
 });
 
@@ -69,6 +99,22 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 			code: `const a = database
         .update({})`,
 			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `const a = this.database.getDatabase().update({}).set()`,
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `const a = this.getDataSource().getDatabase(arg1, arg2).update({}).set()`,
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `const a = this.getDataSource().db.update({}).set()`,
+			options: [{ drizzleObjectName: 'getDataSource' }],
 		},
 	],
 	invalid: [
@@ -92,10 +138,46 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
 			options: [{ drizzleObjectName: 'db' }],
 		},
+		{
+			code: `const a = getDatabase().update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: 'getDatabase' }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: 'getDatabase' }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: 'getDatabase' }],
+		},
+		{
+			code: `const a = this.dataSource.getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.dataSource.getDatabase(...)' } }],
+			options: [{ drizzleObjectName: 'getDatabase' }],
+		},
+		{
+			code: `const a = this.getDataSource().getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).getDatabase(...)' },
+			}],
+			options: [{ drizzleObjectName: 'getDatabase' }],
+		},
+		{
+			code: `const a = this.getDataSource().db.update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).db' },
+			}],
+			options: [{ drizzleObjectName: 'db' }],
+		},
 	],
 });
 
-ruleTester.run('enforce delete with where (array option)', myRule, {
+ruleTester.run('enforce update with where (array option)', myRule, {
 	valid: [
 		{ code: 'const a = db.update({}).set().where({});', options: [{ drizzleObjectName: ['db'] }] },
 		{ code: 'const a = this.dataSource.db.update({}).set().where({});', options: [{ drizzleObjectName: ['db'] }] },
@@ -111,6 +193,22 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 			code: `const a = database
         .update({})`,
 			options: [{ drizzleObjectName: ['db'] }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			options: [{ drizzleObjectName: ['db'] }],
+		},
+		{
+			code: `const a = this.database.getDatabase().update({}).set()`,
+			options: [{ drizzleObjectName: ['db', 'database'] }],
+		},
+		{
+			code: `const a = this.getDataSource().getDatabase(arg1, arg2).update({}).set()`,
+			options: [{ drizzleObjectName: ['db', 'getDataSource'] }],
+		},
+		{
+			code: `const a = this.getDataSource().db.update({}).set()`,
+			options: [{ drizzleObjectName: ['getDataSource'] }],
 		},
 	],
 	invalid: [
@@ -137,6 +235,42 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 		{
 			code: 'const a = db.update({}).set()',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
+			options: [{ drizzleObjectName: ['db'] }],
+		},
+		{
+			code: `const a = getDatabase().update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: ['getDatabase', 'db'] }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: ['getDatabase', 'db'] }],
+		},
+		{
+			code: `const a = getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'getDatabase(...)' } }],
+			options: [{ drizzleObjectName: ['getDatabase', 'db'] }],
+		},
+		{
+			code: `const a = this.dataSource.getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.dataSource.getDatabase(...)' } }],
+			options: [{ drizzleObjectName: ['getDatabase', 'dataSource'] }],
+		},
+		{
+			code: `const a = this.getDataSource().getDatabase(arg1, arg2).update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).getDatabase(...)' },
+			}],
+			options: [{ drizzleObjectName: ['getDatabase'] }],
+		},
+		{
+			code: `const a = this.getDataSource().db.update({}).set()`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.getDataSource(...).db' },
+			}],
 			options: [{ drizzleObjectName: ['db'] }],
 		},
 	],

@@ -1,3 +1,4 @@
+import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -6,7 +7,7 @@ import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
-import { Subquery, SubqueryConfig } from './subquery.ts';
+import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
@@ -26,10 +27,10 @@ export function mapResultRow<TResult>(
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
-			} else if (is(field, SQL.Aliased)) {
-				decoder = field.sql.decoder;
+			} else if (is(field, Subquery)) {
+				decoder = field._.sql.decoder;
 			} else {
-				decoder = field[SubqueryConfig].sql.decoder;
+				decoder = field.sql.decoder;
 			}
 			let node = result;
 			for (const [pathChunkIndex, pathChunk] of path.entries()) {
@@ -116,7 +117,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL)) {
+			if (is(value, SQL) || is(value, Column)) {
 				return [key, value];
 			} else {
 				return [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -130,16 +131,15 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 	return Object.fromEntries(entries);
 }
 
-export type UpdateSet = Record<string, SQL | Param | null | undefined>;
+export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
-export type Update<T, TUpdate> = Simplify<
+export type Update<T, TUpdate> =
 	& {
 		[K in Exclude<keyof T, keyof TUpdate>]: T[K];
 	}
-	& TUpdate
->;
+	& TUpdate;
 
 export type Simplify<T> =
 	& {
@@ -181,6 +181,8 @@ export type ValueOrArray<T> = T | T[];
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
 		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
+			if (name === 'constructor') continue;
+
 			Object.defineProperty(
 				baseClass.prototype,
 				name,
@@ -200,14 +202,20 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
+	return view[ViewBaseConfig].selectedFields;
 }
 
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
-		? table[SubqueryConfig].alias
+		? table._.alias
 		: is(table, View)
 		? table[ViewBaseConfig].name
 		: is(table, SQL)
@@ -223,9 +231,13 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
+export type Casing = 'snake_case' | 'camelCase';
+
 export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
+	casing?: Casing;
+	cache?: Cache;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -239,3 +251,92 @@ export type KnownKeysOnly<T, U> = {
 };
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
+
+/** @internal */
+export function getColumnNameAndConfig<
+	TConfig extends Record<string, any> | undefined,
+>(a: string | TConfig | undefined, b: TConfig | undefined) {
+	return {
+		name: typeof a === 'string' && a.length > 0 ? a : '' as string,
+		config: typeof a === 'object' ? a : b as TConfig,
+	};
+}
+
+export type IfNotImported<T, Y, N> = unknown extends T ? Y : N;
+
+export type ImportTypeError<TPackageName extends string> =
+	`Please install \`${TPackageName}\` to allow Drizzle ORM to connect to the database`;
+
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends any
+	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
+	: never;
+
+type ExpectedConfigShape = {
+	logger?: boolean | {
+		logQuery(query: string, params: unknown[]): void;
+	};
+	schema?: Record<string, never>;
+	casing?: 'snake_case' | 'camelCase';
+};
+
+// If this errors, you must update config shape checker function with new config specs
+const _: DrizzleConfig = {} as ExpectedConfigShape;
+const __: ExpectedConfigShape = {} as DrizzleConfig;
+
+export function isConfig(data: any): boolean {
+	if (typeof data !== 'object' || data === null) return false;
+
+	if (data.constructor.name !== 'Object') return false;
+
+	if ('logger' in data) {
+		const type = typeof data['logger'];
+		if (
+			type !== 'boolean' && (type !== 'object' || typeof data['logger']['logQuery'] !== 'function')
+			&& type !== 'undefined'
+		) return false;
+
+		return true;
+	}
+
+	if ('schema' in data) {
+		const type = typeof data['schema'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('casing' in data) {
+		const type = typeof data['casing'];
+		if (type !== 'string' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('mode' in data) {
+		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
+
+		return true;
+	}
+
+	if ('connection' in data) {
+		const type = typeof data['connection'];
+		if (type !== 'string' && type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('client' in data) {
+		const type = typeof data['client'];
+		if (type !== 'object' && type !== 'function' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if (Object.keys(data).length === 0) return true;
+
+	return false;
+}
+
+export type NeonAuthToken = string | (() => string | Promise<string>);
+
+export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();

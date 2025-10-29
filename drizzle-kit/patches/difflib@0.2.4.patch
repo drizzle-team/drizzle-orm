@@ -1,0 +1,31 @@
+diff --git a/lib/difflib.js b/lib/difflib.js
+index 80d250e7e18bdc972df3621ee5c05ffff0e3659f..94916f33dbae0d3eea6f74e2c619c4c6f52cc125 100644
+--- a/lib/difflib.js
++++ b/lib/difflib.js
+@@ -17,7 +17,7 @@ Function restore(delta, which):
+ 
+ Function unifiedDiff(a, b):
+     For two lists of strings, return a delta in unified diff format.
+-
++.
+ Class SequenceMatcher:
+     A flexible class for comparing pairs of sequences of any type.
+ 
+@@ -75,7 +75,7 @@ Class Differ:
+ 
+   SequenceMatcher = (function() {
+ 
+-    SequenceMatcher.name = 'SequenceMatcher';
++    // SequenceMatcher.name = 'SequenceMatcher';
+ 
+     /*
+       SequenceMatcher is a flexible class for comparing pairs of sequences of
+@@ -737,7 +737,7 @@ Class Differ:
+ 
+   Differ = (function() {
+ 
+-    Differ.name = 'Differ';
++    // Differ.name = 'Differ';
+ 
+     /*
+       Differ is a class for comparing sequences of lines of text, and

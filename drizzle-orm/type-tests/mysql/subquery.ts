@@ -1,7 +1,7 @@
 import { Expect } from 'type-tests/utils.ts';
-import { and, eq } from '~/expressions.ts';
-import { count } from '~/index.ts';
 import { alias, int, mysqlTable, serial, text } from '~/mysql-core/index.ts';
+import { and, eq } from '~/sql/expressions/index.ts';
+import { count } from '~/sql/functions/aggregate.ts';
 import { sql } from '~/sql/sql.ts';
 import type { DrizzleTypeError, Equal } from '~/utils.ts';
 import { db } from './db.ts';
