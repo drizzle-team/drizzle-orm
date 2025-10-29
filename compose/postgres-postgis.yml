@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DATABASE: drizzle
+      POSTGRES_DB: drizzle
       TZ: UTC
     ports:
       - "54322:5432"
