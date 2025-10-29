@@ -16,12 +16,13 @@ wait_tcp() {
 
 for db in "$@"; do
   case "$db" in
-    postgres)     wait_tcp 127.0.0.1 55433 "postgres" ;;
-    mysql)        wait_tcp 127.0.0.1 3306 "mysql" ;;
-    singlestore)  wait_tcp 127.0.0.1 33307 "singlestore" ;;
-    mssql)        wait_tcp 127.0.0.1 1433  "mssql" ;;
-    cockroach)    wait_tcp 127.0.0.1 26257 "cockroach" ;;
-    neon)         wait_tcp 127.0.0.1 5446  "neon-serverless" ;;
+    postgres)             wait_tcp 127.0.0.1 55433 "postgres" ;;
+    postgres-postgis)     wait_tcp 127.0.0.1 54322 "postgres" ;;
+    mysql)                wait_tcp 127.0.0.1 3306  "mysql" ;;
+    singlestore)          wait_tcp 127.0.0.1 33307 "singlestore" ;;
+    mssql)                wait_tcp 127.0.0.1 1433  "mssql" ;;
+    cockroach)            wait_tcp 127.0.0.1 26257 "cockroach" ;;
+    neon)                 wait_tcp 127.0.0.1 5446  "neon-serverless" ;;
     *) echo "Unknown db '$db'";;
   esac
 done
