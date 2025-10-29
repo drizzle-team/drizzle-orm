@@ -52,10 +52,12 @@ const prepareTest = () => {
 					return res.recordset as any[];
 				};
 				const batch = async (statements: string[]) => {
-					return client.batch(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
+					return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
 				};
 
-				await batch(['drop database if exists drizzle;', 'create database drizzle;', 'use drizzle;']);
+				await client.query('drop database if exists drizzle;');
+				await client.query('create database drizzle;');
+				await client.query('use drizzle;');
 
 				await use({ client, query, batch });
 				await client.close();

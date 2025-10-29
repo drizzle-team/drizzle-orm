@@ -114,7 +114,7 @@ jobs:
           - shard: zod
             dbs: []
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres, singlestore]
+            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
           - shard: typebox
             dbs: []
           - shard: valibot
@@ -139,12 +139,13 @@ jobs:
           set -euxo pipefail
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
-              postgres)    docker compose -f compose/postgres.yml up -d ;;
-              mysql)       docker compose -f compose/mysql.yml up -d ;;
-              singlestore) docker compose -f compose/singlestore.yml up -d ;;
-              mssql)       docker compose -f compose/mssql.yml up -d ;;
-              cockroach)   docker compose -f compose/cockroach.yml up -d ;;
-              gel)         docker compose -f compose/gel.yml up -d ;;
+              postgres)            docker compose -f compose/postgres.yml up -d ;;
+              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
+              mysql)               docker compose -f compose/mysql.yml up -d ;;
+              singlestore)         docker compose -f compose/singlestore.yml up -d ;;
+              mssql)               docker compose -f compose/mssql.yml up -d ;;
+              cockroach)           docker compose -f compose/cockroach.yml up -d ;;
+              gel)                 docker compose -f compose/gel.yml up -d ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -276,11 +277,12 @@ jobs:
           set -euxo pipefail
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
-              postgres)    docker compose -f compose/postgres.yml down -v ;;
-              mysql)       docker compose -f compose/mysql.yml down -v ;;
-              singlestore) docker compose -f compose/singlestore.yml down -v ;;
-              mssql)       docker compose -f compose/mssql.yml down -v ;;
-              cockroach)   docker compose -f compose/cockroach.yml down -v ;;
+              postgres)            docker compose -f compose/postgres.yml down -v ;;
+              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
+              mysql)               docker compose -f compose/mysql.yml down -v ;;
+              singlestore)         docker compose -f compose/singlestore.yml down -v ;;
+              mssql)               docker compose -f compose/mssql.yml down -v ;;
+              cockroach)           docker compose -f compose/cockroach.yml down -v ;;
             esac
           done
 
