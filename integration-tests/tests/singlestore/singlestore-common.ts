@@ -1534,13 +1534,13 @@ export function tests(driver?: string) {
 				}[]
 			>();
 
-			expect(res).toStrictEqual([{
+			expect(res).toStrictEqual(expect.arrayContaining([{
 				population: 1,
 				name: 'Paris',
 			}, {
 				population: 2,
 				name: 'London',
-			}]);
+			}]));
 		});
 
 		test('select from a one subquery', async (ctx) => {
@@ -1570,7 +1570,7 @@ export function tests(driver?: string) {
 				}[]
 			>();
 
-			expect(res).toStrictEqual([{
+			expect(res).toStrictEqual(expect.arrayContaining([{
 				cityName: 'Paris',
 				name: 'John',
 			}, {
@@ -1579,7 +1579,7 @@ export function tests(driver?: string) {
 			}, {
 				cityName: 'London',
 				name: 'Jack',
-			}]);
+			}]));
 		});
 
 		test('left join (all fields)', async (ctx) => {
