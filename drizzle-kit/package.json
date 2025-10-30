@@ -116,27 +116,23 @@
 	"exports": {
 		".": {
 			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
+				"types": "./index.d.ts",
+				"default": "./index.js"
 			},
 			"require": {
 				"types": "./index.d.cts",
 				"default": "./index.cjs"
-			},
-			"types": "./index.d.mts",
-			"default": "./index.mjs"
+			}
 		},
 		"./api-postgres": {
 			"import": {
-				"types": "./api-postgres.d.mts",
-				"default": "./api-postgres.mjs"
+				"types": "./api-postgres.d.js",
+				"default": "./api-postgres.js"
 			},
 			"require": {
 				"types": "./api-postgres.d.cts",
 				"default": "./api-postgres.cjs"
-			},
-			"types": "./api-postgres.d.mts",
-			"default": "./api-postgres.mjs"
+			}
 		}
 	}
 }

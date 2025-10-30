@@ -1,7 +1,6 @@
 {
 	"name": "drizzle-seed",
 	"version": "0.4.0",
-	"main": "index.js",
 	"type": "module",
 	"scripts": {
 		"build": "bun scripts/build.ts",
@@ -21,6 +20,21 @@
 		"benchmark": "npx tsx ./src/tests/benchmarks/generatorsBenchmark.ts",
 		"publish": "npm publish package.tgz"
 	},
+	"exports": {
+		".": {
+			"import": {
+				"types": "./index.d.ts",
+				"default": "./index.js"
+			},
+			"require": {
+				"types": "./index.d.cts",
+				"default": "./index.cjs"
+			}
+		}
+	},
+	"main": "./index.cjs",
+	"module": "./index.js",
+	"types": "./index.d.ts",
 	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"bugs": {
@@ -52,20 +66,6 @@
 	},
 	"sideEffects": false,
 	"description": "A package to seed your database using Drizzle ORM",
-	"exports": {
-		".": {
-			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
-			},
-			"require": {
-				"types": "./index.d.cts",
-				"default": "./index.cjs"
-			},
-			"types": "./index.d.ts",
-			"default": "./index.mjs"
-		}
-	},
 	"peerDependencies": {
 		"drizzle-orm": ">=1.0.0-beta.1"
 	},

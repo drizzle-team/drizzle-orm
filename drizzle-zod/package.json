@@ -16,19 +16,17 @@
 	"exports": {
 		".": {
 			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
+				"types": "./index.d.ts",
+				"default": "./index.js"
 			},
 			"require": {
 				"types": "./index.d.cts",
 				"default": "./index.cjs"
-			},
-			"types": "./index.d.ts",
-			"default": "./index.mjs"
+			}
 		}
 	},
 	"main": "./index.cjs",
-	"module": "./index.mjs",
+	"module": "./index.js",
 	"types": "./index.d.ts",
 	"publishConfig": {
 		"provenance": true

@@ -19,23 +19,26 @@ export async function build(config: {
 		distDelete?: boolean;
 		resolveTsPaths?: boolean;
 	};
+	customPackageJsonExports?: Record<string, any>;
 }) {
 	if (!config.skip?.distDelete) await rm('dist', { recursive: true, force: true });
 	await $`rolldown --config rolldown.config.ts`;
 	if (!config.skip?.resolveTsPaths) await $`resolve-tspaths`;
+
 	await Promise.all([
 		Bun.write('dist/README.md', Bun.file(config.readme)),
 		Bun.write('dist/package.json', Bun.file('package.json')),
 	]);
+	if (config.customPackageJsonExports) {
+		const pkg = await Bun.file('dist/package.json').json();
+		pkg.exports = config.customPackageJsonExports;
+		await Bun.write('dist/package.json', JSON.stringify(pkg, null, 2));
+	}
 
-	const declarationFilesGlob = new Glob('**/*.d.mts');
+	const declarationFilesGlob = new Glob('**/*.d.ts');
 	for await (const file of declarationFilesGlob.scan('./dist')) {
-		const newFileName1 = file.replace(/\.d\.mts$/, '.d.ts');
-		const newFileName2 = file.replace(/\.d\.mts$/, '.d.cts');
-		await Promise.all([
-			Bun.write(`dist/${newFileName1}`, Bun.file(`dist/${file}`)),
-			Bun.write(`dist/${newFileName2}`, Bun.file(`dist/${file}`)),
-		]);
+		const ctsFileName = file.replace(/\.d\.ts$/, '.d.cts');
+		await Bun.write(`dist/${ctsFileName}`, Bun.file(`dist/${file}`));
 	}
 
 	const [cjsFiles, jsFiles, mjsFiles] = await Promise.all([
