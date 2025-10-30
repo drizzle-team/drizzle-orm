@@ -372,6 +372,7 @@ test('introspect all column types', async () => {
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
+			jsonb2: jsonb('jsonb2').default({}),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -405,6 +406,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -424,6 +426,7 @@ test('introspect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb1: jsonb('jsonb3').array().default(sql`'{}'`),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
