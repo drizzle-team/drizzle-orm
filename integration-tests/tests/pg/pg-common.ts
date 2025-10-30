@@ -242,15 +242,6 @@ export const usersTable = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-const usersOnUpdate = pgTable('users_on_update', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
-	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
-	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`), looks like this is not supported in pg
-});
-
 const citiesTable = pgTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -268,24 +259,10 @@ const users2Table = pgTable('users2', {
 	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
-const _tictactoe = pgTable('tictactoe', {
-	squares: integer('squares').array(3).array(3),
-});
-
 export const usersMigratorTable = pgTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-});
-
-// To test aggregate functions
-const aggregateTable = pgTable('aggregate_table', {
-	id: serial('id').notNull(),
-	name: text('name').notNull(),
-	a: integer('a'),
-	b: integer('b'),
-	c: integer('c'),
-	nullOnly: integer('null_only'),
 });
 
 // To test another schema and multischema
@@ -355,33 +332,6 @@ async function setupSetOperationTest(
 		{ id: 6, name: 'Jill', cityId: 1 },
 		{ id: 7, name: 'Mary', cityId: 2 },
 		{ id: 8, name: 'Sally', cityId: 1 },
-	]);
-}
-
-async function setupAggregateFunctionsTest(
-	db: PgDatabase<any, any>,
-) {
-	await db.execute(sql`drop table if exists "aggregate_table"`);
-	await db.execute(
-		sql`
-					create table "aggregate_table" (
-						"id" serial not null,
-						"name" text not null,
-						"a" integer,
-						"b" integer,
-						"c" integer,
-						"null_only" integer
-					);
-				`,
-	);
-	await db.insert(aggregateTable).values([
-		{ name: 'value 1', a: 5, b: 10, c: 20 },
-		{ name: 'value 1', a: 5, b: 20, c: 30 },
-		{ name: 'value 2', a: 10, b: 50, c: 60 },
-		{ name: 'value 3', a: 20, b: 20, c: null },
-		{ name: 'value 4', a: null, b: 90, c: 120 },
-		{ name: 'value 5', a: 80, b: 10, c: null },
-		{ name: 'value 6', a: null, b: null, c: 150 },
 	]);
 }
 
@@ -2005,7 +1955,21 @@ export function tests(skips: string[] = []) {
 			expect(res).toEqual(values);
 		});
 
-		test('having', async ({ db }) => {
+		test.concurrent.only('having', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_85', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_85', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').notNull(),
+			});
+
+			await push({ citiesTable });
+			await push({ users2Table });
+
 			await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
 
 			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 1 }, {
@@ -2188,8 +2152,6 @@ export function tests(skips: string[] = []) {
 					{ name: 'Jane' },
 				]);
 			}
-
-			await db.execute(sql`drop materialized view ${newYorkers1}`);
 		});
 
 		test.concurrent.only('select from existing view', async ({ db, push }) => {
@@ -2197,17 +2159,14 @@ export function tests(skips: string[] = []) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 			});
+			const schema = pgSchema('mySchema');
 
-			await push({ usersTable });
-
-			const schema = pgSchema('test_schema');
+			await push({ schema, usersTable });
 
 			const newYorkers = schema.view('new_yorkers', {
 				id: integer('id').notNull(),
 			}).existing();
 
-			await db.execute(sql`drop schema if exists ${schema} cascade`);
-			await db.execute(sql`create schema ${schema}`);
 			await db.execute(sql`create view ${newYorkers} as select id from ${usersTable}`);
 
 			await db.insert(usersTable).values({ id: 100, name: 'John' });
@@ -2311,27 +2270,21 @@ export function tests(skips: string[] = []) {
 			]);
 		});
 
-		test('prefixed table', async ({ db }) => {
+		test.concurrent.only('prefixed table', async ({ db, push }) => {
 			const pgTable = pgTableCreator((name) => `myprefix_${name}`);
 
-			const users = pgTable('test_prefixed_table_with_unique_name', {
+			const users = pgTable('test_prefixed_table_with_unique_name_86', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table myprefix_test_prefixed_table_with_unique_name (id integer not null primary key, name text not null)`,
-			);
+			await push({ users });
 
 			await db.insert(users).values({ id: 1, name: 'John' });
 
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
 		test.concurrent.only('select from enum as ts enum', async ({ db, push }) => {
@@ -2543,22 +2496,7 @@ export function tests(skips: string[] = []) {
 				interval: interval('interval').notNull(),
 			});
 
-			await push({ tableName: table });
-			await db.execute(sql`drop table if exists ${table}`);
-
-			await db.execute(sql`
-				create table ${table} (
-							id serial primary key,
-							date_string date not null,
-							time time(3) not null,
-							datetime timestamp not null,
-							datetime_wtz timestamp with time zone not null,
-							datetime_string timestamp not null,
-							datetime_full_precision timestamp(6) not null,
-							datetime_wtz_string timestamp with time zone not null,
-							interval interval not null
-					)
-			`);
+			await push({ table });
 
 			const someDatetime = new Date('2022-01-01T00:00:00.123Z');
 			const fullPrecision = '2022-01-01T00:00:00.123456Z';
@@ -2618,8 +2556,6 @@ export function tests(skips: string[] = []) {
 					interval: '1 day',
 				},
 			]);
-
-			await db.execute(sql`drop table if exists ${table}`);
 		});
 
 		test.concurrent.only('all date and time columns with timezone second case mode date', async ({ db, push }) => {
@@ -2628,15 +2564,7 @@ export function tests(skips: string[] = []) {
 				timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 			});
 
-			await push({ tableName: table });
-			await db.execute(sql`drop table if exists ${table}`);
-
-			await db.execute(sql`
-				create table ${table} (
-							id serial primary key,
-							timestamp_string timestamp(3) with time zone not null
-					)
-			`);
+			await push({ table });
 
 			const insertedDate = new Date();
 
@@ -2653,8 +2581,6 @@ export function tests(skips: string[] = []) {
 
 			// 3. Compare both dates
 			expect(insertedDate.getTime()).toBe(result[0]?.timestamp.getTime());
-
-			await db.execute(sql`drop table if exists ${table}`);
 		});
 
 		test.concurrent.only('all date and time columns with timezone third case mode date', async ({ db, push }) => {
@@ -2663,15 +2589,7 @@ export function tests(skips: string[] = []) {
 				timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 			});
 
-			await push({ tableName: table });
-			await db.execute(sql`drop table if exists ${table}`);
-
-			await db.execute(sql`
-				create table ${table} (
-							id serial primary key,
-							timestamp_string timestamp(3) with time zone not null
-					)
-			`);
+			await push({ table });
 
 			const insertedDate = new Date('2022-01-01 20:00:00.123-04'); // used different time zones, internally is still UTC
 			const insertedDate2 = new Date('2022-01-02 04:00:00.123+04'); // They are both the same date in different time zones
@@ -2686,8 +2604,6 @@ export function tests(skips: string[] = []) {
 			const result = await db.select().from(table);
 
 			expect(result[0]?.timestamp.getTime()).toBe(result[1]?.timestamp.getTime());
-
-			await db.execute(sql`drop table if exists ${table}`);
 		});
 
 		test.concurrent.only('select from sql', async ({ db, push }) => {
@@ -2696,9 +2612,7 @@ export function tests(skips: string[] = []) {
 				createdAt: timestamp('created_at').notNull(),
 			});
 
-			await push({ tableName: metricEntry });
-			await db.execute(sql`drop table if exists ${metricEntry}`);
-			await db.execute(sql`create table ${metricEntry} (id uuid not null, created_at timestamp not null)`);
+			await push({ metricEntry });
 
 			const metricId = randomUUID();
 
@@ -2744,19 +2658,7 @@ export function tests(skips: string[] = []) {
 				updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
 			});
 
-			await push({ tableName: usersTableWithAndWithoutTimezone });
-			await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
-
-			await db.execute(
-				sql`
-					create table users_test_with_and_without_timezone_72 (
-						id serial not null primary key,
-						name text not null,
-						created_at timestamptz not null default now(),
-						updated_at timestamp not null default now()
-					)
-				`,
-			);
+			await push({ usersTableWithAndWithoutTimezone });
 
 			const date = new Date(Date.parse('2020-01-01T00:00:00+04:00'));
 
@@ -2788,17 +2690,7 @@ export function tests(skips: string[] = []) {
 				stock: integer('stock').notNull(),
 			});
 
-			await push({ tableName: users });
-			await push({ tableName: products });
-			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`drop table if exists ${products}`);
-
-			await db.execute(
-				sql`create table users_transactions_73 (id serial not null primary key, balance integer not null)`,
-			);
-			await db.execute(
-				sql`create table products_transactions_73 (id serial not null primary key, price integer not null, stock integer not null)`,
-			);
+			await push({ users, products });
 
 			const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
 			const product = await db.insert(products).values({ price: 10, stock: 10 }).returning().then((rows) => rows[0]!);
@@ -2811,9 +2703,6 @@ export function tests(skips: string[] = []) {
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([{ id: 1, balance: 90 }]);
-
-			await db.execute(sql`drop table ${users}`);
-			await db.execute(sql`drop table ${products}`);
 		});
 
 		test.concurrent.only('transaction rollback', async ({ db, push }) => {
@@ -2822,12 +2711,7 @@ export function tests(skips: string[] = []) {
 				balance: integer('balance').notNull(),
 			});
 
-			await push({ tableName: users });
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table users_transactions_rollback_74 (id serial not null primary key, balance integer not null)`,
-			);
+			await push({ users });
 
 			await expect((async () => {
 				await db.transaction(async (tx) => {
@@ -2839,8 +2723,6 @@ export function tests(skips: string[] = []) {
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
 		test.concurrent.only('nested transaction', async ({ db, push }) => {
@@ -2849,12 +2731,7 @@ export function tests(skips: string[] = []) {
 				balance: integer('balance').notNull(),
 			});
 
-			await push({ tableName: users });
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table users_nested_transactions_75 (id serial not null primary key, balance integer not null)`,
-			);
+			await push({ users });
 
 			await db.transaction(async (tx) => {
 				await tx.insert(users).values({ balance: 100 });
@@ -2877,12 +2754,7 @@ export function tests(skips: string[] = []) {
 				balance: integer('balance').notNull(),
 			});
 
-			await push({ tableName: users });
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table users_nested_transactions_rollback_76 (id serial not null primary key, balance integer not null)`,
-			);
+			await push({ users });
 
 			await db.transaction(async (tx) => {
 				await tx.insert(users).values({ balance: 100 });
@@ -2898,8 +2770,6 @@ export function tests(skips: string[] = []) {
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([{ id: 1, balance: 100 }]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
 		test.concurrent.only('join subquery with join', async ({ db, push }) => {
@@ -2939,10 +2809,6 @@ export function tests(skips: string[] = []) {
 					custom_user_77: { id: 1 },
 				},
 			}]);
-
-			await db.execute(sql`drop table ${internalStaff}`);
-			await db.execute(sql`drop table ${customUser}`);
-			await db.execute(sql`drop table ${ticket}`);
 		});
 
 		test.concurrent.only('subquery with view', async ({ db, push }) => {
@@ -2954,14 +2820,7 @@ export function tests(skips: string[] = []) {
 
 			const newYorkers = pgView('new_yorkers_78').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-			await push({ tableName: users });
-			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`drop view if exists ${newYorkers}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-			);
-			await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+			await push({ users, newYorkers });
 
 			await db.insert(users).values([
 				{ name: 'John', cityId: 1 },
@@ -2991,14 +2850,7 @@ export function tests(skips: string[] = []) {
 
 			const newYorkers = pgView('new_yorkers_79').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-			await push({ tableName: users });
-			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`drop view if exists ${newYorkers}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-			);
-			await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
+			await push({ users, newYorkers });
 
 			await db.insert(users).values([
 				{ name: 'John', cityId: 1 },
@@ -3029,82 +2881,57 @@ export function tests(skips: string[] = []) {
 					new_yorkers_sq: null,
 				},
 			]);
-
-			await db.execute(sql`drop view ${newYorkers}`);
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('table selection with single table', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('table selection with single table', async ({ db, push }) => {
+			const users = pgTable('users_80', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, name text not null, city_id integer not null)`,
-			);
+			await push({ users });
 
 			await db.insert(users).values({ name: 'John', cityId: 1 });
 
 			const result = await db.select({ users }).from(users);
 
 			expect(result).toEqual([{ users: { id: 1, name: 'John', cityId: 1 } }]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('set null to jsonb field', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('set null to jsonb field', async ({ db, push }) => {
+			const users = pgTable('users_81', {
 				id: serial('id').primaryKey(),
 				jsonb: jsonb('jsonb'),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, jsonb jsonb)`,
-			);
+			await push({ users });
 
 			const result = await db.insert(users).values({ jsonb: null }).returning();
 
 			expect(result).toEqual([{ id: 1, jsonb: null }]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('insert undefined', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('insert undefined', async ({ db, push }) => {
+			const users = pgTable('users_82', {
 				id: serial('id').primaryKey(),
 				name: text('name'),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, name text)`,
-			);
+			await push({ users });
 
 			await expect((async () => {
 				await db.insert(users).values({ name: undefined });
 			})()).resolves.not.toThrowError();
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('update undefined', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('update undefined', async ({ db, push }) => {
+			const users = pgTable('users_83', {
 				id: serial('id').primaryKey(),
 				name: text('name'),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial not null primary key, name text)`,
-			);
+			await push({ users });
 
 			await expect((async () => {
 				await db.update(users).set({ name: undefined });
@@ -3112,21 +2939,15 @@ export function tests(skips: string[] = []) {
 			await expect((async () => {
 				db.update(users).set({ name: undefined });
 			})()).rejects.toThrowError();
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('array operators', async ({ db }) => {
-			const posts = pgTable('posts', {
+		test.concurrent.only('array operators', async ({ db, push }) => {
+			const posts = pgTable('posts_84', {
 				id: serial('id').primaryKey(),
 				tags: text('tags').array(),
 			});
 
-			await db.execute(sql`drop table if exists ${posts}`);
-
-			await db.execute(
-				sql`create table ${posts} (id serial primary key, tags text[])`,
-			);
+			await push({ posts });
 
 			await db.insert(posts).values([{
 				tags: ['ORM'],
@@ -3160,15 +2981,43 @@ export function tests(skips: string[] = []) {
 			expect(withSubQuery).toEqual([{ id: 1 }, { id: 3 }, { id: 5 }]);
 		});
 
-		test('set operations (union) from query builder with subquery', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (union) from query builder with subquery', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const sq = db
 				.select({ id: users2Table.id, name: users2Table.name })
 				.from(users2Table).as('sq');
 
 			const result = await db
-				.select({ id: cities2Table.id, name: citiesTable.name })
+				.select({ id: cities2Table.id, name: cities2Table.name })
 				.from(cities2Table).union(
 					db.select().from(sq),
 				).orderBy(asc(sql`name`)).limit(2).offset(1);
@@ -3182,7 +3031,7 @@ export function tests(skips: string[] = []) {
 
 			await expect((async () => {
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name, name2: users2Table.name })
+					.select({ id: cities2Table.id, name: cities2Table.name, name2: users2Table.name })
 					.from(cities2Table).union(
 						// @ts-expect-error
 						db
@@ -3192,13 +3041,41 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (union) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (union) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await union(
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
-					.from(cities2Table).where(eq(citiesTable.id, 1)),
+					.select({ id: cities2Table.id, name: cities2Table.name })
+					.from(cities2Table).where(eq(cities2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3216,26 +3093,54 @@ export function tests(skips: string[] = []) {
 			await expect((async () => {
 				union(
 					db
-						.select({ name: citiesTable.name, id: cities2Table.id })
-						.from(cities2Table).where(eq(citiesTable.id, 1)),
+						.select({ name: cities2Table.name, id: cities2Table.id })
+						.from(cities2Table).where(eq(cities2Table.id, 1)),
 					db
 						.select({ id: users2Table.id, name: users2Table.name })
 						.from(users2Table).where(eq(users2Table.id, 1)),
 					db
 						.select({ id: users2Table.id, name: users2Table.name })
 						.from(users2Table).where(eq(users2Table.id, 1)),
-				).orderBy(asc(sql`name`));
+				);
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (union all) from query builder', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (union all) from query builder', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_3', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_3', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await db
-				.select({ id: cities2Table.id, name: citiesTable.name })
+				.select({ id: cities2Table.id, name: cities2Table.name })
 				.from(cities2Table).limit(2).unionAll(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
+						.select({ id: cities2Table.id, name: cities2Table.name })
 						.from(cities2Table).limit(2),
 				).orderBy(asc(sql`id`));
 
@@ -3250,22 +3155,50 @@ export function tests(skips: string[] = []) {
 
 			await expect((async () => {
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
+					.select({ id: cities2Table.id, name: cities2Table.name })
 					.from(cities2Table).limit(2).unionAll(
 						db
-							.select({ name: citiesTable.name, id: cities2Table.id })
+							.select({ name: cities2Table.name, id: cities2Table.id })
 							.from(cities2Table).limit(2),
 					).orderBy(asc(sql`id`));
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (union all) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (union all) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_4', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_4', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await unionAll(
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
-					.from(cities2Table).where(eq(citiesTable.id, 1)),
+					.select({ id: cities2Table.id, name: cities2Table.name })
+					.from(cities2Table).where(eq(cities2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3285,8 +3218,8 @@ export function tests(skips: string[] = []) {
 			await expect((async () => {
 				unionAll(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
-						.from(cities2Table).where(eq(citiesTable.id, 1)),
+						.select({ id: cities2Table.id, name: cities2Table.name })
+						.from(cities2Table).where(eq(cities2Table.id, 1)),
 					db
 						.select({ name: users2Table.name, id: users2Table.id })
 						.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3297,15 +3230,43 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) from query builder', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (intersect) from query builder', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_5', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_5', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await db
-				.select({ id: cities2Table.id, name: citiesTable.name })
+				.select({ id: cities2Table.id, name: cities2Table.name })
 				.from(cities2Table).intersect(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
-						.from(cities2Table).where(gt(citiesTable.id, 1)),
+						.select({ id: cities2Table.id, name: cities2Table.name })
+						.from(cities2Table).where(gt(cities2Table.id, 1)),
 				).orderBy(asc(sql`name`));
 
 			expect(result).toHaveLength(2);
@@ -3317,23 +3278,51 @@ export function tests(skips: string[] = []) {
 
 			await expect((async () => {
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
+					.select({ id: cities2Table.id, name: cities2Table.name })
 					.from(cities2Table).intersect(
 						// @ts-expect-error
 						db
-							.select({ id: cities2Table.id, name: citiesTable.name, id2: cities2Table.id })
-							.from(cities2Table).where(gt(citiesTable.id, 1)),
+							.select({ id: cities2Table.id, name: cities2Table.name, id2: cities2Table.id })
+							.from(cities2Table).where(gt(cities2Table.id, 1)),
 					).orderBy(asc(sql`name`));
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (intersect) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_6', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_6', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await intersect(
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
-					.from(cities2Table).where(eq(citiesTable.id, 1)),
+					.select({ id: cities2Table.id, name: cities2Table.name })
+					.from(cities2Table).where(eq(cities2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3349,8 +3338,8 @@ export function tests(skips: string[] = []) {
 			await expect((async () => {
 				intersect(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
-						.from(cities2Table).where(eq(citiesTable.id, 1)),
+						.select({ id: cities2Table.id, name: cities2Table.name })
+						.from(cities2Table).where(eq(cities2Table.id, 1)),
 					db
 						.select({ id: users2Table.id, name: users2Table.name })
 						.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3361,14 +3350,42 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect all) from query builder', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (intersect all) from query builder', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_7', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_7', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await db
-				.select({ id: cities2Table.id, name: citiesTable.name })
+				.select({ id: cities2Table.id, name: cities2Table.name })
 				.from(cities2Table).limit(2).intersectAll(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
+						.select({ id: cities2Table.id, name: cities2Table.name })
 						.from(cities2Table).limit(2),
 				).orderBy(asc(sql`id`));
 
@@ -3381,7 +3398,7 @@ export function tests(skips: string[] = []) {
 
 			await expect((async () => {
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
+					.select({ id: cities2Table.id, name: cities2Table.name })
 					.from(cities2Table).limit(2).intersectAll(
 						db
 							.select({ name: users2Table.name, id: users2Table.id })
@@ -3390,8 +3407,36 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (intersect all) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (intersect all) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_8', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_8', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await intersectAll(
 				db
@@ -3426,15 +3471,43 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (except) from query builder', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (except) from query builder', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_9', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_9', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await db
 				.select()
 				.from(cities2Table).except(
 					db
 						.select()
-						.from(cities2Table).where(gt(citiesTable.id, 1)),
+						.from(cities2Table).where(gt(cities2Table.id, 1)),
 				);
 
 			expect(result).toHaveLength(1);
@@ -3449,21 +3522,49 @@ export function tests(skips: string[] = []) {
 					.from(cities2Table).except(
 						db
 							.select({ name: users2Table.name, id: users2Table.id })
-							.from(cities2Table).where(gt(citiesTable.id, 1)),
+							.from(cities2Table).where(gt(cities2Table.id, 1)),
 					);
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (except) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (except) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_10', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_10', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await except(
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
+					.select({ id: cities2Table.id, name: cities2Table.name })
 					.from(cities2Table),
 				db
-					.select({ id: cities2Table.id, name: citiesTable.name })
-					.from(cities2Table).where(eq(citiesTable.id, 1)),
+					.select({ id: cities2Table.id, name: cities2Table.name })
+					.from(cities2Table).where(eq(cities2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3479,11 +3580,11 @@ export function tests(skips: string[] = []) {
 			await expect((async () => {
 				except(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
+						.select({ id: cities2Table.id, name: cities2Table.name })
 						.from(cities2Table),
 					db
 						.select({ name: users2Table.name, id: users2Table.id })
-						.from(cities2Table).where(eq(citiesTable.id, 1)),
+						.from(cities2Table).where(eq(cities2Table.id, 1)),
 					db
 						.select({ id: users2Table.id, name: users2Table.name })
 						.from(users2Table).where(eq(users2Table.id, 1)),
@@ -3491,15 +3592,43 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (except all) from query builder', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (except all) from query builder', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_11', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_11', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await db
 				.select()
 				.from(cities2Table).exceptAll(
 					db
-						.select({ id: cities2Table.id, name: citiesTable.name })
-						.from(cities2Table).where(eq(citiesTable.id, 1)),
+						.select({ id: cities2Table.id, name: cities2Table.name })
+						.from(cities2Table).where(eq(cities2Table.id, 1)),
 				).orderBy(asc(sql`id`));
 
 			expect(result).toHaveLength(2);
@@ -3514,14 +3643,42 @@ export function tests(skips: string[] = []) {
 					.select({ name: cities2Table.name, id: cities2Table.id })
 					.from(cities2Table).exceptAll(
 						db
-							.select({ id: cities2Table.id, name: citiesTable.name })
-							.from(cities2Table).where(eq(citiesTable.id, 1)),
+							.select({ id: cities2Table.id, name: cities2Table.name })
+							.from(cities2Table).where(eq(cities2Table.id, 1)),
 					).orderBy(asc(sql`id`));
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (except all) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.only('set operations (except all) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities2_12', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_12', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await exceptAll(
 				db
@@ -3596,8 +3753,36 @@ export function tests(skips: string[] = []) {
 			})()).rejects.toThrowError();
 		});
 
-		test('set operations (mixed all) as function', async ({ db }) => {
-			await setupSetOperationTest(db);
+		test.concurrent.only('set operations (mixed all) as function', async ({ db, push }) => {
+			const cities2Table = pgTable('cities_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
 
 			const result = await union(
 				db
@@ -3612,7 +3797,7 @@ export function tests(skips: string[] = []) {
 						.from(users2Table).where(eq(users2Table.id, 7)),
 				),
 				db
-					.select().from(cities2Table).where(gt(citiesTable.id, 1)),
+					.select().from(cities2Table).where(gt(cities2Table.id, 1)),
 			).orderBy(asc(sql`id`));
 
 			expect(result).toHaveLength(6);
@@ -3640,89 +3825,171 @@ export function tests(skips: string[] = []) {
 							.from(users2Table).where(eq(users2Table.id, 7)),
 					),
 					db
-						.select().from(cities2Table).where(gt(citiesTable.id, 1)),
+						.select().from(cities2Table).where(gt(cities2Table.id, 1)),
 				).orderBy(asc(sql`id`));
 			})()).rejects.toThrowError();
 		});
 
-		test('aggregate function: count', async ({ db }) => {
-			const table = aggregateTable;
-			await setupAggregateFunctionsTest(db);
+		test.concurrent.only('aggregate function: count', async ({ db, push }) => {
+			const aggregateTable = pgTable('aggregate_table_2', {
+				id: serial('id').notNull(),
+				name: text('name').notNull(),
+				a: integer('a'),
+				b: integer('b'),
+				c: integer('c'),
+				nullOnly: integer('null_only'),
+			});
 
-			const result1 = await db.select({ value: count() }).from(table);
-			const result2 = await db.select({ value: count(table.a) }).from(table);
-			const result3 = await db.select({ value: countDistinct(table.name) }).from(table);
+			await push({ aggregateTable });
+
+			await db.insert(aggregateTable).values([
+				{ name: 'value 1', a: 5, b: 10, c: 20 },
+				{ name: 'value 1', a: 5, b: 20, c: 30 },
+				{ name: 'value 2', a: 10, b: 50, c: 60 },
+				{ name: 'value 3', a: 20, b: 20, c: null },
+				{ name: 'value 4', a: null, b: 90, c: 120 },
+				{ name: 'value 5', a: 80, b: 10, c: null },
+				{ name: 'value 6', a: null, b: null, c: 150 },
+			]);
+
+			const result1 = await db.select({ value: count() }).from(aggregateTable);
+			const result2 = await db.select({ value: count(aggregateTable.a) }).from(aggregateTable);
+			const result3 = await db.select({ value: countDistinct(aggregateTable.name) }).from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(7);
 			expect(result2[0]?.value).toBe(5);
 			expect(result3[0]?.value).toBe(6);
 		});
 
-		test('aggregate function: avg', async ({ db }) => {
-			const table = aggregateTable;
-			await setupAggregateFunctionsTest(db);
+		test.concurrent.only('aggregate function: avg', async ({ db, push }) => {
+			const aggregateTable = pgTable('aggregate_table_3', {
+				id: serial('id').notNull(),
+				name: text('name').notNull(),
+				a: integer('a'),
+				b: integer('b'),
+				c: integer('c'),
+				nullOnly: integer('null_only'),
+			});
 
-			const result1 = await db.select({ value: avg(table.b) }).from(table);
-			const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);
-			const result3 = await db.select({ value: avgDistinct(table.b) }).from(table);
+			await push({ aggregateTable });
+
+			await db.insert(aggregateTable).values([
+				{ name: 'value 1', a: 5, b: 10, c: 20 },
+				{ name: 'value 1', a: 5, b: 20, c: 30 },
+				{ name: 'value 2', a: 10, b: 50, c: 60 },
+				{ name: 'value 3', a: 20, b: 20, c: null },
+				{ name: 'value 4', a: null, b: 90, c: 120 },
+				{ name: 'value 5', a: 80, b: 10, c: null },
+				{ name: 'value 6', a: null, b: null, c: 150 },
+			]);
+
+			const result1 = await db.select({ value: avg(aggregateTable.b) }).from(aggregateTable);
+			const result2 = await db.select({ value: avg(aggregateTable.nullOnly) }).from(aggregateTable);
+			const result3 = await db.select({ value: avgDistinct(aggregateTable.b) }).from(aggregateTable);
 
 			expect(result1[0]?.value).toBe('33.3333333333333333');
 			expect(result2[0]?.value).toBeNull();
 			expect(result3[0]?.value).toBe('42.5000000000000000');
 		});
 
-		test('aggregate function: sum', async ({ db }) => {
-			const table = aggregateTable;
-			await setupAggregateFunctionsTest(db);
+		test.concurrent.only('aggregate function: sum', async ({ db, push }) => {
+			const aggregateTable = pgTable('aggregate_table_4', {
+				id: serial('id').notNull(),
+				name: text('name').notNull(),
+				a: integer('a'),
+				b: integer('b'),
+				c: integer('c'),
+				nullOnly: integer('null_only'),
+			});
 
-			const result1 = await db.select({ value: sum(table.b) }).from(table);
-			const result2 = await db.select({ value: sum(table.nullOnly) }).from(table);
-			const result3 = await db.select({ value: sumDistinct(table.b) }).from(table);
+			await push({ aggregateTable });
+
+			await db.insert(aggregateTable).values([
+				{ name: 'value 1', a: 5, b: 10, c: 20 },
+				{ name: 'value 1', a: 5, b: 20, c: 30 },
+				{ name: 'value 2', a: 10, b: 50, c: 60 },
+				{ name: 'value 3', a: 20, b: 20, c: null },
+				{ name: 'value 4', a: null, b: 90, c: 120 },
+				{ name: 'value 5', a: 80, b: 10, c: null },
+				{ name: 'value 6', a: null, b: null, c: 150 },
+			]);
+
+			const result1 = await db.select({ value: sum(aggregateTable.b) }).from(aggregateTable);
+			const result2 = await db.select({ value: sum(aggregateTable.nullOnly) }).from(aggregateTable);
+			const result3 = await db.select({ value: sumDistinct(aggregateTable.b) }).from(aggregateTable);
 
 			expect(result1[0]?.value).toBe('200');
 			expect(result2[0]?.value).toBeNull();
 			expect(result3[0]?.value).toBe('170');
 		});
 
-		test('aggregate function: max', async ({ db }) => {
-			const table = aggregateTable;
-			await setupAggregateFunctionsTest(db);
+		test.concurrent.only('aggregate function: max', async ({ db, push }) => {
+			const aggregateTable = pgTable('aggregate_table_5', {
+				id: serial('id').notNull(),
+				name: text('name').notNull(),
+				a: integer('a'),
+				b: integer('b'),
+				c: integer('c'),
+				nullOnly: integer('null_only'),
+			});
 
-			const result1 = await db.select({ value: max(table.b) }).from(table);
-			const result2 = await db.select({ value: max(table.nullOnly) }).from(table);
+			await push({ aggregateTable });
+
+			await db.insert(aggregateTable).values([
+				{ name: 'value 1', a: 5, b: 10, c: 20 },
+				{ name: 'value 1', a: 5, b: 20, c: 30 },
+				{ name: 'value 2', a: 10, b: 50, c: 60 },
+				{ name: 'value 3', a: 20, b: 20, c: null },
+				{ name: 'value 4', a: null, b: 90, c: 120 },
+				{ name: 'value 5', a: 80, b: 10, c: null },
+				{ name: 'value 6', a: null, b: null, c: 150 },
+			]);
+
+			const result1 = await db.select({ value: max(aggregateTable.b) }).from(aggregateTable);
+			const result2 = await db.select({ value: max(aggregateTable.nullOnly) }).from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(90);
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('aggregate function: min', async ({ db }) => {
-			const table = aggregateTable;
-			await setupAggregateFunctionsTest(db);
+		test.concurrent.only('aggregate function: min', async ({ db, push }) => {
+			const aggregateTable = pgTable('aggregate_table_6', {
+				id: serial('id').notNull(),
+				name: text('name').notNull(),
+				a: integer('a'),
+				b: integer('b'),
+				c: integer('c'),
+				nullOnly: integer('null_only'),
+			});
 
-			const result1 = await db.select({ value: min(table.b) }).from(table);
-			const result2 = await db.select({ value: min(table.nullOnly) }).from(table);
+			await push({ aggregateTable });
+
+			await db.insert(aggregateTable).values([
+				{ name: 'value 1', a: 5, b: 10, c: 20 },
+				{ name: 'value 1', a: 5, b: 20, c: 30 },
+				{ name: 'value 2', a: 10, b: 50, c: 60 },
+				{ name: 'value 3', a: 20, b: 20, c: null },
+				{ name: 'value 4', a: null, b: 90, c: 120 },
+				{ name: 'value 5', a: 80, b: 10, c: null },
+				{ name: 'value 6', a: null, b: null, c: 150 },
+			]);
+
+			const result1 = await db.select({ value: min(aggregateTable.b) }).from(aggregateTable);
+			const result2 = await db.select({ value: min(aggregateTable.nullOnly) }).from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(10);
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('array mapping and parsing', async ({ db }) => {
-			const arrays = pgTable('arrays_tests', {
+		test.concurrent.only('array mapping and parsing', async ({ db, push }) => {
+			const arrays = pgTable('arrays_tests_7', {
 				id: serial('id').primaryKey(),
 				tags: text('tags').array(),
 				nested: text('nested').array().array(),
 				numbers: integer('numbers').notNull().array(),
 			});
 
-			await db.execute(sql`drop table if exists ${arrays}`);
-			await db.execute(sql`
-				 create table ${arrays} (
-				 id serial primary key,
-				 tags text[],
-				 nested text[][],
-				 numbers integer[]
-				)
-			`);
+			await push({ arrays });
 
 			await db.insert(arrays).values({
 				tags: ['', 'b', 'c'],
@@ -3738,24 +4005,18 @@ export function tests(skips: string[] = []) {
 				nested: [['1', ''], ['3', '\\a']],
 				numbers: [1, 2, 3],
 			}]);
-
-			await db.execute(sql`drop table ${arrays}`);
 		});
 
-		test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
-			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+		test.concurrent.only('test $onUpdateFn and $onUpdate works as $default', async ({ db, push }) => {
+			const usersOnUpdate = pgTable('users_on_update_8', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+				updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
+				alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
+			});
 
-			await db.execute(
-				sql`
-					create table ${usersOnUpdate} (
-					id serial primary key,
-					name text not null,
-					update_counter integer default 1 not null,
-					updated_at timestamp(3),
-					always_null text
-					)
-				`,
-			);
+			await push({ usersOnUpdate });
 
 			await db.insert(usersOnUpdate).values([
 				{ name: 'John' },
@@ -3783,20 +4044,16 @@ export function tests(skips: string[] = []) {
 			}
 		});
 
-		test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
-			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
+		test.concurrent.only('test $onUpdateFn and $onUpdate works updating', async ({ db, push }) => {
+			const usersOnUpdate = pgTable('users_on_update_9', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
+				updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
+				alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
+			});
 
-			await db.execute(
-				sql`
-					create table ${usersOnUpdate} (
-					id serial primary key,
-					name text not null,
-					update_counter integer default 1,
-					updated_at timestamp(3),
-					always_null text
-					)
-				`,
-			);
+			await push({ usersOnUpdate });
 
 			await db.insert(usersOnUpdate).values([
 				{ name: 'John', alwaysNull: 'this will be null after updating' },
@@ -3830,24 +4087,15 @@ export function tests(skips: string[] = []) {
 			}
 		});
 
-		test('test if method with sql operators', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('test if method with sql operators', async ({ db, push }) => {
+			const users = pgTable('users_10', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				age: integer('age').notNull(),
 				city: text('city').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(sql`
-				create table ${users} (
-				id serial primary key,
-				name text not null,
-				age integer not null,
-				city text not null
-				)
-			`);
+			await push({ users });
 
 			await db.insert(users).values([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4025,38 +4273,63 @@ export function tests(skips: string[] = []) {
 				{ id: 3, name: 'Nick', age: 22, city: 'London' },
 				{ id: 4, name: 'Lina', age: 23, city: 'London' },
 			]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
 		// MySchema tests
-		test('mySchema :: select all fields', async ({ db }) => {
+		test.concurrent.only('mySchema :: select all fields', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema_1');
+			const users = mySchema.table('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await push({ users });
+
 			const now = Date.now();
 
-			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const result = await db.select().from(usersMySchemaTable);
+			await db.insert(users).values({ name: 'John' });
+			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('mySchema :: select sql', async ({ db }) => {
-			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql`upper(${usersMySchemaTable.name})`,
-			}).from(usersMySchemaTable);
+		test.concurrent.only('mySchema :: select sql', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema_2');
+			const users = mySchema.table('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db.select({
+				name: sql`upper(${users.name})`,
+			}).from(users);
+
+			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('mySchema :: select typed sql', async ({ db }) => {
-			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql<string>`upper(${usersMySchemaTable.name})`,
-			}).from(usersMySchemaTable);
+		test.concurrent.only('mySchema :: select typed sql', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema_3');
+			const users = mySchema.table('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db.select({
+				name: sql<string>`upper(${users.name})`,
+			}).from(users);
+
+			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
 
 		test('mySchema :: select distinct', async ({ db }) => {
@@ -4463,30 +4736,20 @@ export function tests(skips: string[] = []) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
-		test('Object keys as column names', async ({ db }) => {
+		test.concurrent.only('Object keys as column names', async ({ db, push }) => {
 			// Tests the following:
 			// Column with required config
 			// Column with optional config without providing a value
 			// Column with optional config providing a value
 			// Column without config
-			const users = pgTable('users', {
+			const users = pgTable('users_11', {
 				id: bigserial({ mode: 'number' }).primaryKey(),
 				firstName: varchar(),
 				lastName: varchar({ length: 50 }),
 				admin: boolean(),
 			});
 
-			await db.execute(sql`drop table if exists users`);
-			await db.execute(
-				sql`
-					create table users (
-						"id" bigserial primary key,
-						"firstName" varchar,
-						"lastName" varchar(50),
-						"admin" boolean
-					)
-				`,
-			);
+			await push({ users });
 
 			await db.insert(users).values([
 				{ firstName: 'John', lastName: 'Doe', admin: true },
@@ -4500,19 +4763,15 @@ export function tests(skips: string[] = []) {
 			expect(result).toEqual([
 				{ id: 1, firstName: 'John', lastName: 'Doe' },
 			]);
-
-			await db.execute(sql`drop table users`);
 		});
 
-		test('proper json and jsonb handling', async ({ db }) => {
-			const jsonTable = pgTable('json_table', {
+		test.concurrent.only('proper json and jsonb handling', async ({ db, push }) => {
+			const jsonTable = pgTable('json_table_12', {
 				json: json('json').$type<{ name: string; age: number }>(),
 				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
 			});
 
-			await db.execute(sql`drop table if exists ${jsonTable}`);
-
-			await db.execute(sql`create table ${jsonTable} (json json, jsonb jsonb)`);
+			await push({ jsonTable });
 
 			await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
 
@@ -4538,21 +4797,29 @@ export function tests(skips: string[] = []) {
 			]);
 		});
 
-		test('set json/jsonb fields with objects and retrieve with the ->> operator', async ({ db }) => {
+		test.concurrent.only('set json/jsonb fields with objects and retrieve with the ->> operator', async ({ db }) => {
+			const jsonTestTable_13 = pgTable('json_test_13', {
+				id: serial('id').primaryKey(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+			});
+
+			await db.push(jsonTestTable_13);
+
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
 
-			await db.insert(jsonTestTable).values({
+			await db.insert(jsonTestTable_13).values({
 				json: obj,
 				jsonb: obj,
 			});
 
 			const result = await db.select({
-				jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
-				jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
-				jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
-				jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
-			}).from(jsonTestTable);
+				jsonStringField: sql<string>`${jsonTestTable_13.json}->>'string'`,
+				jsonNumberField: sql<string>`${jsonTestTable_13.json}->>'number'`,
+				jsonbStringField: sql<string>`${jsonTestTable_13.jsonb}->>'string'`,
+				jsonbNumberField: sql<string>`${jsonTestTable_13.jsonb}->>'number'`,
+			}).from(jsonTestTable_13);
 
 			expect(result).toStrictEqual([{
 				jsonStringField: testString,
