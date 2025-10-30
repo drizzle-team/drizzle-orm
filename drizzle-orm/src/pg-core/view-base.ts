@@ -6,7 +6,7 @@ export abstract class PgViewBase<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > extends View<TName, TExisting, TSelectedFields> {
-	static readonly [entityKind]: string = 'PgViewBase';
+	static override readonly [entityKind]: string = 'PgViewBase';
 
 	declare readonly _: View<TName, TExisting, TSelectedFields>['_'] & {
 		readonly viewBrand: 'PgViewBase';

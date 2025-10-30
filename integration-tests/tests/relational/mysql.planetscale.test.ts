@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { connect } from '@planetscale/database';
+import { Client } from '@planetscale/database';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -19,7 +19,7 @@ let db: PlanetScaleDatabase<typeof schema>;
 
 beforeAll(async () => {
 	db = drizzle(
-		connect({
+		new Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING']!,
 			// host: process.env['DATABASE_HOST']!,
 			// username: process.env['DATABASE_USERNAME']!,

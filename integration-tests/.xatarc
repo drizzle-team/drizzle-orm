@@ -1,0 +1,6 @@
+{
+  "databaseURL": "https://Andrii-Sherman-s-workspace-2r5ujp.us-east-1.xata.sh/db/integration-tests",
+  "codegen": {
+    "output": "tests/xata/xata.ts"
+  }
+}

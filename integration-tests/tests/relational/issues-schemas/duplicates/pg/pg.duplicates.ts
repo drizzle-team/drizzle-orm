@@ -1,5 +1,5 @@
-import { relations, sql } from "drizzle-orm";
-import { pgTable, index, integer, serial, timestamp } from "drizzle-orm/pg-core";
+import { relations, sql } from 'drizzle-orm';
+import { index, integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 
 export const artists = pgTable(
 	'artists',
@@ -12,7 +12,7 @@ export const artists = pgTable(
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
 		companyId: integer('company_id').notNull(),
-	}
+	},
 );
 
 export const members = pgTable('members', {

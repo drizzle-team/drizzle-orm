@@ -1,5 +1,4 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import {
 	except,
 	exceptAll,
@@ -9,6 +8,7 @@ import {
 	union,
 	unionAll,
 } from '~/mysql-core/index.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { desc, sql } from '~/sql/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
@@ -159,7 +159,7 @@ const exceptAll2Test = await exceptAll(
 	db.select({
 		userId: newYorkers.userId,
 		cityId: newYorkers.cityId,
-	}).from(newYorkers).leftJoin(newYorkers, sql``),
+	}).from(newYorkers).leftJoin(users, sql``),
 );
 
 Expect<Equal<{ userId: number; cityId: number | null }[], typeof exceptAll2Test>>;
