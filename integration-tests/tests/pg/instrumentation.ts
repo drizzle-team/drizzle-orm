@@ -94,11 +94,11 @@ export const prepareNeonClientsProvider = async () => {
 		await prepareNeonClient('db2'),
 		await prepareNeonClient('db3'),
 		await prepareNeonClient('db4'),
-		await prepareNeonClient('db5'),
-		await prepareNeonClient('db6'),
-		await prepareNeonClient('db7'),
-		await prepareNeonClient('db8'),
-		await prepareNeonClient('db9'),
+		// await prepareNeonClient('db5'),
+		// await prepareNeonClient('db6'),
+		// await prepareNeonClient('db7'),
+		// await prepareNeonClient('db8'),
+		// await prepareNeonClient('db9'),
 	];
 
 	const provider = async () => {
@@ -106,7 +106,7 @@ export const prepareNeonClientsProvider = async () => {
 			const c = clients.shift();
 			if (!c) {
 				console.log('slip');
-				sleep(50);
+				await sleep(50);
 				continue;
 			}
 			return {
@@ -129,6 +129,7 @@ export const neonTest = base.extend<{
 		client: NeonQueryFunction<false, false>;
 		query: (sql: string, params?: any[]) => Promise<any[]>;
 		batch: (statements: string[]) => Promise<any>;
+		// release: ()=>void
 	};
 	client: NeonQueryFunction<false, false>;
 	db: PgDatabase<any, any, typeof relations>;
@@ -139,14 +140,12 @@ export const neonTest = base.extend<{
 		async ({}, use) => {
 			const provider = await prepareNeonClientsProvider();
 			await use(provider);
-			release();
 		},
 		{ scope: 'file' },
 	],
 	kit: [
-		// oxlint-disable-next-line no-empty-pattern
 		async ({ provider }, use) => {
-			const { client, batch, query } = await provider();
+			const { client, batch, query, release } = await provider();
 			await use({ client, query, batch });
 			release();
 		},

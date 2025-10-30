@@ -624,7 +624,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 			while (true) {
 				const c = clientsTxs.shift();
 				if (!c) {
-					sleep(50);
+					await sleep(50);
 					continue;
 				}
 				return {
@@ -642,7 +642,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 			while (true) {
 				const c = clients.shift();
 				if (!c) {
-					sleep(50);
+					await sleep(50);
 					continue;
 				}
 				return {
