@@ -26,7 +26,6 @@ import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vit
 
 import type { Equal } from '../utils';
 import { Expect, randomString } from '../utils';
-import relationsV2 from './relations';
 import { clear, init, rqbPost, rqbUser } from './schema';
 
 dotenv.config();
