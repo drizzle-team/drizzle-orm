@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import {
 	boolean,
@@ -216,4 +217,104 @@ test.concurrent.only('build query insert with onConflict do nothing + target', a
 			'insert into "users_47" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 		params: ['John', '["foo","bar"]'],
 	});
+});
+
+test('select a field without joining its table', () => {
+	const usersTable = pgTable('users_60', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const users2Table = pgTable('users2_60', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query')).toThrowError();
+});
+
+test('select all fields from subquery without alias', () => {
+	const users2Table = pgTable('users2_61', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
+
+	expect(() => db.select().from(sq).prepare('query')).toThrowError();
+});
+
+test('select for ...', () => {
+	const users2Table = pgTable('users2_66', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const coursesTable = pgTable('courses_66', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update')
+			.toSQL();
+
+		expect(query.sql).toMatch(/ for update$/);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('update', { of: [users2Table, coursesTable] })
+			.toSQL();
+
+		expect(query.sql).toMatch(/ for update of "users2_66", "courses_66"$/);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table })
+			.toSQL();
+
+		expect(query.sql).toMatch(/for no key update of "users2_66"$/);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('no key update', { of: users2Table, skipLocked: true })
+			.toSQL();
+
+		expect(query.sql).toMatch(/ for no key update of "users2_66" skip locked$/);
+	}
+
+	{
+		const query = db
+			.select()
+			.from(users2Table)
+			.for('share', { of: users2Table, noWait: true })
+			.toSQL();
+
+		expect(query.sql).toMatch(/for share of "users2_66" nowait$/);
+	}
+});
+
+test('orderBy with aliased column', () => {
+	const users2Table = pgTable('users2_70', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const query = db.select({
+		test: sql`something`.as('test'),
+	}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+
+	expect(query.sql).toBe('select something as "test" from "users2_70" order by "test"');
 });
