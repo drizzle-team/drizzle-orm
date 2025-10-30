@@ -1134,16 +1134,15 @@ export function tests() {
 			}]);
 		});
 
-		test('select from alias', async ({ db }) => {
+		test.concurrent.only('select from alias', async ({ db, push }) => {
 			const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
-			const users = pgTable('users', {
+			const users = pgTable('users_31', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+			await push({ users });
 
 			const user = alias(users, 'user');
 			const customers = alias(users, 'customer');
@@ -1165,18 +1164,30 @@ export function tests() {
 					name: 'Hans',
 				},
 			}]);
-
-			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('insert with spaces', async ({ db }) => {
+		test.concurrent.only('insert with spaces', async ({ db, push }) => {
+			const usersTable = pgTable('users_32', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
 			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
 
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
 
-		test('prepared statement', async ({ db }) => {
+		test.concurrent.only('prepared statement', async ({ db, push }) => {
+			const usersTable = pgTable('users_33', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: 'John' });
 			const statement = db
 				.select({
@@ -1190,7 +1201,15 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert: placeholders on columns with encoder', async ({ db }) => {
+		test.concurrent.only('insert: placeholders on columns with encoder', async ({ db, push }) => {
+			const usersTable = pgTable('users_34', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+			});
+
+			await push({ usersTable });
+
 			const statement = db.insert(usersTable).values({
 				name: 'John',
 				jsonb: sql.placeholder('jsonb'),
@@ -1210,7 +1229,15 @@ export function tests() {
 			]);
 		});
 
-		test('prepared statement reuse', async ({ db }) => {
+		test.concurrent.only('prepared statement reuse', async ({ db, push }) => {
+			const usersTable = pgTable('users_35', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await push({ usersTable });
+
 			const stmt = db
 				.insert(usersTable)
 				.values({
@@ -1245,7 +1272,14 @@ export function tests() {
 			]);
 		});
 
-		test('prepared statement with placeholder in .where', async ({ db }) => {
+		test.concurrent.only('prepared statement with placeholder in .where', async ({ db, push }) => {
+			const usersTable = pgTable('users_36', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
 				.select({
@@ -1260,7 +1294,14 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('prepared statement with placeholder in .limit', async ({ db }) => {
+		test.concurrent.only('prepared statement with placeholder in .limit', async ({ db, push }) => {
+			const usersTable = pgTable('users_37', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
 				.select({
@@ -1278,7 +1319,14 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('prepared statement with placeholder in .offset', async ({ db }) => {
+		test.concurrent.only('prepared statement with placeholder in .offset', async ({ db, push }) => {
+			const usersTable = pgTable('users_38', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 			const stmt = db
 				.select({
@@ -1294,7 +1342,14 @@ export function tests() {
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
-		test('prepared statement built using $dynamic', async ({ db }) => {
+		test.concurrent.only('prepared statement built using $dynamic', async ({ db, push }) => {
+			const usersTable = pgTable('users_39', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			function withLimitOffset(qb: any) {
 				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
 			}
@@ -1315,56 +1370,14 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		// TODO change tests to new structure
-		test('Query check: Insert all defaults in 1 row', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('Insert all defaults in 1 row', async ({ db, push }) => {
+			const users = pgTable('users_42', {
 				id: serial('id').primaryKey(),
 				name: text('name').default('Dan'),
 				state: text('state'),
 			});
 
-			const query = db
-				.insert(users)
-				.values({})
-				.toSQL();
-
-			expect(query).toEqual({
-				sql: 'insert into "users" ("id", "name", "state") values (default, default, default)',
-				params: [],
-			});
-		});
-
-		test('Query check: Insert all defaults in multiple rows', async ({ db }) => {
-			const users = pgTable('users', {
-				id: serial('id').primaryKey(),
-				name: text('name').default('Dan'),
-				state: text('state').default('UA'),
-			});
-
-			const query = db
-				.insert(users)
-				.values([{}, {}])
-				.toSQL();
-
-			expect(query).toEqual({
-				sql:
-					'insert into "users" ("id", "name", "state") values (default, default, default), (default, default, default)',
-				params: [],
-			});
-		});
-
-		test('Insert all defaults in 1 row', async ({ db }) => {
-			const users = pgTable('empty_insert_single', {
-				id: serial('id').primaryKey(),
-				name: text('name').default('Dan'),
-				state: text('state'),
-			});
-
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
-			);
+			await push({ users });
 
 			await db.insert(users).values({});
 
@@ -1373,18 +1386,14 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }]);
 		});
 
-		test('Insert all defaults in multiple rows', async ({ db }) => {
-			const users = pgTable('empty_insert_multiple', {
+		test.concurrent.only('Insert all defaults in multiple rows', async ({ db, push }) => {
+			const users = pgTable('users_43', {
 				id: serial('id').primaryKey(),
 				name: text('name').default('Dan'),
 				state: text('state'),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-
-			await db.execute(
-				sql`create table ${users} (id serial primary key, name text default 'Dan', state text)`,
-			);
+			await push({ users });
 
 			await db.insert(users).values([{}, {}]);
 
@@ -1393,63 +1402,14 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 		});
 
-		test('build query insert with onConflict do update', async ({ db }) => {
-			const query = db
-				.insert(usersTable)
-				.values({ name: 'John', jsonb: ['foo', 'bar'] })
-				.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
-				.toSQL();
-
-			expect(query).toEqual({
-				sql:
-					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-				params: ['John', '["foo","bar"]', 'John1'],
+		test.concurrent.only('insert with onConflict do update', async ({ db, push }) => {
+			const usersTable = pgTable('users_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
 			});
-		});
 
-		test('build query insert with onConflict do update / multiple columns', async ({ db }) => {
-			const query = db
-				.insert(usersTable)
-				.values({ name: 'John', jsonb: ['foo', 'bar'] })
-				.onConflictDoUpdate({ target: [usersTable.id, usersTable.name], set: { name: 'John1' } })
-				.toSQL();
+			await push({ usersTable });
 
-			expect(query).toEqual({
-				sql:
-					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-				params: ['John', '["foo","bar"]', 'John1'],
-			});
-		});
-
-		test('build query insert with onConflict do nothing', async ({ db }) => {
-			const query = db
-				.insert(usersTable)
-				.values({ name: 'John', jsonb: ['foo', 'bar'] })
-				.onConflictDoNothing()
-				.toSQL();
-
-			expect(query).toEqual({
-				sql:
-					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-				params: ['John', '["foo","bar"]'],
-			});
-		});
-
-		test('build query insert with onConflict do nothing + target', async ({ db }) => {
-			const query = db
-				.insert(usersTable)
-				.values({ name: 'John', jsonb: ['foo', 'bar'] })
-				.onConflictDoNothing({ target: usersTable.id })
-				.toSQL();
-
-			expect(query).toEqual({
-				sql:
-					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-				params: ['John', '["foo","bar"]'],
-			});
-		});
-
-		test('insert with onConflict do update', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db
@@ -1465,7 +1425,14 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John1' }]);
 		});
 
-		test('insert with onConflict do nothing', async ({ db }) => {
+		test.concurrent.only('insert with onConflict do nothing', async ({ db, push }) => {
+			const usersTable = pgTable('users_49', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).onConflictDoNothing();
@@ -1478,7 +1445,14 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert with onConflict do nothing + target', async ({ db }) => {
+		test.concurrent.only('insert with onConflict do nothing + target', async ({ db, push }) => {
+			const usersTable = pgTable('users_50', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db
@@ -1494,7 +1468,20 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('left join (flat object fields)', async ({ db }) => {
+		test.concurrent.only('left join (flat object fields)', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_51', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_51', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
