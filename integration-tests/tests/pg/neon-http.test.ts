@@ -1,36 +1,36 @@
-import { skipTests } from '~/common';
 import { tests } from './pg-common';
 
-skipTests([
-	'migrator : default migration strategy',
-	'migrator : migrate with custom schema',
-	'migrator : migrate with custom table',
-	'migrator : migrate with custom table and custom schema',
-	'insert via db.execute + select via db.execute',
-	'insert via db.execute + returning',
-	'insert via db.execute w/ query builder',
-	'all date and time columns without timezone first case mode string',
-	'all date and time columns without timezone third case mode date',
-	'test mode string for timestamp with timezone',
-	'test mode date for timestamp with timezone',
-	'test mode string for timestamp with timezone in UTC timezone',
-	'nested transaction rollback',
-	'transaction rollback',
-	'nested transaction',
-	'transaction',
-	'timestamp timezone',
-	'test $onUpdateFn and $onUpdate works as $default',
-	'RQB v2 transaction find first - no rows',
-	'RQB v2 transaction find first - multiple rows',
-	'RQB v2 transaction find first - with relation',
-	'RQB v2 transaction find first - placeholders',
-	'RQB v2 transaction find many - no rows',
-	'RQB v2 transaction find many - multiple rows',
-	'RQB v2 transaction find many - with relation',
-	'RQB v2 transaction find many - placeholders',
-	// Disabled until Buffer insertion is fixed
-	'all types',
-]);
+// skipTests([
+// 	'migrator : default migration strategy',
+// 	'migrator : migrate with custom schema',
+// 	'migrator : migrate with custom table',
+// 	'migrator : migrate with custom table and custom schema',
+// 	'insert via db.execute + select via db.execute',
+// 	'insert via db.execute + returning',
+// 	'insert via db.execute w/ query builder',
+// 	'all date and time columns without timezone first case mode string',
+// 	'all date and time columns without timezone third case mode date',
+// 	'test mode string for timestamp with timezone',
+// 	'test mode date for timestamp with timezone',
+// 	'test mode string for timestamp with timezone in UTC timezone',
+// 	'nested transaction rollback',
+// 	'transaction rollback',
+// 	'nested transaction',
+// 	'transaction',
+// 	'timestamp timezone',
+// 	'test $onUpdateFn and $onUpdate works as $default',
+// 	'RQB v2 transaction find first - no rows',
+// 	'RQB v2 transaction find first - multiple rows',
+// 	'RQB v2 transaction find first - with relation',
+// 	'RQB v2 transaction find first - placeholders',
+// 	'RQB v2 transaction find many - no rows',
+// 	'RQB v2 transaction find many - multiple rows',
+// 	'RQB v2 transaction find many - with relation',
+// 	'RQB v2 transaction find many - placeholders',
+// 	// Disabled until Buffer insertion is fixed
+// 	'all types',
+// ]);
+
 tests();
 // cacheTests();
 

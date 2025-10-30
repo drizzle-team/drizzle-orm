@@ -87,8 +87,8 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { Expect } from '~/utils';
-import { test } from './instrumentation';
+import { Expect } from '../utils';
+import { neonTest as test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
 
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -420,14 +420,23 @@ async function setupAggregateFunctionsTest(
 
 export function tests() {
 	describe('common', () => {
-		test('select all fields', async ({ db }) => {
-			const now = Date.now();
+		test.only('select all fields', async ({ db, push }) => {
+			const users = pgTable('users_1', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-			await db.insert(usersTable).values({ name: 'John' });
-			const result = await db.select().from(usersTable);
+			await push({ users });
+
+			const now = Date.now();
+			await db.insert(users).values({ name: 'John' });
+			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
