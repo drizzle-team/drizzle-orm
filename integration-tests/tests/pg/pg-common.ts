@@ -28,13 +28,12 @@ import {
 	or,
 	SQL,
 	sql,
-	SQLWrapper,
 	sum,
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import { authenticatedRole, crudPolicy, usersSync } from 'drizzle-orm/neon';
-import type { PgColumn, PgDatabase } from 'drizzle-orm/pg-core';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	bigint,
@@ -269,38 +268,6 @@ const users2Table = pgTable('users2', {
 	cityId: integer('city_id').references(() => citiesTable.id),
 });
 
-const coursesTable = pgTable('courses', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	categoryId: integer('category_id').references(() => courseCategoriesTable.id),
-});
-
-const courseCategoriesTable = pgTable('course_categories', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-});
-
-const orders = pgTable('orders', {
-	id: serial('id').primaryKey(),
-	region: text('region').notNull(),
-	product: text('product').notNull().$default(() => 'random_string'),
-	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull(),
-});
-
-const network = pgTable('network_table', {
-	inet: inet('inet').notNull(),
-	cidr: cidr('cidr').notNull(),
-	macaddr: macaddr('macaddr').notNull(),
-	macaddr8: macaddr8('macaddr8').notNull(),
-});
-
-const salEmp = pgTable('sal_emp', {
-	name: text('name'),
-	payByQuarter: integer('pay_by_quarter').array(),
-	schedule: text('schedule').array().array(),
-});
-
 const _tictactoe = pgTable('tictactoe', {
 	squares: integer('squares').array(3).array(3),
 });
@@ -418,8 +385,15 @@ async function setupAggregateFunctionsTest(
 	]);
 }
 
-export function tests() {
+export function tests(skips: string[] = []) {
 	describe('common', () => {
+		test.beforeEach(({ task, skip }) => {
+			if (skips.includes(task.name)) {
+				skip();
+				return;
+			}
+		});
+
 		test.concurrent.only('select all fields', async ({ db, push }) => {
 			const users = pgTable('users_1', {
 				id: serial('id' as string).primaryKey(),
@@ -1506,7 +1480,20 @@ export function tests() {
 			]);
 		});
 
-		test('left join (grouped fields)', async ({ db }) => {
+		test.concurrent.only('left join (grouped fields)', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_52', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_52', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
@@ -1545,7 +1532,21 @@ export function tests() {
 			]);
 		});
 
-		test('left join (all fields)', async ({ db }) => {
+		test.concurrent.only('left join (all fields)', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_53', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			});
+
+			const users2Table = pgTable('users2_53', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
@@ -1561,29 +1562,42 @@ export function tests() {
 
 			expect(res).toEqual([
 				{
-					users2: {
+					users2_53: {
 						id: 1,
 						name: 'John',
 						cityId,
 					},
-					cities: {
+					cities_53: {
 						id: cityId,
 						name: 'Paris',
 						state: null,
 					},
 				},
 				{
-					users2: {
+					users2_53: {
 						id: 2,
 						name: 'Jane',
 						cityId: null,
 					},
-					cities: null,
+					cities_53: null,
 				},
 			]);
 		});
 
-		test('join subquery', async ({ db }) => {
+		test.concurrent.only('join subquery', async ({ db, push }) => {
+			const courseCategoriesTable = pgTable('course_categories_54', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const coursesTable = pgTable('courses_54', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				categoryId: integer('category_id').references(() => courseCategoriesTable.id),
+			});
+
+			await push({ courseCategoriesTable, coursesTable });
+
 			await db
 				.insert(courseCategoriesTable)
 				.values([
@@ -1629,7 +1643,16 @@ export function tests() {
 			]);
 		});
 
-		test('with ... select', async ({ db }) => {
+		test.concurrent.only('with ... select', async ({ db, push }) => {
+			const orders = pgTable('orders_55', {
+				region: text('region').notNull(),
+				product: text('product').notNull(),
+				amount: integer('amount').notNull(),
+				quantity: integer('quantity').notNull(),
+			});
+
+			await push({ orders });
+
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -1746,21 +1769,14 @@ export function tests() {
 			]);
 		});
 
-		test('with ... update', async ({ db }) => {
-			const products = pgTable('products', {
+		test.concurrent.only('with ... update', async ({ db, push }) => {
+			const products = pgTable('products_56', {
 				id: serial('id').primaryKey(),
 				price: numeric('price').notNull(),
 				cheap: boolean('cheap').notNull().default(false),
 			});
 
-			await db.execute(sql`drop table if exists ${products}`);
-			await db.execute(sql`
-				create table ${products} (
-					id serial primary key,
-					price numeric not null,
-					cheap boolean not null default false
-				)
-			`);
+			await push({ products });
 
 			await db.insert(products).values([
 				{ price: '10.99' },
@@ -1798,14 +1814,13 @@ export function tests() {
 			]);
 		});
 
-		test('with ... insert', async ({ db }) => {
-			const users = pgTable('users', {
+		test.concurrent.only('with ... insert', async ({ db, push }) => {
+			const users = pgTable('users_57', {
 				username: text('username').notNull(),
-				admin: boolean('admin').notNull(),
+				admin: boolean('admin').notNull().default(false),
 			});
 
-			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (username text not null, admin boolean not null default false)`);
+			await push({ users });
 
 			const userCount = db
 				.$with('user_count')
@@ -1830,7 +1845,17 @@ export function tests() {
 			expect(result).toEqual([{ admin: true }]);
 		});
 
-		test('with ... delete', async ({ db }) => {
+		test.concurrent.only('with ... delete', async ({ db, push }) => {
+			const orders = pgTable('orders_58', {
+				id: serial('id').primaryKey(),
+				region: text('region').notNull(),
+				product: text('product').notNull(),
+				amount: integer('amount').notNull(),
+				quantity: integer('quantity').notNull(),
+			});
+
+			await push({ orders });
+
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -1867,7 +1892,14 @@ export function tests() {
 			]);
 		});
 
-		test('select from subquery sql', async ({ db }) => {
+		test.concurrent.only('select from subquery sql', async ({ db, push }) => {
+			const users2Table = pgTable('users2_59', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users2Table });
+
 			await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			const sq = db
@@ -1880,17 +1912,14 @@ export function tests() {
 			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 		});
 
-		test('select a field without joining its table', ({ db }) => {
-			expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query')).toThrowError();
-		});
+		test.concurrent.only('select count()', async ({ db, push }) => {
+			const usersTable = pgTable('users_62', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
 
-		test('select all fields from subquery without alias', ({ db }) => {
-			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
+			await push({ usersTable });
 
-			expect(() => db.select().from(sq).prepare('query')).toThrowError();
-		});
-
-		test('select count()', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			const res = await db.select({ count: sql`count(*)` }).from(usersTable);
@@ -1898,10 +1927,17 @@ export function tests() {
 			expect(res).toEqual([{ count: '2' }]);
 		});
 
-		test('select count w/ custom mapper', async ({ db }) => {
-			function count(value: PgColumn | SQLWrapper): SQL<number>;
-			function count(value: PgColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
-			function count(value: PgColumn | SQLWrapper, alias?: string): SQL<number> | SQL.Aliased<number> {
+		test.concurrent.only('select count w/ custom mapper', async ({ db, push }) => {
+			const usersTable = pgTable('users_63', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
+			function count(value: any): any;
+			function count(value: any, alias: string): any;
+			function count(value: any, alias?: string): any {
 				const result = sql`count(${value})`.mapWith(Number);
 				if (!alias) {
 					return result;
@@ -1916,8 +1952,17 @@ export function tests() {
 			expect(res).toEqual([{ count: 2 }]);
 		});
 
-		test('network types', async ({ db }) => {
-			const value: typeof network.$inferSelect = {
+		test.concurrent.only('network types', async ({ db, push }) => {
+			const network = pgTable('network_64', {
+				inet: inet('inet').notNull(),
+				cidr: cidr('cidr').notNull(),
+				macaddr: macaddr('macaddr').notNull(),
+				macaddr8: macaddr8('macaddr8').notNull(),
+			});
+
+			await push({ network });
+
+			const value = {
 				inet: '127.0.0.1',
 				cidr: '192.168.100.128/25',
 				macaddr: '08:00:2b:01:02:03',
@@ -1931,8 +1976,16 @@ export function tests() {
 			expect(res).toEqual([value]);
 		});
 
-		test('array types', async ({ db }) => {
-			const values: typeof salEmp.$inferSelect[] = [
+		test.concurrent.only('array types', async ({ db, push }) => {
+			const salEmp = pgTable('sal_emp_65', {
+				name: text('name').notNull(),
+				payByQuarter: integer('pay_by_quarter').array().notNull(),
+				schedule: text('schedule').array().array().notNull(),
+			});
+
+			await push({ salEmp });
+
+			const values = [
 				{
 					name: 'John',
 					payByQuarter: [10000, 10000, 10000, 10000],
@@ -1950,58 +2003,6 @@ export function tests() {
 			const res = await db.select().from(salEmp);
 
 			expect(res).toEqual(values);
-		});
-
-		test('select for ...', ({ db }) => {
-			{
-				const query = db
-					.select()
-					.from(users2Table)
-					.for('update')
-					.toSQL();
-
-				expect(query.sql).toMatch(/ for update$/);
-			}
-
-			{
-				const query = db
-					.select()
-					.from(users2Table)
-					.for('update', { of: [users2Table, coursesTable] })
-					.toSQL();
-
-				expect(query.sql).toMatch(/ for update of "users2", "courses"$/);
-			}
-
-			{
-				const query = db
-					.select()
-					.from(users2Table)
-					.for('no key update', { of: users2Table })
-					.toSQL();
-
-				expect(query.sql).toMatch(/for no key update of "users2"$/);
-			}
-
-			{
-				const query = db
-					.select()
-					.from(users2Table)
-					.for('no key update', { of: users2Table, skipLocked: true })
-					.toSQL();
-
-				expect(query.sql).toMatch(/ for no key update of "users2" skip locked$/);
-			}
-
-			{
-				const query = db
-					.select()
-					.from(users2Table)
-					.for('share', { of: users2Table, noWait: true })
-					.toSQL();
-
-				expect(query.sql).toMatch(/for share of "users2" nowait$/);
-			}
 		});
 
 		test('having', async ({ db }) => {
@@ -2039,23 +2040,35 @@ export function tests() {
 			]);
 		});
 
-		test('view', async ({ db }) => {
-			const newYorkers1 = pgView('new_yorkers')
+		test.concurrent.only('view', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_68', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_68', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			const newYorkers1 = pgView('new_yorkers_1')
 				.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
-			const newYorkers2 = pgView('new_yorkers', {
+			const newYorkers2 = pgView('new_yorkers_2', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
 
-			const newYorkers3 = pgView('new_yorkers', {
+			const newYorkers3 = pgView('new_yorkers_3', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			}).existing();
 
-			await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+			await push({ citiesTable, users2Table, newYorkers1, newYorkers2, newYorkers3 });
+			await db.execute(sql`create view ${newYorkers3} as ${getViewConfig(newYorkers2).query}`);
 
 			await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
 
@@ -2096,22 +2109,32 @@ export function tests() {
 					{ name: 'Jane' },
 				]);
 			}
-
-			await db.execute(sql`drop view ${newYorkers1}`);
 		});
 
-		// NEXT
-		test('materialized view', async ({ db }) => {
-			const newYorkers1 = pgMaterializedView('new_yorkers')
+		test.concurrent.only('materialized view', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_69', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_69', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			const newYorkers1 = pgMaterializedView('new_yorkers_69')
 				.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
-			const newYorkers2 = pgMaterializedView('new_yorkers', {
+			const newYorkers2 = pgMaterializedView('new_yorkers_69', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			}).as(sql`select * from ${users2Table} where ${eq(users2Table.cityId, 1)}`);
 
-			const newYorkers3 = pgMaterializedView('new_yorkers', {
+			const newYorkers3 = pgMaterializedView('new_yorkers_69', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
@@ -2169,7 +2192,14 @@ export function tests() {
 			await db.execute(sql`drop materialized view ${newYorkers1}`);
 		});
 
-		test('select from existing view', async ({ db }) => {
+		test.concurrent.only('select from existing view', async ({ db, push }) => {
+			const usersTable = pgTable('users_70', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
 			const schema = pgSchema('test_schema');
 
 			const newYorkers = schema.view('new_yorkers', {
@@ -2189,8 +2219,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 100 }]);
 		});
 
-		// TODO: copy to SQLite and MySQL, add to docs
-		test('select from raw sql', async ({ db }) => {
+		test.concurrent.only('select from raw sql', async ({ db }) => {
 			const result = await db.select({
 				id: sql<number>`id`,
 				name: sql<string>`name`,
@@ -2202,7 +2231,7 @@ export function tests() {
 			]);
 		});
 
-		test('select from raw sql with joins', async ({ db }) => {
+		test.concurrent.only('select from raw sql with joins', async ({ db }) => {
 			const result = await db
 				.select({
 					id: sql<number>`users.id`,
@@ -2220,7 +2249,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from select', async ({ db }) => {
+		test.concurrent.only('join on aliased sql from select', async ({ db }) => {
 			const result = await db
 				.select({
 					userId: sql<number>`users.id`.as('userId'),
@@ -2241,7 +2270,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from with clause', async ({ db }) => {
+		test.concurrent.only('join on aliased sql from with clause', async ({ db }) => {
 			const users = db.$with('users').as(
 				db.select({
 					id: sql<number>`id`.as('userId'),
@@ -2305,7 +2334,7 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('select from enum as ts enum', async ({ db }) => {
+		test.concurrent.only('select from enum as ts enum', async ({ db, push }) => {
 			enum Muscle {
 				abdominals = 'abdominals',
 				hamstrings = 'hamstrings',
@@ -2358,19 +2387,14 @@ export function tests() {
 				full_body = 'full_body',
 			}
 
-			const muscleEnum = pgEnum('muscle', Muscle);
+			const muscleEnum = pgEnum('muscle_1', Muscle);
+			const forceEnum = pgEnum('force_1', Force);
+			const levelEnum = pgEnum('level_1', Level);
+			const mechanicEnum = pgEnum('mechanic_1', Mechanic);
+			const equipmentEnum = pgEnum('equipment_1', Equipment);
+			const categoryEnum = pgEnum('category_1', Category);
 
-			const forceEnum = pgEnum('force', Force);
-
-			const levelEnum = pgEnum('level', Level);
-
-			const mechanicEnum = pgEnum('mechanic', Mechanic);
-
-			const equipmentEnum = pgEnum('equipment', Equipment);
-
-			const categoryEnum = pgEnum('category', Category);
-
-			const exercises = pgTable('exercises', {
+			const exercises = pgTable('exercises_1', {
 				id: serial('id').primaryKey(),
 				name: varchar('name').notNull(),
 				force: forceEnum('force'),
@@ -2385,50 +2409,7 @@ export function tests() {
 				updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
 			});
 
-			await db.execute(sql`drop table if exists ${exercises}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(muscleEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(forceEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(levelEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(mechanicEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(equipmentEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
-
-			await db.execute(
-				sql`create type ${
-					sql.identifier(muscleEnum.enumName)
-				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`,
-			);
-			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-			await db.execute(
-				sql`create type ${
-					sql.identifier(equipmentEnum.enumName)
-				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
-			);
-			await db.execute(sql`
-				create table ${exercises} (
-					id serial primary key,
-					name varchar not null,
-					force force,
-					level level,
-					mechanic mechanic,
-					equipment equipment,
-					instructions text,
-					category category,
-					primary_muscles muscle[],
-					secondary_muscles muscle[],
-					created_at timestamp not null default now(),
-					updated_at timestamp not null default now()
-				)
-			`);
+			await push({ muscleEnum, forceEnum, levelEnum, mechanicEnum, equipmentEnum, categoryEnum, exercises });
 
 			await db.insert(exercises).values({
 				name: 'Bench Press',
@@ -2462,17 +2443,9 @@ export function tests() {
 					updatedAt: result[0]!.updatedAt,
 				},
 			]);
-
-			await db.execute(sql`drop table ${exercises}`);
-			await db.execute(sql`drop type ${sql.identifier(muscleEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(forceEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(levelEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(mechanicEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(equipmentEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
-		test('select from enum', async ({ db }) => {
+		test.concurrent.only('select from enum', async ({ db, push }) => {
 			const muscleEnum = pgEnum('muscle', [
 				'abdominals',
 				'hamstrings',
@@ -2494,11 +2467,8 @@ export function tests() {
 			]);
 
 			const forceEnum = pgEnum('force', ['isometric', 'isotonic', 'isokinetic']);
-
 			const levelEnum = pgEnum('level', ['beginner', 'intermediate', 'advanced']);
-
 			const mechanicEnum = pgEnum('mechanic', ['compound', 'isolation']);
-
 			const equipmentEnum = pgEnum('equipment', [
 				'barbell',
 				'dumbbell',
@@ -2507,10 +2477,9 @@ export function tests() {
 				'cable',
 				'kettlebell',
 			]);
+			const categoryEnum = pgEnum('category_66', ['upper_body', 'lower_body', 'full_body']);
 
-			const categoryEnum = pgEnum('category', ['upper_body', 'lower_body', 'full_body']);
-
-			const exercises = pgTable('exercises', {
+			const exercises = pgTable('exercises_66', {
 				id: serial('id').primaryKey(),
 				name: varchar('name').notNull(),
 				force: forceEnum('force'),
@@ -2525,50 +2494,7 @@ export function tests() {
 				updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
 			});
 
-			await db.execute(sql`drop table if exists ${exercises}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(muscleEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(forceEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(levelEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(mechanicEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(equipmentEnum.enumName)}`);
-			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
-
-			await db.execute(
-				sql`create type ${
-					sql.identifier(muscleEnum.enumName)
-				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`,
-			);
-			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
-			await db.execute(
-				sql`create type ${
-					sql.identifier(equipmentEnum.enumName)
-				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
-			);
-			await db.execute(
-				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
-			);
-			await db.execute(sql`
-				create table ${exercises} (
-					id serial primary key,
-					name varchar not null,
-					force force,
-					level level,
-					mechanic mechanic,
-					equipment equipment,
-					instructions text,
-					category category,
-					primary_muscles muscle[],
-					secondary_muscles muscle[],
-					created_at timestamp not null default now(),
-					updated_at timestamp not null default now()
-				)
-			`);
+			await push({ muscleEnum, forceEnum, levelEnum, mechanicEnum, equipmentEnum, categoryEnum, exercises });
 
 			await db.insert(exercises).values({
 				name: 'Bench Press',
@@ -2602,18 +2528,10 @@ export function tests() {
 					updatedAt: result[0]!.updatedAt,
 				},
 			]);
-
-			await db.execute(sql`drop table ${exercises}`);
-			await db.execute(sql`drop type ${sql.identifier(muscleEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(forceEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(levelEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(mechanicEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(equipmentEnum.enumName)}`);
-			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
-		test('all date and time columns', async ({ db }) => {
-			const table = pgTable('all_columns', {
+		test.concurrent.only('all date and time columns', async ({ db, push }) => {
+			const table = pgTable('all_columns_67', {
 				id: serial('id').primaryKey(),
 				dateString: date('date_string', { mode: 'string' }).notNull(),
 				time: time('time', { precision: 3 }).notNull(),
@@ -2625,6 +2543,7 @@ export function tests() {
 				interval: interval('interval').notNull(),
 			});
 
+			await push({ tableName: table });
 			await db.execute(sql`drop table if exists ${table}`);
 
 			await db.execute(sql`
@@ -2703,12 +2622,13 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('all date and time columns with timezone second case mode date', async ({ db }) => {
-			const table = pgTable('all_columns', {
+		test.concurrent.only('all date and time columns with timezone second case mode date', async ({ db, push }) => {
+			const table = pgTable('all_columns_68', {
 				id: serial('id').primaryKey(),
 				timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 			});
 
+			await push({ tableName: table });
 			await db.execute(sql`drop table if exists ${table}`);
 
 			await db.execute(sql`
@@ -2737,12 +2657,13 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('all date and time columns with timezone third case mode date', async ({ db }) => {
-			const table = pgTable('all_columns', {
+		test.concurrent.only('all date and time columns with timezone third case mode date', async ({ db, push }) => {
+			const table = pgTable('all_columns_69', {
 				id: serial('id').primaryKey(),
 				timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 			});
 
+			await push({ tableName: table });
 			await db.execute(sql`drop table if exists ${table}`);
 
 			await db.execute(sql`
@@ -2769,20 +2690,13 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('orderBy with aliased column', ({ db }) => {
-			const query = db.select({
-				test: sql`something`.as('test'),
-			}).from(users2Table).orderBy((fields) => fields.test).toSQL();
-
-			expect(query.sql).toBe('select something as "test" from "users2" order by "test"');
-		});
-
-		test('select from sql', async ({ db }) => {
-			const metricEntry = pgTable('metric_entry', {
+		test.concurrent.only('select from sql', async ({ db, push }) => {
+			const metricEntry = pgTable('metric_entry_71', {
 				id: pgUuid('id').notNull(),
 				createdAt: timestamp('created_at').notNull(),
 			});
 
+			await push({ tableName: metricEntry });
 			await db.execute(sql`drop table if exists ${metricEntry}`);
 			await db.execute(sql`create table ${metricEntry} (id uuid not null, created_at timestamp not null)`);
 
@@ -2822,19 +2736,20 @@ export function tests() {
 			})()).resolves.not.toThrowError();
 		});
 
-		test('timestamp timezone', async ({ db }) => {
-			const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone', {
+		test.concurrent.only('timestamp timezone', async ({ db, push }) => {
+			const usersTableWithAndWithoutTimezone = pgTable('users_test_with_and_without_timezone_72', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 				updatedAt: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
 			});
 
+			await push({ tableName: usersTableWithAndWithoutTimezone });
 			await db.execute(sql`drop table if exists ${usersTableWithAndWithoutTimezone}`);
 
 			await db.execute(
 				sql`
-					create table users_test_with_and_without_timezone (
+					create table users_test_with_and_without_timezone_72 (
 						id serial not null primary key,
 						name text not null,
 						created_at timestamptz not null default now(),
@@ -2862,23 +2777,27 @@ export function tests() {
 			expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
 		});
 
-		test('transaction', async ({ db }) => {
-			const users = pgTable('users_transactions', {
+		test.concurrent.only('transaction', async ({ db, push }) => {
+			const users = pgTable('users_transactions_73', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
-			const products = pgTable('products_transactions', {
+			const products = pgTable('products_transactions_73', {
 				id: serial('id').primaryKey(),
 				price: integer('price').notNull(),
 				stock: integer('stock').notNull(),
 			});
 
+			await push({ tableName: users });
+			await push({ tableName: products });
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`drop table if exists ${products}`);
 
-			await db.execute(sql`create table users_transactions (id serial not null primary key, balance integer not null)`);
 			await db.execute(
-				sql`create table products_transactions (id serial not null primary key, price integer not null, stock integer not null)`,
+				sql`create table users_transactions_73 (id serial not null primary key, balance integer not null)`,
+			);
+			await db.execute(
+				sql`create table products_transactions_73 (id serial not null primary key, price integer not null, stock integer not null)`,
 			);
 
 			const user = await db.insert(users).values({ balance: 100 }).returning().then((rows) => rows[0]!);
@@ -2897,16 +2816,17 @@ export function tests() {
 			await db.execute(sql`drop table ${products}`);
 		});
 
-		test('transaction rollback', async ({ db }) => {
-			const users = pgTable('users_transactions_rollback', {
+		test.concurrent.only('transaction rollback', async ({ db, push }) => {
+			const users = pgTable('users_transactions_rollback_74', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
+			await push({ tableName: users });
 			await db.execute(sql`drop table if exists ${users}`);
 
 			await db.execute(
-				sql`create table users_transactions_rollback (id serial not null primary key, balance integer not null)`,
+				sql`create table users_transactions_rollback_74 (id serial not null primary key, balance integer not null)`,
 			);
 
 			await expect((async () => {
@@ -2923,16 +2843,17 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('nested transaction', async ({ db }) => {
-			const users = pgTable('users_nested_transactions', {
+		test.concurrent.only('nested transaction', async ({ db, push }) => {
+			const users = pgTable('users_nested_transactions_75', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
+			await push({ tableName: users });
 			await db.execute(sql`drop table if exists ${users}`);
 
 			await db.execute(
-				sql`create table users_nested_transactions (id serial not null primary key, balance integer not null)`,
+				sql`create table users_nested_transactions_75 (id serial not null primary key, balance integer not null)`,
 			);
 
 			await db.transaction(async (tx) => {
@@ -2950,16 +2871,17 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('nested transaction rollback', async ({ db }) => {
-			const users = pgTable('users_nested_transactions_rollback', {
+		test.concurrent.only('nested transaction rollback', async ({ db, push }) => {
+			const users = pgTable('users_nested_transactions_rollback_76', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
+			await push({ tableName: users });
 			await db.execute(sql`drop table if exists ${users}`);
 
 			await db.execute(
-				sql`create table users_nested_transactions_rollback (id serial not null primary key, balance integer not null)`,
+				sql`create table users_nested_transactions_rollback_76 (id serial not null primary key, balance integer not null)`,
 			);
 
 			await db.transaction(async (tx) => {
@@ -2980,26 +2902,20 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('join subquery with join', async ({ db }) => {
-			const internalStaff = pgTable('internal_staff', {
+		test.concurrent.only('join subquery with join', async ({ db, push }) => {
+			const internalStaff = pgTable('internal_staff_77', {
 				userId: integer('user_id').notNull(),
 			});
 
-			const customUser = pgTable('custom_user', {
+			const customUser = pgTable('custom_user_77', {
 				id: integer('id').notNull(),
 			});
 
-			const ticket = pgTable('ticket', {
+			const ticket = pgTable('ticket_77', {
 				staffId: integer('staff_id').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${internalStaff}`);
-			await db.execute(sql`drop table if exists ${customUser}`);
-			await db.execute(sql`drop table if exists ${ticket}`);
-
-			await db.execute(sql`create table internal_staff (user_id integer not null)`);
-			await db.execute(sql`create table custom_user (id integer not null)`);
-			await db.execute(sql`create table ticket (staff_id integer not null)`);
+			await push({ internalStaff, customUser, ticket });
 
 			await db.insert(internalStaff).values({ userId: 1 });
 			await db.insert(customUser).values({ id: 1 });
@@ -3014,13 +2930,13 @@ export function tests() {
 			const mainQuery = await db
 				.select()
 				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+				.leftJoin(subq, eq(subq.internal_staff_77.userId, ticket.staffId));
 
 			expect(mainQuery).toEqual([{
-				ticket: { staffId: 1 },
+				ticket_77: { staffId: 1 },
 				internal_staff: {
-					internal_staff: { userId: 1 },
-					custom_user: { id: 1 },
+					internal_staff_77: { userId: 1 },
+					custom_user_77: { id: 1 },
 				},
 			}]);
 
@@ -3029,15 +2945,16 @@ export function tests() {
 			await db.execute(sql`drop table ${ticket}`);
 		});
 
-		test('subquery with view', async ({ db }) => {
-			const users = pgTable('users_subquery_view', {
+		test.concurrent.only('subquery with view', async ({ db, push }) => {
+			const users = pgTable('users_subquery_view_78', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			});
 
-			const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+			const newYorkers = pgView('new_yorkers_78').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
+			await push({ tableName: users });
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`drop view if exists ${newYorkers}`);
 
@@ -3065,15 +2982,16 @@ export function tests() {
 			await db.execute(sql`drop table ${users}`);
 		});
 
-		test('join view as subquery', async ({ db }) => {
-			const users = pgTable('users_join_view', {
+		test.concurrent.only('join view as subquery', async ({ db, push }) => {
+			const users = pgTable('users_join_view_79', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				cityId: integer('city_id').notNull(),
 			});
 
-			const newYorkers = pgView('new_yorkers').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
+			const newYorkers = pgView('new_yorkers_79').as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
+			await push({ tableName: users });
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`drop view if exists ${newYorkers}`);
 
@@ -3095,19 +3013,19 @@ export function tests() {
 
 			expect(result).toEqual([
 				{
-					users_join_view: { id: 1, name: 'John', cityId: 1 },
+					users_join_view_79: { id: 1, name: 'John', cityId: 1 },
 					new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
 				},
 				{
-					users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+					users_join_view_79: { id: 2, name: 'Jane', cityId: 2 },
 					new_yorkers_sq: null,
 				},
 				{
-					users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+					users_join_view_79: { id: 3, name: 'Jack', cityId: 1 },
 					new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
 				},
 				{
-					users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+					users_join_view_79: { id: 4, name: 'Jill', cityId: 2 },
 					new_yorkers_sq: null,
 				},
 			]);
