@@ -170,6 +170,10 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, Column)) {
+										if (c.columnType === 'SQLiteNumericBigInt') {
+											return chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(c))} as text)`);
+										}
+
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
@@ -200,6 +204,20 @@ export abstract class SQLiteDialect {
 							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
 						}
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+						if (fieldDecoder) field._.sql.decoder = fieldDecoder;
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
@@ -225,6 +243,7 @@ export abstract class SQLiteDialect {
 					joinsArray.push(sql` `);
 				}
 				const table = joinMeta.table;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SQLiteTable)) {
 					const tableName = table[SQLiteTable.Symbol.Name];
@@ -234,11 +253,11 @@ export abstract class SQLiteDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
 							sql.identifier(origTableName)
-						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {

@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import {
@@ -77,6 +78,8 @@ export class GelDatabase<
 				);
 			}
 		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -497,6 +500,8 @@ export class GelDatabase<
 		});
 	}
 
+	$cache: { invalidate: Cache['onMutate'] };
+
 	/**
 	 * Creates an update query.
 	 *
@@ -617,7 +622,7 @@ export class GelDatabase<
 	}
 }
 
-export type GelWithReplicas<Q> = Q & { $primary: Q };
+export type GelWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends GelQueryResultHKT,
@@ -656,6 +661,7 @@ export const withReplicas = <
 		transaction,
 		// refreshMaterializedView,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		selectDistinctOn,

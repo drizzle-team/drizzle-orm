@@ -19,9 +19,11 @@ import {
 	ilike,
 	inArray,
 	is,
+	like,
 	lt,
 	max,
 	min,
+	not,
 	notInArray,
 	or,
 	SQL,
@@ -1739,6 +1741,78 @@ export function tests() {
 			]);
 		});
 
+		test('select from a many subquery', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test('select from a one subquery', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
 		test('join subquery', async (ctx) => {
 			const { db } = ctx.pg;
 
@@ -2182,7 +2256,7 @@ export function tests() {
 					.for('share', { of: users2Table, noWait: true })
 					.toSQL();
 
-				expect(query.sql).toMatch(/for share of "users2" no wait$/);
+				expect(query.sql).toMatch(/for share of "users2" nowait$/);
 			}
 		});
 
@@ -2503,6 +2577,175 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 
 			await db.execute(sql`drop table ${users}`);
+		});
+
+		test('select from enum as ts enum', async (ctx) => {
+			const { db } = ctx.pg;
+
+			enum Muscle {
+				abdominals = 'abdominals',
+				hamstrings = 'hamstrings',
+				adductors = 'adductors',
+				quadriceps = 'quadriceps',
+				biceps = 'biceps',
+				shoulders = 'shoulders',
+				chest = 'chest',
+				middle_back = 'middle_back',
+				calves = 'calves',
+				glutes = 'glutes',
+				lower_back = 'lower_back',
+				lats = 'lats',
+				triceps = 'triceps',
+				traps = 'traps',
+				forearms = 'forearms',
+				neck = 'neck',
+				abductors = 'abductors',
+			}
+
+			enum Force {
+				isometric = 'isometric',
+				isotonic = 'isotonic',
+				isokinetic = 'isokinetic',
+			}
+
+			enum Level {
+				beginner = 'beginner',
+				intermediate = 'intermediate',
+				advanced = 'advanced',
+			}
+
+			enum Mechanic {
+				compound = 'compound',
+				isolation = 'isolation',
+			}
+
+			enum Equipment {
+				barbell = 'barbell',
+				dumbbell = 'dumbbell',
+				bodyweight = 'bodyweight',
+				machine = 'machine',
+				cable = 'cable',
+				kettlebell = 'kettlebell',
+			}
+
+			enum Category {
+				upper_body = 'upper_body',
+				lower_body = 'lower_body',
+				full_body = 'full_body',
+			}
+
+			const muscleEnum = pgEnum('muscle', Muscle);
+
+			const forceEnum = pgEnum('force', Force);
+
+			const levelEnum = pgEnum('level', Level);
+
+			const mechanicEnum = pgEnum('mechanic', Mechanic);
+
+			const equipmentEnum = pgEnum('equipment', Equipment);
+
+			const categoryEnum = pgEnum('category', Category);
+
+			const exercises = pgTable('exercises', {
+				id: serial('id').primaryKey(),
+				name: varchar('name').notNull(),
+				force: forceEnum('force'),
+				level: levelEnum('level'),
+				mechanic: mechanicEnum('mechanic'),
+				equipment: equipmentEnum('equipment'),
+				instructions: text('instructions'),
+				category: categoryEnum('category'),
+				primaryMuscles: muscleEnum('primary_muscles').array(),
+				secondaryMuscles: muscleEnum('secondary_muscles').array(),
+				createdAt: timestamp('created_at').notNull().default(sql`now()`),
+				updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
+			});
+
+			await db.execute(sql`drop table if exists ${exercises}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
+
+			await db.execute(
+				sql`create type ${
+					sql.identifier(muscleEnum.enumName)
+				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`,
+			);
+			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
+			await db.execute(
+				sql`create type ${
+					sql.identifier(equipmentEnum.enumName)
+				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
+			);
+			await db.execute(sql`
+				create table ${exercises} (
+					id serial primary key,
+					name varchar not null,
+					force force,
+					level level,
+					mechanic mechanic,
+					equipment equipment,
+					instructions text,
+					category category,
+					primary_muscles muscle[],
+					secondary_muscles muscle[],
+					created_at timestamp not null default now(),
+					updated_at timestamp not null default now()
+				)
+			`);
+
+			await db.insert(exercises).values({
+				name: 'Bench Press',
+				force: Force.isotonic,
+				level: Level.beginner,
+				mechanic: Mechanic.compound,
+				equipment: Equipment.barbell,
+				instructions:
+					'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+				category: Category.upper_body,
+				primaryMuscles: [Muscle.chest, Muscle.triceps],
+				secondaryMuscles: [Muscle.shoulders, Muscle.traps],
+			});
+
+			const result = await db.select().from(exercises);
+
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'Bench Press',
+					force: 'isotonic',
+					level: 'beginner',
+					mechanic: 'compound',
+					equipment: 'barbell',
+					instructions:
+						'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+					category: 'upper_body',
+					primaryMuscles: ['chest', 'triceps'],
+					secondaryMuscles: ['shoulders', 'traps'],
+					createdAt: result[0]!.createdAt,
+					updatedAt: result[0]!.updatedAt,
+				},
+			]);
+
+			await db.execute(sql`drop table ${exercises}`);
+			await db.execute(sql`drop type ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
 		test('select from enum', async (ctx) => {
@@ -5284,7 +5527,7 @@ export function tests() {
 
 			expect(name).toBe('users_sync');
 			expect(schema).toBe('neon_auth');
-			expect(columns).toHaveLength(6);
+			expect(columns).toHaveLength(7);
 		});
 
 		test('Enable RLS function', () => {
@@ -5713,6 +5956,182 @@ export function tests() {
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test('cross join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
+		test('left join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.leftJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+				{ cityId: 2, cityName: 'London', userId: null, userName: null },
+			]);
+		});
+
+		test('inner join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.innerJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			]);
+		});
+
+		test('cross join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
+				name: 'Patrick',
+				cityId: 2,
+			}]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(not(like(citiesTable.name, 'L%')))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.crossJoinLateral(sq)
+				.orderBy(citiesTable.id, sq.userId);
+
+			expect(res).toStrictEqual([
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 3,
+					userName: 'Patrick',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 3,
+					userName: 'Patrick',
+				},
+			]);
 		});
 
 		test('all types', async (ctx) => {
