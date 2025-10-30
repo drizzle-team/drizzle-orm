@@ -420,7 +420,7 @@ async function setupAggregateFunctionsTest(
 
 export function tests() {
 	describe('common', () => {
-		test.only('select all fields', async ({ db, push }) => {
+		test.concurrent.only('select all fields', async ({ db, push }) => {
 			const users = pgTable('users_1', {
 				id: serial('id' as string).primaryKey(),
 				name: text('name').notNull(),
@@ -440,7 +440,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test.only('select sql', async ({ db, push }) => {
+		test.concurrent.only('select sql', async ({ db, push }) => {
 			const users = pgTable('users_2', {
 				id: serial('id' as string).primaryKey(),
 				name: text('name').notNull(),
@@ -454,41 +454,72 @@ export function tests() {
 			expect(res).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select typed sql', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
+		test.concurrent.only('select typed sql', async ({ db, push }) => {
+			const users = pgTable('users_3', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
 
-			const users = await db.select({
-				name: sql<string>`upper(${usersTable.name})`,
-			}).from(usersTable);
+			await push({ users });
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await db.insert(users).values({ name: 'John' });
+
+			const usersResult = await db.select({
+				name: sql<string>`upper(${users.name})`,
+			}).from(users);
+
+			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select with empty array in inArray', async ({ db }) => {
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+		test.concurrent.only('select with empty array in inArray', async ({ db, push }) => {
+			const users = pgTable('users_4', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
 				.select({
-					name: sql`upper(${usersTable.name})`,
+					name: sql`upper(${users.name})`,
 				})
-				.from(usersTable)
-				.where(inArray(usersTable.id, []));
+				.from(users)
+				.where(inArray(users.id, []));
 
 			expect(result).toEqual([]);
 		});
 
-		test('select with empty array in notInArray', async ({ db }) => {
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+		test.concurrent.only('select with empty array in notInArray', async ({ db, push }) => {
+			const users = pgTable('users_5', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
 				.select({
-					name: sql`upper(${usersTable.name})`,
+					name: sql`upper(${users.name})`,
 				})
-				.from(usersTable)
-				.where(notInArray(usersTable.id, []));
+				.from(users)
+				.where(notInArray(users.id, []));
 
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
-		test('$default function', async ({ db }) => {
+		test.concurrent.only('$default function', async ({ db, push }) => {
+			const orders = pgTable('orders_1', {
+				id: serial('id').primaryKey(),
+				region: text('region').notNull(),
+				product: text('product').notNull().$default(() => 'random_string'),
+				amount: integer('amount').notNull(),
+				quantity: integer('quantity').notNull(),
+			});
+
+			await push({ orders });
+
 			const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
 				.returning();
 			const selectedOrder = await db.select().from(orders);
@@ -510,15 +541,14 @@ export function tests() {
 			}]);
 		});
 
-		test('select distinct', async ({ db }) => {
-			const usersDistinctTable = pgTable('users_distinct', {
+		test.concurrent.only('select distinct', async ({ db, push }) => {
+			const usersDistinctTable = pgTable('users_distinct_1', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
 				age: integer('age').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-			await db.execute(sql`create table ${usersDistinctTable} (id integer, name text, age integer)`);
+			await push({ usersDistinctTable });
 
 			await db.insert(usersDistinctTable).values([
 				{ id: 1, name: 'John', age: 24 },
@@ -540,8 +570,6 @@ export function tests() {
 			const users4 = await db.selectDistinctOn([usersDistinctTable.id, usersDistinctTable.age]).from(
 				usersDistinctTable,
 			).orderBy(usersDistinctTable.id, usersDistinctTable.age);
-
-			await db.execute(sql`drop table ${usersDistinctTable}`);
 
 			expect(users1).toEqual([
 				{ id: 1, name: 'Jane', age: 24 },
@@ -565,71 +593,109 @@ export function tests() {
 			]);
 		});
 
-		test('insert returning sql', async ({ db }) => {
-			const users = await db
-				.insert(usersTable)
+		test.concurrent.only('insert returning sql', async ({ db, push }) => {
+			const users = pgTable('users_6', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			const usersResult = await db
+				.insert(users)
 				.values({ name: 'John' })
 				.returning({
-					name: sql`upper(${usersTable.name})`,
+					name: sql`upper(${users.name})`,
 				});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('delete returning sql', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.delete(usersTable)
-				.where(eq(usersTable.name, 'John'))
+		test.concurrent.only('delete returning sql', async ({ db, push }) => {
+			const users = pgTable('users_7', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db
+				.delete(users)
+				.where(eq(users.name, 'John'))
 				.returning({
-					name: sql`upper(${usersTable.name})`,
+					name: sql`upper(${users.name})`,
 				});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('update returning sql', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.update(usersTable)
+		test.concurrent.only('update returning sql', async ({ db, push }) => {
+			const users = pgTable('users_8', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db
+				.update(users)
 				.set({ name: 'Jane' })
-				.where(eq(usersTable.name, 'John'))
+				.where(eq(users.name, 'John'))
 				.returning({
-					name: sql`upper(${usersTable.name})`,
+					name: sql`upper(${users.name})`,
 				});
 
-			expect(users).toEqual([{ name: 'JANE' }]);
+			expect(usersResult).toEqual([{ name: 'JANE' }]);
 		});
 
-		test('update with returning all fields', async ({ db }) => {
+		test.concurrent.only('update with returning all fields', async ({ db, push }) => {
+			const users = pgTable('users_9', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await push({ users });
+
 			const now = Date.now();
 
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.update(usersTable)
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db
+				.update(users)
 				.set({ name: 'Jane' })
-				.where(eq(usersTable.name, 'John'))
+				.where(eq(users.name, 'John'))
 				.returning();
 
-			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
-			expect(users).toEqual([
-				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
+			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
+			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expect(usersResult).toEqual([
+				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
 		});
 
-		test('update with returning partial', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.update(usersTable)
+		test.concurrent.only('update with returning partial', async ({ db, push }) => {
+			const users = pgTable('users_10', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db
+				.update(users)
 				.set({ name: 'Jane' })
-				.where(eq(usersTable.name, 'John'))
+				.where(eq(users.name, 'John'))
 				.returning({
-					id: usersTable.id,
-					name: usersTable.name,
+					id: users.id,
+					name: users.name,
 				});
 
-			expect(users).toEqual([{ id: 1, name: 'Jane' }]);
+			expect(usersResult).toEqual([{ id: 1, name: 'Jane' }]);
 		});
 
 		test('delete with returning all fields', async ({ db }) => {
