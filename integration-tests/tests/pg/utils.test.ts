@@ -1,5 +1,20 @@
-import { char, foreignKey, getTableConfig, pgTable, primaryKey, serial, text, unique } from 'drizzle-orm/pg-core';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import {
+	boolean,
+	char,
+	foreignKey,
+	getTableConfig,
+	jsonb,
+	pgTable,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+	unique,
+} from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
+
+const db = drizzle.mock();
 
 test('table configs: unique third param', async () => {
 	const cities1Table = pgTable(
@@ -76,4 +91,129 @@ test('table config: primary keys name', async () => {
 
 	expect(tableConfig.primaryKeys).toHaveLength(1);
 	expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
+});
+
+test('Query check: Insert all defaults in 1 row', async () => {
+	const users = pgTable('users_40', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state'),
+	});
+
+	const query = db
+		.insert(users)
+		.values({})
+		.toSQL();
+
+	expect(query).toEqual({
+		sql: 'insert into "users_40" ("id", "name", "state") values (default, default, default)',
+		params: [],
+	});
+});
+
+test('Query check: Insert all defaults in multiple rows', async () => {
+	const users = pgTable('users_41', {
+		id: serial('id').primaryKey(),
+		name: text('name').default('Dan'),
+		state: text('state').default('UA'),
+	});
+
+	const query = db
+		.insert(users)
+		.values([{}, {}])
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into "users_41" ("id", "name", "state") values (default, default, default), (default, default, default)',
+		params: [],
+	});
+});
+
+test.concurrent.only('build query insert with onConflict do update', async () => {
+	const usersTable = pgTable('users_44', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: jsonb('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	});
+
+	const query = db
+		.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into "users_44" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
+		params: ['John', '["foo","bar"]', 'John1'],
+	});
+});
+
+test('build query insert with onConflict do update / multiple columns', async () => {
+	const usersTable = pgTable('users_45', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: jsonb('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	});
+
+	const query = db
+		.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoUpdate({ target: [usersTable.id, usersTable.name], set: { name: 'John1' } })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into "users_45" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
+		params: ['John', '["foo","bar"]', 'John1'],
+	});
+});
+
+test.concurrent.only('build query insert with onConflict do nothing', async () => {
+	const usersTable = pgTable('users_46', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: jsonb('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	});
+
+	const query = db
+		.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoNothing()
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into "users_46" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
+		params: ['John', '["foo","bar"]'],
+	});
+});
+
+test.concurrent.only('build query insert with onConflict do nothing + target', async () => {
+	const usersTable = pgTable('users_47', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		jsonb: jsonb('jsonb').$type<string[]>(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	});
+
+	const query = db
+		.insert(usersTable)
+		.values({ name: 'John', jsonb: ['foo', 'bar'] })
+		.onConflictDoNothing({ target: usersTable.id })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'insert into "users_47" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
+		params: ['John', '["foo","bar"]'],
+	});
 });
