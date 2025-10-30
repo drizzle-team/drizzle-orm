@@ -440,15 +440,18 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('select sql', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.select({
-					name: sql`upper(${usersTable.name})`,
-				})
-				.from(usersTable);
+		test.only('select sql', async ({ db, push }) => {
+			const users = pgTable('users_2', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+			});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+			const res = await db.select({ name: sql`upper(${usersTable.name})` }).from(users);
+
+			expect(res).toEqual([{ name: 'JOHN' }]);
 		});
 
 		test('select typed sql', async ({ db }) => {
