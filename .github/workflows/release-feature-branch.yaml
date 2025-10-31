@@ -249,7 +249,7 @@ jobs:
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
           
-            int:bun)  bun test tests/bun/ ;;
+            int:bun)  bun test tests/bun/ --exclude ./tests/sqlite/sqlite-nw.test.ts --exclude ./tests/sqlite/sqlite.test.ts ;;
 
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run tests \
