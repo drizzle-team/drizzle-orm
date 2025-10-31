@@ -142,14 +142,7 @@ describe('migrator', () => {
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) not null
-			)
-	`);
+		await push({ table });
 
 		// 1. Insert date in string format without timezone in it
 		await db.insert(table).values([
@@ -168,8 +161,6 @@ describe('migrator', () => {
 		}>(sql`select * from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test('all date and time columns without timezone second case mode string', async ({ db }) => {
@@ -178,14 +169,7 @@ describe('migrator', () => {
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) not null
-			)
-	`);
+		await push({ table });
 
 		// 1. Insert date in string format with timezone in it
 		await db.insert(table).values([
@@ -199,8 +183,6 @@ describe('migrator', () => {
 		}>(sql`select * from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test('all date and time columns without timezone third case mode date', async ({ db }) => {
@@ -209,14 +191,7 @@ describe('migrator', () => {
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(3) not null
-			)
-	`);
+		await push({ table });
 
 		const insertedDate = new Date('2022-01-01 20:00:00.123+04');
 
@@ -233,8 +208,6 @@ describe('migrator', () => {
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test('test mode string for timestamp with timezone', async ({ db }) => {
@@ -243,14 +216,7 @@ describe('migrator', () => {
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = '2022-01-01 00:00:00.123456-0200';
 
@@ -273,8 +239,6 @@ describe('migrator', () => {
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test('test mode date for timestamp with timezone', async ({ db }) => {
@@ -283,14 +247,7 @@ describe('migrator', () => {
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(3) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = new Date('2022-01-01 00:00:00.456-0200');
 
@@ -313,8 +270,6 @@ describe('migrator', () => {
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test('test mode string for timestamp with timezone in UTC timezone', async ({ db }) => {
@@ -324,19 +279,12 @@ describe('migrator', () => {
 		// set timezone to UTC
 		await db.execute(sql`set time zone 'UTC'`);
 
-		const table = pgTable('all_columns', {
+		const table = pgTable('all_columns_6', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = '2022-01-01 00:00:00.123456-0200';
 
@@ -361,8 +309,6 @@ describe('migrator', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
 		await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test.skip('test mode string for timestamp with timezone in different timezone', async ({ db }) => {

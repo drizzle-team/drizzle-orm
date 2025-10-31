@@ -4,7 +4,7 @@ import type { config } from 'mssql';
 import { v4 as uuid } from 'uuid';
 
 export async function createDockerDB(suffix?: string): Promise<
-	{ container: Docker.Container; options: config }
+	{ container: Docker.Container; connectionString: string }
 > {
 	const docker = new Docker();
 	const port1433 = await getPort();
@@ -38,22 +38,27 @@ export async function createDockerDB(suffix?: string): Promise<
 
 	await mssqlContainer.start();
 
-	const options: config = {
-		server: 'localhost',
-		port: port1433,
-		user: 'SA',
-		password,
-		pool: {
-			max: 1,
-		},
-		options: {
-			requestTimeout: 100_000,
-			encrypt: true, // for azure
-			trustServerCertificate: true,
-		},
-	};
 	return {
-		options,
+		// real connection string
+		// connectionString: `Server=localhost,${port1433};User Id=SA;Password=${password};TrustServerCertificate=True;`
+
+		// connection string to parse options
+		connectionString: `mssql://SA:${password}@localhost:${port1433}?encrypt=true&trustServerCertificate=true`,
 		container: mssqlContainer,
 	};
 }
+
+export const parseMssqlUrl = (urlString: string): config => {
+	const url = new URL(urlString);
+	return {
+		user: url.username,
+		password: url.password,
+		server: url.hostname,
+		port: Number.parseInt(url.port, 10),
+		database: url.pathname.replace(/^\//, ''),
+		options: {
+			encrypt: url.searchParams.get('encrypt') === 'true',
+			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
+		},
+	};
+};

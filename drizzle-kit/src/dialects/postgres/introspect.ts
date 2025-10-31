@@ -69,6 +69,9 @@ function prepareRoles(entities?: {
 
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
+
+// * use == for oid comparisons to prevent issues with different number types (string vs number) (pg converts oid to number automatically - pgsql cli returns as string)
+
 export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (schema: string, table: string) => boolean = () => true,
@@ -102,13 +105,13 @@ export const fromDatabase = async (
 	const viewColumns: ViewColumn[] = [];
 
 	type OP = {
-		oid: number;
+		oid: number | string;
 		name: string;
 		default: boolean;
 	};
 
 	type Namespace = {
-		oid: number;
+		oid: number | string;
 		name: string;
 	};
 
@@ -121,7 +124,7 @@ export const fromDatabase = async (
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
-	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
+	const accessMethodsQuery = db.query<{ oid: number | string; name: string }>(
 		`SELECT oid, amname as name FROM pg_catalog.pg_am WHERE amtype OPERATOR(pg_catalog.=) 't' ORDER BY pg_catalog.lower(amname);`,
 	).then((rows) => {
 		queryCallback('accessMethods', rows, null);
@@ -132,7 +135,7 @@ export const fromDatabase = async (
 	});
 
 	const tablespacesQuery = db.query<{
-		oid: number;
+		oid: number | string;
 		name: string;
 	}>(
 		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace ORDER BY pg_catalog.lower(spcname)`,
@@ -156,7 +159,7 @@ export const fromDatabase = async (
 		});
 
 	const defaultsQuery = db.query<{
-		tableId: number;
+		tableId: number | string;
 		ordinality: number;
 		expression: string;
 	}>(`
@@ -199,15 +202,15 @@ export const fromDatabase = async (
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	type TableListItem = {
-		oid: number;
+		oid: number | string;
 		schema: string;
 		name: string;
 		/* r - table, p - partitioned table, v - view, m - materialized view */
 		kind: 'r' | 'p' | 'v' | 'm';
-		accessMethod: number;
+		accessMethod: number | string;
 		options: string[] | null;
 		rlsEnabled: boolean;
-		tablespaceid: number;
+		tablespaceid: number | string;
 		definition: string | null;
 	};
 	const tablesList = filteredNamespacesStringForSQL
@@ -271,9 +274,9 @@ export const fromDatabase = async (
 	}
 
 	const dependQuery = db.query<{
-		oid: number;
-		tableId: number;
-		ordinality: number;
+		oid: number | string;
+		tableId: number | string;
+		ordinality: number | string;
 
 		/*
 			a - An “auto” dependency means the dependent object can be dropped separately,
@@ -304,10 +307,10 @@ export const fromDatabase = async (
 	});
 
 	type EnumListItem = {
-		oid: number;
+		oid: number | string;
 		name: string;
 		schema: string;
-		arrayTypeId: number;
+		arrayTypeId: number | string;
 		ordinality: number;
 		value: string;
 	};
@@ -340,8 +343,8 @@ export const fromDatabase = async (
 	// fetch for serials, adrelid = tableid
 	const serialsQuery = db
 		.query<{
-			oid: number;
-			tableId: number;
+			oid: number | string;
+			tableId: number | string;
 			ordinality: number;
 			expression: string;
 		}>(`SELECT
@@ -362,7 +365,7 @@ export const fromDatabase = async (
 
 	type SequenceListItem = {
 		schema: string;
-		oid: number;
+		oid: number | string;
 		name: string;
 		startWith: string;
 		minValue: string;
@@ -500,15 +503,15 @@ export const fromDatabase = async (
 		: [] as PrivilegeListItem[];
 
 	const constraintsQuery = db.query<{
-		oid: number;
-		schemaId: number;
-		tableId: number;
+		oid: number | string;
+		schemaId: number | string;
+		tableId: number | string;
 		name: string;
 		type: 'p' | 'u' | 'f' | 'c'; // p - primary key, u - unique, f - foreign key, c - check
 		definition: string;
-		indexId: number;
+		indexId: number | string;
 		columnsOrdinals: number[];
-		tableToId: number;
+		tableToId: number | string;
 		columnsToOrdinals: number[];
 		onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
 		onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
@@ -540,14 +543,14 @@ export const fromDatabase = async (
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
-		tableId: number;
+		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
 		name: string;
 		ordinality: number;
 		notNull: boolean;
 		type: string;
 		dimensions: number;
-		typeId: number;
+		typeId: number | string;
 		/* s - stored */
 		generatedType: 's' | '';
 		/*
@@ -654,7 +657,7 @@ export const fromDatabase = async (
 			acc[it.oid].values.push(it.value);
 		}
 		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	}, {} as Record<number | string, { oid: number | string; schema: string; name: string; values: string[] }>);
 
 	const groupedArrEnums = enumsList.reduce((acc, it) => {
 		if (!(it.arrayTypeId in acc)) {
@@ -668,7 +671,7 @@ export const fromDatabase = async (
 			acc[it.arrayTypeId].values.push(it.value);
 		}
 		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	}, {} as Record<number | string, { oid: number | string; schema: string; name: string; values: string[] }>);
 
 	for (const it of Object.values(groupedEnums)) {
 		enums.push({
@@ -687,7 +690,7 @@ export const fromDatabase = async (
 	let viewsCount = 0;
 
 	for (const seq of sequencesList) {
-		const depend = dependList.find((it) => it.oid === seq.oid);
+		const depend = dependList.find((it) => it.oid == seq.oid);
 
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
@@ -782,11 +785,11 @@ export const fromDatabase = async (
 		}
 
 		const expr = serialsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+			(it) => it.tableId == column.tableId && it.ordinality === column.ordinality,
 		);
 
 		if (expr) {
-			const table = tablesList.find((it) => it.oid === column.tableId)!;
+			const table = tablesList.find((it) => it.oid == column.tableId)!;
 
 			const isSerial = isSerialExpression(expr.expression, table.schema);
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
@@ -794,7 +797,7 @@ export const fromDatabase = async (
 	}
 
 	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
-		const table = tablesList.find((it) => it.oid === column.tableId)!;
+		const table = tablesList.find((it) => it.oid == column.tableId)!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums
@@ -816,7 +819,7 @@ export const fromDatabase = async (
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		const columnDefault = defaultsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+			(it) => it.tableId == column.tableId && it.ordinality === column.ordinality,
 		);
 
 		const defaultValue = defaultForColumn(
@@ -827,12 +830,12 @@ export const fromDatabase = async (
 		);
 
 		const unique = constraintsList.find((it) => {
-			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
+			return it.type === 'u' && it.tableId == column.tableId && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
 		const pk = constraintsList.find((it) => {
-			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
+			return it.type === 'p' && it.tableId == column.tableId && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
@@ -853,7 +856,7 @@ export const fromDatabase = async (
 			);
 		}
 
-		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
+		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid == Number(metadata.seqId)) ?? null : null;
 
 		columns.push({
 			entityType: 'columns',
@@ -887,8 +890,8 @@ export const fromDatabase = async (
 	}
 
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
-		const table = tablesList.find((it) => it.oid === unique.tableId)!;
-		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
+		const table = tablesList.find((it) => it.oid == unique.tableId)!;
+		const schema = namespaces.find((it) => it.oid == unique.schemaId)!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) => column.tableId == unique.tableId && column.ordinality === it)!;
@@ -907,8 +910,8 @@ export const fromDatabase = async (
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
-		const table = tablesList.find((it) => it.oid === pk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
+		const table = tablesList.find((it) => it.oid == pk.tableId)!;
+		const schema = namespaces.find((it) => it.oid == pk.schemaId)!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) => column.tableId == pk.tableId && column.ordinality === it)!;
@@ -926,9 +929,9 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
-		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
+		const table = tablesList.find((it) => it.oid == fk.tableId)!;
+		const schema = namespaces.find((it) => it.oid == fk.schemaId)!;
+		const tableTo = tablesList.find((it) => it.oid == fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) => column.tableId == fk.tableId && column.ordinality === it)!;
@@ -956,8 +959,8 @@ export const fromDatabase = async (
 	}
 
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
-		const table = tablesList.find((it) => it.oid === check.tableId)!;
-		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+		const table = tablesList.find((it) => it.oid == check.tableId)!;
+		const schema = namespaces.find((it) => it.oid == check.schemaId)!;
 
 		checks.push({
 			entityType: 'checks',
@@ -969,7 +972,7 @@ export const fromDatabase = async (
 	}
 
 	const idxs = await db.query<{
-		oid: number;
+		oid: number | string;
 		schema: string;
 		name: string;
 		accessMethod: string;
@@ -979,7 +982,7 @@ export const fromDatabase = async (
 			expression: string | null;
 			where: string;
 			columnOrdinals: number[];
-			opclasses: { oid: number; name: string; default: boolean }[];
+			opclasses: { oid: number | string; name: string; default: boolean }[];
 			options: number[];
 			isUnique: boolean;
 			isPrimary: boolean;
@@ -1039,12 +1042,12 @@ export const fromDatabase = async (
 		const { metadata } = idx;
 
 		// filter for drizzle only?
-		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
-		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId == idx.oid);
+		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId == idx.oid);
 
 		const expr = splitExpressions(metadata.expression);
 
-		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
+		const table = tablesList.find((it) => it.oid == idx.metadata.tableId)!;
 
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
@@ -1143,7 +1146,7 @@ export const fromDatabase = async (
 	progressCallback('tables', tableCount, 'done');
 
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
-		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const view = viewsList.find((x) => x.oid == it.tableId)!;
 
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
@@ -1181,8 +1184,8 @@ export const fromDatabase = async (
 		if (!tablesFilter(view.schema, view.name)) continue;
 		tableCount += 1;
 
-		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
-		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
+		const accessMethod = view.accessMethod == 0 ? null : ams.find((it) => it.oid == view.accessMethod);
+		const tablespace = view.tablespaceid == 0 ? null : tablespaces.find((it) => it.oid == view.tablespaceid)!.name;
 
 		const definition = parseViewDefinition(view.definition);
 		const withOpts = wrapRecord(
