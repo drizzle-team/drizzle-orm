@@ -65,7 +65,7 @@ export class AwsDataApiPreparedQuery<
 			resourceArn: options.resourceArn,
 			database: options.database,
 			transactionId,
-			includeResultMetadata: !fields && !customResultMapper,
+			includeResultMetadata: isRqbV2Query || (!fields && !customResultMapper),
 		});
 	}
 
@@ -113,7 +113,7 @@ export class AwsDataApiPreparedQuery<
 		const { columnMetadata, rows } = result;
 		if (!columnMetadata) {
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-				rows as any as Record<string, unknown>[],
+				rows as [],
 			);
 		}
 		const mappedRows = rows.map((sourceRow) => {
@@ -134,8 +134,6 @@ export class AwsDataApiPreparedQuery<
 			}
 			return row;
 		});
-
-		Object.assign(result, { rows: mappedRows });
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 			mappedRows,
