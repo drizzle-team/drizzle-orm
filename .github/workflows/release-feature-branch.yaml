@@ -101,6 +101,8 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
+          - shard: int:bun
+            dbs: [pg, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
@@ -244,6 +246,9 @@ jobs:
             orm|zod|seed|typebox|valibot|arktype)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
+          
+            int:bun)  bun test tests/bun/ ;;
+
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run tests \
                 --exclude ./tests/gel/ \
