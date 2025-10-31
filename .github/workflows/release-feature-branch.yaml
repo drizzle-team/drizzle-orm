@@ -237,6 +237,7 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
             kit)
               cd ../drizzle-kit
               pnpm --stream vitest --reporter=verbose --silent=false run --exclude ./tests/cockroach/ --exclude ./tests/mssql/

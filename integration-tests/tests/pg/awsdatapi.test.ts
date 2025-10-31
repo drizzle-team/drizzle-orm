@@ -1,5 +1,7 @@
 // import 'dotenv/config';
 
+import { test } from 'vitest';
+
 // import { RDSDataClient } from '@aws-sdk/client-rds-data';
 // import * as dotenv from 'dotenv';
 // import { asc, eq, inArray, notInArray, sql, TransactionRollbackError } from 'drizzle-orm';
@@ -31,6 +33,8 @@
 // dotenv.config();
 
 // const ENABLE_LOGGING = false;
+
+test('mock', () => {});
 
 // const usersTable = pgTable('users', {
 // 	id: serial('id').primaryKey(),
