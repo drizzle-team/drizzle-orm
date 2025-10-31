@@ -138,7 +138,7 @@ test('Query check: Insert all defaults in multiple rows', async () => {
 	});
 });
 
-test.concurrent.only('build query insert with onConflict do update', async () => {
+test.concurrent('build query insert with onConflict do update', async () => {
 	const usersTable = pgTable('users_44', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -182,7 +182,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	});
 });
 
-test.concurrent.only('build query insert with onConflict do nothing', async () => {
+test.concurrent('build query insert with onConflict do nothing', async () => {
 	const usersTable = pgTable('users_46', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
@@ -204,7 +204,7 @@ test.concurrent.only('build query insert with onConflict do nothing', async () =
 	});
 });
 
-test.concurrent.only('build query insert with onConflict do nothing + target', async () => {
+test.concurrent('build query insert with onConflict do nothing + target', async () => {
 	const usersTable = pgTable('users_47', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
