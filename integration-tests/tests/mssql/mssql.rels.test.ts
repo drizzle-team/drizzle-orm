@@ -5935,7 +5935,7 @@ test('Get groups with users + custom', async ({ db }) => {
 	});
 });
 
-test('.toSQL()', () => {
+test('.toSQL()', ({ db }) => {
 	const query = db._query.usersTable.findFirst().toSQL();
 
 	expect(query).toHaveProperty('sql', expect.any(String));
