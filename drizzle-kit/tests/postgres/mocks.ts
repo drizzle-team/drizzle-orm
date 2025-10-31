@@ -729,7 +729,7 @@ export async function conflictsFromSchema(
 		version: '8',
 		dialect: 'postgres',
 		id: parent.id,
-		prevId: parent.prevId ?? '',
+		prevIds: parent.prevId ? [parent.prevId]: [],
 		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
 		renames: [],
 	} satisfies PostgresSnapshot;
