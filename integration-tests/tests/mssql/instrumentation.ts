@@ -65,8 +65,10 @@ export const createClient = async () => {
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
 	const client = await mssql.connect(params);
+	const id = `db${randomUUID().split('-')[0]}`;
 	await client.query('select 1');
-
+	await client.query(`create database ${id}`);
+	await client.query(`use ${id}`);
 	const db = drizzle({ client, schema, relations: defineRelations(schema) });
 	return { client, close, url, url2, db };
 };
@@ -90,30 +92,30 @@ export const test = base.extend<
 				await close();
 			}
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	client: [
 		async ({ connection }, use) => {
 			await use(connection.client);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	url: [
 		async ({ connection }, use) => {
 			await use(connection.url);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	url2: [
 		async ({ connection }, use) => {
 			await use(connection.url2);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	db: [
 		async ({ connection }, use) => {
 			await use(connection.db);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 });
