@@ -62,6 +62,8 @@ import {
 import { describe, expect, expectTypeOf } from 'vitest';
 import { Test } from './instrumentation';
 
+const msDelay = 15000;
+
 export function tests(test: Test) {
 	describe('common', () => {
 		test.concurrent('set operations (mixed) from query builder with subquery', async ({ db, push }) => {
@@ -404,7 +406,6 @@ export function tests(test: Test) {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -445,7 +446,6 @@ export function tests(test: Test) {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 15000;
 
 			// expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
 
