@@ -1,49 +1,20 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
-import { drizzle } from 'drizzle-orm/cockroach';
-import { Client } from 'pg';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { cockroachTest as test } from '../instrumentation.ts';
 import * as schema from './cockroachSchema.ts';
 
-let client: Client;
-let db: NodeCockroachDatabase;
-let cockroachContainer: Container;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { connectionString, container } = await createDockerDB();
-	cockroachContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client({ connectionString });
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Cockroach');
-		await client?.end().catch(console.error);
-		await cockroachContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE IF NOT EXISTS "composite_example" (
 				"id" int4 not null,
 				"name" text not null,
@@ -51,20 +22,20 @@ beforeAll(async () => {
 				CONSTRAINT "custom_name" UNIQUE("id","name")
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_0" (
 				"id" int4 not null unique,
 				"name" text not null,
 				CONSTRAINT "custom_name0" UNIQUE("id","name")
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_1" (
 				"id" int4 not null,
 				"name" text not null,
@@ -72,10 +43,10 @@ beforeAll(async () => {
 				CONSTRAINT "custom_name1_id" UNIQUE("id")
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_0" (
 				"id" int4 not null unique,
 				"name" text not null,
@@ -83,10 +54,10 @@ beforeAll(async () => {
 				CONSTRAINT "custom_name2" UNIQUE("id","name","slug")
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_1" (
 				"id" int4 not null,
 				"name" text not null,
@@ -95,19 +66,19 @@ beforeAll(async () => {
 				CONSTRAINT "custom_name3_id" UNIQUE("id")
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await cockroachContainer?.stop().catch(console.error);
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	const currSchema = { composite: schema.composite };
 	await seed(db, currSchema, { count: 16 });
 
@@ -162,7 +133,7 @@ test('basic seed test', async () => {
 	await reset(db, currSchema);
 });
 
-test('unique column in composite of 2 columns', async () => {
+test('unique column in composite of 2 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfTwo0: schema.uniqueColumnInCompositeOfTwo0 };
 	await seed(db, currSchema0, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo0: {
@@ -195,7 +166,7 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema1);
 });
 
-test('unique column in composite of 3 columns', async () => {
+test('unique column in composite of 3 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfThree0: schema.uniqueColumnInCompositeOfThree0 };
 	await seed(db, currSchema0, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree0: {

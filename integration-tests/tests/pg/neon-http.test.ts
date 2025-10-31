@@ -15,6 +15,7 @@ const ENABLE_LOGGING = false;
 let db: NeonHttpDatabase<never, typeof relations>;
 let dbGlobalCached: NeonHttpDatabase;
 let cachedDb: NeonHttpDatabase;
+let push: (schema: any) => Promise<void>;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_CONNECTION_STRING'];
@@ -29,6 +30,34 @@ beforeAll(async () => {
 	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+
+	push = async (schema: any) => {
+		const { diff } = await import('../../../drizzle-kit/tests/postgres/mocks' as string);
+
+		const res = await diff({}, schema, []);
+		for (const s of res.sqlStatements) {
+			await db.execute(s).catch((e) => {
+				console.error(s);
+				console.error(e);
+				throw e;
+			});
+		}
+	};
+
+	await db.execute(sql`drop schema if exists public cascade`);
+	await db.execute(sql`create schema public`);
+
+	await db.execute(
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false,
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
+	);
 });
 
 beforeEach((ctx) => {
@@ -71,24 +100,16 @@ skipTests([
 	// Disabled until Buffer insertion is fixed
 	'all types',
 ]);
+
 tests();
 cacheTests();
 
 describe('default', () => {
 	beforeEach(async () => {
-		await db.execute(sql`drop schema if exists public cascade`);
-		await db.execute(sql`create schema public`);
-		await db.execute(
-			sql`
-			create table users (
-				id serial primary key,
-				name text not null,
-				verified boolean not null default false,
-				jsonb jsonb,
-				created_at timestamptz not null default now()
-			)
-		`,
-		);
+		await Promise.all([
+			db.execute(sql`truncate table users;`),
+			db.execute(sql`select setval(pg_get_serial_sequence('"public"."users"', 'id'), 1, false);`),
+		]);
 	});
 
 	test('migrator : default migration strategy', async () => {
@@ -180,20 +201,13 @@ describe('default', () => {
 		await db.execute(sql`drop table custom_migrations.${sql.identifier(customTable)}`);
 	});
 
-	test('all date and time columns without timezone first case mode string', async () => {
-		const table = pgTable('all_columns', {
+	test.concurrent('all date and time columns without timezone first case mode string', async () => {
+		const table = pgTable('all_columns_1', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) not null
-			)
-	`);
+		await push({ table });
 
 		// 1. Insert date in string format without timezone in it
 		await db.insert(table).values([
@@ -212,24 +226,15 @@ describe('default', () => {
 		}>(sql`select * from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone second case mode string', async () => {
-		const table = pgTable('all_columns', {
+	test.concurrent('all date and time columns without timezone second case mode string', async () => {
+		const table = pgTable('all_columns_2', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) not null
-			)
-	`);
+		await push({ table });
 
 		// 1. Insert date in string format with timezone in it
 		await db.insert(table).values([
@@ -243,24 +248,15 @@ describe('default', () => {
 		}>(sql`select * from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone third case mode date', async () => {
-		const table = pgTable('all_columns', {
+	test.concurrent('all date and time columns without timezone third case mode date', async () => {
+		const table = pgTable('all_columns_3', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(3) not null
-			)
-	`);
+		await push({ table });
 
 		const insertedDate = new Date('2022-01-01 20:00:00.123+04');
 
@@ -277,24 +273,15 @@ describe('default', () => {
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone', async () => {
-		const table = pgTable('all_columns', {
+	test.concurrent('test mode string for timestamp with timezone', async () => {
+		const table = pgTable('all_columns_4', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = '2022-01-01 00:00:00.123456-0200';
 
@@ -317,24 +304,15 @@ describe('default', () => {
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode date for timestamp with timezone', async () => {
-		const table = pgTable('all_columns', {
+	test.concurrent('test mode date for timestamp with timezone', async () => {
+		const table = pgTable('all_columns_5', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(3) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = new Date('2022-01-01 00:00:00.456-0200');
 
@@ -357,30 +335,21 @@ describe('default', () => {
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone in UTC timezone', async () => {
+	test.concurrent('test mode string for timestamp with timezone in UTC timezone', async () => {
 		// get current timezone from db
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
 		// set timezone to UTC
 		await db.execute(sql`set time zone 'UTC'`);
 
-		const table = pgTable('all_columns', {
+		const table = pgTable('all_columns_6', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
 		});
 
-		await db.execute(sql`drop table if exists ${table}`);
-
-		await db.execute(sql`
-		create table ${table} (
-					id serial primary key,
-					timestamp_string timestamp(6) with time zone not null
-			)
-	`);
+		await push({ table });
 
 		const timestampString = '2022-01-01 00:00:00.123456-0200';
 
@@ -405,8 +374,6 @@ describe('default', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
 		await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
-
-		await db.execute(sql`drop table if exists ${table}`);
 	});
 
 	test.skip('test mode string for timestamp with timezone in different timezone', async () => {

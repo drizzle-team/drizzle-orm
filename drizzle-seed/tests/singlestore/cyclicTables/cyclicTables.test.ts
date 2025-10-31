@@ -1,51 +1,20 @@
-import retry from 'async-retry';
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { drizzle } from 'drizzle-orm/singlestore';
-import type { Connection } from 'mysql2/promise';
-import { createConnection } from 'mysql2/promise';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { singlestoreTest as test } from '../instrumentation.ts';
 import * as schema from './singlestoreSchema.ts';
 
-let singleStoreContainer: Container;
-let client: Connection | undefined;
-let db: SingleStoreDriverDatabase;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	let connectionString: string;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const data = await createDockerDB();
-		connectionString = data.url;
-		singleStoreContainer = data.container;
-	}
-
-	client = await retry(async () => {
-		client = await createConnection({ uri: connectionString, supportBigNumbers: true });
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-
-	await client.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
-	await client.changeUser({ database: 'drizzle' });
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table model
 			(
 			    id             int          not null
@@ -54,10 +23,10 @@ beforeAll(async () => {
 			    defaultImageId int          null
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table model_image
 			(
 			    id      int          not null
@@ -67,11 +36,11 @@ beforeAll(async () => {
 			    modelId int          not null
 			);
 		`,
-	);
+		);
 
-	// 3 tables case
-	await db.execute(
-		sql`
+		// 3 tables case
+		await db.execute(
+			sql`
 			create table model1
 			(
 			    id             int          not null
@@ -81,10 +50,10 @@ beforeAll(async () => {
 			    defaultImageId int          null
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table model_image1
 			(
 			    id      int          not null
@@ -94,10 +63,10 @@ beforeAll(async () => {
 			    modelId int          not null
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table user
 			(
 			    id        int  not null
@@ -107,19 +76,19 @@ beforeAll(async () => {
 			    imageId   int  not null
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await singleStoreContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-test('2 cyclic tables test', async () => {
+test('2 cyclic tables test', async ({ db }) => {
 	await seed(db, {
 		modelTable: schema.modelTable,
 		modelImageTable: schema.modelImageTable,
@@ -137,7 +106,7 @@ test('2 cyclic tables test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('3 cyclic tables test', async () => {
+test('3 cyclic tables test', async ({ db }) => {
 	await seed(db, {
 		modelTable1: schema.modelTable1,
 		modelImageTable1: schema.modelImageTable1,

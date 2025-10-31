@@ -1,84 +1,84 @@
-import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
-import type { PgliteDatabase } from 'drizzle-orm/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
+import { mysqlTest as test } from '../instrumentation.ts';
 import * as schema from './mysqlSchema.ts';
 
-let client: PGlite;
-let db: PgliteDatabase;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	client = new PGlite();
-
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "composite_example" (
-			    "id" integer not null,
-			    "name" text not null,
-			    CONSTRAINT "composite_example_id_name_unique" UNIQUE("id","name"),
-			    CONSTRAINT "custom_name" UNIQUE("id","name")
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS composite_example (
+			    id integer not null,
+			    name varchar(8) not null,
+			    CONSTRAINT composite_example_id_name_unique UNIQUE(id,name),
+			    CONSTRAINT custom_name UNIQUE(id,name)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_0" (
-			    "id" integer not null unique,
-			    "name" text not null,
-			    CONSTRAINT "custom_name0" UNIQUE("id","name")
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS unique_column_in_composite_of_two_0 (
+			    id integer not null unique,
+			    name varchar(8) not null,
+			    CONSTRAINT custom_name0 UNIQUE(id,name)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_1" (
-			    "id" integer not null,
-			    "name" text not null,
-			    CONSTRAINT "custom_name1" UNIQUE("id","name"),
-				CONSTRAINT "custom_name1_id" UNIQUE("id")
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS unique_column_in_composite_of_two_1 (
+			    id integer not null,
+			    name varchar(8) not null,
+			    CONSTRAINT custom_name1 UNIQUE(id,name),
+				CONSTRAINT custom_name1_id UNIQUE(id)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_0" (
-			    "id" integer not null unique,
-			    "name" text not null,
-				"slug" text not null,
-			    CONSTRAINT "custom_name2" UNIQUE("id","name","slug")
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS unique_column_in_composite_of_three_0 (
+			    id integer not null unique,
+			    name varchar(8) not null,
+				slug varchar(8) not null,
+			    CONSTRAINT custom_name2 UNIQUE(id,name,slug)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_1" (
-			    "id" integer not null,
-			    "name" text not null,
-				"slug" text not null,
-			    CONSTRAINT "custom_name3" UNIQUE("id","name","slug"),
-				CONSTRAINT "custom_name3_id" UNIQUE("id")
+		await db.execute(
+			sql`
+			CREATE TABLE IF NOT EXISTS unique_column_in_composite_of_three_1 (
+			    id integer not null,
+			    name varchar(8) not null,
+				slug varchar(8) not null,
+			    CONSTRAINT custom_name3 UNIQUE(id,name,slug),
+				CONSTRAINT custom_name3_id UNIQUE(id)
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-afterAll(async () => {
-	await client.close();
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	const currSchema = { composite: schema.composite };
 	await seed(db, currSchema, { count: 16 }).refine((funcs) => ({
 		composite: {
@@ -123,7 +123,7 @@ test('basic seed test', async () => {
 	await reset(db, currSchema);
 });
 
-test('unique column in composite of 2 columns', async () => {
+test('unique column in composite of 2 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfTwo0: schema.uniqueColumnInCompositeOfTwo0 };
 	await seed(db, currSchema0, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo0: {
@@ -155,7 +155,7 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema1);
 });
 
-test('unique column in composite of 3 columns', async () => {
+test('unique column in composite of 3 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfThree0: schema.uniqueColumnInCompositeOfThree0 };
 	await seed(db, currSchema0, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree0: {

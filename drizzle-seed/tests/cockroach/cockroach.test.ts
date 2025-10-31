@@ -1,52 +1,22 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
-import { drizzle } from 'drizzle-orm/cockroach';
-import { Client } from 'pg';
-import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './cockroachSchema.ts';
-import { createDockerDB } from './utils.ts';
+import { cockroachTest as test } from './instrumentation.ts';
 
-let client: Client;
-let db: NodeCockroachDatabase;
-let cockroachContainer: Container;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { connectionString, container } = await createDockerDB();
-	cockroachContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client({ connectionString });
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Cockroach');
-		await client?.end().catch(console.error);
-		await cockroachContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	db = drizzle({ client });
-
-	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."customer" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "customer" (
 				"id" varchar(256) PRIMARY KEY NOT NULL,
 				"company_name" text NOT NULL,
 				"contact_name" text NOT NULL,
@@ -60,11 +30,11 @@ beforeAll(async () => {
 				"fax" text
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."order_detail" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "order_detail" (
 				"unit_price" numeric NOT NULL,
 				"quantity" integer NOT NULL,
 				"discount" numeric NOT NULL,
@@ -72,11 +42,11 @@ beforeAll(async () => {
 				"product_id" integer NOT NULL
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."employee" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "employee" (
 				"id" integer PRIMARY KEY NOT NULL,
 				"last_name" text NOT NULL,
 				"first_name" text,
@@ -95,11 +65,11 @@ beforeAll(async () => {
 				"photo_path" text
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."order" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "order" (
 				"id" integer PRIMARY KEY NOT NULL,
 				"order_date" timestamp NOT NULL,
 				"required_date" timestamp NOT NULL,
@@ -115,11 +85,11 @@ beforeAll(async () => {
 				"employee_id" integer NOT NULL
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."product" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "product" (
 				"id" integer PRIMARY KEY NOT NULL,
 				"name" text NOT NULL,
 				"quantity_per_unit" text NOT NULL,
@@ -131,11 +101,11 @@ beforeAll(async () => {
 				"supplier_id" integer NOT NULL
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."supplier" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "supplier" (
 				"id" integer PRIMARY KEY NOT NULL,
 				"company_name" text NOT NULL,
 				"contact_name" text NOT NULL,
@@ -148,71 +118,71 @@ beforeAll(async () => {
 				"phone" text NOT NULL
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."order_detail" ADD CONSTRAINT "order_detail_order_id_order_id_fk" FOREIGN KEY ("order_id") REFERENCES "seeder_lib_pg"."order"("id") ON DELETE cascade ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "order_detail" ADD CONSTRAINT "order_detail_order_id_order_id_fk" FOREIGN KEY ("order_id") REFERENCES "order"("id") ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."order_detail" ADD CONSTRAINT "order_detail_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "seeder_lib_pg"."product"("id") ON DELETE cascade ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "order_detail" ADD CONSTRAINT "order_detail_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."employee" ADD CONSTRAINT "employee_reports_to_employee_id_fk" FOREIGN KEY ("reports_to") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE no action ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "employee" ADD CONSTRAINT "employee_reports_to_employee_id_fk" FOREIGN KEY ("reports_to") REFERENCES "employee"("id") ON DELETE no action ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_customer_id_customer_id_fk" FOREIGN KEY ("customer_id") REFERENCES "seeder_lib_pg"."customer"("id") ON DELETE cascade ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "order" ADD CONSTRAINT "order_customer_id_customer_id_fk" FOREIGN KEY ("customer_id") REFERENCES "customer"("id") ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_employee_id_employee_id_fk" FOREIGN KEY ("employee_id") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE cascade ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "order" ADD CONSTRAINT "order_employee_id_employee_id_fk" FOREIGN KEY ("employee_id") REFERENCES "employee"("id") ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			ALTER TABLE "seeder_lib_pg"."product" ADD CONSTRAINT "product_supplier_id_supplier_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "seeder_lib_pg"."supplier"("id") ON DELETE cascade ON UPDATE no action;
+		await db.execute(
+			sql`
+			ALTER TABLE "product" ADD CONSTRAINT "product_supplier_id_supplier_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "supplier"("id") ON DELETE cascade ON UPDATE no action;
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."identity_columns_table" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "identity_columns_table" (
 				"id" integer generated always as identity,
 				"id1" integer generated by default as identity,
 				"name" text
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			create table "seeder_lib_pg"."users"
+		await db.execute(
+			sql`
+			create table "users"
 			(
 			    id          serial
 			        primary key,
 			    name        text,
 			    "invitedBy" integer
 			        constraint "users_invitedBy_user_id_fk"
-			            references "seeder_lib_pg"."users"
+			            references "users"
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			create table "seeder_lib_pg"."posts"
+		await db.execute(
+			sql`
+			create table "posts"
 			(
 			    id          serial
 			        primary key,
@@ -220,22 +190,22 @@ beforeAll(async () => {
 				content     text,
 			    "userId" integer
 			        constraint "users_userId_user_id_fk"
-			            references "seeder_lib_pg"."users"
+			            references "users"
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await cockroachContainer?.stop().catch(console.error);
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	await seed(db, schema);
 
 	const customers = await db.select().from(schema.customers);
@@ -253,7 +223,7 @@ test('basic seed test', async () => {
 	expect(suppliers.length).toBe(10);
 });
 
-test('seed with options.count:11 test', async () => {
+test('seed with options.count:11 test', async ({ db }) => {
 	await seed(db, schema, { count: 11 });
 
 	const customers = await db.select().from(schema.customers);
@@ -271,7 +241,7 @@ test('seed with options.count:11 test', async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('redefine(refine) customers count', async () => {
+test('redefine(refine) customers count', async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
@@ -293,7 +263,7 @@ test('redefine(refine) customers count', async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('redefine(refine) all tables count', async () => {
+test('redefine(refine) all tables count', async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
@@ -330,7 +300,7 @@ test('redefine(refine) all tables count', async () => {
 	expect(suppliers.length).toBe(17);
 });
 
-test("redefine(refine) orders count using 'with' in customers", async () => {
+test("redefine(refine) orders count using 'with' in customers", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
@@ -358,7 +328,7 @@ test("redefine(refine) orders count using 'with' in customers", async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test("sequential using of 'with'", async () => {
+test("sequential using of 'with'", async ({ db }) => {
 	const currSchema = {
 		customers: schema.customers,
 		details: schema.details,
@@ -397,7 +367,7 @@ test("sequential using of 'with'", async () => {
 	expect(suppliers.length).toBe(11);
 });
 
-test('seeding with identity columns', async () => {
+test('seeding with identity columns', async ({ db }) => {
 	await seed(db, { identityColumnsTable: schema.identityColumnsTable });
 
 	const result = await db.select().from(schema.identityColumnsTable);
@@ -405,7 +375,7 @@ test('seeding with identity columns', async () => {
 	expect(result.length).toBe(10);
 });
 
-test('seeding with self relation', async () => {
+test('seeding with self relation', async ({ db }) => {
 	await seed(db, { users: schema.users });
 
 	const result = await db.select().from(schema.users);
@@ -415,7 +385,7 @@ test('seeding with self relation', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('overlapping a foreign key constraint with a one-to-many relation', async () => {
+test('overlapping a foreign key constraint with a one-to-many relation', async ({ db }) => {
 	const postsRelation = relations(schema.posts, ({ one }) => ({
 		user: one(schema.users, { fields: [schema.posts.userId], references: [schema.users.id] }),
 	}));

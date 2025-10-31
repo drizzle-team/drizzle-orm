@@ -1,51 +1,21 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
-import { drizzle } from 'drizzle-orm/cockroach';
-import { Client } from 'pg';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { cockroachTest as test } from '../instrumentation.ts';
 import * as schema from './cockroachSchema.ts';
 
-let client: Client;
-let db: NodeCockroachDatabase;
-let cockroachContainer: Container;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	const { connectionString, container } = await createDockerDB();
-	cockroachContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client({ connectionString });
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.end().catch(console.error);
-		await cockroachContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	db = drizzle({ client });
-
-	await db.execute(sql`CREATE SCHEMA "seeder_lib";`);
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."customer" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "customer" (
 				"id" varchar(256) PRIMARY KEY NOT NULL,
 				"company_name" string NOT NULL,
 				"contact_name" string NOT NULL,
@@ -59,11 +29,11 @@ beforeAll(async () => {
 				"fax" string
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."order_detail" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "order_detail" (
 				"unit_price" numeric NOT NULL,
 				"quantity" int4 NOT NULL,
 				"discount" numeric NOT NULL,
@@ -71,11 +41,11 @@ beforeAll(async () => {
 				"product_id" int4 NOT NULL
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."employee" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "employee" (
 				"id" int4 PRIMARY KEY NOT NULL,
 				"last_name" string NOT NULL,
 				"first_name" string,
@@ -94,11 +64,11 @@ beforeAll(async () => {
 				"photo_path" string
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."order" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "order" (
 				"id" int4 PRIMARY KEY NOT NULL,
 				"order_date" timestamp NOT NULL,
 				"required_date" timestamp NOT NULL,
@@ -114,11 +84,11 @@ beforeAll(async () => {
 				"employee_id" int4 NOT NULL
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."product" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "product" (
 				"id" int4 PRIMARY KEY NOT NULL,
 				"name" string NOT NULL,
 				"quantity_per_unit" string NOT NULL,
@@ -130,11 +100,11 @@ beforeAll(async () => {
 				"supplier_id" int4 NOT NULL
 			);    
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib"."supplier" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "supplier" (
 				"id" int4 PRIMARY KEY NOT NULL,
 				"company_name" string NOT NULL,
 				"contact_name" string NOT NULL,
@@ -147,16 +117,16 @@ beforeAll(async () => {
 				"phone" string NOT NULL
 			);    
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
-});
-
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await cockroachContainer?.stop().catch(console.error);
 });
 
 const checkSoftRelations = (
@@ -199,7 +169,7 @@ const checkSoftRelations = (
 	expect(detailsPredicate2).toBe(true);
 };
 
-test('basic seed, soft relations test', async () => {
+test('basic seed, soft relations test', async ({ db }) => {
 	await seed(db, schema);
 
 	const customers = await db.select().from(schema.customers);
@@ -219,7 +189,7 @@ test('basic seed, soft relations test', async () => {
 	checkSoftRelations(customers, details, employees, orders, products, suppliers);
 });
 
-test("redefine(refine) orders count using 'with' in customers, soft relations test", async () => {
+test("redefine(refine) orders count using 'with' in customers, soft relations test", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
@@ -249,7 +219,7 @@ test("redefine(refine) orders count using 'with' in customers, soft relations te
 	checkSoftRelations(customers, details, employees, orders, products, suppliers);
 });
 
-test("sequential using of 'with', soft relations test", async () => {
+test("sequential using of 'with', soft relations test", async ({ db }) => {
 	await seed(db, schema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
