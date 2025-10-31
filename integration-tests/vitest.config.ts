@@ -34,9 +34,7 @@ export default defineConfig({
 					'js-tests/driver-init/module/vercel.test.mjs',
 				]
 				: []),
-			'tests/pg/awsdatapi.test.ts',
 			'tests/awsdatapi.alltypes.test.ts',
-			'tests/pg/vercel-pg.test.ts',
 			'tests/relational/vercel.test.ts',
 			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
