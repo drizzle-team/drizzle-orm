@@ -4262,7 +4262,7 @@ test.skip('proper json and jsonb handling', async () => {
 	]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4286,7 +4286,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4310,7 +4310,7 @@ test.todo('set json/jsonb fields with strings and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4334,7 +4334,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the -> operator'
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
