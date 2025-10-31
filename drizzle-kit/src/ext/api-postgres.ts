@@ -53,7 +53,7 @@ export const generateDrizzleJson = (
 		process.exit(1);
 	}
 
-	return toJsonSnapshot(ddl, prevId ?? originUUID, []);
+	return toJsonSnapshot(ddl, prevId ? [prevId] : [originUUID], []);
 };
 
 export const generateMigration = async (

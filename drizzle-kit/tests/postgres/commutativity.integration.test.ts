@@ -5,8 +5,8 @@ import { describe, expect, test } from 'vitest';
 
 const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-function makeSnapshot(id: string, prevId: string, ddlEntities: any[] = []): PostgresSnapshot {
-	return { version: '8', dialect: 'postgres', id, prevId, ddl: ddlEntities, renames: [] } as any;
+function makeSnapshot(id: string, prevIds: string[], ddlEntities: any[] = []): PostgresSnapshot {
+	return { version: '8', dialect: 'postgres', id, prevIds, ddl: ddlEntities, renames: [] } as any;
 }
 
 function writeSnapshot(root: string, tag: string, snap: PostgresSnapshot) {
@@ -33,7 +33,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const parent = createDDL();
 		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
-		const p = makeSnapshot('p_col', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_col', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
 		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -72,15 +72,15 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '000_p_col', p),
-			writeSnapshot(tmp, '001_a_col', makeSnapshot('a_col', 'p_col', a.entities.list())),
-			writeSnapshot(tmp, '002_b_col', makeSnapshot('b_col', 'p_col', b.entities.list())),
+			writeSnapshot(tmp, '001_a_col', makeSnapshot('a_col', ['p_col'], a.entities.list())),
+			writeSnapshot(tmp, '002_b_col', makeSnapshot('b_col', ['p_col'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
-	test.only('table drop vs child column alter', async () => {
+	test('table drop vs child column alter', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 
@@ -101,7 +101,7 @@ describe('commutativity integration (postgres)', () => {
 				identity: null,
 			} as any,
 		);
-		const p = makeSnapshot('p_drop', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_drop', [ORIGIN], parent.entities.list());
 
 		const a = createDDL(); // dropping table in branch A (no t1)
 		const b = createDDL();
@@ -124,8 +124,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '010_p_drop', p),
-			writeSnapshot(tmp, '011_a_drop', makeSnapshot('a_drop', 'p_drop', a.entities.list())),
-			writeSnapshot(tmp, '012_b_drop', makeSnapshot('b_drop', 'p_drop', b.entities.list())),
+			writeSnapshot(tmp, '011_a_drop', makeSnapshot('a_drop', ['p_drop'], a.entities.list())),
+			writeSnapshot(tmp, '012_b_drop', makeSnapshot('b_drop', ['p_drop'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -134,10 +134,9 @@ describe('commutativity integration (postgres)', () => {
 		expect(report.conflicts[0].branchB.headId).toStrictEqual('b_drop');
 		const con = report.conflicts[0];
 
-		console.log(
-			`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.headId} and second branch is ${con.branchB.headId}.\n\n${con.branchA.statement.type} statement from first branch is conflicting with ${con.branchB.statement.type}`,
-		);
-		// expect(report.conflicts.some((c) => c.reasons.some((r) => r.includes('drop_table')))).toBe(true);
+		// console.log(
+		// 	`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.headId} and second branch is ${con.branchB.headId}.\n\n${con.branchA.statement.type} statement from first branch is conflicting with ${con.branchB.statement.type}`,
+		// );
 	});
 
 	test('unique constraint same name on same table', async () => {
@@ -146,7 +145,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const parent = createDDL();
 		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't2' });
-		const p = makeSnapshot('p_uq', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_uq', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
 		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't2' });
@@ -175,8 +174,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '020_p_uq', p),
-			writeSnapshot(tmp, '021_a_uq', makeSnapshot('a_uq', 'p_uq', a.entities.list())),
-			writeSnapshot(tmp, '022_b_uq', makeSnapshot('b_uq', 'p_uq', b.entities.list())),
+			writeSnapshot(tmp, '021_a_uq', makeSnapshot('a_uq', ['p_uq'], a.entities.list())),
+			writeSnapshot(tmp, '022_b_uq', makeSnapshot('b_uq', ['p_uq'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -187,7 +186,7 @@ describe('commutativity integration (postgres)', () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 
-		const p = makeSnapshot('p_view', ORIGIN, createDDL().entities.list());
+		const p = makeSnapshot('p_view', [ORIGIN], createDDL().entities.list());
 		const a = createDDL();
 		a.views.push(
 			{
@@ -217,8 +216,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '030_p_view', p),
-			writeSnapshot(tmp, '031_a_view', makeSnapshot('a_view', 'p_view', a.entities.list())),
-			writeSnapshot(tmp, '032_b_view', makeSnapshot('b_view', 'p_view', b.entities.list())),
+			writeSnapshot(tmp, '031_a_view', makeSnapshot('a_view', ['p_view'], a.entities.list())),
+			writeSnapshot(tmp, '032_b_view', makeSnapshot('b_view', ['p_view'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -229,7 +228,7 @@ describe('commutativity integration (postgres)', () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 
-		const p = makeSnapshot('p_enum', ORIGIN, createDDL().entities.list());
+		const p = makeSnapshot('p_enum', [ORIGIN], createDDL().entities.list());
 		const a = createDDL();
 		a.enums.push({ schema: 'public', name: 'e1', values: ['a'] } as any);
 		const b = createDDL();
@@ -237,8 +236,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '040_p_enum', p),
-			writeSnapshot(tmp, '041_a_enum', makeSnapshot('a_enum', 'p_enum', a.entities.list())),
-			writeSnapshot(tmp, '042_b_enum', makeSnapshot('b_enum', 'p_enum', b.entities.list())),
+			writeSnapshot(tmp, '041_a_enum', makeSnapshot('a_enum', ['p_enum'], a.entities.list())),
+			writeSnapshot(tmp, '042_b_enum', makeSnapshot('b_enum', ['p_enum'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -249,7 +248,7 @@ describe('commutativity integration (postgres)', () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 
-		const p = makeSnapshot('p_seq', ORIGIN, createDDL().entities.list());
+		const p = makeSnapshot('p_seq', [ORIGIN], createDDL().entities.list());
 		const a = createDDL();
 		a.sequences.push(
 			{
@@ -279,13 +278,11 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '050_p_seq', p),
-			writeSnapshot(tmp, '051_a_seq', makeSnapshot('a_seq', 'p_seq', a.entities.list())),
-			writeSnapshot(tmp, '052_b_seq', makeSnapshot('b_seq', 'p_seq', b.entities.list())),
+			writeSnapshot(tmp, '051_a_seq', makeSnapshot('a_seq', ['p_seq'], a.entities.list())),
+			writeSnapshot(tmp, '052_b_seq', makeSnapshot('b_seq', ['p_seq'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
-		// TODO
-		// console.log(report.conflicts[0].reasons);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -295,7 +292,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const parent = createDDL();
 		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't3' });
-		const p = makeSnapshot('p_pol', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_pol', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
 		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't3' });
@@ -328,8 +325,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '060_p_pol', p),
-			writeSnapshot(tmp, '061_a_pol', makeSnapshot('a_pol', 'p_pol', a.entities.list())),
-			writeSnapshot(tmp, '062_b_pol', makeSnapshot('b_pol', 'p_pol', b.entities.list())),
+			writeSnapshot(tmp, '061_a_pol', makeSnapshot('a_pol', ['p_pol'], a.entities.list())),
+			writeSnapshot(tmp, '062_b_pol', makeSnapshot('b_pol', ['p_pol'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -342,7 +339,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const parent = createDDL();
 		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't_rls' });
-		const p = makeSnapshot('p_rls', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_rls', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
 		a.tables.push({ schema: 'public', isRlsEnabled: true, name: 't_rls' });
@@ -363,8 +360,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '070_p_rls', p),
-			writeSnapshot(tmp, '071_a_rls', makeSnapshot('a_rls', 'p_rls', a.entities.list())),
-			writeSnapshot(tmp, '072_b_rls', makeSnapshot('b_rls', 'p_rls', b.entities.list())),
+			writeSnapshot(tmp, '071_a_rls', makeSnapshot('a_rls', ['p_rls'], a.entities.list())),
+			writeSnapshot(tmp, '072_b_rls', makeSnapshot('b_rls', ['p_rls'], b.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -377,7 +374,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const parent = createDDL();
 		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
-		const p = makeSnapshot('p_three', ORIGIN, parent.entities.list());
+		const p = makeSnapshot('p_three', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
 		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
@@ -433,9 +430,9 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '100_p_three', p),
-			writeSnapshot(tmp, '101_a_three', makeSnapshot('a_three', 'p_three', a.entities.list())),
-			writeSnapshot(tmp, '102_b_three', makeSnapshot('b_three', 'p_three', b.entities.list())),
-			writeSnapshot(tmp, '103_c_three', makeSnapshot('c_three', 'p_three', c.entities.list())),
+			writeSnapshot(tmp, '101_a_three', makeSnapshot('a_three', ['p_three'], a.entities.list())),
+			writeSnapshot(tmp, '102_b_three', makeSnapshot('b_three', ['p_three'], b.entities.list())),
+			writeSnapshot(tmp, '103_c_three', makeSnapshot('c_three', ['p_three'], c.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -449,7 +446,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const root = createDDL();
 		root.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
-		const p = makeSnapshot('p_nested', ORIGIN, root.entities.list());
+		const p = makeSnapshot('p_nested', [ORIGIN], root.entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
@@ -505,9 +502,9 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '110_p_nested', p),
-			writeSnapshot(tmp, '111_A', makeSnapshot('A', 'p_nested', A.entities.list())),
-			writeSnapshot(tmp, '112_A1', makeSnapshot('A1', 'A', A1.entities.list())),
-			writeSnapshot(tmp, '113_B', makeSnapshot('B', 'p_nested', B.entities.list())),
+			writeSnapshot(tmp, '111_A', makeSnapshot('A', ['p_nested'], A.entities.list())),
+			writeSnapshot(tmp, '112_A1', makeSnapshot('A1', ['A'], A1.entities.list())),
+			writeSnapshot(tmp, '113_B', makeSnapshot('B', ['p_nested'], B.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -522,7 +519,7 @@ describe('commutativity integration (postgres)', () => {
 		const base = createDDL();
 		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'u' });
 		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'p' });
-		const p = makeSnapshot('p_mix', ORIGIN, base.entities.list());
+		const p = makeSnapshot('p_mix', [ORIGIN], base.entities.list());
 
 		// Branch X: alter u.email, create view v_users, enum e1
 		const X = createDDL();
@@ -575,8 +572,8 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '120_p_mix', p),
-			writeSnapshot(tmp, '121_X', makeSnapshot('X', 'p_mix', X.entities.list())),
-			writeSnapshot(tmp, '122_Y', makeSnapshot('Y', 'p_mix', Y.entities.list())),
+			writeSnapshot(tmp, '121_X', makeSnapshot('X', ['p_mix'], X.entities.list())),
+			writeSnapshot(tmp, '122_Y', makeSnapshot('Y', ['p_mix'], Y.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
@@ -591,7 +588,7 @@ describe('commutativity integration (postgres)', () => {
 		base.schemas.push({ name: 's1' } as any);
 		base.tables.push({ schema: 's1', isRlsEnabled: false, name: 't1' } as any);
 		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'common_table' } as any);
-		const p = makeSnapshot('p_schema_move', ORIGIN, base.entities.list());
+		const p = makeSnapshot('p_schema_move', [ORIGIN], base.entities.list());
 
 		// Branch A: rename schema s1 to s2, move t1 from s1 to s2.t1
 		const A = createDDL();
@@ -615,9 +612,9 @@ describe('commutativity integration (postgres)', () => {
 
 		files.push(
 			writeSnapshot(tmp, '130_p_schema_move', p),
-			writeSnapshot(tmp, '131_A', makeSnapshot('A_schema_move', 'p_schema_move', A.entities.list())),
-			writeSnapshot(tmp, '132_B', makeSnapshot('B_schema_move', 'p_schema_move', B.entities.list())),
-			writeSnapshot(tmp, '133_C', makeSnapshot('C_schema_move', 'p_schema_move', C.entities.list())),
+			writeSnapshot(tmp, '131_A', makeSnapshot('A_schema_move', ['p_schema_move'], A.entities.list())),
+			writeSnapshot(tmp, '132_B', makeSnapshot('B_schema_move', ['p_schema_move'], B.entities.list())),
+			writeSnapshot(tmp, '133_C', makeSnapshot('C_schema_move', ['p_schema_move'], C.entities.list())),
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');

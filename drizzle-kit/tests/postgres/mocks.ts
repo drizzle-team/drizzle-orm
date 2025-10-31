@@ -737,8 +737,5 @@ export async function conflictsFromSchema(
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	console.log('st1', st1)
-	console.log('st2', st2)
-
 	return await getReasonsFromStatements(st1, st2, parentSnapshot);
 }
