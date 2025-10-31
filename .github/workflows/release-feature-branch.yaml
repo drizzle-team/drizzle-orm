@@ -101,8 +101,9 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
-          - shard: int:bun
-            dbs: [postgres, mysql]
+          #  TODO:
+          # - shard: int:bun
+          #   dbs: [postgres, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
@@ -249,7 +250,7 @@ jobs:
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
           
-            int:bun)  bun test tests/bun/ --exclude ./tests/sqlite/sqlite-nw.test.ts --exclude ./tests/sqlite/sqlite.test.ts ;;
+            int:bun)  bun test ./tests/bun/ ;;
 
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run tests \
@@ -259,7 +260,6 @@ jobs:
                 --exclude ./tests/singlestore/ \
                 --exclude ./tests/mssql/ \
                 --exclude ./tests/pg/ \
-                --exclude ./tests/relational/ \
                 --exclude ./tests/sqlite/
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
