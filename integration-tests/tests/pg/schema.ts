@@ -1,4 +1,5 @@
-import { boolean, integer, jsonb, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, integer, jsonb, PgDatabase, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 export const rqbUser = pgTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
@@ -48,3 +49,26 @@ export const usersMySchemaTable = mySchema.table('users', {
 	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const init = async (db: PgDatabase<any, any>) => {
+	await db.execute(sql`
+		CREATE TABLE ${rqbUser} (
+		        "id" SERIAL PRIMARY KEY NOT NULL,
+		        "name" TEXT NOT NULL,
+		        "created_at" TIMESTAMP(3) NOT NULL
+		     )
+	`);
+	await db.execute(sql`
+		CREATE TABLE ${rqbPost} ( 
+		        "id" SERIAL PRIMARY KEY NOT NULL,
+		        "user_id" INT NOT NULL,
+		        "content" TEXT,
+		        "created_at" TIMESTAMP(3) NOT NULL
+		)
+	`);
+};
+
+export const clear = async (db: PgDatabase<any, any>) => {
+	await db.execute(sql`DROP TABLE IF EXISTS ${rqbUser} CASCADE;`).catch(() => null);
+	await db.execute(sql`DROP TABLE IF EXISTS ${rqbPost} CASCADE;`).catch(() => null);
+};
