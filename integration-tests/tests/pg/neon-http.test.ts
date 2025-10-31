@@ -136,7 +136,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table all_columns, users12, custom_migrations.${sql.identifier(customTable)}`);
 	});
 
-	test('all date and time columns without timezone first case mode string', async ({ db }) => {
+	test('all date and time columns without timezone first case mode string', async ({ db, push }) => {
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -163,7 +163,7 @@ describe('migrator', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
 
-	test('all date and time columns without timezone second case mode string', async ({ db }) => {
+	test('all date and time columns without timezone second case mode string', async ({ db, push }) => {
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -185,7 +185,7 @@ describe('migrator', () => {
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
 
-	test('all date and time columns without timezone third case mode date', async ({ db }) => {
+	test('all date and time columns without timezone third case mode date', async ({ db, push }) => {
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
@@ -210,7 +210,7 @@ describe('migrator', () => {
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
 	});
 
-	test('test mode string for timestamp with timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone', async ({ db, push }) => {
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -241,7 +241,7 @@ describe('migrator', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 	});
 
-	test('test mode date for timestamp with timezone', async ({ db }) => {
+	test('test mode date for timestamp with timezone', async ({ db, push }) => {
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
@@ -272,7 +272,7 @@ describe('migrator', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 	});
 
-	test('test mode string for timestamp with timezone in UTC timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone in UTC timezone', async ({ db, push }) => {
 		// get current timezone from db
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
