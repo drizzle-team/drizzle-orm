@@ -93,6 +93,8 @@ jobs:
             dbs: [mysql]
           - shard: int:postgres
             dbs: [postgres]
+          - shard: int:sqlite
+            dbs: []
           - shard: int:other
             dbs: [mysql, mssql, cockroach, singlestore]
           - shard: int:planetscale
@@ -243,18 +245,15 @@ jobs:
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
             int:other)
-              pnpm --stream vitest --reporter=verbose --silent=false run \
+              pnpm --stream vitest --reporter=verbose --silent=false run tests \
                 --exclude ./tests/gel/ \
                 --exclude ./tests/mysql/ \
                 --exclude ./tests/cockroach/ \
                 --exclude ./tests/singlestore/ \
                 --exclude ./tests/mssql/ \
-                --exclude ./tests/pg/ \ 
-                --exclude ./tests/relational/mysql.planetscale-v1.test.ts \
-                --exclude ./tests/relational/mysql.planetscale.test.ts \
-                --exclude ./tests/relational/mysql-v1.test.ts \
-                --exclude ./tests/relational/mysql.test.ts \
-     
+                --exclude ./tests/pg/ \
+                --exclude ./tests/relational/ \
+                --exclude ./tests/sqlite/
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
