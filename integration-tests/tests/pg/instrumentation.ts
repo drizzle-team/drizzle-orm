@@ -206,6 +206,7 @@ export const prepareNeonHttpClient = async (db: string) => {
 	await client('drop schema if exists public, "mySchema" cascade;');
 	await client('create schema public');
 	await client('create schema "mySchema";');
+	await client(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
 		const res = await client(sql, params);
@@ -229,6 +230,7 @@ export const prepareNeonWsClient = async (db: string) => {
 	await client.query('drop schema if exists public, "mySchema" cascade;');
 	await client.query('create schema public');
 	await client.query('create schema "mySchema";');
+	await client.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
 		const res = await client.query(sql, params);
