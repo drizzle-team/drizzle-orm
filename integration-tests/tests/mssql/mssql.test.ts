@@ -128,7 +128,7 @@ test.beforeEach(async ({ client }) => {
 		)`);
 });
 
-async function setupSetOperationTest(db: NodeMsSqlDatabase) {
+async function setupSetOperationTest(db: NodeMsSqlDatabase<any>) {
 	await db.execute(sql`drop table if exists [users2]`);
 	await db.execute(sql`drop table if exists [cities]`);
 	await db.execute(sql`
@@ -164,7 +164,7 @@ async function setupSetOperationTest(db: NodeMsSqlDatabase) {
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: NodeMsSqlDatabase) {
+async function setupAggregateFunctionsTest(db: NodeMsSqlDatabase<any>) {
 	await db.execute(sql`drop table if exists [aggregate_table]`);
 	await db.execute(
 		sql`
