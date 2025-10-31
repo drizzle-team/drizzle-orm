@@ -245,15 +245,17 @@ jobs:
             ;;
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude tests/gel \
-                --exclude tests/mysql \
+                --exclude tests/gel/** \
+                --exclude tests/mysql/** \
+                --exclude tests/cockroach/** \
+                --exclude tests/singlestore/** \
+                --exclude tests/mssql/** \
+                --exclude tests/pg/** \ 
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
                 --exclude tests/relational/mysql-v1.test.ts \
                 --exclude tests/relational/mysql.test.ts \
-                --exclude tests/singlestore/
-                --exclude tests/mssql \
-                --exclude tests/pg
+     
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
