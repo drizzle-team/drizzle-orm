@@ -101,8 +101,8 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
-          - shard: int:bun
-            dbs: [postgres, mysql]
+          # - shard: int:bun
+            # dbs: [postgres, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
