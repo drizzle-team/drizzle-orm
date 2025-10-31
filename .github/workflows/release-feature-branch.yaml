@@ -91,13 +91,11 @@ jobs:
             dbs: [singlestore]
           - shard: int:mysql
             dbs: [mysql]
-          # - shard: int:tidb
-          #   dbs: []
+          - shard: int:postgres
+            dbs: [postgres]
+          - shard: int:other
+            dbs: [mysql, mssql, cockroach, singlestore]
           - shard: int:planetscale
-            dbs: []
-          - shard: int:neon-http
-            dbs: []
-          - shard: int:neon-serverless
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
@@ -121,8 +119,7 @@ jobs:
             dbs: []
           - shard: arktype
             dbs: []
-          - shard: int:other
-            dbs: [postgres, mysql, mssql, cockroach, singlestore]
+         
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
@@ -216,13 +213,10 @@ jobs:
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
             int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
             int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
-            int:neon-http)
+            int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
               fi
-            ;;
-            int:neon-serverless)
-              pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
             int:mysql)
               pnpm --stream test:mysql
@@ -257,15 +251,9 @@ jobs:
                 --exclude tests/relational/mysql.planetscale.test.ts \
                 --exclude tests/relational/mysql-v1.test.ts \
                 --exclude tests/relational/mysql.test.ts \
-                --exclude tests/singlestore/singlestore.test.ts \
-                --exclude tests/singlestore/singlestore-proxy.test.ts \
-                --exclude tests/singlestore/singlestore-prefixed.test.ts \
-                --exclude tests/singlestore/singlestore-custom.test.ts \
-                --exclude tests/pg/neon-http.test.ts \
-                --exclude tests/pg/neon-http-batch.test.ts \
-                --exclude tests/pg/neon-serverless.test.ts \
-                --exclude tests/cockroach \
-                --exclude tests/mssql
+                --exclude tests/singlestore/
+                --exclude tests/mssql \
+                --exclude tests/pg
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac

@@ -46,7 +46,7 @@
 	},
 	"lint-staged": {
 		"*": [
-			"pnpm format:check",
+			"pnpm format:check --allow-no-files",
 			"pnpm lint:check"
 		]
 	},
