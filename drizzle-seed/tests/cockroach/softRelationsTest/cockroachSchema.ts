@@ -1,9 +1,7 @@
 import { relations } from 'drizzle-orm/_relations';
-import { cockroachSchema, int4, numeric, string, timestamp, varchar } from 'drizzle-orm/cockroach-core';
+import { cockroachTable, int4, numeric, string, timestamp, varchar } from 'drizzle-orm/cockroach-core';
 
-export const schema = cockroachSchema('seeder_lib');
-
-export const customers = schema.table('customer', {
+export const customers = cockroachTable('customer', {
 	id: varchar('id', { length: 256 }).primaryKey(),
 	companyName: string('company_name').notNull(),
 	contactName: string('contact_name').notNull(),
@@ -17,7 +15,7 @@ export const customers = schema.table('customer', {
 	fax: string('fax'),
 });
 
-export const employees = schema.table(
+export const employees = cockroachTable(
 	'employee',
 	{
 		id: int4('id').primaryKey(),
@@ -46,7 +44,7 @@ export const employeesRelations = relations(employees, ({ one }) => ({
 	}),
 }));
 
-export const orders = schema.table('order', {
+export const orders = cockroachTable('order', {
 	id: int4('id').primaryKey(),
 	orderDate: timestamp('order_date').notNull(),
 	requiredDate: timestamp('required_date').notNull(),
@@ -75,7 +73,7 @@ export const ordersRelations = relations(orders, ({ one }) => ({
 	}),
 }));
 
-export const suppliers = schema.table('supplier', {
+export const suppliers = cockroachTable('supplier', {
 	id: int4('id').primaryKey(),
 	companyName: string('company_name').notNull(),
 	contactName: string('contact_name').notNull(),
@@ -88,7 +86,7 @@ export const suppliers = schema.table('supplier', {
 	phone: string('phone').notNull(),
 });
 
-export const products = schema.table('product', {
+export const products = cockroachTable('product', {
 	id: int4('id').primaryKey(),
 	name: string('name').notNull(),
 	quantityPerUnit: string('quantity_per_unit').notNull(),
@@ -108,7 +106,7 @@ export const productsRelations = relations(products, ({ one }) => ({
 	}),
 }));
 
-export const details = schema.table('order_detail', {
+export const details = cockroachTable('order_detail', {
 	unitPrice: numeric('unit_price').notNull(),
 	quantity: int4('quantity').notNull(),
 	discount: numeric('discount').notNull(),
