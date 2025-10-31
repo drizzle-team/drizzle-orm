@@ -1,10 +1,12 @@
 import { randomUUID } from 'crypto';
 import Docker from 'dockerode';
+import { defineRelations } from 'drizzle-orm';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { drizzle } from 'drizzle-orm/node-mssql';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
+import * as schema from './mssql.schema';
 
 export async function createDockerDB(): Promise<{ close: () => Promise<void>; url: string }> {
 	const docker = new Docker();
@@ -65,17 +67,17 @@ export const createClient = async () => {
 	const client = await mssql.connect(params);
 	await client.query('select 1');
 
-	const db = drizzle({ client });
+	const db = drizzle({ client, schema, relations: defineRelations(schema) });
 	return { client, close, url, url2, db };
 };
 
 export const test = base.extend<
 	{
-		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase };
+		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase<typeof schema> };
 		client: mssql.ConnectionPool;
 		url: string;
 		url2: string;
-		db: NodeMsSqlDatabase;
+		db: NodeMsSqlDatabase<typeof schema>;
 	}
 >({
 	connection: [
