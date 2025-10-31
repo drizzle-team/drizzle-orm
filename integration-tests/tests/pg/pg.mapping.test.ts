@@ -6,7 +6,7 @@ import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expectTypeOf, test } from 'vitest';
-import * as schema from './pg.schema';
+import * as schema from './pg.mapping.schema';
 
 const { Client } = pg;
 
