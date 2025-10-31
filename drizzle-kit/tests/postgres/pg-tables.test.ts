@@ -1052,6 +1052,71 @@ test('optional db aliases (snake case)', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4541
+test('create table (camel case -> snake case)', async () => {
+	const t1 = pgTable('table_snake_case1', {
+		columnCamelCase1: integer(),
+		columnCamelCase2: integer(),
+		columnCamelCase3: integer(),
+	}, (t) => [
+		primaryKey({ columns: [t.columnCamelCase1, t.columnCamelCase2] }),
+		unique().on(t.columnCamelCase1, t.columnCamelCase3),
+		uniqueIndex().on(t.columnCamelCase2, t.columnCamelCase3),
+	]);
+
+	const to = { t1 };
+
+	const casing = 'snake_case';
+	const { sqlStatements: st1 } = await diff({}, to, [], casing);
+	console.log(st1);
+	const { sqlStatements: pst1 } = await push({ db, to, casing });
+
+	const eSt1 = [
+		'CREATE TABLE "table_snake_case1" (\n'
+		+ '\t"column_camel_case1" integer,\n'
+		+ '\t"column_camel_case2" integer,\n'
+		+ '\t"column_camel_case3" integer,\n'
+		+ '\tCONSTRAINT "table_snake_case1_pkey" PRIMARY KEY("column_camel_case1","column_camel_case2"),\n'
+		+ '\tCONSTRAINT "table_snake_case1_column_camel_case1_column_camel_case3_unique" UNIQUE("column_camel_case1","column_camel_case3")\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "table_snake_case1_column_camel_case2_column_camel_case3_index" ON "table_snake_case1" ("column_camel_case2","column_camel_case3");',
+	];
+	expect(st1).toStrictEqual(eSt1);
+	expect(pst1).toStrictEqual(eSt1);
+});
+
+test('create table (snake case -> camel case)', async () => {
+	const t1 = pgTable('tableCamelcase1', {
+		column_snake_case1: integer(),
+		column_snake_case2: integer(),
+		column_snake_case3: integer(),
+	}, (t) => [
+		primaryKey({ columns: [t.column_snake_case1, t.column_snake_case2] }),
+		unique().on(t.column_snake_case1, t.column_snake_case3),
+		uniqueIndex().on(t.column_snake_case2, t.column_snake_case3),
+	]);
+
+	const to = { t1 };
+
+	const casing = 'camelCase';
+	const { sqlStatements: st1 } = await diff({}, to, [], casing);
+	console.log(st1);
+	const { sqlStatements: pst1 } = await push({ db, to, casing });
+
+	const eSt1 = [
+		'CREATE TABLE "tableCamelcase1" (\n'
+		+ '\t"columnSnakeCase1" integer,\n'
+		+ '\t"columnSnakeCase2" integer,\n'
+		+ '\t"columnSnakeCase3" integer,\n'
+		+ '\tCONSTRAINT "tableCamelcase1_pkey" PRIMARY KEY("columnSnakeCase1","columnSnakeCase2"),\n'
+		+ '\tCONSTRAINT "tableCamelcase1_columnSnakeCase1_columnSnakeCase3_unique" UNIQUE("columnSnakeCase1","columnSnakeCase3")\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "tableCamelcase1_columnSnakeCase2_columnSnakeCase3_index" ON "tableCamelcase1" ("columnSnakeCase2","columnSnakeCase3");',
+	];
+	expect(st1).toStrictEqual(eSt1);
+	expect(pst1).toStrictEqual(eSt1);
+});
+
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 

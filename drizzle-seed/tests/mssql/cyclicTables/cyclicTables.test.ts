@@ -1,49 +1,19 @@
 import { sql } from 'drizzle-orm';
-
-import { drizzle } from 'drizzle-orm/node-mssql';
-import mssql from 'mssql';
-
-import type { Container } from 'dockerode';
-import type { MsSqlDatabase } from 'drizzle-orm/node-mssql';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { mssqlTest as test } from '../instrumentation.ts';
 import * as schema from './mssqlSchema.ts';
 
-let mssqlContainer: Container;
-let client: mssql.ConnectionPool;
-let db: MsSqlDatabase<any, any>;
-
-beforeAll(async () => {
-	const { options, container } = await createDockerDB('cyclic_tables');
-	mssqlContainer = container;
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(options);
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await mssqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await db.execute(
-		sql`
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
+		await db.execute(
+			sql`
 			create table [model]
 			(
 				[id]             int identity not null
@@ -52,10 +22,10 @@ beforeAll(async () => {
 				[defaultImageId] int          null
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table [model_image]
 			(
 				[id]      int identity not null
@@ -67,19 +37,19 @@ beforeAll(async () => {
 					foreign key ([modelId]) references [model] ([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			alter table [model]
 			 add constraint [model_defaultImageId_model_image_id_fk]
 				 foreign key ([defaultImageId]) references [model_image] ([id]);
 		`,
-	);
+		);
 
-	// 3 tables case
-	await db.execute(
-		sql`
+		// 3 tables case
+		await db.execute(
+			sql`
 			create table [model1]
 			(
 				[id]             int identity not null
@@ -89,10 +59,10 @@ beforeAll(async () => {
 				[defaultImageId] int          null
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table [model_image1]
 			(
 				[id]      int identity not null
@@ -104,10 +74,10 @@ beforeAll(async () => {
 					foreign key ([modelId]) references [model1] ([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			create table [user]
 			(
 				[id]        int identity not null
@@ -121,27 +91,27 @@ beforeAll(async () => {
 					foreign key ([invitedBy]) references [user] ([id])
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			alter table [model1]
 			 add constraint [model1_userId_user_id_fk]
 				 foreign key ([userId]) references [user] ([id]);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await mssqlContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-test('2 cyclic tables test', async () => {
+test('2 cyclic tables test', async ({ db }) => {
 	await seed(db, {
 		modelTable: schema.modelTable,
 		modelImageTable: schema.modelImageTable,
@@ -159,7 +129,7 @@ test('2 cyclic tables test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('3 cyclic tables test', async () => {
+test('3 cyclic tables test', async ({ db }) => {
 	await seed(db, {
 		modelTable1: schema.modelTable1,
 		modelImageTable1: schema.modelImageTable1,

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { gte, sql } from 'drizzle-orm';
 import { check, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -20,11 +20,29 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-test('create table with check', async (t) => {
+test('create table with check #1', async (t) => {
 	const to = {
 		users: pgTable('users', {
 			age: integer('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"age" integer,\n\tCONSTRAINT "some_check_name" CHECK ("users"."age" > 21)\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4661
+test('create table with check #2: sql``', async (t) => {
+	const to = {
+		users: pgTable('users', {
+			age: integer('age'),
+		}, (table) => [check('some_check_name', gte(table.age, 21))]),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
