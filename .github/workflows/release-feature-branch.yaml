@@ -235,22 +235,21 @@ jobs:
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             kit)
               cd ../drizzle-kit
-              pnpm test:types
-              pnpm --stream vitest --reporter=verbose --silent=false run --exclude tests/cockroach --exclude tests/mssql
+              pnpm --stream vitest --reporter=verbose --silent=false run --exclude ./tests/cockroach/ --exclude ./tests/mssql/
             ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/mssql ;;
             orm|zod|seed|typebox|valibot|arktype)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude ./tests/gel \
-                --exclude ./tests/mysql \
-                --exclude ./tests/cockroach \
-                --exclude ./tests/singlestore \
-                --exclude ./tests/mssql \
-                --exclude ./tests/pg \ 
+                --exclude ./tests/gel/ \
+                --exclude ./tests/mysql/ \
+                --exclude ./tests/cockroach/ \
+                --exclude ./tests/singlestore/ \
+                --exclude ./tests/mssql/ \
+                --exclude ./tests/pg/ \ 
                 --exclude ./tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude ./tests/relational/mysql.planetscale.test.ts \
                 --exclude ./tests/relational/mysql-v1.test.ts \
