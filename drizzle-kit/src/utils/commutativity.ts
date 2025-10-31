@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname } from 'path';
-import { originUUID } from '../utils';
 import type { Dialect } from './schemaValidator';
 
 // Postgres-only imports
@@ -18,11 +17,12 @@ export type BranchConflict = {
 
 export type NonCommutativityReport = {
 	conflicts: BranchConflict[];
+	leafNodes: string[]; // IDs of all leaf nodes (terminal nodes with no children)
 };
 
-type SnapshotNode<TSnapshot extends { id: string; prevId: string }> = {
+type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
-	prevId: string;
+	prevIds: string[];
 	path: string; // full path to snapshot.json
 	folderPath: string; // folder containing snapshot.json
 	raw: TSnapshot;
@@ -468,12 +468,6 @@ export function footprint(statement: JsonStatement, snapshot?: PostgresSnapshot)
 	return [statementFootprint, conflictFootprints];
 }
 
-// function getFolderNameFromNodeId(node: SnapshotNode<any>): string {
-// 	// path pattern: "path/to/folder/snapshot.json"
-// 	const folderPath = dirname(node.path);
-// 	return folderPath.split('/').pop() || '';
-// }
-
 function generateLeafFootprints(statements: JsonStatement[], snapshot?: PostgresSnapshot): {
 	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
 	conflictFootprints: Array<{ hash: string; statement: JsonStatement }>;
@@ -651,16 +645,19 @@ export const detectNonCommutative = async (
 ): Promise<NonCommutativityReport> => {
 	// temp solution for now, should remove it for other dialects
 	if (dialect !== 'postgresql') {
-		return { conflicts: [] };
+		return { conflicts: [], leafNodes: [] };
 	}
 
 	const nodes = buildSnapshotGraph<PostgresSnapshot>(snapshotsPaths);
 
+	// Build parent -> children mapping (a child can have multiple parents)
 	const prevToChildren: Record<string, string[]> = {};
 	for (const node of Object.values(nodes)) {
-		const arr = prevToChildren[node.prevId] ?? [];
-		arr.push(node.id);
-		prevToChildren[node.prevId] = arr;
+		for (const parentId of node.prevIds) {
+			const arr = prevToChildren[parentId] ?? [];
+			arr.push(node.id);
+			prevToChildren[parentId] = arr;
+		}
 	}
 
 	const conflicts: BranchConflict[] = [];
@@ -714,10 +711,15 @@ export const detectNonCommutative = async (
 		}
 	}
 
-	return { conflicts };
+	// Collect all leaf nodes (nodes with no children)
+	const allNodeIds = new Set(Object.keys(nodes));
+	const nodesWithChildren = new Set(Object.values(prevToChildren).flat());
+	const leafNodes = Array.from(allNodeIds).filter((id) => !nodesWithChildren.has(id));
+
+	return { conflicts, leafNodes };
 };
 
-function buildSnapshotGraph<TSnapshot extends { id: string; prevId: string }>(
+function buildSnapshotGraph<TSnapshot extends { id: string; prevIds: string[] }>(
 	snapshotFiles: string[],
 ): Record<string, SnapshotNode<TSnapshot>> {
 	const byId: Record<string, SnapshotNode<TSnapshot>> = {};
@@ -726,7 +728,7 @@ function buildSnapshotGraph<TSnapshot extends { id: string; prevId: string }>(
 		const raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
 		const node: SnapshotNode<TSnapshot> = {
 			id: raw.id,
-			prevId: raw.prevId,
+			prevIds: raw.prevIds,
 			path: file,
 			folderPath: dirname(file),
 			raw,
@@ -736,7 +738,7 @@ function buildSnapshotGraph<TSnapshot extends { id: string; prevId: string }>(
 	return byId;
 }
 
-function collectLeaves<TSnapshot extends { id: string; prevId: string }>(
+function collectLeaves<TSnapshot extends { id: string; prevIds: string[] }>(
 	graph: Record<string, SnapshotNode<TSnapshot>>,
 	startId: string,
 ): string[] {
@@ -744,10 +746,13 @@ function collectLeaves<TSnapshot extends { id: string; prevId: string }>(
 	const stack: string[] = [startId];
 	const prevToChildren: Record<string, string[]> = {};
 
+	// Build parent -> children mapping (a child can have multiple parents)
 	for (const node of Object.values(graph)) {
-		const arr = prevToChildren[node.prevId] ?? [];
-		arr.push(node.id);
-		prevToChildren[node.prevId] = arr;
+		for (const parentId of node.prevIds) {
+			const arr = prevToChildren[parentId] ?? [];
+			arr.push(node.id);
+			prevToChildren[parentId] = arr;
+		}
 	}
 
 	while (stack.length) {

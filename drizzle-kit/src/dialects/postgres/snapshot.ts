@@ -531,8 +531,8 @@ export type Index = TypeOf<typeof index>;
 export type TableV5 = TypeOf<typeof tableV5>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevId: string, renames: string[]): PostgresSnapshot => {
-	return { dialect: 'postgres', id: randomUUID(), prevId, version: '8', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[], renames: string[]): PostgresSnapshot => {
+	return { dialect: 'postgres', id: randomUUID(), prevIds, version: '8', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -540,7 +540,7 @@ export const snapshotValidator = validator({
 	version: ['8'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<PostgresEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
@@ -558,7 +558,7 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '8',
 		dialect: 'postgres',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
 	} satisfies PostgresSnapshot,

@@ -11,12 +11,12 @@ import { conflictsFromSchema } from './mocks';
 
 const baseId = '00000000-0000-0000-0000-000000000000';
 
-function makeSnapshot(id: string, prevId: string, ddlEntities: any[] = []): PostgresSnapshot {
+function makeSnapshot(id: string, prevIds: string[], ddlEntities: any[] = []): PostgresSnapshot {
 	return {
 		version: '8',
 		dialect: 'postgres',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlEntities,
 		renames: [],
 	} as any;
@@ -48,7 +48,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const parent = makeSnapshot('p1', baseId, parentDDL.entities.list());
+		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -65,7 +65,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
+		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const A2 = createDDL();
 		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -82,7 +82,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA2 = makeSnapshot('a2', 'a1', A2.entities.list());
+		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 		const B = createDDL();
 		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -113,7 +113,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB = makeSnapshot('b1', 'p1', B.entities.list());
+		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const B2 = createDDL();
 		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -144,7 +144,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB2 = makeSnapshot('b2', 'b1', B2.entities.list());
+		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 		const B3 = createDDL();
 		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
@@ -161,7 +161,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB3 = makeSnapshot('b3', 'b2', B3.entities.list());
+		const leafB3 = makeSnapshot('b3', ['b2'], B3.entities.list());
 
 		const os = require('os');
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
@@ -178,7 +178,7 @@ describe('commutativity detector (postgres)', () => {
 	});
 
 	test('Parent empty: detects conflict when last migration of branch A has a conflict with a first migration of branch B', async () => {
-		const parent = makeSnapshot('p1', baseId, createDDL().entities.list());
+		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -195,7 +195,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
+		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const A2 = createDDL();
 		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
@@ -212,7 +212,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA2 = makeSnapshot('a2', 'a1', A2.entities.list());
+		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 		const B = createDDL();
 		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
@@ -229,7 +229,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB = makeSnapshot('b1', 'p1', B.entities.list());
+		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const B2 = createDDL();
 		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
@@ -246,7 +246,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB2 = makeSnapshot('b2', 'b1', B2.entities.list());
+		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 		const B3 = createDDL();
 		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
@@ -277,7 +277,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB3 = makeSnapshot('b3', 'b2', B3.entities.list());
+		const leafB3 = makeSnapshot('b3', ['b2'], B3.entities.list());
 
 		const os = require('os');
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
@@ -309,7 +309,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const parent = makeSnapshot('p1', baseId, parentDDL.entities.list());
+		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -326,9 +326,9 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
+		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
-		const leafB = makeSnapshot('b1', 'p1', createDDL().entities.list());
+		const leafB = makeSnapshot('b1', ['p1'], createDDL().entities.list());
 
 		const os = require('os');
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
@@ -342,7 +342,7 @@ describe('commutativity detector (postgres)', () => {
 	});
 
 	test('detects conflict when both branches alter same column', async () => {
-		const parent = makeSnapshot('p1', baseId, createDDL().entities.list());
+		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -359,7 +359,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
+		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const B = createDDL();
 		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
@@ -376,7 +376,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		const leafB = makeSnapshot('b1', 'p1', B.entities.list());
+		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const os = require('os');
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
@@ -390,15 +390,15 @@ describe('commutativity detector (postgres)', () => {
 	});
 
 	test('no conflict when branches touch different tables', async () => {
-		const parent = makeSnapshot('p2', baseId, createDDL().entities.list());
+		const parent = makeSnapshot('p2', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
 		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
-		const leafA = makeSnapshot('a2', 'p2', A.entities.list());
+		const leafA = makeSnapshot('a2', ['p2'], A.entities.list());
 
 		const B = createDDL();
 		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
-		const leafB = makeSnapshot('b2', 'p2', B.entities.list());
+		const leafB = makeSnapshot('b2', ['p2'], B.entities.list());
 
 		const os = require('os');
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));

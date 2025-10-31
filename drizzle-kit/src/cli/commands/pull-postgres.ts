@@ -107,7 +107,7 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
 			journal,
 			renames,
