@@ -1,3 +1,5 @@
+docker run -d -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:17-alpine
+
 docker run -it -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=mysql -e MYSQL_DATABASE=drizzle mysql:8
 docker run -it -d -p 5432:5432\
  -e POSTGRES_USER=postgres\
