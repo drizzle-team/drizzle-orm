@@ -50,6 +50,7 @@ it('dynamic imports check for ESM', async () => {
 		if (
 			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
 			|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
+			|| o1.startsWith('drizzle-orm/prisma')
 		) {
 			continue;
 		}
