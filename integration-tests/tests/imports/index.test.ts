@@ -2,7 +2,6 @@ import { afterAll, expect, it } from 'vitest';
 import 'zx/globals';
 import * as fs from 'fs';
 import path from 'path';
-
 $.verbose = false;
 
 const IMPORTS_FOLDER = 'tests/imports/files';
@@ -22,6 +21,7 @@ it('dynamic imports check for CommonJS', async () => {
 			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
 			|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
 			|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
+			|| o1.startsWith('drizzle-orm/prisma')
 		) {
 			continue;
 		}
