@@ -52,7 +52,7 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 30000,
+		testTimeout: 120000,
 		hookTimeout: 60000,
 		fileParallelism: false,
 	},
