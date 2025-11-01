@@ -139,19 +139,23 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          
+          compose_files=()
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
-              postgres)            docker compose -f compose/postgres.yml up -d ;;
-              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
-              postgres-vector)      docker compose -f compose/postgres-vector.yml up -d ;;
-              mysql)               docker compose -f compose/mysql.yml up -d ;;
-              singlestore)         docker compose -f compose/singlestore.yml up -d ;;
-              mssql)               docker compose -f compose/mssql.yml up -d ;;
-              cockroach)           docker compose -f compose/cockroach.yml up -d ;;
-              gel)                 docker compose -f compose/gel.yml up -d ;;
+              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
+              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
+              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
+              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
+              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
+              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
+          docker compose "${compose_files[@]}" up -d
+
           chmod +x compose/wait.sh
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
