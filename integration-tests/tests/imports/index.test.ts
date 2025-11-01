@@ -43,31 +43,42 @@ it('dynamic imports check for CommonJS', async () => {
 	}
 });
 
-it('dynamic imports check for ESM', async () => {
-	const promises: ProcessPromise[] = [];
-	for (const [i, key] of Object.keys(pj['exports']).entries()) {
-		const o1 = path.join('drizzle-orm', key);
-		if (
-			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
-			|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
-			|| o1.startsWith('drizzle-orm/prisma')
-		) {
-			continue;
+function chunk<T>(arr: T[], size: number): T[][] {
+	const chunks: T[][] = [];
+	for (let i = 0; i < arr.length; i += size) {
+		chunks.push(arr.slice(i, i + size));
+	}
+	return chunks;
+}
+
+const promises: ProcessPromise[] = [];
+for (const [i, key] of Object.keys(pj['exports']).entries()) {
+	const o1 = path.join('drizzle-orm', key);
+	if (
+		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
+		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
+		|| o1.startsWith('drizzle-orm/prisma')
+	) {
+		continue;
+	}
+	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
+	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
+	promises.push(
+		$`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+		$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+	);
+}
+const chunks = chunk(promises, 10);
+
+for (const c of chunks) {
+	it.concurrent('dynamic imports check for ESM chunk', async () => {
+		const results = await Promise.all(c);
+
+		for (const result of results) {
+			expect(result.exitCode, result.message).toBe(0);
 		}
-		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
-		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-		promises.push(
-			$`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
-			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
-		);
-	}
-
-	const results = await Promise.all(promises);
-
-	for (const result of results) {
-		expect(result.exitCode, result.message).toBe(0);
-	}
-});
+	});
+}
 
 afterAll(() => {
 	fs.rmdirSync(IMPORTS_FOLDER, { recursive: true });
