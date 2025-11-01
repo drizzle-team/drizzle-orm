@@ -265,7 +265,8 @@ jobs:
                 --exclude ./tests/singlestore/ \
                 --exclude ./tests/mssql/ \
                 --exclude ./tests/pg/ \
-                --exclude ./tests/sqlite/
+                --exclude ./tests/sqlite/ \
+                --exclude ./tests/bun/
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
