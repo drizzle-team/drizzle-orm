@@ -96,7 +96,7 @@ jobs:
           - shard: int:sqlite
             dbs: []
           - shard: int:other
-            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis]
+            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
             dbs: []
           - shard: int:cockroach
@@ -143,6 +143,7 @@ jobs:
             case "$db" in
               postgres)            docker compose -f compose/postgres.yml up -d ;;
               postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
+              postgres-vector)      docker compose -f compose/postgres-vector.yml up -d ;;
               mysql)               docker compose -f compose/mysql.yml up -d ;;
               singlestore)         docker compose -f compose/singlestore.yml up -d ;;
               mssql)               docker compose -f compose/mssql.yml up -d ;;
