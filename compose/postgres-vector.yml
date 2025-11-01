@@ -1,7 +1,7 @@
 services: 
   postgres-vector:
     image: pgvector/pgvector:pg16
-    env:
+    environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: drizzle
