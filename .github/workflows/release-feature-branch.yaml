@@ -96,7 +96,7 @@ jobs:
           - shard: int:sqlite
             dbs: []
           - shard: int:other
-            dbs: [mysql, mssql, cockroach, singlestore]
+            dbs: [mysql, mssql, cockroach, singlestore, postgres]
           - shard: int:planetscale
             dbs: []
           - shard: int:cockroach
