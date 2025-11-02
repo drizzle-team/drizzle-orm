@@ -1,4 +1,4 @@
-import { trimChar } from 'src/utils';
+import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';

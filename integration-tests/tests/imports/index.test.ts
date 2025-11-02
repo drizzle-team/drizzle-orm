@@ -11,6 +11,10 @@ const pj = JSON.parse(fs.readFileSync(folderPath, 'utf8'));
 
 fs.mkdirSync(IMPORTS_FOLDER, { recursive: true });
 
+afterAll(() => {
+	fs.rmdirSync(IMPORTS_FOLDER, { recursive: true });
+});
+
 function chunk<T>(arr: T[], size: number): T[][] {
 	const chunks: T[][] = [];
 	for (let i = 0; i < arr.length; i += size) {
@@ -83,7 +87,3 @@ for (const c of chunksESM) {
 		}
 	});
 }
-
-afterAll(() => {
-	fs.rmdirSync(IMPORTS_FOLDER, { recursive: true });
-});
