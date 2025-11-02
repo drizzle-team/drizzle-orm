@@ -64,7 +64,7 @@ const createTable = convertor('create_table', (st) => {
 			.map((it) => it.isExpression ? `${it.value}` : `\`${it.value}\``)
 			.join(',');
 
-		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE INDEX (${uniqueString})`;
+		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE INDEX(${uniqueString})`;
 	}
 
 	// TODO remove from create_table

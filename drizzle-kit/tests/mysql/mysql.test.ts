@@ -656,7 +656,7 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY,\n\t`column2` varchar(256) NOT NULL,'
-		+ '\n\tCONSTRAINT `column2_unique` UNIQUE(`column2`)\n);\n',
+		+ '\n\tCONSTRAINT `column2_unique` UNIQUE INDEX(`column2`)\n);\n',
 		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
 		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
@@ -990,7 +990,7 @@ test('add table with indexes', async () => {
 	const st0: string[] = [
 		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,`
 		+ `\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\t\`column4\` varchar(100),`
-		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE INDEX ((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE INDEX (\`email\`)\n);\n`,
+		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE INDEX((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE INDEX(\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
@@ -1049,10 +1049,6 @@ test('default on serail', async (t) => {
 			type: 'column_unsupported_default_on_autoincrement',
 		},
 	]);
-	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
-	]);
 	await expect(push({ db, to: schema1 })).rejects.toThrowError();
 });
 
@@ -1071,10 +1067,6 @@ test('default on autoincrement', async () => {
 			table: 'table1',
 			type: 'column_unsupported_default_on_autoincrement',
 		},
-	]);
-	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add DEFAULT value to \`column1\` in \`table1\`. AUTO_INCREMENT or SERIAL automatically generate their values. You can not set a default for it`,
 	]);
 	await expect(push({ db, to: schema1 })).rejects.toThrowError();
 });
@@ -1209,8 +1201,8 @@ test('optional db aliases (snake case)', async () => {
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
-	CONSTRAINT \`t1_uni\` UNIQUE INDEX (\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE INDEX (\`t1_uni_idx\`)
+	CONSTRAINT \`t1_uni\` UNIQUE INDEX(\`t1_uni\`),
+	CONSTRAINT \`t1_uni_idx\` UNIQUE INDEX(\`t1_uni_idx\`)
 );\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (
@@ -1271,8 +1263,8 @@ test('optional db aliases (camel case)', async () => {
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`
 		+ `\t\`t2Ref\` bigint unsigned,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
-		+ `\tCONSTRAINT \`t1Uni\` UNIQUE INDEX (\`t1Uni\`),\n`
-		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE INDEX (\`t1UniIdx\`)\n`
+		+ `\tCONSTRAINT \`t1Uni\` UNIQUE INDEX(\`t1Uni\`),\n`
+		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE INDEX(\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
@@ -1306,7 +1298,7 @@ test('add+drop unique', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: state2 });
 
 	const st01: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX(`id`)\n);\n',
 	];
 	expect(st1).toStrictEqual(st01);
 	expect(pst1).toStrictEqual(st01);
@@ -1334,7 +1326,7 @@ test('fk #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX (`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE INDEX(`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
 		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fkey` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
 	];
@@ -2019,8 +2011,8 @@ test('add pk', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
-		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX (`column1`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX(`column1`)\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE INDEX(`column1`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

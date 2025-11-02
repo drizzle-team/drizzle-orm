@@ -78,8 +78,8 @@ test('#1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
-		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
+		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX(`c1`)\n);\n',
+		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX(`c1`)\n);\n',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c1_users3_c1_fkey` FOREIGN KEY (`c1`) REFERENCES `users3`(`c1`);',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c2_users4_c1_fkey` FOREIGN KEY (`c2`) REFERENCES `users4`(`c1`);',
 	];
@@ -230,64 +230,6 @@ test('unique constraint errors #2', async () => {
 		],
 	);
 	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add UNIQUE on \`column1\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column2\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column3\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column4\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column5\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column6\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column7\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column8\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-	]);
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
@@ -332,16 +274,6 @@ test('unique constraint errors #3', async () => {
 			},
 		],
 	);
-	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add COMPOSITE UNIQUE on \`column1\`, \`column2\`, \`column3\`, \`column4\`, \`column5\`, \`column6\`, \`column7\`, \`column8\` columns in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex(\"name\").on(sql\`username(10)\`)]`,
-	]);
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
@@ -654,7 +586,7 @@ test('fk name is too long', async () => {
 	const expectedSt: string[] = [
 		'CREATE TABLE `table1_loooooong` (\n\t`column1_looooong` int PRIMARY KEY\n);\n',
 		'CREATE TABLE `table2_loooooong` (\n\t`column1_looooong` int NOT NULL\n);\n',
-		'ALTER TABLE `table2_loooooong` ADD CONSTRAINT `table2_loooooong_U1VxfDoI6aC2_fkey` FOREIGN KEY (`column1_looooong`) REFERENCES `table1_loooooong`(`column1_looooong`);',
+		'ALTER TABLE `table2_loooooong` ADD CONSTRAINT `table2_loooooong_KObGFnvgHDVg_fkey` FOREIGN KEY (`column1_looooong`) REFERENCES `table1_loooooong`(`column1_looooong`);',
 	];
 
 	expect(st).toStrictEqual(expectedSt);

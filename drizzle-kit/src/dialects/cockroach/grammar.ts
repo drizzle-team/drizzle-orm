@@ -1,6 +1,4 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { parseArray } from 'src/utils/parse-pgarray';
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import {
 	dateExtractRegex,
 	hasTimeZoneSuffix,
@@ -14,6 +12,8 @@ import {
 	trimChar,
 	wrapWith,
 } from '../../utils';
+import { parseArray } from '../../utils/parse-pgarray';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { numberForTs, parseParams } from '../utils';
 import { CockroachEntities, Column, DiffEntities } from './ddl';

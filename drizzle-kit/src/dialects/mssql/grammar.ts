@@ -1,5 +1,5 @@
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { assertUnreachable, trimChar } from '../../utils';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { DefaultConstraint, MssqlEntities } from './ddl';

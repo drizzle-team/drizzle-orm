@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from 'src/cli/views';
 import {
 	any,
 	array,
@@ -15,6 +14,7 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
+import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from '../cli/views';
 import { _prepareAddColumns, _prepareDropColumns } from './jsonStatements';
 import { ViewSquashed } from './mysql-v5/mysqlSchema';
 import {

@@ -1,7 +1,7 @@
-import { createDDL } from 'src/dialects/mysql/ddl';
-import { Binary, Varbinary } from 'src/dialects/mysql/grammar';
-import { trimChar } from 'src/utils';
+import { createDDL } from '../../dialects/mysql/ddl';
+import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import { trimChar } from '../../utils';
 
 export const upMysqlHandler = (out: string) => {};
 

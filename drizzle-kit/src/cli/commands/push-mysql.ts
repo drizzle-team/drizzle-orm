@@ -1,10 +1,10 @@
 import chalk from 'chalk';
-import { render, renderWithTask } from 'hanji';
-import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
-import { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareFilenames } from 'src/utils/utils-node';
+import { render } from 'hanji';
+import { Column, interimToDDL, Table, View } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
+import { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
+import { prepareFilenames } from '../../utils/utils-node';
 import { connectToMySQL } from '../connections';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
