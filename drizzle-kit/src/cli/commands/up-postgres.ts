@@ -49,12 +49,29 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 		ddl.schemas.push({ name: schema });
 	}
 
+	for (const seq of Object.values(json.sequences)) {
+		ddl.sequences.push({
+			schema: seq.schema!,
+			name: seq.name,
+			startWith: seq.startWith ?? null,
+			incrementBy: seq.increment ?? null,
+			minValue: seq.minValue ?? null,
+			maxValue: seq.maxValue ?? null,
+			cacheSize: seq.cache ? Number(seq.cache) : null,
+			cycle: seq.cycle ?? null,
+		});
+	}
+
 	for (const table of Object.values(json.tables)) {
 		const schema = table.schema || 'public';
+
+		const isRlsEnabled = table.isRLSEnabled || Object.keys(table.policies).length > 0
+			|| Object.values(json.policies).some((it) => it.on === table.name && (it.schema ?? 'public') === schema);
+
 		ddl.tables.push({
 			schema,
 			name: table.name,
-			isRlsEnabled: table.isRLSEnabled ?? false,
+			isRlsEnabled: isRlsEnabled,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -71,6 +88,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			const [baseType, dimensions] = extractBaseTypeAndDimensions(column.type);
 
 			let fixedType = baseType.startsWith('numeric(') ? baseType.replace(', ', ',') : baseType;
+
 			ddl.columns.push({
 				schema,
 				table: table.name,

@@ -886,8 +886,11 @@ export const ddlDiff = async (
 				delete it.withCheck;
 			}
 		}
-		return true;
+		return ddl1.policies.hasDiff(it);
 	});
+
+	// if I drop policy/ies, I should check if table only had this policy/ies and turn off
+	// for non explicit rls =
 
 	// using/withcheck in policy is a SQL expression which can be formatted by database in a different way,
 	// thus triggering recreations/alternations on push
@@ -969,15 +972,6 @@ export const ddlDiff = async (
 		}
 	}
 
-	// if I drop policy/ies, I should check if table only had this policy/ies and turn off
-	// for non explicit rls =
-
-	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
-	// TODO:
-	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
-		prepareStatement('alter_policy', { diff: it, policy: it.$right })
-	);
-
 	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_enum', { enum: it }));
 	const jsonDropEnums = deletedEnums.map((it) => prepareStatement('drop_enum', { enum: it }));
 	const jsonMoveEnums = movedEnums.map((it) => prepareStatement('move_enum', it));
@@ -1038,6 +1032,7 @@ export const ddlDiff = async (
 			return ddl2.columns.hasDiff(it);
 		})
 		.map((it) => {
+			console.log(it);
 			const column = it.$right;
 			return prepareStatement('alter_column', {
 				diff: it,

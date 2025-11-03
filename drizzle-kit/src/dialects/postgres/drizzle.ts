@@ -346,7 +346,13 @@ export const fromDrizzleSchema = (
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
-				const notNull = column.notNull;
+
+				const isPk = column.primary
+					|| config.primaryKeys.find((pk) =>
+							pk.columns.some((col) => col.name ? col.name === column.name : col.keyAsName === column.keyAsName)
+						) !== undefined;
+
+				const notNull = column.notNull || isPk;
 
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
@@ -419,11 +425,6 @@ export const fromDrizzleSchema = (
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
 				const name = pk.name || defaultNameForPK(tableName);
-
-				for (const columnName of columnNames) {
-					const column = res.columns.find((it) => it.name === columnName)!;
-					column.notNull = true;
-				}
 
 				return {
 					entityType: 'pks',

@@ -78,7 +78,7 @@ export const organizationsInCore = core.table('organizations', {
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	index('core_org_name_idx').using('btree', table.name.asc().nullsLast()),
+	index('core_org_name_idx').using('btree', table.name.asc().nullsLast().op('text_ops')),
 	index('organizations_code_idx').using('btree', table.code.asc().nullsLast().op('int8_ops')),
 	unique('organizations_domain_key').on(table.domain),
 	check('organizations_name_check', sql`char_length(name) > 1`),
@@ -1132,7 +1132,7 @@ export const projectMembersInRls = rls.table('project_members', {
 
 export const policy = pgPolicy('new_policy', {
 	as: 'restrictive',
-	to: 'current_user',
+	to: 'postgres',
 	withCheck: sql`1 = 1`,
 	for: 'all',
 }).link(organizationsInCore);

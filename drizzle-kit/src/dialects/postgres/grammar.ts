@@ -2042,6 +2042,8 @@ export const defaultsCommutative = (
 	let to = diffDef.to?.value;
 
 	if (from === to) return true;
+	if (from === `(${to})`) return true;
+	if (to === `(${from})`) return true;
 
 	if (type.startsWith('timestamp') && type.includes('with time zone')) {
 		if (from && to) {
