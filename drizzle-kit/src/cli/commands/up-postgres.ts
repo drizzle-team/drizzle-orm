@@ -29,7 +29,6 @@ export const upPgHandler = (out: string) => {
 
 			const { snapshot, hints } = upToV8(it.raw);
 
-			console.log(hints);
 			console.log(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));

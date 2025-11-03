@@ -762,7 +762,6 @@ test('uniqueIndex multistep #1', async () => {
 	const sch1 = { table1, table2 };
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
-	console.log(st1);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 	const expectedSt1 = [
 		'CREATE TABLE "table1" (\n'
