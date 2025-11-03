@@ -109,7 +109,7 @@ jobs:
           - shard: orm
             dbs: []
           - shard: kit
-            dbs: [postgres, mysql, mssql, cockroach]
+            dbs: [postgres, mysql, mssql, cockroach, postgres-postgis]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
