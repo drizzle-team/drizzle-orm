@@ -616,45 +616,41 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 		await prepareClient(url, 'dbc4', true),
 	];
 
-	const closureTxs = () => {
-		return async () => {
-			while (true) {
-				const c = clientsTxs.shift();
-				if (!c) {
-					await sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clientsTxs.push(c);
-					},
-				};
+	const closureTxs = async () => {
+		while (true) {
+			const c = clientsTxs.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clientsTxs.push(c);
+				},
+			};
+		}
 	};
 
-	const closure = () => {
-		return async () => {
-			while (true) {
-				const c = clients.shift();
-				if (!c) {
-					await sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clients.push(c);
-					},
-				};
+	const closure = async () => {
+		while (true) {
+			const c = clients.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clients.push(c);
+				},
+			};
+		}
 	};
 
 	return {
-		acquire: closure(),
-		acquireTx: closureTxs(),
+		acquire: closure,
+		acquireTx: closureTxs,
 		close: async () => {
 			for (const c of clients) {
 				c.close();

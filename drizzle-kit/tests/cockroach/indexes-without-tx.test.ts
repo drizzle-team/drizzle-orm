@@ -2,7 +2,7 @@ import { cockroachTable, index, int4, vector } from 'drizzle-orm/cockroach-core'
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test.concurrent('vector index', async ({ dbc: db }) => {
+test('vector index', async ({ dbc: db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
