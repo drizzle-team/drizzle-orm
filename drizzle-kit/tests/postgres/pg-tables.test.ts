@@ -1047,7 +1047,7 @@ test('optional db aliases (snake case)', async () => {
 
 	const st7 = `CREATE INDEX "t1_idx" ON "t1" ("t1_idx") WHERE "t1_idx" > 0;`;
 
-	const st0 = [st1, st2, st3, st4, st5, st6, st7];
+	const st0 = [st1, st2, st3, st6, st7, st4, st5];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -1189,7 +1189,7 @@ test('optional db aliases (camel case)', async () => {
 	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" ("t1UniIdx");`;
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1Idx" > 0;`;
 
-	const st0 = [st1, st2, st3, st4, st5, st6, st7];
+	const st0 = [st1, st2, st3, st6, st7, st4, st5];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

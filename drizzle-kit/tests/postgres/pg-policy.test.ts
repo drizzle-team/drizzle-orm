@@ -157,6 +157,7 @@ test('drop policy without disable rls', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('alter policy without recreation: changing roles #2', async (t) => {
 	const role = pgRole('test');
 	const schema1 = {

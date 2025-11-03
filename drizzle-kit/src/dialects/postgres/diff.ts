@@ -751,6 +751,16 @@ export const ddlDiff = async (
 			delete it.default;
 		}
 
+		// commutative types
+		if (it.type) {
+			if (
+				it.type.from === it.type.to.replace('numeric', 'decimal')
+				|| it.type.to === it.type.from.replace('numeric', 'decimal')
+			) {
+				delete it.type;
+			}
+		}
+
 		// geometry
 		if (it.type && it.$right.type.startsWith('geometry(point') && it.$left.type.startsWith('geometry(point')) {
 			// geometry(point,0)
@@ -870,7 +880,14 @@ export const ddlDiff = async (
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
 
-	const alteredPolicies = alters.filter((it) => it.entityType === 'policies');
+	const alteredPolicies = alters.filter((it) => it.entityType === 'policies').filter((it) => {
+		if (it.withCheck && it.withCheck.from && it.withCheck.to) {
+			if (it.withCheck.from === `(${it.withCheck.to})` || it.withCheck.to === `(${it.withCheck.from})`) {
+				delete it.withCheck;
+			}
+		}
+		return true;
+	});
 
 	// using/withcheck in policy is a SQL expression which can be formatted by database in a different way,
 	// thus triggering recreations/alternations on push
@@ -1209,10 +1226,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonCreateIndexes); // above fks for uniqueness constraint to come first
 
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
-	jsonStatements.push(...jsonCreateIndexes);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);

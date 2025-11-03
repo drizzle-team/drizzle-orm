@@ -583,9 +583,9 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 };
 
 export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
-	const envURL = process.env.PG_POSTGIS_CONNECTION_STRING;
+	const envURL = process.env.POSTGIS_URL;
 	if (!envURL) {
-		throw new Error('PG_POSTGIS_CONNECTION_STRING is not set, starting a new Postgis container for tests...');
+		throw new Error('POSTGIS_URL is not set, starting a new Postgis container for tests...');
 	}
 
 	const parsed = new URL(envURL);

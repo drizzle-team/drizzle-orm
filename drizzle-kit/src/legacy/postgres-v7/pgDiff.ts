@@ -1579,19 +1579,22 @@ export const _diff = async (
 	jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
+	// PATCHED, need to run before fks
+	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
+	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	// ----
+
+	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
-	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
-
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
 	jsonStatements.push(...createViews);
 
