@@ -2,7 +2,7 @@ import { char, string, varchar } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diffDefault, test } from './mocks';
 
-test('char + char arrays', async ({ db }) => {
+test.concurrent('char + char arrays', async ({ dbc: db }) => {
 	const res1_0 = await diffDefault(db, char().default('text'), `'text'`, { expectError: true });
 	// char is less than default
 	const res10 = await diffDefault(db, char({ length: 2 }).default('text'), `'text'`, { expectError: true });
@@ -11,14 +11,14 @@ test('char + char arrays', async ({ db }) => {
 	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 });
 
-test('varchar + varchar arrays', async ({ db }) => {
+test.concurrent('varchar + varchar arrays', async ({ dbc: db }) => {
 	// varchar length is less than default
 	const res10 = await diffDefault(db, varchar({ length: 2 }).default('text'), `'text'`, { expectError: true });
 
 	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 });
 
-test('string + string arrays', async ({ db }) => {
+test.concurrent('string + string arrays', async ({ dbc: db }) => {
 	// varchar length is less than default
 	const res10 = await diffDefault(db, string({ length: 2 }).default('text'), `'text'`, { expectError: true });
 
