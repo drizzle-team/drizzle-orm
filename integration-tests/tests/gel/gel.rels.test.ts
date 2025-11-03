@@ -7,12 +7,7 @@ import createClient, { type Client } from 'gel';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './gel.relations';
 import * as schema from './gel.schema';
-import 'zx';
-import retry from 'async-retry';
-import { createDockerDB } from '~/gel/createInstance';
-
-$.quiet = true;
-const ENABLE_LOGGING = false;
+import 'zx/globals';
 
 const {
 	usersTable,
@@ -36,41 +31,23 @@ declare module 'vitest' {
 }
 
 let globalDocker: Docker | undefined; // oxlint-disable-line no-unassigned-vars
-let gelContainer: Docker.Container;
 let client: Client;
 let db: GelJsDatabase<never, typeof relations>;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		gelContainer = contrainerObj;
-	}
-	await sleep(15 * 1000);
-	client = await retry(() => {
-		client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.close();
-		},
-	});
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
+	const connectionString = process.env['GEL_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('gel GEL_CONNECTION_STRING is not set. ');
+
+	client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
+	db = drizzle({ client, relations, casing: 'snake_case' });
 
 	dsn = connectionString;
 
-	await $`gel query "CREATE SCALAR TYPE default::users_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::users {
+	await $`gel query 'reset schema to initial ;
+	CREATE SCALAR TYPE default::users_id EXTENDING sequence;
+	CREATE TYPE default::users {
 		create property custom_id: default::users_id {
 			create constraint exclusive;
 		};
@@ -79,28 +56,25 @@ beforeAll(async () => {
 			SET default := false;
 		};
 		create PROPERTY invited_by: int64;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE default::groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::groups {
+	};
+	CREATE SCALAR TYPE default::groups_id EXTENDING sequence;
+	CREATE TYPE default::groups {
 		create property custom_id: default::groups_id {
 			create constraint exclusive;
 		};
 		create required property name: str;
 		create property description: str;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE default::users_to_groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::users_to_groups {
+	};
+	CREATE SCALAR TYPE default::users_to_groups_id EXTENDING sequence;
+	CREATE TYPE default::users_to_groups {
 		create property custom_id: default::users_to_groups_id {
 			create constraint exclusive;
 		};
 		create required property user_id: int32;
 		create required property group_id: int32;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE default::posts_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::posts {
+	};
+	CREATE SCALAR TYPE default::posts_id EXTENDING sequence;
+	CREATE TYPE default::posts {
 		create property custom_id: default::posts_id {
 			create constraint exclusive;
 		};
@@ -109,10 +83,9 @@ beforeAll(async () => {
 		create required property created_at: datetime {
         	SET default := datetime_of_statement();
       	};
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE default::comments_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::comments {
+	};
+	CREATE SCALAR TYPE default::comments_id EXTENDING sequence;
+	CREATE TYPE default::comments {
 		create property custom_id: default::comments_id {
 			create constraint exclusive;
 		};
@@ -122,10 +95,9 @@ beforeAll(async () => {
 		create required property created_at: datetime {
         	SET default := datetime_of_statement();
       	};
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE default::comment_likes_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE default::comment_likes {
+	};
+	CREATE SCALAR TYPE default::comment_likes_id EXTENDING sequence;
+	CREATE TYPE default::comment_likes {
 		create property custom_id: default::comment_likes_id {
 			create constraint exclusive;
 		};
@@ -134,12 +106,10 @@ beforeAll(async () => {
 		create required property created_at: datetime {
         	SET default := datetime_of_statement();
       	};
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE MODULE rqb_test_schema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::users_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE rqb_test_schema::users {
+	};
+	CREATE MODULE rqb_test_schema;
+	CREATE SCALAR TYPE rqb_test_schema::users_id EXTENDING sequence;
+	CREATE TYPE rqb_test_schema::users {
 		create property custom_id: rqb_test_schema::users_id {
 			create constraint exclusive;
 		};
@@ -148,28 +118,25 @@ beforeAll(async () => {
 			SET default := false;
 		};
 		create PROPERTY invited_by: int64;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE rqb_test_schema::groups {
+	};
+	CREATE SCALAR TYPE rqb_test_schema::groups_id EXTENDING sequence;
+	CREATE TYPE rqb_test_schema::groups {
 		create property custom_id: rqb_test_schema::groups_id {
 			create constraint exclusive;
 		};
 		create required property name: str;
 		create property description: str;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::users_to_groups_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE rqb_test_schema::users_to_groups {
+	};
+	CREATE SCALAR TYPE rqb_test_schema::users_to_groups_id EXTENDING sequence;
+	CREATE TYPE rqb_test_schema::users_to_groups {
 		create property custom_id: rqb_test_schema::users_to_groups_id {
 			create constraint exclusive;
 		};
 		create required property user_id: int32;
 		create required property group_id: int32;
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "CREATE SCALAR TYPE rqb_test_schema::posts_id EXTENDING sequence;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "CREATE TYPE rqb_test_schema::posts {
+	};
+	CREATE SCALAR TYPE rqb_test_schema::posts_id EXTENDING sequence;
+	CREATE TYPE rqb_test_schema::posts {
 		create property custom_id: rqb_test_schema::posts_id {
 			create constraint exclusive;
 		};
@@ -178,65 +145,40 @@ beforeAll(async () => {
 		create required property created_at: datetime {
         	SET default := datetime_of_statement();
       	};
-	};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	};
+	' --tls-security=${tlsSecurity} --dsn=${dsn}`;
 });
 
 afterAll(async () => {
-	await $`gel query "DROP TYPE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::comments;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::comment_likes;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE rqb_test_schema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE rqb_test_schema::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE rqb_test_schema::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE rqb_test_schema::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "DROP SCALAR TYPE default::users_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE default::groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE default::users_to_groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE default::posts_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE default::comments_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE default::comment_likes_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE rqb_test_schema::users_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE rqb_test_schema::groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE rqb_test_schema::users_to_groups_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP SCALAR TYPE rqb_test_schema::posts_id;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "DROP MODULE rqb_test_schema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
 	await client?.close().catch(console.error);
-	await gelContainer?.stop().catch(console.error);
 });
 
 beforeEach(async (ctx) => {
 	ctx.geljsDb = db;
 	ctx.gelClient = client;
 	ctx.docker = globalDocker!;
-	ctx.gelContainer = gelContainer;
 
-	await $`gel query "SELECT sequence_reset(introspect default::users_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect default::groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect default::users_to_groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect default::posts_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect default::comments_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect default::comment_likes_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::users_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::users_to_groups_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "SELECT sequence_reset(introspect rqb_test_schema::posts_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-	await $`gel query "DELETE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::comments;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE default::comment_likes;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE rqb_test_schema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE rqb_test_schema::users_to_groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE rqb_test_schema::groups;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DELETE rqb_test_schema::posts;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	await $`gel query "SELECT sequence_reset(introspect default::users_id);
+	SELECT sequence_reset(introspect default::groups_id);
+	SELECT sequence_reset(introspect default::users_to_groups_id);
+	SELECT sequence_reset(introspect default::posts_id);
+	SELECT sequence_reset(introspect default::comments_id);
+	SELECT sequence_reset(introspect default::comment_likes_id);
+	SELECT sequence_reset(introspect rqb_test_schema::users_id);
+	SELECT sequence_reset(introspect rqb_test_schema::groups_id);
+	SELECT sequence_reset(introspect rqb_test_schema::users_to_groups_id);
+	SELECT sequence_reset(introspect rqb_test_schema::posts_id);
+	DELETE default::users;
+	DELETE default::users_to_groups;
+	DELETE default::groups;
+	DELETE default::posts;
+	DELETE default::comments;
+	DELETE default::comment_likes;
+	DELETE rqb_test_schema::users;
+	DELETE rqb_test_schema::users_to_groups;
+	DELETE rqb_test_schema::groups;
+	DELETE rqb_test_schema::posts;
+	" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 });
 
 test('[Find Many] Get users with posts', async (t) => {
