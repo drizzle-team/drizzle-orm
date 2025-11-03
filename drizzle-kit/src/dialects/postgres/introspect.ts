@@ -695,7 +695,7 @@ export const fromDatabase = async (
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
 			// skip fo sequences or identity columns
-			// console.log('skip for auto created', seq.name);
+			// console.log('skip for auto created', seq.name, depend.deptype);
 			continue;
 		}
 

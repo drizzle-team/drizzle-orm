@@ -1132,7 +1132,7 @@ export const projectMembersInRls = rls.table('project_members', {
 
 export const policy = pgPolicy('new_policy', {
 	as: 'restrictive',
-	to: 'current_user',
+	to: 'postgres',
 	withCheck: sql`1 = 1`,
 	for: 'all',
 }).link(organizationsInCore);
