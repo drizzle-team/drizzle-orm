@@ -822,6 +822,8 @@ export const fromDatabase = async (
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
 
+		const typeDimensions = it.type.split('[]').length - 1;
+
 		viewColumns.push({
 			schema: view.schema,
 			view: view.name,
@@ -831,6 +833,7 @@ export const fromDatabase = async (
 			dimensions: 0,
 			// typeSchema: enumType ? enumType.schema : null,
 			typeSchema: null,
+			typeDimensions,
 		});
 	}
 

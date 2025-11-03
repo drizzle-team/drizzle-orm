@@ -1161,6 +1161,8 @@ export const fromDatabase = async (
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
 
+		const typeDimensions = it.type.split('[]').length - 1;
+
 		viewColumns.push({
 			schema: view.schema,
 			view: view.name,
@@ -1168,6 +1170,7 @@ export const fromDatabase = async (
 			type: columnTypeMapped,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
+			typeDimensions,
 			typeSchema: enumType ? enumType.schema : null,
 		});
 	}
