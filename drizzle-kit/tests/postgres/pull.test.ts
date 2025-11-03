@@ -657,23 +657,17 @@ test('introspect view #3', async () => {
 
 	const test = pgTable('test', {
 		column1: enum1().array(),
-		column2: enum1().array(),
+		column2: enum1().array().array(),
 	});
-	const publicJobsWithCompanies = pgView('public_jobs_with_companies', {
-		jobIcScale: enum1('job_ic_scale').array(), // TODO: revise: somehow this test passes with or without .array() in view
-		jobWorkStyles: enum1('job_work_styles').array(),
-	}).as(sql`SELECT column1 AS job_ic_scale, column2 AS job_work_styles FROM test j`);
+	const publicJobsWithCompanies = pgView('public_jobs_with_companies').as((qb) => qb.select().from(test));
+
 	const schema = { enum1, test, publicJobsWithCompanies };
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-3',
-	);
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-3');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-	throw new Error(); // remove when test is fixed
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
 });
 
 test('introspect view in other schema', async () => {

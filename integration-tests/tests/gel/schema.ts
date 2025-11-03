@@ -1,8 +1,5 @@
 import { sql } from 'drizzle-orm';
 import { gelTable, integer, text, timestamptz, uuid } from 'drizzle-orm/gel-core';
-import 'zx';
-
-$.quiet = true;
 
 export const rqbUser = gelTable('user_rqb_test', {
 	_id: uuid('id').primaryKey().default(sql`uuid_generate_v4()`),

@@ -184,6 +184,7 @@ export type ViewColumn = {
 	schema: string;
 	view: string;
 	type: string;
+	typeDimensions: number;
 	typeSchema: string | null;
 	notNull: boolean;
 	dimensions: number;
@@ -486,6 +487,8 @@ export const interimToDDL = (
 		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, column.name);
 		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, columns: [column.name] }) !== null;
 		if (exists) continue;
+
+		console.log(column.name);
 
 		ddl.uniques.push({
 			schema: column.schema,

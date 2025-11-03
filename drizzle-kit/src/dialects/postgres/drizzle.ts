@@ -439,7 +439,7 @@ export const fromDrizzleSchema = (
 		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
 				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-				const name = unq.name || uniqueKeyName(table, columnNames);
+				const name = unq.isNameExplicit ? unq.name! : uniqueKeyName(table, columnNames);
 				return {
 					entityType: 'uniques',
 					schema: schema,
@@ -558,7 +558,7 @@ export const fromDrizzleSchema = (
 					.map((it) => `${it[0]}=${it[1]}`)
 					.join(', ');
 
-				let where = value.config.where ? dialect.sqlToQuery(value.config.where).sql : '';
+				let where = value.config.where ? dialect.sqlToQuery(value.config.where.inlineParams(), 'indexes').sql : '';
 				where = where === 'true' ? '' : where;
 
 				return {
@@ -598,13 +598,15 @@ export const fromDrizzleSchema = (
 
 		res.checks.push(
 			...drizzleChecks.map<CheckConstraint>((check) => {
+				const value = dialect.sqlToQuery(check.value.inlineParams(), 'indexes').sql;
+
 				const checkName = check.name;
 				return {
 					entityType: 'checks',
 					schema,
 					table: tableName,
 					name: checkName,
-					value: dialect.sqlToQuery(check.value).sql,
+					value,
 				};
 			}),
 		);

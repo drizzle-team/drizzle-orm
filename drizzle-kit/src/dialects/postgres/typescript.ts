@@ -795,7 +795,7 @@ const createViewColumns = (
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += '.array()'.repeat(it.dimensions);
+		statement += '.array()'.repeat(it.dimensions + it.typeDimensions);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
