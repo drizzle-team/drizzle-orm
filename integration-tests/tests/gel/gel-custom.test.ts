@@ -1,52 +1,27 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { alias, customType, gelTable, gelTableCreator } from 'drizzle-orm/gel-core';
-import * as gel from 'gel';
+import createClient, { type Client } from 'gel';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import 'zx/globals';
 import relations from './relations';
 
-$.quiet = true;
-
-const ENABLE_LOGGING = false;
-
 let db: GelJsDatabase<never, typeof relations>;
-let client: gel.Client;
+let client: Client;
 
 let dsn: string;
-const tlsSecurity = '--tls-security=insecure';
-
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const tlsSecurity = 'insecure';
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	await sleep(15 * 1000);
-	client = await retry(async () => {
-		client = gel.createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.close();
-		},
-	});
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	const connectionString = process.env['GEL_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('gel GEL_CONNECTION_STRING is not set. ');
+
+	client = createClient({ dsn: connectionString, tlsSecurity });
+	db = drizzle({ client, relations });
 
 	dsn = connectionString;
-	await $`gel query "CREATE TYPE default::users_custom {
+	await $`gel query "reset schema to initial ;
+		CREATE TYPE default::users_custom {
 		create property id1: int16 {
 			create constraint exclusive;
 		};
@@ -62,15 +37,11 @@ beforeAll(async () => {
 		};
 		create required property name: str;
 	};
-	" ${tlsSecurity} --dsn=${dsn}`;
+	" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 });
 
 afterAll(async () => {
-	await $`gel query "DROP TYPE default::users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-	await $`gel query "DROP TYPE default::prefixed_users_custom;" ${tlsSecurity} --dsn=${dsn}`;
-
 	await client?.close();
-	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {
