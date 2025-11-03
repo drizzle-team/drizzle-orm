@@ -3,7 +3,7 @@ import { cockroachTable, int4, text } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('generated as callback: add column with generated constraint', async ({ db }) => {
+test.concurrent('generated as callback: add column with generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -37,7 +37,7 @@ test('generated as callback: add column with generated constraint', async ({ db 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as callback: add generated constraint to an exisiting column', async ({ db }) => {
+test.concurrent('generated as callback: add generated constraint to an exisiting column', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -73,7 +73,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as callback: drop generated constraint', async ({ db }) => {
+test.concurrent('generated as callback: drop generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -109,7 +109,7 @@ test('generated as callback: drop generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as callback: change generated constraint', async ({ db }) => {
+test.concurrent('generated as callback: change generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -144,7 +144,7 @@ test('generated as callback: change generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
 
-test('generated as sql: add column with generated constraint', async ({ db }) => {
+test.concurrent('generated as sql: add column with generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -178,7 +178,7 @@ test('generated as sql: add column with generated constraint', async ({ db }) =>
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as sql: add generated constraint to an exisiting column', async ({ db }) => {
+test.concurrent('generated as sql: add generated constraint to an exisiting column', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -214,7 +214,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as sql: drop generated constraint', async ({ db }) => {
+test.concurrent('generated as sql: drop generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -250,7 +250,7 @@ test('generated as sql: drop generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as sql: change generated constraint', async ({ db }) => {
+test.concurrent('generated as sql: change generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -288,7 +288,7 @@ test('generated as sql: change generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
 
-test('generated as string: add column with generated constraint', async ({ db }) => {
+test.concurrent('generated as string: add column with generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -322,7 +322,7 @@ test('generated as string: add column with generated constraint', async ({ db })
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as string: add generated constraint to an exisiting column', async ({ db }) => {
+test.concurrent('generated as string: add generated constraint to an exisiting column', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -358,7 +358,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as string: drop generated constraint', async ({ db }) => {
+test.concurrent('generated as string: drop generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -394,7 +394,7 @@ test('generated as string: drop generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as string: change generated constraint', async ({ db }) => {
+test.concurrent('generated as string: change generated constraint', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -432,7 +432,7 @@ test('generated as string: change generated constraint', async ({ db }) => {
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
 
-test('alter generated constraint', async ({ db }) => {
+test.concurrent('alter generated constraint', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
