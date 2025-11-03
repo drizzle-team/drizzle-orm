@@ -676,12 +676,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	db: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquire();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],
@@ -690,12 +687,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	dbc: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquireTx();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],
