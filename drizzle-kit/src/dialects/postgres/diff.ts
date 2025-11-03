@@ -1032,7 +1032,6 @@ export const ddlDiff = async (
 			return ddl2.columns.hasDiff(it);
 		})
 		.map((it) => {
-			console.log(it);
 			const column = it.$right;
 			return prepareStatement('alter_column', {
 				diff: it,
