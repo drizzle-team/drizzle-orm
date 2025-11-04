@@ -67,6 +67,7 @@ export const entrypoints = {
 	version: 'src/version.ts',
 	casing: 'src/casing.ts',
 	'cache/core/types': 'src/cache/core/types.ts',
+	'tursodatabase/database': 'src/tursodatabase/database.ts',
 	...dialects.reduce((acc, dialect) => {
 		acc[`${dialect}-core/index`] = `src/${dialect}-core/index.ts`;
 		acc[`${dialect}-core/expressions`] = `src/${dialect}-core/expressions.ts`;
