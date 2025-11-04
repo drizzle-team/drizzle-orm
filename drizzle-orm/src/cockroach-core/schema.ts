@@ -19,7 +19,7 @@ import {
 export class CockroachSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'CockroachSchema';
 
-	private isExisting: boolean = false;
+	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}
