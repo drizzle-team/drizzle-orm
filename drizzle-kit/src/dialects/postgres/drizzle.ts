@@ -268,7 +268,9 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
-		.filter((it) => !it.existing() && it.schemaName !== 'public')
+		.filter((it) => {
+			return !it.isExisting && it.schemaName !== 'public';
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
