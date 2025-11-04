@@ -148,8 +148,8 @@ importers:
         specifier: ^3.556.0
         version: 3.817.0
       '@bomb.sh/tab':
-        specifier: ^0.0.7
-        version: 0.0.7(cac@6.7.14)(commander@12.1.0)
+        specifier: ^0.0.9
+        version: 0.0.9(cac@6.7.14)(commander@12.1.0)
       '@cloudflare/workers-types':
         specifier: ^4.20230518.0
         version: 4.20250529.0
@@ -1591,8 +1591,8 @@ packages:
   '@balena/dockerignore@1.0.2':
     resolution: {integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==}
 
-  '@bomb.sh/tab@0.0.7':
-    resolution: {integrity: sha512-/9fTHWWYFl0m2nmfNT9ngI8XEVCvwh7ggAkeHtQybM2CrlIWyakTjbESBpxIFjT8ckpuH3oA2ROyjxoglVtOGQ==}
+  '@bomb.sh/tab@0.0.9':
+    resolution: {integrity: sha512-HUJ0b+LkZpLsyn0u7G/H5aJioAdSLqWMWX5ryuFS6n70MOEFu+SGrF8d8u6HzI1gINVQTvsfoxDLcjWkmI0AWg==}
     hasBin: true
     peerDependencies:
       cac: ^6.7.14
@@ -9860,7 +9860,7 @@ snapshots:
 
   '@balena/dockerignore@1.0.2': {}
 
-  '@bomb.sh/tab@0.0.7(cac@6.7.14)(commander@12.1.0)':
+  '@bomb.sh/tab@0.0.9(cac@6.7.14)(commander@12.1.0)':
     optionalDependencies:
       cac: 6.7.14
       commander: 12.1.0

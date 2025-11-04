@@ -49,7 +49,7 @@
 		"esbuild-register": "^3.5.0"
 	},
 	"devDependencies": {
-		"@bomb.sh/tab": "^0.0.7",
+		"@bomb.sh/tab": "^0.0.9",
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
