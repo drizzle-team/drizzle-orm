@@ -1,4 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import {
 	AnyPgColumn,
@@ -791,6 +792,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const policies: PgPolicy[] = [];
 	const views: PgView[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -825,6 +827,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		if (is(t, PgPolicy)) {
 			policies.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
@@ -836,6 +842,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };
 
@@ -848,6 +855,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const roles: PgRole[] = [];
 	const policies: PgPolicy[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -864,6 +872,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			matViews.push(...prepared.matViews);
 			roles.push(...prepared.roles);
 			policies.push(...prepared.policies);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -876,5 +885,6 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };

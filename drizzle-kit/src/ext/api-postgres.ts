@@ -1,9 +1,14 @@
-import type { PgDatabase } from 'drizzle-orm/pg-core';
+import type { PGlite } from '@electric-sql/pglite';
+import { is } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
+import { type AnyPgTable, getTableConfig, type PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 import { upToV8 } from 'src/cli/commands/up-postgres';
+import { certs } from 'src/utils/certs';
 import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
 import type { CasingType } from '../cli/validations/common';
+import type { PostgresCredentials } from '../cli/validations/postgres';
 import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../cli/views';
 import {
 	CheckConstraint,
@@ -161,6 +166,56 @@ export const pushSchema = async (
 			}
 		},
 	};
+};
+
+export const startStudioServer = async (
+	imports: Record<string, unknown>,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+	},
+) => {
+	const { drizzleForPostgres, prepareServer } = await import('../cli/commands/studio');
+
+	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, PgTable)) {
+			const schema = getTableConfig(t).schema || 'public';
+			pgSchema[schema] = pgSchema[schema] || {};
+			pgSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForPostgres(credentials, pgSchema, relations, [], options?.casing);
+	const server = await prepareServer(setup);
+
+	const host = options?.host || '127.0.0.1';
+	const port = options?.port || 4983;
+	const { key, cert } = (await certs()) || {};
+	server.start({
+		host,
+		port,
+		key,
+		cert,
+		cb: (err) => {
+			if (err) {
+				console.error(err);
+			} else {
+				console.log(`Studio is running at ${key ? 'https' : 'http'}://${host}:${port}`);
+			}
+		},
+	});
 };
 
 export const up = upToV8;
