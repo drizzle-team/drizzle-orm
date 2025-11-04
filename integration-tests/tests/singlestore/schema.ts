@@ -12,6 +12,7 @@ export const rqbPost = singlestoreTable('post_rqb_test', {
 	id: serial().primaryKey().notNull(),
 	userId: bigint('user_id', {
 		mode: 'number',
+		unsigned: true,
 	}).notNull(),
 	content: text(),
 	createdAt: timestamp('created_at', {

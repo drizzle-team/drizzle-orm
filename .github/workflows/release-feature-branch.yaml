@@ -82,9 +82,9 @@ jobs:
           - shard: int:gel
             dbs: [gel]
           - shard: int:singlestore-core
-            dbs: [singlestore]
+            dbs: [singlestore-many]
           - shard: int:singlestore-proxy
-            dbs: [singlestore]
+            dbs: [singlestore-many]
           - shard: int:singlestore-prefixed
             dbs: [singlestore]
           - shard: int:singlestore-custom
@@ -148,6 +148,7 @@ jobs:
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
               singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
+              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
               gel)                 compose_files+=("-f" "compose/gel.yml") ;;
@@ -283,6 +284,7 @@ jobs:
               postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
               mysql)               docker compose -f compose/mysql.yml down -v ;;
               singlestore)         docker compose -f compose/singlestore.yml down -v ;;
+              singlestore-many)    docker compose -f compose/singlestore-many.yml down -v ;;
               mssql)               docker compose -f compose/mssql.yml down -v ;;
               cockroach)           docker compose -f compose/cockroach.yml down -v ;;
             esac
