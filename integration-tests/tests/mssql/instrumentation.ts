@@ -1,10 +1,12 @@
 import { randomUUID } from 'crypto';
 import Docker from 'dockerode';
+import { defineRelations } from 'drizzle-orm';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { drizzle } from 'drizzle-orm/node-mssql';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
+import * as schema from './mssql.schema';
 
 export async function createDockerDB(): Promise<{ close: () => Promise<void>; url: string }> {
 	const docker = new Docker();
@@ -63,19 +65,21 @@ export const createClient = async () => {
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
 	const client = await mssql.connect(params);
+	const id = `db${randomUUID().split('-')[0]}`;
 	await client.query('select 1');
-
-	const db = drizzle({ client });
+	await client.query(`create database ${id}`);
+	await client.query(`use ${id}`);
+	const db = drizzle({ client, schema, relations: defineRelations(schema) });
 	return { client, close, url, url2, db };
 };
 
 export const test = base.extend<
 	{
-		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase };
+		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase<typeof schema> };
 		client: mssql.ConnectionPool;
 		url: string;
 		url2: string;
-		db: NodeMsSqlDatabase;
+		db: NodeMsSqlDatabase<typeof schema>;
 	}
 >({
 	connection: [
@@ -88,30 +92,30 @@ export const test = base.extend<
 				await close();
 			}
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	client: [
 		async ({ connection }, use) => {
 			await use(connection.client);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	url: [
 		async ({ connection }, use) => {
 			await use(connection.url);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	url2: [
 		async ({ connection }, use) => {
 			await use(connection.url2);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 	db: [
 		async ({ connection }, use) => {
 			await use(connection.db);
 		},
-		{ scope: 'worker' },
+		{ scope: 'file' },
 	],
 });

@@ -1,51 +1,21 @@
-import retry from 'async-retry';
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { drizzle } from 'drizzle-orm/singlestore';
-import type { Connection } from 'mysql2/promise';
-import { createConnection } from 'mysql2/promise';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { singlestoreTest as test } from '../instrumentation.ts';
+
 import * as schema from './singlestoreSchema.ts';
 
-let singleStoreContainer: Container;
-let client: Connection | undefined;
-let db: SingleStoreDriverDatabase;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	let connectionString: string;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const data = await createDockerDB();
-		connectionString = data.url;
-		singleStoreContainer = data.container;
-	}
-
-	client = await retry(async () => {
-		client = await createConnection({ uri: connectionString, supportBigNumbers: true });
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-
-	await client.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
-	await client.changeUser({ database: 'drizzle' });
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			    CREATE TABLE \`all_data_types\` (
 				\`int\` int,
 				\`tinyint\` tinyint,
@@ -86,15 +56,15 @@ beforeAll(async () => {
 				shard key (\`serial\`)
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await singleStoreContainer?.stop().catch(console.error);
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	await seed(db, schema, { count: 1 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);

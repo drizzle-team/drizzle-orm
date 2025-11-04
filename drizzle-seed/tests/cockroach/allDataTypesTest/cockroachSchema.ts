@@ -3,7 +3,7 @@ import {
 	bool,
 	char,
 	cockroachEnum,
-	cockroachSchema,
+	cockroachTable,
 	date,
 	decimal,
 	float,
@@ -24,11 +24,9 @@ import {
 	vector,
 } from 'drizzle-orm/cockroach-core';
 
-export const schema = cockroachSchema('seeder_lib_pg');
-
 export const moodEnum = cockroachEnum('mood_enum', ['sad', 'ok', 'happy']);
 
-export const allDataTypes = schema.table('all_data_types', {
+export const allDataTypes = cockroachTable('all_data_types', {
 	int4: int4('int4'),
 	int2: int2('int2'),
 	int8: int8('int8', { mode: 'bigint' }),
@@ -56,7 +54,7 @@ export const allDataTypes = schema.table('all_data_types', {
 	vector: vector('vector', { dimensions: 3 }),
 });
 
-export const allArrayDataTypes = schema.table('all_array_data_types', {
+export const allArrayDataTypes = cockroachTable('all_array_data_types', {
 	int4Array: int4('int4_array').array(),
 	int2Array: int2('int2_array').array(),
 	int8Array: int8('int8_array', { mode: 'bigint' }).array(),
@@ -82,7 +80,7 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
 });
 
-export const intervals = schema.table('intervals', {
+export const intervals = cockroachTable('intervals', {
 	intervalYear: interval({ fields: 'year' }),
 	intervalYearToMonth: interval({ fields: 'year to month' }),
 	intervalMonth: interval({ fields: 'month' }),

@@ -1,5 +1,3 @@
-import retry from 'async-retry';
-import type Docker from 'dockerode';
 import {
 	and,
 	arrayContained,
@@ -76,17 +74,14 @@ import createClient, {
 	RelativeDuration,
 } from 'gel';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
-import { createDockerDB } from './createInstance';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 
 $.quiet = true;
-
-const ENABLE_LOGGING = false;
 
 let client: Client;
 let db: GelJsDatabase<never, typeof relations>;
@@ -94,7 +89,6 @@ let dbGlobalCached: GelJsDatabase;
 let cachedDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
-let container: Docker.Container | undefined;
 
 // function sleep(ms: number) {
 // 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -213,38 +207,15 @@ const usersMySchemaTable = mySchema.table('users', {
 });
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	// await sleep(15 * 1000);
-	client = await retry(() => {
-		client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.close();
-		},
-	});
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	const url = process.env['GEL_CONNECTION_STRING'];
+	if (!url) throw new Error('GEL_CONNECTION_STRING is not set');
 
-	dsn = connectionString;
-});
+	client = createClient({ dsn: url, tlsSecurity: 'insecure' });
+	db = drizzle({ client, relations });
+	cachedDb = drizzle({ client, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, cache: new TestGlobalCache() });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await container?.stop().catch(console.error);
+	dsn = url;
 });
 
 beforeEach((ctx) => {

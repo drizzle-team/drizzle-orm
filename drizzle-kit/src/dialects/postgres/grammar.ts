@@ -1,5 +1,4 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import {
 	hasTimeZoneSuffix,
 	isDate,
@@ -14,6 +13,7 @@ import {
 	wrapWith,
 } from '../../utils';
 import { parseArray, parseExpressionArray } from '../../utils/parse-pgarray';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
 import type { Column, DiffEntities, PostgresEntities } from './ddl';
@@ -2042,6 +2042,8 @@ export const defaultsCommutative = (
 	let to = diffDef.to?.value;
 
 	if (from === to) return true;
+	if (from === `(${to})`) return true;
+	if (to === `(${from})`) return true;
 
 	if (type.startsWith('timestamp') && type.includes('with time zone')) {
 		if (from && to) {

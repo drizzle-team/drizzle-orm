@@ -1,51 +1,20 @@
-import retry from 'async-retry';
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { drizzle } from 'drizzle-orm/singlestore';
-import type { Connection } from 'mysql2/promise';
-import { createConnection } from 'mysql2/promise';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import { createDockerDB } from '../utils.ts';
+import { singlestoreTest as test } from '../instrumentation.ts';
 import * as schema from './singlestoreSchema.ts';
 
-let singleStoreContainer: Container;
-let client: Connection | undefined;
-let db: SingleStoreDriverDatabase;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-beforeAll(async () => {
-	let connectionString: string;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const data = await createDockerDB();
-		connectionString = data.url;
-		singleStoreContainer = data.container;
-	}
-
-	client = await retry(async (_, _attemptNumber) => {
-		client = await createConnection({ uri: connectionString, supportBigNumbers: true });
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 1000,
-		maxTimeout: 1000,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-
-	await client.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
-	await client.changeUser({ database: 'drizzle' });
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE TABLE \`composite_example0\` (
 				\`id\` integer not null,
 				\`name\` varchar(256) not null,
@@ -53,10 +22,10 @@ beforeAll(async () => {
 				CONSTRAINT \`composite_example_id_name_unique\` UNIQUE(\`id\`,\`name\`)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE ROWSTORE TABLE \`composite_example\` (
 				\`id\` integer not null,
 				\`name\` varchar(256) not null,
@@ -65,10 +34,10 @@ beforeAll(async () => {
 				CONSTRAINT \`custom_name\` UNIQUE(\`id\`,\`name\`)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE ROWSTORE TABLE \`unique_column_in_composite_of_two_0\` (
 				\`id\` integer not null unique,
 				\`name\` varchar(256) not null,
@@ -76,10 +45,10 @@ beforeAll(async () => {
 				CONSTRAINT \`custom_name0\` UNIQUE(\`id\`,\`name\`)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE ROWSTORE TABLE \`unique_column_in_composite_of_two_1\` (
 				\`id\` integer not null,
 				\`name\` varchar(256) not null,
@@ -88,10 +57,10 @@ beforeAll(async () => {
 				CONSTRAINT \`custom_name1_id\` UNIQUE(\`id\`)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE ROWSTORE TABLE \`unique_column_in_composite_of_three_0\` (
 				\`id\` integer not null unique,
 				\`name\` varchar(256) not null,
@@ -100,10 +69,10 @@ beforeAll(async () => {
 				CONSTRAINT \`custom_name2\` UNIQUE(\`id\`,\`name\`,\`slug\`)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
+		await db.execute(
+			sql`
 			CREATE ROWSTORE TABLE \`unique_column_in_composite_of_three_1\` (
 				\`id\` integer not null,
 				\`name\` varchar(256) not null,
@@ -113,19 +82,19 @@ beforeAll(async () => {
 				CONSTRAINT \`custom_name3_id\` UNIQUE(\`id\`)
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+
+	await promise;
 });
 
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await singleStoreContainer?.stop().catch(console.error);
-});
-
-afterEach(async () => {
+test.afterEach(async ({ db }) => {
 	await reset(db, schema);
 });
 
-test('basic seed test', async () => {
+test('basic seed test', async ({ db }) => {
 	const currSchema0 = { composite0: schema.composite0 };
 	await seed(db, currSchema0, { count: 16 });
 
@@ -189,7 +158,7 @@ test('basic seed test', async () => {
 	await reset(db, currSchema);
 });
 
-test('unique column in composite of 2 columns', async () => {
+test('unique column in composite of 2 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfTwo0: schema.uniqueColumnInCompositeOfTwo0 };
 	await seed(db, currSchema0, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo0: {
@@ -222,7 +191,7 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema1);
 });
 
-test('unique column in composite of 3 columns', async () => {
+test('unique column in composite of 3 columns', async ({ db }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfThree0: schema.uniqueColumnInCompositeOfThree0 };
 	await seed(db, currSchema0, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree0: {

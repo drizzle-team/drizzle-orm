@@ -340,10 +340,7 @@ export const diffIntrospect = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
+	await tsc(file.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
@@ -541,75 +538,65 @@ export async function createDockerDB() {
 }
 
 const prepareClient = async (url: string, n: string, tx: boolean) => {
-	const sleep = 1000;
-	let timeLeft = 20000;
 	const name = `${n}${hash(String(Math.random()), 10)}`;
-	do {
-		try {
-			const client = await new Pool({ connectionString: url, max: 1 }).connect();
 
+	const client = await new Pool({ connectionString: url, max: 1 }).connect();
+
+	await client.query(`DROP DATABASE IF EXISTS ${name};`);
+	await client.query(`CREATE DATABASE IF NOT EXISTS ${name};`);
+	await client.query(`USE ${name}`);
+
+	await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
+	await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
+
+	// await client.query(`SET TIME ZONE '+01';`);
+
+	if (tx) {
+		await client.query('BEGIN');
+	}
+
+	const clear = async () => {
+		if (tx) {
+			await client.query('ROLLBACK');
+			await client.query('BEGIN');
+		} else {
 			await client.query(`DROP DATABASE IF EXISTS ${name};`);
-			await client.query(`CREATE DATABASE IF NOT EXISTS ${name};`);
-			await client.query(`USE ${name}`);
+			await client.query(`CREATE DATABASE ${name};`);
+			await client.query(`USE ${name};`);
+			const roles = await client.query<{ rolname: string }>(
+				`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+			).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
 
-			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
-			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
-
-			// await client.query(`SET TIME ZONE '+01';`);
-
-			if (tx) {
-				await client.query('BEGIN');
+			for (const role of roles) {
+				await client.query(`DROP ROLE "${role.rolname}"`);
 			}
-
-			const clear = async () => {
-				if (tx) {
-					await client.query('ROLLBACK');
-					await client.query('BEGIN');
-				} else {
-					await client.query(`DROP DATABASE IF EXISTS ${name};`);
-					await client.query(`CREATE DATABASE ${name};`);
-					await client.query(`USE ${name};`);
-					const roles = await client.query<{ rolname: string }>(
-						`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
-					).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
-
-					for (const role of roles) {
-						await client.query(`DROP ROLE "${role.rolname}"`);
-					}
-				}
-			};
-
-			const db: TestDatabase = {
-				query: async (sql, params) => {
-					return client
-						.query(sql, params)
-						.then((it) => it.rows as any[])
-						.catch((e: Error) => {
-							const error = new Error(`query error: ${sql}\n\n${e.message}`);
-							throw error;
-						});
-				},
-				batch: async (sqls) => {
-					for (const sql of sqls) {
-						await client.query(sql);
-					}
-				},
-				clear: clear,
-				close: async () => {
-					client.release();
-				},
-			};
-			return db;
-		} catch (e) {
-			console.error(e);
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
 		}
-	} while (timeLeft > 0);
-	throw Error();
+	};
+
+	const db: TestDatabase = {
+		query: async (sql, params) => {
+			return client
+				.query(sql, params)
+				.then((it) => it.rows as any[])
+				.catch((e: Error) => {
+					const error = new Error(`query error: ${sql}\n\n${e.message}`);
+					throw error;
+				});
+		},
+		batch: async (sqls) => {
+			for (const sql of sqls) {
+				await client.query(sql);
+			}
+		},
+		clear: clear,
+		close: async () => {
+			client.release();
+		},
+	};
+	return db;
 };
 
-export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabaseKit> => {
+export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
@@ -619,11 +606,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await prepareClient(url, 'db2', false),
 		await prepareClient(url, 'db3', false),
 		await prepareClient(url, 'db4', false),
-		// await prepareClient(url, 'db5', tx),
-		// await prepareClient(url, 'db6', tx),
-		// await prepareClient(url, 'db7', tx),
-		// await prepareClient(url, 'db8', tx),
-		// await prepareClient(url, 'db9', tx),
 	];
 
 	const clientsTxs = [
@@ -632,52 +614,43 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await prepareClient(url, 'dbc2', true),
 		await prepareClient(url, 'dbc3', true),
 		await prepareClient(url, 'dbc4', true),
-		await prepareClient(url, 'dbc5', true),
-		await prepareClient(url, 'dbc6', true),
-		await prepareClient(url, 'dbc7', true),
-		await prepareClient(url, 'dbc8', true),
-		await prepareClient(url, 'dbc9', true),
 	];
 
-	const closureTxs = () => {
-		return async () => {
-			while (true) {
-				const c = clientsTxs.shift();
-				if (!c) {
-					sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clientsTxs.push(c);
-					},
-				};
+	const closureTxs = async () => {
+		while (true) {
+			const c = clientsTxs.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clientsTxs.push(c);
+				},
+			};
+		}
 	};
 
-	const closure = () => {
-		return async () => {
-			while (true) {
-				const c = clients.shift();
-				if (!c) {
-					sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clients.push(c);
-					},
-				};
+	const closure = async () => {
+		while (true) {
+			const c = clients.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clients.push(c);
+				},
+			};
+		}
 	};
 
 	return {
-		acquire: closure(),
-		acquireTx: closureTxs(),
+		acquire: closure,
+		acquireTx: closureTxs,
 		close: async () => {
 			for (const c of clients) {
 				c.close();
@@ -703,12 +676,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	db: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquire();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],
@@ -717,12 +687,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	dbc: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquireTx();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],

@@ -94,22 +94,25 @@ jobs:
             dbs: [singlestore]
           - shard: int:mysql
             dbs: [mysql]
-          # - shard: int:tidb
-          #   dbs: []
+          - shard: int:postgres
+            dbs: [postgres]
+          - shard: int:sqlite
+            dbs: []
+          - shard: int:other
+            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
-            dbs: []
-          - shard: int:neon-http
-            dbs: []
-          - shard: int:neon-serverless
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
+          #  TODO:
+          # - shard: int:bun
+          #   dbs: [postgres, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
             dbs: []
           - shard: kit
-            dbs: [postgres, mysql, mssql, cockroach]
+            dbs: [postgres, mysql, mssql, cockroach, postgres-postgis]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
@@ -117,15 +120,14 @@ jobs:
           - shard: zod
             dbs: []
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres, singlestore]
+            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
           - shard: typebox
             dbs: []
           - shard: valibot
             dbs: []
           - shard: arktype
             dbs: []
-          - shard: int:other
-            dbs: [postgres, mysql, mssql, cockroach, singlestore]
+         
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
@@ -140,17 +142,23 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          
+          compose_files=()
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
-              postgres)    docker compose -f compose/postgres.yml up -d ;;
-              mysql)       docker compose -f compose/mysql.yml up -d ;;
-              singlestore) docker compose -f compose/singlestore.yml up -d ;;
-              mssql)       docker compose -f compose/mssql.yml up -d ;;
-              cockroach)   docker compose -f compose/cockroach.yml up -d ;;
-              gel)         docker compose -f compose/gel.yml up -d ;;
+              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
+              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
+              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
+              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
+              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
+              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
+          docker compose "${compose_files[@]}" up -d
+
           chmod +x compose/wait.sh
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
@@ -182,11 +190,13 @@ jobs:
       # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
 
+      - uses: oven-sh/setup-bun@v2
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
@@ -218,13 +228,10 @@ jobs:
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
             int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
             int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
-            int:neon-http)
+            int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
               fi
-            ;;
-            int:neon-serverless)
-              pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
             ;;
             int:mysql)
               pnpm --stream test:mysql
@@ -241,33 +248,29 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
             kit)
               cd ../drizzle-kit
-              pnpm test:types
-              pnpm --stream vitest --reporter=verbose --silent=false run --exclude tests/cockroach --exclude tests/mssql
+              pnpm --stream vitest --reporter=verbose --silent=false run --exclude ./tests/cockroach/ --exclude ./tests/mssql/
             ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/mssql ;;
             orm|zod|seed|typebox|valibot|arktype)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
+          
+            int:bun)  bun test ./tests/bun/ ;;
+
             int:other)
-              pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude tests/gel \
-                --exclude tests/mysql \
-                --exclude tests/relational/mysql.planetscale-v1.test.ts \
-                --exclude tests/relational/mysql.planetscale.test.ts \
-                --exclude tests/relational/mysql-v1.test.ts \
-                --exclude tests/relational/mysql.test.ts \
-                --exclude tests/singlestore/singlestore.test.ts \
-                --exclude tests/singlestore/singlestore-proxy.test.ts \
-                --exclude tests/singlestore/singlestore-prefixed.test.ts \
-                --exclude tests/singlestore/singlestore-custom.test.ts \
-                --exclude tests/pg/neon-http.test.ts \
-                --exclude tests/pg/neon-http-batch.test.ts \
-                --exclude tests/pg/neon-serverless.test.ts \
-                --exclude tests/cockroach \
-                --exclude tests/mssql
+              pnpm --stream vitest --reporter=verbose --silent=false run tests \
+                --exclude ./tests/gel/ \
+                --exclude ./tests/mysql/ \
+                --exclude ./tests/cockroach/ \
+                --exclude ./tests/singlestore/ \
+                --exclude ./tests/mssql/ \
+                --exclude ./tests/pg/ \
+                --exclude ./tests/sqlite/ \
+                --exclude ./tests/bun/
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
@@ -279,11 +282,12 @@ jobs:
           set -euxo pipefail
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
-              postgres)    docker compose -f compose/postgres.yml down -v ;;
-              mysql)       docker compose -f compose/mysql.yml down -v ;;
-              singlestore) docker compose -f compose/singlestore.yml down -v ;;
-              mssql)       docker compose -f compose/mssql.yml down -v ;;
-              cockroach)   docker compose -f compose/cockroach.yml down -v ;;
+              postgres)            docker compose -f compose/postgres.yml down -v ;;
+              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
+              mysql)               docker compose -f compose/mysql.yml down -v ;;
+              singlestore)         docker compose -f compose/singlestore.yml down -v ;;
+              mssql)               docker compose -f compose/mssql.yml down -v ;;
+              cockroach)           docker compose -f compose/cockroach.yml down -v ;;
             esac
           done
 

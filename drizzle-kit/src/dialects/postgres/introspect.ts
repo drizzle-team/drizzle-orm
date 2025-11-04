@@ -695,7 +695,7 @@ export const fromDatabase = async (
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
 			// skip fo sequences or identity columns
-			// console.log('skip for auto created', seq.name);
+			// console.log('skip for auto created', seq.name, depend.deptype);
 			continue;
 		}
 
@@ -1146,8 +1146,9 @@ export const fromDatabase = async (
 	progressCallback('tables', tableCount, 'done');
 
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
-		const view = viewsList.find((x) => x.oid == it.tableId)!;
+		const view = viewsList.find((x) => x.oid === it.tableId)!;
 
+		const typeDimensions = it.type.split('[]').length - 1;
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
 			: it.typeId in groupedArrEnums
@@ -1174,6 +1175,7 @@ export const fromDatabase = async (
 			view: view.name,
 			name: it.name,
 			type: columnTypeMapped,
+			typeDimensions,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
 			typeSchema: enumType ? enumType.schema : null,

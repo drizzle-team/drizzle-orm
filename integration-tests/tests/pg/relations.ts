@@ -1,7 +1,7 @@
 import { defineRelations } from 'drizzle-orm';
 import * as schema from './schema';
 
-export default defineRelations(schema, (r) => ({
+export const relations = defineRelations(schema, (r) => ({
 	rqbUser: {
 		posts: r.many.rqbPost(),
 	},

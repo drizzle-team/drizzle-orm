@@ -1,111 +1,25 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
-import { DefaultLogger, desc, DrizzleError, eq, gt, gte, or, sql, TransactionRollbackError } from 'drizzle-orm';
-import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
-import getPort from 'get-port';
-import mssql, { type config, type ConnectionPool } from 'mssql';
-import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import { desc, DrizzleError, eq, gt, gte, or, sql, TransactionRollbackError } from 'drizzle-orm';
+import { expect, expectTypeOf } from 'vitest';
+import { test } from './instrumentation';
 import * as schema from './mssql.schema';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
-
-const ENABLE_LOGGING = false;
 
 /*
 	Test cases:
 	- querying nested relation without PK with additional fields
 */
 
-declare module 'vitest' {
-	export interface TestContext {
-		docker: Docker;
-		mssqlContainer: Docker.Container;
-		mssqlDb: NodeMsSqlDatabase<typeof schema>;
-		mssqlClient: ConnectionPool;
-	}
-}
+test.beforeEach(async ({ db }) => {
+	await db.execute(sql`drop table if exists [users_to_groups]`);
+	await db.execute(sql`drop table if exists [comment_likes]`);
+	await db.execute(sql`drop table if exists [comments]`);
+	await db.execute(sql`drop table if exists [posts]`);
+	await db.execute(sql`drop table if exists [groups]`);
+	await db.execute(sql`drop table if exists [users]`);
 
-let globalDocker: Docker;
-let mssqlContainer: Docker.Container;
-let db: NodeMsSqlDatabase<typeof schema>;
-let client: ConnectionPool;
-
-async function createDockerDB(): Promise<string | config> {
-	const docker = (globalDocker = new Docker());
-	const port = await getPort({ port: 1434 });
-	const image = 'mcr.microsoft.com/mssql/server:2019-latest';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=Y', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		platform: 'linux/amd64',
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mssqlContainer.start();
-
-	return `Server=localhost,${port};User Id=SA;Password=drizzle123PASSWORD;TrustServerCertificate=True;`;
-}
-
-beforeAll(async () => {
-	const connectionString = process.env['MSSQL_CONNECTION_STRING'] ?? await createDockerDB();
-
-	const sleep = 2000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mssql.connect(connectionString);
-			client.on('debug', console.log);
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MsSQL');
-		await client?.close().catch(console.error);
-		await mssqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-	db = drizzle({ client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined, schema });
-});
-
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await mssqlContainer?.stop().catch(console.error);
-});
-
-beforeEach(async (ctx) => {
-	ctx.mssqlDb = db;
-	ctx.mssqlClient = client;
-	ctx.docker = globalDocker;
-	ctx.mssqlContainer = mssqlContainer;
-
-	await ctx.mssqlDb.execute(sql`drop table if exists [users_to_groups]`);
-	await ctx.mssqlDb.execute(sql`drop table if exists [comment_likes]`);
-	await ctx.mssqlDb.execute(sql`drop table if exists [comments]`);
-	await ctx.mssqlDb.execute(sql`drop table if exists [posts]`);
-	await ctx.mssqlDb.execute(sql`drop table if exists [groups]`);
-	await ctx.mssqlDb.execute(sql`drop table if exists [users]`);
-
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [users] (
 				[id] int PRIMARY KEY NOT NULL,
@@ -115,7 +29,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [groups] (
 				[id] int PRIMARY KEY NOT NULL,
@@ -124,7 +38,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [users_to_groups] (
 				[id] int identity PRIMARY KEY NOT NULL,
@@ -133,7 +47,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [posts] (
 				[id] int identity PRIMARY KEY NOT NULL,
@@ -143,7 +57,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [comments] (
 				[id] int identity PRIMARY KEY NOT NULL,
@@ -154,7 +68,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mssqlDb.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE [comment_likes] (
 				[id] int identity PRIMARY KEY NOT NULL,
@@ -170,9 +84,7 @@ beforeEach(async (ctx) => {
 	[Find Many] One relation users+posts
 */
 
-test('[Find Many] Get users with posts', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -234,9 +146,7 @@ test('[Find Many] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + limit posts', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -307,9 +217,7 @@ test('[Find Many] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + limit posts and users', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + limit posts and users', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -372,9 +280,7 @@ test('[Find Many] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + custom fields', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -465,9 +371,7 @@ test('[Find Many] Get users with posts + custom fields', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + custom fields + limits', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -523,9 +427,7 @@ test('[Find Many] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -607,9 +509,7 @@ test('[Find Many] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -657,9 +557,7 @@ test('[Find Many] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -709,9 +607,7 @@ test('[Find Many] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial. Did not select posts id, but used it in where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -761,9 +657,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial(true + false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -810,9 +704,7 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 	});
 });
 
-test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + where + partial(false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -863,9 +755,7 @@ test('[Find Many] Get users with posts + where + partial(false)', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts in transaction', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts in transaction', async ({ db }) => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -928,9 +818,7 @@ test('[Find Many] Get users with posts in transaction', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts in rollbacked transaction', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts in rollbacked transaction', async ({ db }) => {
 	let usersWithPosts: {
 		id: number;
 		name: string;
@@ -987,7 +875,7 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 });
 
 // select only custom
-test('[Find Many] Get only custom fields', async () => {
+test('[Find Many] Get only custom fields', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1064,9 +952,7 @@ test('[Find Many] Get only custom fields', async () => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get only custom fields + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1116,9 +1002,7 @@ test('[Find Many] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get only custom fields + where + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1169,9 +1053,7 @@ test('[Find Many] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get only custom fields + where + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1223,7 +1105,7 @@ test('[Find Many] Get only custom fields + where + orderBy', async (t) => {
 });
 
 // select only custom find one
-test('[Find One] Get only custom fields', async () => {
+test('[Find One] Get only custom fields', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1281,9 +1163,7 @@ test('[Find One] Get only custom fields', async () => {
 	});
 });
 
-test('[Find One] Get only custom fields + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get only custom fields + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1334,9 +1214,7 @@ test('[Find One] Get only custom fields + where', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get only custom fields + where + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1388,9 +1266,7 @@ test('[Find One] Get only custom fields + where + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get only custom fields + where + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get only custom fields + where + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1443,9 +1319,7 @@ test('[Find One] Get only custom fields + where + orderBy', async (t) => {
 });
 
 // columns {}
-test('[Find Many] Get select {}', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get select {}', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1461,9 +1335,7 @@ test('[Find Many] Get select {}', async (t) => {
 });
 
 // columns {}
-test('[Find One] Get select {}', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get select {}', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1478,9 +1350,7 @@ test('[Find One] Get select {}', async (t) => {
 });
 
 // deep select {}
-test('[Find Many] Get deep select {}', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get deep select {}', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1506,9 +1376,7 @@ test('[Find Many] Get deep select {}', async (t) => {
 });
 
 // deep select {}
-test('[Find One] Get deep select {}', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get deep select {}', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1536,9 +1404,7 @@ test('[Find One] Get deep select {}', async (t) => {
 /*
 	Prepared statements for users+posts
 */
-test('[Find Many] Get users with posts + prepared limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1606,9 +1472,7 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared limit + offset', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1670,9 +1534,7 @@ test('[Find Many] Get users with posts + prepared limit + offset', async (t) => 
 	});
 });
 
-test('[Find Many] Get users with posts + prepared where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1722,9 +1584,7 @@ test('[Find Many] Get users with posts + prepared where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with posts + prepared + limit + offset + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with posts + prepared + limit + offset + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1784,9 +1644,7 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 	[Find One] One relation users+posts
 */
 
-test('[Find One] Get users with posts', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1831,9 +1689,7 @@ test('[Find One] Get users with posts', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + limit posts', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + limit posts', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1884,9 +1740,7 @@ test('[Find One] Get users with posts + limit posts', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts no results found', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts no results found', async ({ db }) => {
 	const usersWithPosts = await db._query.usersTable.findFirst({
 		with: {
 			posts: {
@@ -1913,9 +1767,7 @@ test('[Find One] Get users with posts no results found', async (t) => {
 	expect(usersWithPosts).toBeUndefined();
 });
 
-test('[Find One] Get users with posts + limit posts and users', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + limit posts and users', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -1966,7 +1818,7 @@ test('[Find One] Get users with posts + limit posts and users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields', async () => {
+test('[Find One] Get users with posts + custom fields', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2038,9 +1890,7 @@ test('[Find One] Get users with posts + custom fields', async () => {
 	});
 });
 
-test('[Find One] Get users with posts + custom fields + limits', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + custom fields + limits', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2096,9 +1946,7 @@ test('[Find One] Get users with posts + custom fields + limits', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2155,9 +2003,7 @@ test('[Find One] Get users with posts + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2206,9 +2052,7 @@ test('[Find One] Get users with posts + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2259,9 +2103,7 @@ test('[Find One] Get users with posts + where + partial', async (t) => {
 	});
 });
 
-test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial. Did not select posts id, but used it in where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2312,9 +2154,7 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(true + false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial(true + false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2362,9 +2202,7 @@ test('[Find One] Get users with posts + where + partial(true + false)', async (t
 	});
 });
 
-test('[Find One] Get users with posts + where + partial(false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with posts + where + partial(false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2420,9 +2258,7 @@ test('[Find One] Get users with posts + where + partial(false)', async (t) => {
 	One relation users+users. Self referencing
 */
 
-test('Get user with invitee', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2489,9 +2325,7 @@ test('Get user with invitee', async (t) => {
 	});
 });
 
-test('Get user + limit with invitee', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user + limit with invitee', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew', invitedBy: 1 },
@@ -2543,9 +2377,7 @@ test('Get user + limit with invitee', async (t) => {
 	});
 });
 
-test('Get user with invitee and custom fields', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and custom fields', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2621,9 +2453,7 @@ test('Get user with invitee and custom fields', async (t) => {
 	});
 });
 
-test('Get user with invitee and custom fields + limits', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and custom fields + limits', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2691,9 +2521,7 @@ test('Get user with invitee and custom fields + limits', async (t) => {
 	});
 });
 
-test('Get user with invitee + order by', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + order by', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2759,9 +2587,7 @@ test('Get user with invitee + order by', async (t) => {
 	});
 });
 
-test('Get user with invitee + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2811,9 +2637,7 @@ test('Get user with invitee + where', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + where + partial', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2864,9 +2688,7 @@ test('Get user with invitee + where + partial', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + where + partial.  Did not select users id, but used it in where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2913,9 +2735,7 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	});
 });
 
-test('Get user with invitee + where + partial(true+false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + where + partial(true+false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -2968,9 +2788,7 @@ test('Get user with invitee + where + partial(true+false)', async (t) => {
 	});
 });
 
-test('Get user with invitee + where + partial(false)', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee + where + partial(false)', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3027,9 +2845,7 @@ test('Get user with invitee + where + partial(false)', async (t) => {
 	Two first-level relations users+users and users+posts
 */
 
-test('Get user with invitee and posts', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3113,9 +2929,7 @@ test('Get user with invitee and posts', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + limit posts and users', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3196,9 +3010,7 @@ test('Get user with invitee and posts + limit posts and users', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limits + custom fields in each', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + limits + custom fields in each', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3288,7 +3100,7 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 	});
 });
 
-test('Get user with invitee and posts + custom fields in each', async () => {
+test('Get user with invitee and posts + custom fields in each', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3409,9 +3221,7 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 	});
 });
 
-test('Get user with invitee and posts + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3514,9 +3324,7 @@ test('Get user with invitee and posts + orderBy', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3584,9 +3392,7 @@ test('Get user with invitee and posts + where', async (t) => {
 	});
 });
 
-test('Get user with invitee and posts + limit posts and users + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + limit posts and users + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3646,9 +3452,7 @@ test('Get user with invitee and posts + limit posts and users + where', async (t
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + custom', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + orderBy + where + custom', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3733,9 +3537,7 @@ test('Get user with invitee and posts + orderBy + where + custom', async (t) => 
 	});
 });
 
-test('Get user with invitee and posts + orderBy + where + partial + custom', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with invitee and posts + orderBy + where + partial + custom', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3831,9 +3633,7 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 	One two-level relation users+posts+comments
 */
 
-test('Get user with posts and posts with comments', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with posts and posts with comments', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -3988,9 +3788,7 @@ test('Get user with posts and posts with comments', async (t) => {
 	One three-level relation users+posts+comments+comment_owner
 */
 
-test('Get user with posts and posts with comments and comments with owner', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get user with posts and posts with comments and comments with owner', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4132,9 +3930,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	Users+users_to_groups+groups
 */
 
-test('[Find Many] Get users with groups', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4236,9 +4032,7 @@ test('[Find Many] Get users with groups', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get groups with users', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4341,9 +4135,7 @@ test('[Find Many] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4426,9 +4218,7 @@ test('[Find Many] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get groups with users + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4511,9 +4301,7 @@ test('[Find Many] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + limit + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups + limit + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4582,9 +4370,7 @@ test('[Find Many] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + limit + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get groups with users + limit + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4654,9 +4440,7 @@ test('[Find Many] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4733,9 +4517,7 @@ test('[Find Many] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get groups with users + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4811,9 +4593,7 @@ test('[Find Many] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -4915,9 +4695,7 @@ test('[Find Many] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get groups with users + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get groups with users + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5020,9 +4798,7 @@ test('[Find Many] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find Many] Get users with groups + orderBy + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5111,9 +4887,7 @@ test('[Find Many] Get users with groups + orderBy + limit', async (t) => {
 	Users+users_to_groups+groups
 */
 
-test('[Find One] Get users with groups', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5177,9 +4951,7 @@ test('[Find One] Get users with groups', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get groups with users', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5243,9 +5015,7 @@ test('[Find One] Get groups with users', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5310,9 +5080,7 @@ test('[Find One] Get users with groups + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get groups with users + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5377,9 +5145,7 @@ test('[Find One] Get groups with users + limit', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + limit + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups + limit + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5445,9 +5211,7 @@ test('[Find One] Get users with groups + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + limit + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get groups with users + limit + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5514,9 +5278,7 @@ test('[Find One] Get groups with users + limit + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5576,9 +5338,7 @@ test('[Find One] Get users with groups + where', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + where', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get groups with users + where', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5644,9 +5404,7 @@ test('[Find One] Get groups with users + where', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5718,9 +5476,7 @@ test('[Find One] Get users with groups + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get groups with users + orderBy', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get groups with users + orderBy', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5786,9 +5542,7 @@ test('[Find One] Get groups with users + orderBy', async (t) => {
 	});
 });
 
-test('[Find One] Get users with groups + orderBy + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('[Find One] Get users with groups + orderBy + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5855,9 +5609,7 @@ test('[Find One] Get users with groups + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get groups with users + orderBy + limit', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get groups with users + orderBy + limit', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -5942,9 +5694,7 @@ test('Get groups with users + orderBy + limit', async (t) => {
 	});
 });
 
-test('Get users with groups + custom', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get users with groups + custom', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6064,9 +5814,7 @@ test('Get users with groups + custom', async (t) => {
 	});
 });
 
-test('Get groups with users + custom', async (t) => {
-	const { mssqlDb: db } = t;
-
+test('Get groups with users + custom', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
 		{ id: 2, name: 'Andrew' },
@@ -6187,7 +5935,7 @@ test('Get groups with users + custom', async (t) => {
 	});
 });
 
-test('.toSQL()', () => {
+test('.toSQL()', ({ db }) => {
 	const query = db._query.usersTable.findFirst().toSQL();
 
 	expect(query).toHaveProperty('sql', expect.any(String));

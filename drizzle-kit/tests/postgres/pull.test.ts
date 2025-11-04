@@ -337,6 +337,9 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4632
+// https://github.com/drizzle-team/drizzle-orm/issues/4644
+// https://github.com/drizzle-team/drizzle-orm/issues/4730
 // https://github.com/drizzle-team/drizzle-orm/issues/4760
 // https://github.com/drizzle-team/drizzle-orm/issues/4916
 test('introspect all column types', async () => {
@@ -356,8 +359,11 @@ test('introspect all column types', async () => {
 			text: text('text').default('abc'),
 			text1: text('text1').default(sql`gen_random_uuid()`),
 			text2: text('text2').default('``'),
+			text3: text('text3').default(''),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
+			varchar1: varchar('varchar1', { length: 25 }).default(''),
 			char: char('char', { length: 3 }).default('abc'),
+			char1: char('char1', { length: 3 }).default(''),
 			serial: serial('serial'),
 			bigserial: bigserial('bigserial', { mode: 'number' }),
 			smallserial: smallserial('smallserial'),
@@ -366,6 +372,7 @@ test('introspect all column types', async () => {
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
+			jsonb2: jsonb('jsonb2').default({}),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -399,6 +406,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -418,6 +426,7 @@ test('introspect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb1: jsonb('jsonb3').array().default(sql`'{}'`),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
@@ -648,23 +657,17 @@ test('introspect view #3', async () => {
 
 	const test = pgTable('test', {
 		column1: enum1().array(),
-		column2: enum1().array(),
+		column2: enum1().array().array(),
 	});
-	const publicJobsWithCompanies = pgView('public_jobs_with_companies', {
-		jobIcScale: enum1('job_ic_scale').array(), // TODO: revise: somehow this test passes with or without .array() in view
-		jobWorkStyles: enum1('job_work_styles').array(),
-	}).as(sql`SELECT column1 AS job_ic_scale, column2 AS job_work_styles FROM test j`);
+	const publicJobsWithCompanies = pgView('public_jobs_with_companies').as((qb) => qb.select().from(test));
+
 	const schema = { enum1, test, publicJobsWithCompanies };
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-3',
-	);
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-3');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-	throw new Error(); // will remove when test is fixed
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
 });
 
 test('introspect view in other schema', async () => {

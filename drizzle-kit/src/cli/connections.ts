@@ -882,7 +882,10 @@ export const connectToMySQL = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query(query.sql);
+					const res = await connection.query({
+						sql: query.sql,
+						typeCast,
+					});
 					results.push(res[0]);
 				}
 				await connection.commit();

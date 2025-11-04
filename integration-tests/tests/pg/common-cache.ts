@@ -1,120 +1,20 @@
-import type Docker from 'dockerode';
-import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import Keyv from 'keyv';
-import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { describe, expect, vi } from 'vitest';
+import { Test } from './instrumentation';
+import { postsTable, usersTable } from './schema';
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestGlobalCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
+export function tests(test: Test) {
+	describe('caches', () => {
+		test.beforeEach(async ({ caches }) => {
+			const { all, explicit } = caches;
 
-	constructor(private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return 'all';
-	}
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
-
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestCache extends TestGlobalCache {
-	override strategy(): 'explicit' | 'all' {
-		return 'explicit';
-	}
-}
-
-declare module 'vitest' {
-	interface TestContext {
-		cachedPg: {
-			db: PgDatabase<PgQueryResultHKT>;
-			dbGlobalCached: PgDatabase<PgQueryResultHKT>;
-		};
-	}
-}
-
-const usersTable = pgTable('users', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	jsonb: jsonb().$type<string[]>(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
-const postsTable = pgTable('posts', {
-	id: serial().primaryKey(),
-	description: text().notNull(),
-	userId: integer('city_id').references(() => usersTable.id),
-});
-
-let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
-
-afterAll(async () => {
-	await pgContainer?.stop().catch(console.error);
-});
-
-export function tests() {
-	describe('common', () => {
-		beforeEach(async (ctx) => {
-			const { db, dbGlobalCached } = ctx.cachedPg;
-			await db.execute(sql`drop schema if exists public cascade`);
-			await db.$cache?.invalidate({ tables: 'users' });
-			await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
-			await db.execute(sql`create schema public`);
+			await explicit.execute(sql`drop schema if exists public cascade`);
+			await explicit.$cache?.invalidate({ tables: 'users' });
+			await all.$cache?.invalidate({ tables: 'users' });
+			await explicit.execute(sql`create schema public`);
 			// public users
-			await db.execute(
+			await explicit.execute(
 				sql`
 					create table users (
 						id serial primary key,
@@ -127,16 +27,16 @@ export function tests() {
 			);
 		});
 
-		test('test force invalidate', async (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('test force invalidate', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			using spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 			await db.$cache?.invalidate({ tables: 'users' });
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('default global config - no cache should be hit', async (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('default global config - no cache should be hit', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -152,8 +52,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('default global config + enable cache on select: get, put', async (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('default global config + enable cache on select: get, put', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -169,8 +69,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('default global config + enable cache on select + write: get, put, onMutate', async (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('default global config + enable cache on select + write: get, put, onMutate', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -196,8 +96,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('default global config + enable cache on select + disable invalidate: get, put', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -218,8 +118,8 @@ export function tests() {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
-		test('global: true + disable cache', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true + disable cache', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -235,8 +135,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - cache should be hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true - cache should be hit', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -252,8 +152,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - cache: false on select - no cache hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true - cache: false on select - no cache hit', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -269,8 +169,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - disable invalidate - cache hit + no invalidate', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true - disable invalidate - cache hit + no invalidate', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -296,8 +196,8 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('global: true - with custom tag', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true - with custom tag', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -318,8 +218,8 @@ export function tests() {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
-		test('global: true - with custom tag + with autoinvalidate', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+		test('global: true - with custom tag + with autoinvalidate', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
 			using spyPut = vi.spyOn(db.$cache, 'put');
@@ -342,8 +242,8 @@ export function tests() {
 		});
 
 		// check select used tables
-		test('check simple select used tables', (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('check simple select used tables', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
@@ -351,8 +251,8 @@ export function tests() {
 			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
 		});
 		// check select+join used tables
-		test('select+join', (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('select+join', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
@@ -363,8 +263,8 @@ export function tests() {
 			).toStrictEqual(['users', 'posts']);
 		});
 		// check select+2join used tables
-		test('select+2joins', (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('select+2joins', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			expect(
 				db.select().from(usersTable).leftJoin(
@@ -387,8 +287,8 @@ export function tests() {
 			).toStrictEqual(['users', 'posts']);
 		});
 		// select subquery used tables
-		test('select+join', (ctx) => {
-			const { db } = ctx.cachedPg;
+		test('select+join', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			const sq = db.select().from(usersTable).where(eq(usersTable.id, 42)).as('sq');
 			db.select().from(sq);

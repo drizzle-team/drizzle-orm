@@ -139,6 +139,7 @@ const fromInterims = ({
 			return table.columns.map((it) => {
 				return {
 					view: table.name,
+					typeDimensions: 0, // never user in studio
 					...it,
 				} satisfies ViewColumn;
 			});

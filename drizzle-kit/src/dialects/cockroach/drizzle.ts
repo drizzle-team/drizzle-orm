@@ -365,7 +365,12 @@ export const fromDrizzleSchema = (
 				const { dimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				const isPartOfPk = drizzlePKs.find((it) => it.columns.map((it) => it.name).includes(column.name));
+
+				const isPk = column.primary
+					|| config.primaryKeys.find((pk) =>
+							pk.columns.some((col) => col.name ? col.name === column.name : col.keyAsName === column.keyAsName)
+						) !== undefined;
+
 				return {
 					entityType: 'columns',
 					schema: schema,
@@ -376,7 +381,7 @@ export const fromDrizzleSchema = (
 					dimensions: dimensions,
 					pk: column.primary,
 					pkName: null,
-					notNull: notNull || Boolean(isPartOfPk),
+					notNull: notNull || isPk,
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
