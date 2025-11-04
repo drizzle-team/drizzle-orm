@@ -1,20 +1,19 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
+import { AnyColumn, AnyTable, is } from 'drizzle-orm';
+import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
-	AnyColumn,
-	AnyTable,
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
-	is,
 	Many,
 	normalizeRelation,
 	One,
 	Relations,
 	TablesRelationalConfig,
-} from 'drizzle-orm';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+} from 'drizzle-orm/relations';
 import {
 	AnySingleStoreTable,
 	getTableConfig as singlestoreTableConfig,
@@ -255,7 +254,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
 			} else {
-				tableConfig = singlestoreTableConfig(table);
+				tableConfig = singlestoreTableConfig(table as SingleStoreTable);
 			}
 
 			tableConfig.columns.map((column) => {
@@ -275,7 +274,10 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 };
 
 export const drizzleForPostgres = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 	pgSchema: Record<string, Record<string, AnyPgTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
@@ -292,7 +294,7 @@ export const drizzleForPostgres = async (
 		if (driver === 'aws-data-api') {
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
-			dbUrl = credentials.url;
+			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
 		} else {
 			assertUnreachable(driver);
 		}

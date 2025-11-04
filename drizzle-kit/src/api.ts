@@ -1,8 +1,18 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { randomUUID } from 'crypto';
+import { is } from 'drizzle-orm';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { PgDatabase } from 'drizzle-orm/pg-core';
+import { AnyPgTable, getTableConfig as pgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
+import { Relations } from 'drizzle-orm/relations';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
+import {
+	AnySingleStoreTable,
+	getTableConfig as singlestoreTableConfig,
+	SingleStoreTable,
+} from 'drizzle-orm/singlestore-core';
+import { AnySQLiteTable, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -22,10 +32,13 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/p
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
+import type { MysqlCredentials } from './cli/validations/mysql';
+import type { PostgresCredentials } from './cli/validations/postgres';
+import type { SingleStoreCredentials } from './cli/validations/singlestore';
+import type { SqliteCredentials } from './cli/validations/sqlite';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
 import type { Config } from './index';
-import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
@@ -39,7 +52,9 @@ import {
 import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
+import type { Setup } from './serializer/studio';
 import type { DB, SQLiteDB } from './utils';
+import { certs } from './utils/certs';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
@@ -68,11 +83,11 @@ export const generateDrizzleJson = (
 		schemaFilters,
 	);
 
-	return fillPgSnapshot({
-		serialized: snapshot,
+	return {
+		...snapshot,
 		id,
-		idPrev: prevId ?? originUUID,
-	});
+		prevId: prevId ?? originUUID,
+	};
 };
 
 export const generateMigration = async (
@@ -169,6 +184,39 @@ export const pushSchema = async (
 			}
 		},
 	};
+};
+
+export const startStudioPostgresServer = async (
+	imports: Record<string, unknown>,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+	},
+) => {
+	const { drizzleForPostgres } = await import('./serializer/studio');
+
+	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, PgTable)) {
+			const schema = pgTableConfig(t).schema || 'public';
+			pgSchema[schema] = pgSchema[schema] || {};
+			pgSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForPostgres(credentials, pgSchema, relations, [], options?.casing);
+	await startServerFromSetup(setup, options);
 };
 
 // SQLite
@@ -277,6 +325,36 @@ export const pushSQLiteSchema = async (
 	};
 };
 
+export const startStudioSQLiteServer = async (
+	imports: Record<string, unknown>,
+	credentials: SqliteCredentials,
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+	},
+) => {
+	const { drizzleForSQLite } = await import('./serializer/studio');
+
+	const sqliteSchema: Record<string, Record<string, AnySQLiteTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, SQLiteTable)) {
+			const schema = 'public'; // sqlite does not have schemas
+			sqliteSchema[schema] = sqliteSchema[schema] || {};
+			sqliteSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForSQLite(credentials, sqliteSchema, relations, [], options?.casing);
+	await startServerFromSetup(setup, options);
+};
+
 // MySQL
 
 export const generateMySQLDrizzleJson = async (
@@ -380,6 +458,36 @@ export const pushMySQLSchema = async (
 			}
 		},
 	};
+};
+
+export const startStudioMySQLServer = async (
+	imports: Record<string, unknown>,
+	credentials: MysqlCredentials,
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+	},
+) => {
+	const { drizzleForMySQL } = await import('./serializer/studio');
+
+	const mysqlSchema: Record<string, Record<string, AnyMySqlTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, MySqlTable)) {
+			const schema = mysqlTableConfig(t).schema || 'public';
+			mysqlSchema[schema] = mysqlSchema[schema] || {};
+			mysqlSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForMySQL(credentials, mysqlSchema, relations, [], options?.casing);
+	await startServerFromSetup(setup, options);
 };
 
 // SingleStore
@@ -487,6 +595,62 @@ export const pushSingleStoreSchema = async (
 			}
 		},
 	};
+};
+
+export const startStudioSingleStoreServer = async (
+	imports: Record<string, unknown>,
+	credentials: SingleStoreCredentials,
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+	},
+) => {
+	const { drizzleForSingleStore } = await import('./serializer/studio');
+
+	const singleStoreSchema: Record<string, Record<string, AnySingleStoreTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, SingleStoreTable)) {
+			const schema = singlestoreTableConfig(t).schema || 'public';
+			singleStoreSchema[schema] = singleStoreSchema[schema] || {};
+			singleStoreSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForSingleStore(credentials, singleStoreSchema, relations, [], options?.casing);
+	await startServerFromSetup(setup, options);
+};
+
+const startServerFromSetup = async (setup: Setup, options?: {
+	host?: string;
+	port?: number;
+}) => {
+	const { prepareServer } = await import('./serializer/studio');
+
+	const server = await prepareServer(setup);
+
+	const host = options?.host || '127.0.0.1';
+	const port = options?.port || 4983;
+	const { key, cert } = (await certs()) || {};
+	server.start({
+		host,
+		port,
+		key,
+		cert,
+		cb: (err) => {
+			if (err) {
+				console.error(err);
+			} else {
+				console.log(`Studio is running at ${key ? 'https' : 'http'}://${host}:${port}`);
+			}
+		},
+	});
 };
 
 export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
