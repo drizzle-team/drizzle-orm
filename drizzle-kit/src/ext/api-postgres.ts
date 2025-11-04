@@ -1,9 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { is } from 'drizzle-orm';
-import { Relations } from 'drizzle-orm/_relations';
-import { type AnyPgTable, getTableConfig, type PgDatabase, PgTable } from 'drizzle-orm/pg-core';
+import type { Relations } from 'drizzle-orm/_relations';
+import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
 import { upToV8 } from 'src/cli/commands/up-postgres';
-import { certs } from 'src/utils/certs';
 import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
@@ -178,8 +176,13 @@ export const startStudioServer = async (
 		host?: string;
 		port?: number;
 		casing?: CasingType;
+		key?: string;
+		cert?: string;
 	},
 ) => {
+	const { is } = await import('drizzle-orm');
+	const { PgTable, getTableConfig } = await import('drizzle-orm/pg-core');
+	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForPostgres, prepareServer } = await import('../cli/commands/studio');
 
 	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
@@ -202,17 +205,16 @@ export const startStudioServer = async (
 
 	const host = options?.host || '127.0.0.1';
 	const port = options?.port || 4983;
-	const { key, cert } = (await certs()) || {};
 	server.start({
 		host,
 		port,
-		key,
-		cert,
+		key: options?.key,
+		cert: options?.cert,
 		cb: (err) => {
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${key ? 'https' : 'http'}://${host}:${port}`);
+				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});
