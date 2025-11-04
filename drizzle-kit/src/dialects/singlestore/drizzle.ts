@@ -1,4 +1,5 @@
 import { Casing, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import {
 	AnySingleStoreColumn,
 	AnySingleStoreTable,
@@ -184,6 +185,7 @@ export const fromDrizzleSchema = (
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnySingleStoreTable[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -192,21 +194,27 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			const prepared = prepareFromExports(i0);
 
 			tables.push(...prepared.tables);
+			relations.push(...prepared.relations);
 		}
 	});
 
-	return { tables: Array.from(new Set(tables)) };
+	return { tables: Array.from(new Set(tables)), relations };
 };
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnySingleStoreTable[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
 		if (is(t, SingleStoreTable)) {
 			tables.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
-	return { tables };
+	return { tables, relations };
 };

@@ -69,6 +69,18 @@ const main = async () => {
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
+		banner: (ctx) => {
+			/**
+			 * fix dynamic require in ESM ("glob" -> "fs.realpath" requires 'fs' module)
+			 * @link https://github.com/drizzle-team/drizzle-orm/issues/2853
+			 */
+			if (ctx.format === 'esm') {
+				return {
+					js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+				};
+			}
+			return undefined;
+		},
 		outExtension: (ctx) => {
 			if (ctx.format === 'cjs') {
 				return {
