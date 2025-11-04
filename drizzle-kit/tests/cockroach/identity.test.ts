@@ -2,7 +2,7 @@ import { bigint, cockroachTable, int2, int4, int8, text } from 'drizzle-orm/cock
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('create table: identity always/by default - no params', async ({ db }) => {
+test.concurrent('create table: identity always/by default - no params', async ({ db }) => {
 	const from = {};
 
 	const to = {
@@ -27,7 +27,7 @@ test('create table: identity always/by default - no params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table: identity always/by default - few params', async ({ db }) => {
+test.concurrent('create table: identity always/by default - few params', async ({ db }) => {
 	const from = {};
 
 	const to = {
@@ -57,7 +57,7 @@ test('create table: identity always/by default - few params', async ({ db }) => 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create table: identity always/by default - all params', async ({ db }) => {
+test.concurrent('create table: identity always/by default - all params', async ({ db }) => {
 	// TODO revise: added id1, id2 columns to users table, like in same test from push.test.ts
 	const from = {};
 
@@ -93,7 +93,7 @@ test('create table: identity always/by default - all params', async ({ db }) => 
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diff: identity always/by default - no params', async ({ db }) => {
+test.concurrent('no diff: identity always/by default - no params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
@@ -121,7 +121,7 @@ test('no diff: identity always/by default - no params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diff: identity always/by default - few params', async ({ db }) => {
+test.concurrent('no diff: identity always/by default - few params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -159,7 +159,7 @@ test('no diff: identity always/by default - few params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diff: identity always/by default - all params', async ({ db }) => {
+test.concurrent('no diff: identity always/by default - all params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -209,7 +209,7 @@ test('no diff: identity always/by default - all params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop identity from a column - no params', async ({ db }) => {
+test.concurrent('drop identity from a column - no params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
@@ -239,7 +239,7 @@ test('drop identity from a column - no params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop identity from a column - few params', async ({ db }) => {
+test.concurrent('drop identity from a column - few params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -283,7 +283,7 @@ test('drop identity from a column - few params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop identity from a column - all params', async ({ db }) => {
+test.concurrent('drop identity from a column - all params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
@@ -336,7 +336,7 @@ test('drop identity from a column - all params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter identity from a column - no params', async ({ db }) => {
+test.concurrent('alter identity from a column - no params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity(),
@@ -364,7 +364,7 @@ test('alter identity from a column - no params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter identity from a column - few params', async ({ db }) => {
+test.concurrent('alter identity from a column - few params', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity({ startWith: 100 }),
@@ -400,7 +400,7 @@ test('alter identity from a column - few params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter identity from a column - by default to always', async ({ db }) => {
+test.concurrent('alter identity from a column - by default to always', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: bigint('id', { mode: 'number' }).generatedByDefaultAsIdentity(),
@@ -433,7 +433,7 @@ test('alter identity from a column - by default to always', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter identity from a column - always to by default', async ({ db }) => {
+test.concurrent('alter identity from a column - always to by default', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({ maxValue: 10000 }),
@@ -467,7 +467,7 @@ test('alter identity from a column - always to by default', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add column with identity - few params', async ({ db }) => {
+test.concurrent('add column with identity - few params', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			email: text('email'),
@@ -497,7 +497,7 @@ test('add column with identity - few params', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add identity to column - few params', async ({ db }) => {
+test.concurrent('add identity to column - few params', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id').notNull(),
