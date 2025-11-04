@@ -28,6 +28,7 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgSession,
+		private parseJson: boolean,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
@@ -41,6 +42,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
+			this.parseJson,
 		);
 	}
 
@@ -55,6 +57,7 @@ export class RelationalQueryBuilder<
 			this.session,
 			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
+			this.parseJson,
 		);
 	}
 }
@@ -77,6 +80,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private session: PgSession,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		private mode: 'many' | 'first',
+		private parseJson: boolean,
 	) {
 		super();
 	}
@@ -91,7 +95,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				undefined,
 				name,
 				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue));
+					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
