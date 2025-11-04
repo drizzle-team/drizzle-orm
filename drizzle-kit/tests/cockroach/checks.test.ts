@@ -3,7 +3,7 @@ import { check, cockroachTable, int4, varchar } from 'drizzle-orm/cockroach-core
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('create table with check', async ({ db }) => {
+test.concurrent('create table with check', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {
 			age: int4('age'),
@@ -20,7 +20,7 @@ test('create table with check', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add check contraint to existing table', async ({ db }) => {
+test.concurrent('add check contraint to existing table', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			age: int4('age'),
@@ -45,7 +45,7 @@ test('add check contraint to existing table', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop check contraint in existing table', async ({ db }) => {
+test.concurrent('drop check contraint in existing table', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			age: int4('age'),
@@ -68,7 +68,7 @@ test('drop check contraint in existing table', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('rename check constraint', async ({ db }) => {
+test.concurrent('rename check constraint', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			age: int4('age'),
@@ -94,7 +94,7 @@ test('rename check constraint', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter check constraint', async ({ db }) => {
+test.concurrent('alter check constraint', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			age: int4('age'),
@@ -120,7 +120,7 @@ test('alter check constraint', async ({ db }) => {
 	expect(pst).toStrictEqual([]);
 });
 
-test('alter multiple check constraints', async ({ db }) => {
+test.concurrent('alter multiple check constraints', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable(
 			'users',
@@ -170,7 +170,7 @@ test('alter multiple check constraints', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('create checks with same names', async ({ db }) => {
+test.concurrent('create checks with same names', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable(
 			'users',
@@ -191,7 +191,7 @@ test('create checks with same names', async ({ db }) => {
 	await expect(push({ db, to })).rejects.toThrow();
 });
 
-test('db has checks. Push with same names', async ({ db }) => {
+test.concurrent('db has checks. Push with same names', async ({ dbc: db }) => {
 	const schema1 = {
 		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
