@@ -5,6 +5,7 @@ import { type mssqlView, mssqlViewWithSchema } from './view.ts';
 export class MsSqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MsSqlSchema';
 
+	private isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -16,20 +17,13 @@ export class MsSqlSchema<TName extends string = string> {
 	view = ((name, columns) => {
 		return mssqlViewWithSchema(name, columns, this.schemaName);
 	}) as typeof mssqlView;
+
+	existing(): this {
+		this.isExisting = true;
+		return this;
+	}
 }
 
-/**
- * Create a MySQL schema.
- * https://dev.mssql.com/doc/refman/8.0/en/create-database.html
- *
- * @param name mssql use schema name
- * @returns MySQL schema
- */
-export function mssqlDatabase<TName extends string>(name: TName) {
+export function mssqlSchema<TName extends string>(name: TName) {
 	return new MsSqlSchema(name);
 }
-
-/**
- * @see mssqlDatabase
- */
-export const mssqlSchema = mssqlDatabase;

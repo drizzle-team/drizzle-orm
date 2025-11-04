@@ -8,6 +8,8 @@ import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgV
 
 export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
+
+	private isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -54,6 +56,11 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 
 	shouldOmitSQLParens(): boolean {
 		return true;
+	}
+
+	existing(): this {
+		this.isExisting = true;
+		return this;
 	}
 }
 
