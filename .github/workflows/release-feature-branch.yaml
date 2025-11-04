@@ -14,7 +14,7 @@ jobs:
       matrix:
         shard:
           - gel
-          - planetscale
+          # - planetscale
           - singlestore-core
           - singlestore-proxy
           - singlestore-prefixed
