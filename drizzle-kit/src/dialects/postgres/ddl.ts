@@ -184,6 +184,7 @@ export type ViewColumn = {
 	schema: string;
 	view: string;
 	type: string;
+	typeDimensions: number;
 	typeSchema: string | null;
 	notNull: boolean;
 	dimensions: number;

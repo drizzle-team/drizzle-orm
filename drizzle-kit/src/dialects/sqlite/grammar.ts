@@ -1,4 +1,4 @@
-import { trimChar } from 'src/utils';
+import { trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';

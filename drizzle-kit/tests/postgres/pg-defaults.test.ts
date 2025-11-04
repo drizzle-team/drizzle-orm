@@ -39,11 +39,9 @@ import { diffDefault, preparePostgisTestDatabase, prepareTestDatabase, TestDatab
 // @vitest-environment-options {"max-concurrency":1}
 
 let _: TestDatabase;
-let db: DB;
 
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
-	db = _.db;
 });
 
 afterAll(async () => {
@@ -1385,204 +1383,195 @@ test('vector + vector arrays', async () => {
 test('geometry + geometry arrays', async () => {
 	const postgisDb = await preparePostgisTestDatabase();
 
-	try {
-		const res1 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
-			`'SRID=4326;POINT(30.5234 50.4501)'`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res1 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
+		`'SRID=4326;POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res2 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
-			`'SRID=4326;POINT(30.5234 50.4501)'`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res2 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+		`'SRID=4326;POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res3 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
-			`'{}'::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
-		const res4 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
-			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res3 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
+	const res4 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
+		`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res5 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
-			`'{}'::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
-		const res6 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
-			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res5 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
+	const res6 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
+		`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res7 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
-		const res8 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([[[30.5234, 50.4501]], [[
-				30.5234,
-				50.4501,
-			]]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res7 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
+	const res8 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([[[30.5234, 50.4501]], [[
+			30.5234,
+			50.4501,
+		]]]),
+		`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res9 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res9 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res10 = await diffDefault(
-			postgisDb,
-			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
-				x: 30.5234,
-				y: 50.4501,
-			}]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res10 = await diffDefault(
+		postgisDb,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
+			x: 30.5234,
+			y: 50.4501,
+		}]]),
+		`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res11 = await diffDefault(
-			postgisDb,
-			geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
-			`'POINT(30.5234 50.4501)'`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res11 = await diffDefault(
+		postgisDb,
+		geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+		`'POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res12 = await diffDefault(
-			postgisDb,
-			geometry({ mode: 'xy', type: 'point' }).default(sql`'SRID=4326;POINT(10 10)'`),
-			`'SRID=4326;POINT(10 10)'`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
-		// const res12_1 = await diffDefault(
-		// 	postgisDb,
-		// 	geometry().default(sql`'SRID=0;POINT(12.1 12.1)'`),
-		// 	`'SRID=0;POINT(12.1 12.1)'`,
-		// 	undefined,
-		// 	undefined,
-		// 	true,
-		// );
+	const res12 = await diffDefault(
+		postgisDb,
+		geometry({ mode: 'xy', type: 'point' }).default(sql`'SRID=4326;POINT(10 10)'`),
+		`'SRID=4326;POINT(10 10)'`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
+	// const res12_1 = await diffDefault(
+	// 	postgisDb,
+	// 	geometry().default(sql`'SRID=0;POINT(12.1 12.1)'`),
+	// 	`'SRID=0;POINT(12.1 12.1)'`,
+	// 	undefined,
+	// 	undefined,
+	// 	true,
+	// );
 
-		const res13 = await diffDefault(
-			postgisDb,
-			geometry({ mode: 'xy', type: 'point' }).array().default([{ x: 13, y: 13 }]),
-			`ARRAY['POINT(13 13)']::geometry(point)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res13 = await diffDefault(
+		postgisDb,
+		geometry({ mode: 'xy', type: 'point' }).array().default([{ x: 13, y: 13 }]),
+		`ARRAY['POINT(13 13)']::geometry(point)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		// this will result diffs on push only
-		// i believe we should not handle this since will be log in console for user about diff and this is sql``
-		// const res14 = await diffDefault(
-		// 	postgisDb,
-		// 	geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`),
-		// 	`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`,
-		// 	undefined,
-		// 	undefined,
-		// 	true,
-		// );
+	// this will result diffs on push only
+	// i believe we should not handle this since will be log in console for user about diff and this is sql``
+	// const res14 = await diffDefault(
+	// 	postgisDb,
+	// 	geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`),
+	// 	`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`,
+	// 	undefined,
+	// 	undefined,
+	// 	true,
+	// );
 
-		const res15 = await diffDefault(
-			postgisDb,
-			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`),
-			`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res15 = await diffDefault(
+		postgisDb,
+		geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`),
+		`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		const res16 = await diffDefault(
-			postgisDb,
-			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['POINT(16 16)']::geometry(point)[]`),
-			`ARRAY['POINT(16 16)']::geometry(point)[]`,
-			undefined,
-			undefined,
-			['table'],
-			['public'],
-		);
+	const res16 = await diffDefault(
+		postgisDb,
+		geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['POINT(16 16)']::geometry(point)[]`),
+		`ARRAY['POINT(16 16)']::geometry(point)[]`,
+		undefined,
+		undefined,
+		['table'],
+		['public'],
+	);
 
-		expect.soft(res1).toStrictEqual([]);
-		expect.soft(res2).toStrictEqual([]);
-		expect.soft(res3).toStrictEqual([]);
-		expect.soft(res4).toStrictEqual([]);
-		expect.soft(res5).toStrictEqual([]);
-		expect.soft(res6).toStrictEqual([]);
-		expect.soft(res7).toStrictEqual([]);
-		expect.soft(res8).toStrictEqual([]);
-		expect.soft(res9).toStrictEqual([]);
-		expect.soft(res10).toStrictEqual([]);
-		expect.soft(res11).toStrictEqual([]);
-		expect.soft(res12).toStrictEqual([]);
-		// expect.soft(res12_1).toStrictEqual([]);
-		expect.soft(res13).toStrictEqual([]);
-		// expect.soft(res14).toStrictEqual([]);
-		expect.soft(res15).toStrictEqual([]);
-		expect.soft(res16).toStrictEqual([]);
-	} catch (error) {
-		await postgisDb.clear();
-		await postgisDb.close();
-		throw error;
-	}
-
-	await postgisDb.clear();
-	await postgisDb.close();
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	// expect.soft(res12_1).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	// expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
 
 test('inet + inet arrays', async () => {

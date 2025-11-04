@@ -1,9 +1,7 @@
+docker run -d -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 postgres:17-alpine
+docker run -d -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=drizzle -e TZ=UTC -p 54322:5432 postgis/postgis:16-3.4
+docker run -d -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=drizzle -p 54321:5432 pgvector/pgvector:pg16
 docker run -it -d -p 3306:3306 -e MYSQL_ROOT_PASSWORD=mysql -e MYSQL_DATABASE=drizzle mysql:8
-docker run -it -d -p 5432:5432\
- -e POSTGRES_USER=postgres\
- -e POSTGRES_PASSWORD=postgres\
- -e POSTGRES_DATABASE=postgres postgis/postgis:16-3.4
-
 docker run -it -d -p 26257:26257 cockroachdb/cockroach:v25.2.0 start-single-node --insecure --store=type=mem,size=1GiB
 
 docker run -it -d -p 1433:1433 \

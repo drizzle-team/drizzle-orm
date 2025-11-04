@@ -11,6 +11,7 @@ import {
 	text,
 	timestamp,
 	unique,
+	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
 import { introspect } from 'src/cli/commands/pull-postgres';
@@ -729,6 +730,47 @@ test('unique multistep #5', async () => {
 		+ ');\n',
 		'CREATE TABLE "table2" (\n\t"column1" integer NOT NULL,\n\t"column2" integer NOT NULL\n);\n',
 		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column2_column1_table1_column2_column1_fkey" FOREIGN KEY ("column2","column1") REFERENCES "table1"("column2","column1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, sch1, []);
+	const { sqlStatements: pst2 } = await push({ db, to: sch1 });
+
+	const expectedSt2: string[] = [];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4638
+test('uniqueIndex multistep #1', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer().notNull().primaryKey(),
+		column2: integer().notNull(),
+	}, (table) => [
+		uniqueIndex('table1_unique').on(table.column1, table.column2),
+	]);
+	const table2 = pgTable('table2', {
+		column1: integer().notNull(),
+		column2: integer().notNull(),
+	}, (table) => [
+		foreignKey({
+			columns: [table.column1, table.column2],
+			foreignColumns: [table1.column1, table1.column2],
+		}),
+	]);
+	const sch1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n'
+		+ '\t"column1" integer PRIMARY KEY,\n'
+		+ '\t"column2" integer NOT NULL\n'
+		+ ');\n',
+		'CREATE TABLE "table2" (\n\t"column1" integer NOT NULL,\n\t"column2" integer NOT NULL\n);\n',
+		'CREATE UNIQUE INDEX "table1_unique" ON "table1" ("column1","column2");',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column1_column2_table1_column1_column2_fkey" FOREIGN KEY ("column1","column2") REFERENCES "table1"("column1","column2");',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

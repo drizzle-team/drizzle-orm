@@ -2,7 +2,7 @@ import { cockroachTable, int4, primaryKey, text } from 'drizzle-orm/cockroach-co
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('alter table add composite pk', async ({ db }) => {
+test.concurrent('alter table add composite pk', async ({ dbc: db }) => {
 	const schema1 = {
 		table: cockroachTable('table', {
 			id1: int4('id1').notNull(),
@@ -34,7 +34,7 @@ test('alter table add composite pk', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('pk #5', async ({ db }) => {
+test.concurrent('pk #5', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text().notNull(),

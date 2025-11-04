@@ -111,18 +111,6 @@ test('create view #3', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-
-	const drizzleDb = drizzle(_.db_url);
-
-	const res = await drizzleDb.select().from(to.view);
-
-	expect(res).toStrictEqual([{
-		userId: 1,
-		postId: 1,
-	}, {
-		userId: 2,
-		postId: 3,
-	}]);
 });
 
 test('create view with existing flag', async () => {

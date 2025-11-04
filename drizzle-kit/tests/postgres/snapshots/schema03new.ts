@@ -98,7 +98,7 @@ export const usersInCore = core.table('users', {
 }, (table) => [
 	index('core_users_username_idx').using(
 		'btree',
-		table.organizationId.asc().nullsLast().op('text_ops'),
+		table.organizationId.asc().nullsLast(),
 		table.username.asc().nullsLast().op('text_ops'),
 	),
 	foreignKey({
@@ -160,7 +160,7 @@ export const apiKeysInCore = core.table('api_keys', {
 	keyHash: text('key_hash').notNull(),
 	revoked: boolean().default(false).notNull(),
 	expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
-	metadata: jsonb().generatedAlwaysAs({ some: 'test' }),
+	metadata: jsonb().generatedAlwaysAs(sql`'{"some":"test"}'`),
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index('core_apikey_org_idx').using('btree', table.organizationId.asc().nullsLast().op('uuid_ops')).where(
@@ -190,7 +190,7 @@ export const sessionsInCore = core.table('sessions', {
 }, (table) => [
 	index('core_sessions_user_expires').using(
 		'btree',
-		table.userId.asc().nullsLast().op('timestamptz_ops'),
+		table.userId.asc().nullsLast(),
 		table.expiresAt.asc().nullsLast().op('timestamptz_ops'),
 	),
 	foreignKey({
@@ -247,7 +247,7 @@ export const projectsInCore = core.table('projects', {
 }, (table) => [
 	index('core_projects_org_name_idx').using(
 		'btree',
-		table.organizationId.asc().nullsLast().op('text_ops'),
+		table.organizationId.asc().nullsLast(),
 		table.name.asc().nullsLast().op('text_ops'),
 	),
 	foreignKey({
@@ -298,7 +298,7 @@ export const buildsInCore = core.table('builds', {
 	index('core_builds_project_status_idx').using(
 		'btree',
 		table.projectId.asc().nullsLast().op('uuid_ops'),
-		table.status.asc().nullsLast().op('uuid_ops'),
+		table.status.asc().nullsLast(),
 	),
 	foreignKey({
 		columns: [table.projectId],
@@ -362,7 +362,7 @@ export const jobsInAnalytics = analytics.table('jobs', {
 }, (table) => [
 	index('analytics_jobs_state_attempts_idx').using(
 		'btree',
-		table.state.asc().nullsLast().op('int4_ops'),
+		table.state.asc().nullsLast(),
 		table.attempts.asc().nullsLast().op('int4_ops'),
 	),
 	foreignKey({
@@ -498,7 +498,7 @@ export const chatMessagesInCore = core.table('chat_messages', {
 }, (table) => [
 	index('core_chat_conv_sent_at_idx').using(
 		'btree',
-		table.conversationId.asc().nullsLast().op('timestamptz_ops'),
+		table.conversationId.asc().nullsLast(),
 		table.sentAt.desc().nullsFirst().op('timestamptz_ops'),
 	),
 	foreignKey({
@@ -545,6 +545,7 @@ export const customersInBilling = billing.table('customers', {
 		name: 'customers_organization_id_fkey',
 	}).onDelete('cascade'),
 	unique('customers_organization_id_key').on(table.organizationId),
+	unique('idnameunique').on(table.id, table.name),
 ]);
 
 export const subscriptionsInBilling = billing.table('subscriptions', {
@@ -736,7 +737,7 @@ export const auditLogsInCore = core.table('audit_logs', {
 }, (table) => [
 	index('core_audit_org_idx').using(
 		'btree',
-		table.organizationId.asc().nullsLast().op('timestamptz_ops'),
+		table.organizationId.asc().nullsLast(),
 		table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
 	),
 ]);
@@ -1032,7 +1033,7 @@ export const projectSearchInAnalytics = analytics.materializedView('project_sear
 	name: text(),
 	slug: text(),
 	description: text(),
-}).tablespace('string').with({ autovacuumEnabled: true, autovacuumMultixactFreezeTableAge: 12 }).using('using')
+}).with({ autovacuumEnabled: true, autovacuumMultixactFreezeTableAge: 12 })
 	.withNoData().as(
 		sql`SELECT id, name, slug, description FROM core.projects p`,
 	);
@@ -1042,7 +1043,7 @@ export const projectSearchInAnalytics2 = analytics.materializedView('project_sea
 	name: text(),
 	slug: text(),
 	description: text(),
-}).tablespace('string').with({ autovacuumEnabled: true, autovacuumMultixactFreezeTableAge: 12 }).using('using')
+}).with({ autovacuumEnabled: true, autovacuumMultixactFreezeTableAge: 12 })
 	.withNoData().existing();
 
 export const vActiveUsersInCore = core.view('v_active_users').as((qb) =>
@@ -1131,7 +1132,7 @@ export const projectMembersInRls = rls.table('project_members', {
 
 export const policy = pgPolicy('new_policy', {
 	as: 'restrictive',
-	to: 'current_user',
-	withCheck: sql`owner_id = current_user::uuid`,
+	to: 'postgres',
+	withCheck: sql`1 = 1`,
 	for: 'all',
 }).link(organizationsInCore);

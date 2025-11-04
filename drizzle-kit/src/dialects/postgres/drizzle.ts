@@ -346,7 +346,13 @@ export const fromDrizzleSchema = (
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
-				const notNull = column.notNull;
+
+				const isPk = column.primary
+					|| config.primaryKeys.find((pk) =>
+							pk.columns.some((col) => col.name ? col.name === column.name : col.keyAsName === column.keyAsName)
+						) !== undefined;
+
+				const notNull = column.notNull || isPk;
 
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
@@ -420,11 +426,6 @@ export const fromDrizzleSchema = (
 
 				const name = pk.name || defaultNameForPK(tableName);
 
-				for (const columnName of columnNames) {
-					const column = res.columns.find((it) => it.name === columnName)!;
-					column.notNull = true;
-				}
-
 				return {
 					entityType: 'pks',
 					schema: schema,
@@ -439,7 +440,7 @@ export const fromDrizzleSchema = (
 		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
 				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-				const name = unq.name || uniqueKeyName(table, columnNames);
+				const name = unq.isNameExplicit ? unq.name! : uniqueKeyName(table, columnNames);
 				return {
 					entityType: 'uniques',
 					schema: schema,
@@ -558,7 +559,7 @@ export const fromDrizzleSchema = (
 					.map((it) => `${it[0]}=${it[1]}`)
 					.join(', ');
 
-				let where = value.config.where ? dialect.sqlToQuery(value.config.where).sql : '';
+				let where = value.config.where ? dialect.sqlToQuery(value.config.where.inlineParams(), 'indexes').sql : '';
 				where = where === 'true' ? '' : where;
 
 				return {
@@ -598,13 +599,15 @@ export const fromDrizzleSchema = (
 
 		res.checks.push(
 			...drizzleChecks.map<CheckConstraint>((check) => {
+				const value = dialect.sqlToQuery(check.value.inlineParams(), 'indexes').sql;
+
 				const checkName = check.name;
 				return {
 					entityType: 'checks',
 					schema,
 					table: tableName,
 					name: checkName,
-					value: dialect.sqlToQuery(check.value).sql,
+					value,
 				};
 			}),
 		);

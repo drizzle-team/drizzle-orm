@@ -582,65 +582,24 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	return { db, close: async () => {}, clear, client };
 };
 
-export const createDockerPostgis = async () => {
-	const docker = new Docker();
-	const port = await getPort();
-	const image = 'postgis/postgis:16-3.4';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err: any) => err ? reject(err) : resolve(err))
-	);
-
-	const user = 'postgres', password = 'postgres', database = 'postgres';
-	const pgContainer = await docker.createContainer({
-		Image: image,
-		Env: [`POSTGRES_USER=${user}`, `POSTGRES_PASSWORD=${password}`, `POSTGRES_DATABASE=${database}`],
-		name: `drizzle-integration-tests-${crypto.randomUUID()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return {
-		url: `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`,
-		container: pgContainer,
-	};
-};
-
 export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
 	const envURL = process.env.POSTGIS_URL;
-	const { url, container } = envURL ? { url: envURL, container: null } : await createDockerPostgis();
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError;
-
-	let pgClient: ClientT;
-	do {
-		try {
-			pgClient = new Client({ connectionString: url });
-			await pgClient.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await pgClient!.end().catch(console.error);
-		await container?.stop().catch(console.error);
-		throw lastError;
+	if (!envURL) {
+		throw new Error('POSTGIS_URL is not set, starting a new Postgis container for tests...');
 	}
 
+	const parsed = new URL(envURL);
+	parsed.pathname = '/postgres';
+
+	const adminUrl = parsed.toString();
+	const admin = new Client({ connectionString: adminUrl });
+	await admin.connect();
+	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
+	await admin!.query(`CREATE DATABASE drizzle;`);
+	admin.end();
+
+	const pgClient = new Client({ connectionString: envURL });
+	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
@@ -680,7 +639,6 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 
 	const close = async () => {
 		await pgClient.end().catch(console.error);
-		await container?.stop().catch(console.error);
 	};
 
 	const db: TestDatabase['db'] = {

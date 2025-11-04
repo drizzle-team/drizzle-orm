@@ -1,4 +1,3 @@
-import retry from 'async-retry';
 import { SQL as BunSQL } from 'bun';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 import type Docker from 'dockerode';
@@ -82,9 +81,9 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import relations from '~/pg/relations';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { Expect } from '~/utils';
+import { relations } from '../pg/relations';
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -207,30 +206,13 @@ afterAll(async () => {
 });
 
 let db: BunSQLDatabase<never, typeof relations>;
-let client: BunSQL;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	client = await retry(async () => {
-		// @ts-expect-error
-		const connClient = new BunSQL(connectionString, { max: 1 });
-		await connClient.unsafe(`select 1`);
-		return connClient;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	db = drizzle({ client, logger: false, relations });
-});
+	const connectionString = process.env['PG_CONNECTION_STRING']!;
+	const connClient = new BunSQL(connectionString, { max: 1 });
+	await connClient.unsafe(`select 1`);
 
-afterAll(async () => {
-	await client?.end();
+	db = drizzle({ client: connClient, logger: false, relations });
 });
 
 beforeEach(async () => {
@@ -4280,7 +4262,7 @@ test.skip('proper json and jsonb handling', async () => {
 	]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4304,7 +4286,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4328,7 +4310,7 @@ test.todo('set json/jsonb fields with strings and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4352,7 +4334,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the -> operator'
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
