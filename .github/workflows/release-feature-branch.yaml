@@ -298,16 +298,11 @@ jobs:
         package: [drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       - name: Download package tarball
         uses: actions/download-artifact@v4
@@ -328,15 +323,10 @@ jobs:
         package: [node10, node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       - name: Download drizzle-orm tarball
