@@ -5,7 +5,7 @@ import { type mssqlView, mssqlViewWithSchema } from './view.ts';
 export class MsSqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MsSqlSchema';
 
-	private isExisting: boolean = false;
+	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}

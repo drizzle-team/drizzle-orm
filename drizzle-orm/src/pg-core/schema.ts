@@ -9,7 +9,7 @@ import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgV
 export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
 
-	private isExisting: boolean = false;
+	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}
