@@ -48,6 +48,7 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
+	console.log(allowedSchemas);
 	if (allowedSchemas.length > 0) {
 		const toCheck = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
 		const missing = toCheck.filter((it) => !allowedSchemas.includes(it));
@@ -63,6 +64,7 @@ export const handle = async (
 	} else {
 		allowedSchemas.push(...res.schemas.map((it) => it.schemaName));
 	}
+	console.log('.', allowedSchemas);
 
 	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
 
