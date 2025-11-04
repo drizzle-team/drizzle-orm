@@ -83,6 +83,25 @@ test('imports-issues', () => {
 // 	assert.equal(issues.length, 0);
 // });
 
+test('check imports api-postgres', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
+		entry: 'src/ext/api-postgres.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
 test('check imports sqlite-studio', () => {
 	const issues = analyzeImports({
 		basePath: '.',

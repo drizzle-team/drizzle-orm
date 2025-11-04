@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask, TaskView } from 'hanji';
-import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
 import {

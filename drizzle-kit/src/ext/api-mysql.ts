@@ -1,9 +1,7 @@
-import { is } from 'drizzle-orm';
-import { Relations } from 'drizzle-orm/_relations';
-import { AnyMySqlTable, getTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { CasingType } from 'src/cli/validations/common';
-import { MysqlCredentials } from 'src/cli/validations/mysql';
-import { certs } from 'src/utils/certs';
+import type { Relations } from 'drizzle-orm/_relations';
+import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import type { CasingType } from 'src/cli/validations/common';
+import type { MysqlCredentials } from 'src/cli/validations/mysql';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
@@ -12,8 +10,13 @@ export const startStudioServer = async (
 		host?: string;
 		port?: number;
 		casing?: CasingType;
+		key?: string;
+		cert?: string;
 	},
 ) => {
+	const { is } = await import('drizzle-orm');
+	const { MySqlTable, getTableConfig } = await import('drizzle-orm/mysql-core');
+	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForMySQL, prepareServer } = await import('../cli/commands/studio');
 
 	const mysqlSchema: Record<string, Record<string, AnyMySqlTable>> = {};
@@ -36,17 +39,16 @@ export const startStudioServer = async (
 
 	const host = options?.host || '127.0.0.1';
 	const port = options?.port || 4983;
-	const { key, cert } = (await certs()) || {};
 	server.start({
 		host,
 		port,
-		key,
-		cert,
+		key: options?.key,
+		cert: options?.cert,
 		cb: (err) => {
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${key ? 'https' : 'http'}://${host}:${port}`);
+				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});
