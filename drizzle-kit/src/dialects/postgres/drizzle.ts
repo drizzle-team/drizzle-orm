@@ -268,17 +268,11 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((it) => !it.existing() && it.schemaName !== 'public')
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };

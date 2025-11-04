@@ -21,7 +21,6 @@ import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
-import { mockResolver } from '../../utils/mocks';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -37,17 +36,33 @@ export const handle = async (
 	strict: boolean,
 	credentials: PostgresCredentials,
 	tablesFilter: string[],
-	schemasFilter: string[],
+	allowedSchemas: string[],
 	entities: Entities,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
-	const { introspect: pgPushIntrospect } = await import('./pull-postgres');
+	const { introspect } = await import('./pull-postgres');
 
 	const db = await preparePostgresDB(credentials);
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
+
+	if (allowedSchemas.length > 0) {
+		const toCheck = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
+		const missing = toCheck.filter((it) => !allowedSchemas.includes(it));
+		if (missing.length > 0) {
+			const missingArr = missing.map((it) => chalk.underline(it)).join(', ');
+			const allowedArr = allowedSchemas.map((it) => chalk.underline(it)).join(', ');
+			render(
+				`[${chalk.red('x')}] ${missingArr} schemas missing in drizzle config file "schemaFilter": [${allowedArr}]`,
+			);
+			// TODO: write a guide and link here
+			process.exit(1);
+		}
+	} else {
+		allowedSchemas.push(...res.schemas.map((it) => it.schemaName));
+	}
 
 	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
 
@@ -61,11 +76,11 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
+	const { schema: schemaFrom } = await introspect(db, tablesFilter, allowedSchemas, entities, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
-	// todo: handle errors?
+	// TODO: handle errors?
 
 	if (errors1.length > 0) {
 		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
