@@ -18,6 +18,8 @@ import {
 
 export class CockroachSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'CockroachSchema';
+
+	private isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
 	) {}
@@ -64,6 +66,11 @@ export class CockroachSchema<TName extends string = string> implements SQLWrappe
 
 	shouldOmitSQLParens(): boolean {
 		return true;
+	}
+
+	existing(): this {
+		this.isExisting = true;
+		return this;
 	}
 }
 
