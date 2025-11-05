@@ -1,5 +1,6 @@
 import { command, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
+import { completions } from './completions';
 import { check, drop, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions } from './utils';
 
@@ -42,7 +43,7 @@ const legacy = [
 	legacyCommand('check:sqlite', 'check'),
 ];
 
-run([generate, migrate, pull, push, studio, up, check, drop, exportRaw, ...legacy], {
+run([generate, migrate, pull, push, studio, up, check, drop, exportRaw, completions, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
 });
