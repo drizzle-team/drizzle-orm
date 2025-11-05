@@ -3786,6 +3786,9 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 					ownerId: 3,
 				},
 				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
 			},
 		},
 		orderBy: {
