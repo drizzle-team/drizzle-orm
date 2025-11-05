@@ -29,3 +29,4 @@ docker run -d --name singlestoredb-dev \
   --platform linux/amd64 \
   -p 3306:3306 -p 8080:8080 -p 9000:9000 \
   ghcr.io/singlestore-labs/singlestoredb-dev:latest
+# if the command above doesn't work for you on mac m1, try using version 0.2.57 of docker image.

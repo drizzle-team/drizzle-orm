@@ -7,7 +7,6 @@ import {
 	date,
 	decimal,
 	doublePrecision,
-	// geometry,
 	inet,
 	integer,
 	interval,
@@ -16,7 +15,7 @@ import {
 	line,
 	numeric,
 	pgEnum,
-	pgSchema,
+	pgTable,
 	point,
 	real,
 	serial,
@@ -30,11 +29,9 @@ import {
 	vector,
 } from 'drizzle-orm/pg-core';
 
-export const schema = pgSchema('seeder_lib_pg');
-
 export const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy']);
 
-export const allDataTypes = schema.table('all_data_types', {
+export const allDataTypes = pgTable('all_data_types', {
 	integer: integer('integer'),
 	smallint: smallint('smallint'),
 	biginteger: bigint('bigint', { mode: 'bigint' }),
@@ -71,7 +68,7 @@ export const allDataTypes = schema.table('all_data_types', {
 	vector: vector('vector', { dimensions: 3 }),
 });
 
-export const allArrayDataTypes = schema.table('all_array_data_types', {
+export const allArrayDataTypes = pgTable('all_array_data_types', {
 	integerArray: integer('integer_array').array(),
 	smallintArray: smallint('smallint_array').array(),
 	bigintegerArray: bigint('bigint_array', { mode: 'bigint' }).array(),
@@ -103,14 +100,14 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	// geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
 });
 
-export const ndArrays = schema.table('nd_arrays', {
+export const ndArrays = pgTable('nd_arrays', {
 	integer1DArray: integer('integer_1d_array').array(3),
 	integer2DArray: integer('integer_2d_array').array(3).array(4),
 	integer3DArray: integer('integer_3d_array').array(3).array(4).array(5),
 	integer4DArray: integer('integer_4d_array').array(3).array(4).array(5).array(6),
 });
 
-export const intervals = schema.table('intervals', {
+export const intervals = pgTable('intervals', {
 	intervalYear: interval({ fields: 'year' }),
 	intervalYearToMonth: interval({ fields: 'year to month' }),
 	intervalMonth: interval({ fields: 'month' }),

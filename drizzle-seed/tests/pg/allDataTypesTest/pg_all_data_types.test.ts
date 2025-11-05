@@ -19,12 +19,10 @@ beforeAll(async () => {
 
 	db = drizzle({ client });
 
-	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
-
 	await db.execute(
 		sql`
 			    DO $$ BEGIN
-			 CREATE TYPE "seeder_lib_pg"."mood_enum" AS ENUM('sad', 'ok', 'happy');
+			 CREATE TYPE "mood_enum" AS ENUM('sad', 'ok', 'happy');
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
 			END $$;
@@ -33,7 +31,7 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_data_types" (
+			    CREATE TABLE IF NOT EXISTS "all_data_types" (
 				"integer" integer,
 				"smallint" smallint,
 				"bigint" bigint,
@@ -63,7 +61,7 @@ beforeAll(async () => {
 				"point_tuple" "point",
 				"line" "line",
 				"line_tuple" "line",
-				"mood_enum" "seeder_lib_pg"."mood_enum",
+				"mood_enum" "mood_enum",
 				"uuid" "uuid",
 				"inet" inet,
 				"vector" vector(3)
@@ -73,7 +71,7 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."all_array_data_types" (
+			    CREATE TABLE IF NOT EXISTS "all_array_data_types" (
 				"integer_array" integer[],
 				"smallint_array" smallint[],
 				"bigint_array" bigint[],
@@ -99,7 +97,7 @@ beforeAll(async () => {
 				"point_tuple_array" "point"[],
 				"line_array" "line"[],
 				"line_tuple_array" "line"[],
-				"mood_enum_array" "seeder_lib_pg"."mood_enum"[],
+				"mood_enum_array" "mood_enum"[],
 				"uuid_array" uuid[],
 				"inet_array" inet[]
 			);
@@ -108,7 +106,7 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."nd_arrays" (
+			    CREATE TABLE IF NOT EXISTS "nd_arrays" (
 				"integer_1d_array" integer[3],
 				"integer_2d_array" integer[3][4],
 				"integer_3d_array" integer[3][4][5],
@@ -119,7 +117,7 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."intervals" (
+			    CREATE TABLE IF NOT EXISTS "intervals" (
 				"intervalYear" interval year,
 				"intervalYearToMonth" interval year to month,
 				"intervalMonth" interval month,
