@@ -40,7 +40,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.9.1)(bun-types@1.2.15)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.9.1)(bun-types@1.2.15)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
       eslint:
         specifier: ^8.50.0
         version: 8.57.1
@@ -368,7 +368,7 @@ importers:
         version: 0.10.0
       '@op-engineering/op-sqlite':
         specifier: ^2.0.16
-        version: 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+        version: 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.9.0
@@ -381,6 +381,9 @@ importers:
       '@prisma/client':
         specifier: 5.14.0
         version: 5.14.0(prisma@5.14.0)
+      '@sqlitecloud/drivers':
+        specifier: ^1.0.653
+        version: 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless':
         specifier: ^0.1.1
         version: 0.1.1
@@ -428,7 +431,7 @@ importers:
         version: 10.1.0
       expo-sqlite:
         specifier: ^14.0.0
-        version: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))
+        version: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
       gel:
         specifier: ^2.0.0
         version: 2.1.0
@@ -721,6 +724,9 @@ importers:
       '@prisma/client':
         specifier: 5.14.0
         version: 5.14.0(prisma@5.14.0)
+      '@sqlitecloud/drivers':
+        specifier: ^1.0.653
+        version: 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless':
         specifier: ^0.1.1
         version: 0.1.1
@@ -892,7 +898,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.1-c0277c0
-        version: drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@6.0.0-dev.20250901))(better-sqlite3@11.9.1)(bun-types@1.2.23)(expo-sqlite@14.0.6)(gel@2.1.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
+        version: drizzle-orm@1.0.0-beta.1-c0277c0(669bfa1dd86953557e04bbe9df7d3035)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -1601,6 +1607,9 @@ packages:
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
     engines: {node: '>=0.1.90'}
+
+  '@craftzdog/react-native-buffer@6.1.1':
+    resolution: {integrity: sha512-YXJ0Jr4V+Hk2CZXpQw0A0NJeuiW2Rv6rAAutJCZ2k/JG13vLsppUibkJ8exSMxODtH9yJUrLiR96rilG3pFZ4Q==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2922,6 +2931,18 @@ packages:
   '@smithy/util-utf8@4.0.0':
     resolution: {integrity: sha512-b+zebfKCfRdgNJDknHCob3O7FpeYQN6ZG6YLExMcasDHsCXlsXCEuiPZeLnJLpwa5dvPetGlnGCiMHuLwGvFow==}
     engines: {node: '>=18.0.0'}
+
+  '@socket.io/component-emitter@3.1.2':
+    resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
+
+  '@sqlitecloud/drivers@1.0.653':
+    resolution: {integrity: sha512-dW5sQlLOgUD/e+clYcH07kFyoib4d6+9NMWjKj4sttanXYIfTg6GlTYF1ix0dZOoc+dIBybjE4jYv6jy9f+zsA==}
+    engines: {node: '>=18.0'}
+    peerDependencies:
+      '@craftzdog/react-native-buffer': '*'
+      react-native-quick-base64: '*'
+      react-native-tcp-socket: '*'
+      react-native-url-polyfill: '*'
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -4609,6 +4630,13 @@ packages:
   end-of-stream@1.4.4:
     resolution: {integrity: sha512-+uw1inIHVPQoaVuHzRyXd21icM+cnt4CzD5rW+NC1wjOUSTOs+Te7FOv7AhN7vS9x/oIyhLP5PR1H+phQAHu5Q==}
 
+  engine.io-client@6.6.3:
+    resolution: {integrity: sha512-T0iLjnyNWahNyv/lcjS2y4oE358tVS/SYQNxYXGAJ9/GLgH4VCvOQ/mhTjqU88mLZCQgiG8RIegFHYCdVC+j5w==}
+
+  engine.io-parser@5.2.3:
+    resolution: {integrity: sha512-HqD3yTBfnBxIrbnM1DoD6Pcq8NECnh8d4As1Qgh0z5Gg3jRRIqijury0CL3ghu/edArpUYiYqQiDUQBIs4np3Q==}
+    engines: {node: '>=10.0.0'}
+
   env-editor@0.4.2:
     resolution: {integrity: sha512-ObFo8v4rQJAE59M69QzwloxPZtd33TpYEIjtKD1rrFDcM1Gd7IkDxEBU+HriziN6HSHQnBJi8Dmy+JWkav5HKA==}
     engines: {node: '>=8'}
@@ -5007,6 +5035,12 @@ packages:
 
   eventemitter2@6.4.9:
     resolution: {integrity: sha512-JEPTiaOt9f04oa6NOkc4aH+nVp5I3wEjpHbIPqfgCdD5v5bUzy7xQqwcVO2aDQgOWhI28da57HksMrzK9HlRxg==}
+
+  eventemitter3@4.0.7:
+    resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
+
+  eventemitter3@5.0.1:
+    resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
 
   events@1.1.1:
     resolution: {integrity: sha512-kEcvvCBByWXGnZy6JUlgAp2gBIUjfCAV6P6TgT1/aaQKcmuAEC4OZTV1I4EWQLz2gxZw76atuVyvHhTxvi0Flw==}
@@ -6008,6 +6042,7 @@ packages:
 
   libsql@0.4.7:
     resolution: {integrity: sha512-T9eIRCs6b0J1SHKYIvD8+KCJMcWZ900iZyxdnSCdqxN12Z1ijzT+jY5nrk72Jw4B0HGzms2NgpryArlJqvc3Lw==}
+    cpu: [x64, arm64, wasm32]
     os: [darwin, linux, win32]
 
   lighthouse-logger@1.4.2:
@@ -6170,6 +6205,9 @@ packages:
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
+
+  lz4js@0.2.0:
+    resolution: {integrity: sha512-gY2Ia9Lm7Ep8qMiuGRhvUq0Q7qUereeldZPP1PMEJxPtEWHJLqw9pgX68oHajBH0nzJK4MaZEA/YNV3jT8u8Bg==}
 
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
@@ -7158,6 +7196,22 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-quick-base64@2.2.2:
+    resolution: {integrity: sha512-WLHSifHLoamr2kF00Gov0W9ud6CfPshe1rmqWTquVIi9c62qxOaJCFVDrXFZhEBU8B8PvGLVuOlVKH78yhY0Fg==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
+  react-native-tcp-socket@6.3.0:
+    resolution: {integrity: sha512-NthR04myL5IGL4q+2oCjmAx7OMqEgcjUJk8RExAwNjK/164upCP7Pn2Msno5ZTGd3wL6HuEG8d7T2d8f22N+0A==}
+    peerDependencies:
+      react-native: '>=0.60.0'
+
+  react-native-url-polyfill@3.0.0:
+    resolution: {integrity: sha512-aA5CiuUCUb/lbrliVCJ6lZ17/RpNJzvTO/C7gC/YmDQhTUoRD5q5HlJfwLWcxz4VgAhHwXKzhxH+wUN24tAdqg==}
+    peerDependencies:
+      react-native: '*'
+
   react-native@0.79.2:
     resolution: {integrity: sha512-AnGzb56JvU5YCL7cAwg10+ewDquzvmgrMddiBM0GAWLwQM/6DJfGd2ZKrMuKKehHerpDDZgG+EY64gk3x3dEkw==}
     engines: {node: '>=18'}
@@ -7530,6 +7584,14 @@ packages:
   smob@1.5.0:
     resolution: {integrity: sha512-g6T+p7QO8npa+/hNx9ohv1E5pVCmWrVCUzUXJyLdMmftX6ER0oiWY/w9knEonLpnOp6b6FenKnMfR8gqwWdwig==}
 
+  socket.io-client@4.8.1:
+    resolution: {integrity: sha512-hJVXfu3E28NmzGk8o1sHhN3om52tRvwYeidbj7xKy2eIIse5IoKX3USlS6Tqt3BHAtflLIkCQBkzVrEEfWUyYQ==}
+    engines: {node: '>=10.0.0'}
+
+  socket.io-parser@4.2.4:
+    resolution: {integrity: sha512-/GbIKmo8ioc+NIWIhwdecY0ge+qVBSMdgxGygevmdHj24bsfgtCmcUUcQ5ZzcylGFHsN3k4HB4Cgkl96KVnuew==}
+    engines: {node: '>=10.0.0'}
+
   socks-proxy-agent@6.2.1:
     resolution: {integrity: sha512-a6KW9G+6B3nWZ1yB8G7pJwL3ggLy1uTzKAgCb7ttblwqdz9fMGJUuTy3uFzEP48FAs9FLILlmzDlE2JJhVQaXQ==}
     engines: {node: '>= 10'}
@@ -7556,6 +7618,7 @@ packages:
   source-map@0.8.0-beta.0:
     resolution: {integrity: sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA==}
     engines: {node: '>= 8'}
+    deprecated: The work that was done in this beta branch won't be included in future versions
 
   spawn-command@0.0.2:
     resolution: {integrity: sha512-zC8zGoGkmc8J9ndvml8Xksr1Amk9qBujgbF0JAIWO7kXr43w0h/0GJNM/Vustixu+YE8N/MTrQ7N31FvHUACxQ==}
@@ -7918,6 +7981,10 @@ packages:
 
   tr46@1.0.1:
     resolution: {integrity: sha512-dTpowEjclQ7Kgx5SdBkqRzVhERQXov8/l9Ft9dVM9fmg0W0KQSVaXX9T4i6twCPNtYiZM53lpSSUAwJbFPOHxA==}
+
+  tr46@5.1.1:
+    resolution: {integrity: sha512-hdF5ZgjTqgAntKkklYw0R03MG2x/bSzTtkxmIRw/sTNV8YXsCJ1tfLAX23lhxhHJlEf3CRCOCGGWw3vI3GaSPw==}
+    engines: {node: '>=18'}
 
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
@@ -8406,6 +8473,10 @@ packages:
     resolution: {integrity: sha512-VlZwKPCkYKxQgeSbH5EyngOmRp7Ww7I9rQLERETtf5ofd9pGeswWiOtogpEO850jziPRarreGxn5QIiTqpb2wA==}
     engines: {node: '>=8'}
 
+  webidl-conversions@7.0.0:
+    resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
+    engines: {node: '>=12'}
+
   webpod@0.0.2:
     resolution: {integrity: sha512-cSwwQIeg8v4i3p4ajHhwgR7N6VyxAf+KYSSsY6Pd3aETE+xEU4vbitz7qQkB0I321xnhDdgtxuiSfk5r/FVtjg==}
     hasBin: true
@@ -8420,6 +8491,10 @@ packages:
   whatwg-url-without-unicode@8.0.0-3:
     resolution: {integrity: sha512-HoKuzZrUlgpz35YO27XgD28uh/WJH4B0+3ttFqRo//lmq+9T/mIOJ6kqmINI9HpUpz1imRC/nR/lxKpJiv0uig==}
     engines: {node: '>=10'}
+
+  whatwg-url@14.2.0:
+    resolution: {integrity: sha512-De72GdQZzNTUBBChsXueQUnPKDkg/5A5zp7pFDuQAj5UFoENpiACU0wlCvzpAGnTkj++ihpKwKyYewn/XNUbKw==}
+    engines: {node: '>=18'}
 
   whatwg-url@7.1.0:
     resolution: {integrity: sha512-WUu7Rg1DroM7oQvGWfOiAK21n74Gg+T4elXEQYkOhtyLeWiJFoOGLXPKI/9gzIie9CtwVLm8wtw6YJdKyxSjeg==}
@@ -8527,6 +8602,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.17.1:
+    resolution: {integrity: sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   ws@8.18.2:
     resolution: {integrity: sha512-DMricUmwGZUVr++AEAe2uiVM7UoO9MAVZMDu05UQOaUII0lp+zOzLLU4Xqh/JvTqklB1T4uELaaPBKyjE1r4fQ==}
     engines: {node: '>=10.0.0'}
@@ -8558,6 +8645,10 @@ packages:
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
+
+  xmlhttprequest-ssl@2.1.2:
+    resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
+    engines: {node: '>=0.4.0'}
 
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -9751,6 +9842,14 @@ snapshots:
   '@colors/colors@1.5.0':
     optional: true
 
+  '@craftzdog/react-native-buffer@6.1.1(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
+    dependencies:
+      ieee754: 1.2.1
+      react-native-quick-base64: 2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+    transitivePeerDependencies:
+      - react
+      - react-native
+
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
@@ -10045,7 +10144,7 @@ snapshots:
     dependencies:
       heap: 0.2.7
 
-  '@expo/cli@0.24.13(bufferutil@4.0.8)':
+  '@expo/cli@0.24.13(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
       '@0no-co/graphql.web': 1.1.2
       '@babel/runtime': 7.27.4
@@ -10064,7 +10163,7 @@ snapshots:
       '@expo/spawn-async': 1.7.2
       '@expo/ws-tunnel': 1.0.6
       '@expo/xcpretty': 4.3.2
-      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)
+      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@urql/core': 5.1.1
       '@urql/exchange-retry': 1.3.1(@urql/core@5.1.1)
       accepts: 1.3.8
@@ -10275,11 +10374,11 @@ snapshots:
 
   '@expo/sudo-prompt@9.3.2': {}
 
-  '@expo/vector-icons@14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@expo/vector-icons@14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
-      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   '@expo/websql@1.0.1':
     dependencies:
@@ -10611,10 +10710,10 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -10765,14 +10864,14 @@ snapshots:
       nullthrows: 1.1.1
       yargs: 17.7.2
 
-  '@react-native/community-cli-plugin@0.79.2(bufferutil@4.0.8)':
+  '@react-native/community-cli-plugin@0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
-      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)
+      '@react-native/dev-middleware': 0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       chalk: 4.1.2
       debug: 2.6.9
       invariant: 2.2.4
-      metro: 0.82.4(bufferutil@4.0.8)
-      metro-config: 0.82.4(bufferutil@4.0.8)
+      metro: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      metro-config: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-core: 0.82.4
       semver: 7.7.2
     transitivePeerDependencies:
@@ -10782,7 +10881,7 @@ snapshots:
 
   '@react-native/debugger-frontend@0.79.2': {}
 
-  '@react-native/dev-middleware@0.79.2(bufferutil@4.0.8)':
+  '@react-native/dev-middleware@0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
       '@isaacs/ttlcache': 1.4.1
       '@react-native/debugger-frontend': 0.79.2
@@ -10794,7 +10893,7 @@ snapshots:
       nullthrows: 1.1.1
       open: 7.4.2
       serve-static: 1.16.2
-      ws: 6.2.3(bufferutil@4.0.8)
+      ws: 6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -10806,12 +10905,12 @@ snapshots:
 
   '@react-native/normalize-colors@0.79.2': {}
 
-  '@react-native/virtualized-lists@0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)':
+  '@react-native/virtualized-lists@0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       invariant: 2.2.4
       nullthrows: 1.1.1
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     optionalDependencies:
       '@types/react': 18.3.23
 
@@ -11186,6 +11285,24 @@ snapshots:
     dependencies:
       '@smithy/util-buffer-from': 4.0.0
       tslib: 2.8.1
+
+  '@socket.io/component-emitter@3.1.2': {}
+
+  '@sqlitecloud/drivers@1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)':
+    dependencies:
+      '@craftzdog/react-native-buffer': 6.1.1(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      buffer: 6.0.3
+      eventemitter3: 5.0.1
+      lz4js: 0.2.0
+      react-native-quick-base64: 2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      react-native-tcp-socket: 6.3.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      react-native-url-polyfill: 3.0.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      socket.io-client: 4.8.1(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      whatwg-url: 14.2.0
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -12372,7 +12489,7 @@ snapshots:
   buffer@4.9.2:
     dependencies:
       base64-js: 1.5.1
-      ieee754: 1.1.13
+      ieee754: 1.2.1
       isarray: 1.0.0
 
   buffer@5.7.1:
@@ -12879,7 +12996,6 @@ snapshots:
   debug@4.3.4:
     dependencies:
       ms: 2.1.2
-    optional: true
 
   debug@4.4.1:
     dependencies:
@@ -13028,7 +13144,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.9.1)(bun-types@1.2.15)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@11.9.1)(bun-types@1.2.15)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.823.0
       '@cloudflare/workers-types': 4.20251004.0
@@ -13050,7 +13166,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.823.0)(@cloudflare/workers-types@4.20251004.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.4)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@6.0.0-dev.20250901))(better-sqlite3@11.9.1)(bun-types@1.2.23)(expo-sqlite@14.0.6)(gel@2.1.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@1.0.0-beta.1-c0277c0(669bfa1dd86953557e04bbe9df7d3035):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.823.0
       '@cloudflare/workers-types': 4.20251004.0
@@ -13058,7 +13174,7 @@ snapshots:
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 0.10.0
-      '@op-engineering/op-sqlite': 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@op-engineering/op-sqlite': 2.0.22(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 5.14.0(prisma@5.14.0)
@@ -13070,13 +13186,14 @@ snapshots:
       '@xata.io/client': 0.29.5(typescript@6.0.0-dev.20250901)
       better-sqlite3: 11.9.1
       bun-types: 1.2.23(@types/react@18.3.23)
-      expo-sqlite: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))
+      expo-sqlite: 14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
       gel: 2.1.0
       knex: 2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.16.0)(sqlite3@5.1.7)
       kysely: 0.25.0
       mysql2: 3.14.1
       pg: 8.16.0
       postgres: 3.4.7
+      prisma: 5.14.0
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
@@ -13118,6 +13235,20 @@ snapshots:
   end-of-stream@1.4.4:
     dependencies:
       once: 1.4.0
+
+  engine.io-client@6.6.3(bufferutil@4.0.8)(utf-8-validate@6.0.3):
+    dependencies:
+      '@socket.io/component-emitter': 3.1.2
+      debug: 4.3.4
+      engine.io-parser: 5.2.3
+      ws: 8.17.1(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      xmlhttprequest-ssl: 2.1.2
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  engine.io-parser@5.2.3: {}
 
   env-editor@0.4.2: {}
 
@@ -13653,6 +13784,10 @@ snapshots:
 
   eventemitter2@6.4.9: {}
 
+  eventemitter3@4.0.7: {}
+
+  eventemitter3@5.0.1: {}
+
   events@1.1.1: {}
 
   eventsource-parser@3.0.2: {}
@@ -13681,39 +13816,39 @@ snapshots:
 
   expect-type@1.2.1: {}
 
-  expo-asset@11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  expo-asset@11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
       '@expo/image-utils': 0.7.4
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  expo-constants@17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)):
+  expo-constants@17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/config': 11.0.10
       '@expo/env': 1.0.5
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - supports-color
 
-  expo-file-system@18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)):
+  expo-file-system@18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
-  expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       fontfaceobserver: 2.3.0
       react: 18.3.1
 
-  expo-keep-awake@14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  expo-keep-awake@14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       react: 18.3.1
 
   expo-modules-autolinking@2.1.10:
@@ -13730,31 +13865,31 @@ snapshots:
     dependencies:
       invariant: 2.2.4
 
-  expo-sqlite@14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)):
+  expo-sqlite@14.0.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)):
     dependencies:
       '@expo/websql': 1.0.1
-      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      expo: 53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
 
-  expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/runtime': 7.27.4
-      '@expo/cli': 0.24.13(bufferutil@4.0.8)
+      '@expo/cli': 0.24.13(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@expo/config': 11.0.10
       '@expo/config-plugins': 10.0.2
       '@expo/fingerprint': 0.12.4
       '@expo/metro-config': 0.20.14
-      '@expo/vector-icons': 14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@expo/vector-icons': 14.1.0(expo-font@13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       babel-preset-expo: 13.1.11(@babel/core@7.27.4)
-      expo-asset: 11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
-      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
-      expo-file-system: 18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))
-      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
-      expo-keep-awake: 14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      expo-asset: 11.1.5(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      expo-constants: 17.1.6(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      expo-file-system: 18.1.10(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))
+      expo-font: 13.3.1(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      expo-keep-awake: 14.1.4(expo@53.0.9(@babel/core@7.27.4)(bufferutil@4.0.8)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       expo-modules-autolinking: 2.1.10
       expo-modules-core: 2.3.13
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
-      react-native-edge-to-edge: 1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
+      react-native-edge-to-edge: 1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       whatwg-url-without-unicode: 8.0.0-3
     transitivePeerDependencies:
       - '@babel/core'
@@ -14865,6 +15000,8 @@ snapshots:
   lz-string@1.5.0:
     optional: true
 
+  lz4js@0.2.0: {}
+
   magic-string@0.30.17:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.0
@@ -14990,13 +15127,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.82.4(bufferutil@4.0.8):
+  metro-config@0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       connect: 3.7.0
       cosmiconfig: 5.2.1
       flow-enums-runtime: 0.0.6
       jest-validate: 29.7.0
-      metro: 0.82.4(bufferutil@4.0.8)
+      metro: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-cache: 0.82.4
       metro-core: 0.82.4
       metro-runtime: 0.82.4
@@ -15076,14 +15213,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-transform-worker@0.82.4(bufferutil@4.0.8):
+  metro-transform-worker@0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/core': 7.27.4
       '@babel/generator': 7.27.5
       '@babel/parser': 7.27.5
       '@babel/types': 7.27.3
       flow-enums-runtime: 0.0.6
-      metro: 0.82.4(bufferutil@4.0.8)
+      metro: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-babel-transformer: 0.82.4
       metro-cache: 0.82.4
       metro-cache-key: 0.82.4
@@ -15096,7 +15233,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  metro@0.82.4(bufferutil@4.0.8):
+  metro@0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       '@babel/code-frame': 7.27.1
       '@babel/core': 7.27.4
@@ -15122,7 +15259,7 @@ snapshots:
       metro-babel-transformer: 0.82.4
       metro-cache: 0.82.4
       metro-cache-key: 0.82.4
-      metro-config: 0.82.4(bufferutil@4.0.8)
+      metro-config: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-core: 0.82.4
       metro-file-map: 0.82.4
       metro-resolver: 0.82.4
@@ -15130,13 +15267,13 @@ snapshots:
       metro-source-map: 0.82.4
       metro-symbolicate: 0.82.4
       metro-transform-plugins: 0.82.4
-      metro-transform-worker: 0.82.4(bufferutil@4.0.8)
+      metro-transform-worker: 0.82.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       mime-types: 2.1.35
       nullthrows: 1.1.1
       serialize-error: 2.1.0
       source-map: 0.5.7
       throat: 5.0.0
-      ws: 7.5.10(bufferutil@4.0.8)
+      ws: 7.5.10(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       yargs: 17.7.2
     transitivePeerDependencies:
       - bufferutil
@@ -15263,8 +15400,7 @@ snapshots:
 
   ms@2.0.0: {}
 
-  ms@2.1.2:
-    optional: true
+  ms@2.1.2: {}
 
   ms@2.1.3: {}
 
@@ -15949,10 +16085,10 @@ snapshots:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
 
-  react-devtools-core@6.1.2(bufferutil@4.0.8):
+  react-devtools-core@6.1.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       shell-quote: 1.8.3
-      ws: 7.5.10(bufferutil@4.0.8)
+      ws: 7.5.10(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -15962,21 +16098,37 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-native-edge-to-edge@1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1):
+  react-native-edge-to-edge@1.6.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
     dependencies:
       react: 18.3.1
-      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
-  react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1):
+  react-native-quick-base64@2.2.2(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
+
+  react-native-tcp-socket@6.3.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
+    dependencies:
+      buffer: 5.7.1
+      eventemitter3: 4.0.7
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
+
+  react-native-url-polyfill@3.0.0(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)):
+    dependencies:
+      react-native: 0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
+      whatwg-url-without-unicode: 8.0.0-3
+
+  react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3):
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
       '@react-native/assets-registry': 0.79.2
       '@react-native/codegen': 0.79.2(@babel/core@7.27.4)
-      '@react-native/community-cli-plugin': 0.79.2(bufferutil@4.0.8)
+      '@react-native/community-cli-plugin': 0.79.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@react-native/gradle-plugin': 0.79.2
       '@react-native/js-polyfills': 0.79.2
       '@react-native/normalize-colors': 0.79.2
-      '@react-native/virtualized-lists': 0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1))(react@18.3.1)
+      '@react-native/virtualized-lists': 0.79.2(@types/react@18.3.23)(react-native@0.79.2(@babel/core@7.27.4)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       abort-controller: 3.0.0
       anser: 1.4.10
       ansi-regex: 5.0.1
@@ -15997,14 +16149,14 @@ snapshots:
       pretty-format: 29.7.0
       promise: 8.3.0
       react: 18.3.1
-      react-devtools-core: 6.1.2(bufferutil@4.0.8)
+      react-devtools-core: 6.1.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       react-refresh: 0.14.2
       regenerator-runtime: 0.13.11
       scheduler: 0.25.0
       semver: 7.7.2
       stacktrace-parser: 0.1.11
       whatwg-fetch: 3.6.20
-      ws: 6.2.3(bufferutil@4.0.8)
+      ws: 6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       yargs: 17.7.2
     optionalDependencies:
       '@types/react': 18.3.23
@@ -16473,6 +16625,24 @@ snapshots:
 
   smob@1.5.0: {}
 
+  socket.io-client@4.8.1(bufferutil@4.0.8)(utf-8-validate@6.0.3):
+    dependencies:
+      '@socket.io/component-emitter': 3.1.2
+      debug: 4.3.4
+      engine.io-client: 6.6.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      socket.io-parser: 4.2.4
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  socket.io-parser@4.2.4:
+    dependencies:
+      '@socket.io/component-emitter': 3.1.2
+      debug: 4.3.4
+    transitivePeerDependencies:
+      - supports-color
+
   socks-proxy-agent@6.2.1:
     dependencies:
       agent-base: 6.0.2
@@ -16877,6 +17047,10 @@ snapshots:
   totalist@3.0.1: {}
 
   tr46@1.0.1:
+    dependencies:
+      punycode: 2.3.1
+
+  tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
 
@@ -17749,6 +17923,8 @@ snapshots:
 
   webidl-conversions@5.0.0: {}
 
+  webidl-conversions@7.0.0: {}
+
   webpod@0.0.2: {}
 
   well-known-symbols@2.0.0: {}
@@ -17760,6 +17936,11 @@ snapshots:
       buffer: 5.7.1
       punycode: 2.3.1
       webidl-conversions: 5.0.0
+
+  whatwg-url@14.2.0:
+    dependencies:
+      tr46: 5.1.1
+      webidl-conversions: 7.0.0
 
   whatwg-url@7.1.0:
     dependencies:
@@ -17860,17 +18041,24 @@ snapshots:
       imurmurhash: 0.1.4
       signal-exit: 4.1.0
 
-  ws@6.2.3(bufferutil@4.0.8):
+  ws@6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     dependencies:
       async-limiter: 1.0.1
     optionalDependencies:
       bufferutil: 4.0.8
+      utf-8-validate: 6.0.3
 
-  ws@7.5.10(bufferutil@4.0.8):
+  ws@7.5.10(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     optionalDependencies:
       bufferutil: 4.0.8
+      utf-8-validate: 6.0.3
 
   ws@8.14.2(bufferutil@4.0.8)(utf-8-validate@6.0.3):
+    optionalDependencies:
+      bufferutil: 4.0.8
+      utf-8-validate: 6.0.3
+
+  ws@8.17.1(bufferutil@4.0.8)(utf-8-validate@6.0.3):
     optionalDependencies:
       bufferutil: 4.0.8
       utf-8-validate: 6.0.3
@@ -17898,6 +18086,8 @@ snapshots:
   xmlbuilder@11.0.1: {}
 
   xmlbuilder@15.1.1: {}
+
+  xmlhttprequest-ssl@2.1.2: {}
 
   xtend@4.0.2: {}
 

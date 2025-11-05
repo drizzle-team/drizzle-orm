@@ -139,6 +139,7 @@ jobs:
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in

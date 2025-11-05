@@ -1,4 +1,4 @@
-import type { Database } from '@tursodatabase/database';
+import { Database } from '@tursodatabase/database';
 import { sql } from 'drizzle-orm';
 import { type BaseSQLiteDatabase, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
@@ -24,7 +24,8 @@ let client: Database | undefined;
 
 beforeAll(async () => {
 	const dbPath = ':memory:';
-	db = drizzle(dbPath, { logger: ENABLE_LOGGING, relations });
+	client = new Database(dbPath);
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
