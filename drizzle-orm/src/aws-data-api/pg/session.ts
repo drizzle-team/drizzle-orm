@@ -289,6 +289,17 @@ export class AwsDataApiSession<
 		);
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const query = this.dialect.sqlToQuery(sql);
+		const prepared = this.prepareQuery(query, undefined, undefined, true);
+
+		const { rows } = await prepared.values();
+		const count = rows[0]?.[0] ?? 0;
+
+		if (typeof count === 'number') return count;
+		return Number(count);
+	}
+
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T; values: AwsDataApiPgQueryResult<unknown[]> }>(
 			this.dialect.sqlToQuery(query),
