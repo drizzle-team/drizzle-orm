@@ -237,6 +237,38 @@ test('drop + add table', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4456
+test('drop tables with fk constraint', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+	});
+	const table2 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references(() => table1.column1),
+	});
+	const schema1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int,'
+		+ '\n\tCONSTRAINT `table1_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, {}, []);
+	const { sqlStatements: pst2 } = await push({ db, to: {} });
+
+	const expectedSt2 = [
+		'DROP TABLE `table2`;',
+		'DROP TABLE `table1`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('add schema + table #1', async () => {
 	const schema = mysqlSchema('folder');
 

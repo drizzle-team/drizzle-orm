@@ -855,3 +855,58 @@ test('drop column with pk and add pk to another column #2', async () => {
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4456
+test('drop column with pk and add pk to another column #3', async () => {
+	const schema1 = {
+		authors: mysqlTable(
+			'authors',
+			{
+				publicationId: varchar('publication_id', { length: 64 }),
+				authorID: varchar('author_id', { length: 10 }),
+			},
+			(table) => {
+				return {
+					pk: primaryKey(table.publicationId, table.authorID),
+				};
+			},
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `authors` (\n\t`publication_id` varchar(64),\n\t`author_id` varchar(10),'
+		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		authors: mysqlTable(
+			'authors',
+			{
+				publicationId: varchar('publication_id', { length: 64 }),
+				authorID: varchar('author_id', { length: 10 }),
+				orcidId: varchar('orcid_id', { length: 64 }),
+			},
+			(table) => {
+				return {
+					pk: primaryKey(table.publicationId, table.authorID, table.orcidId),
+				};
+			},
+		),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `authors` DROP PRIMARY KEY;',
+		'ALTER TABLE `authors` ADD `orcid_id` varchar(64);',
+		'ALTER TABLE `authors` ADD PRIMARY KEY (`publication_id`,`author_id`,`orcid_id`);',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
