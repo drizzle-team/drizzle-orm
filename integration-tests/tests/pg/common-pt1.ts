@@ -974,6 +974,27 @@ export function tests(test: Test) {
 			expect(result).toHaveLength(1);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4468
+		test.concurrent('prepared statement with placeholder in .where', async ({ db, push }) => {
+			const usersTable = pgTable('users_391', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+			});
+
+			await push({ usersTable });
+			await db.insert(usersTable).values({ name: 'John' });
+			const stmt = db
+				.select()
+				.from(usersTable)
+				.where(lt(usersTable.createdAt, sql`now() - interval '${sql.placeholder('timeWindow')}'`))
+				.prepare('get_old_users');
+
+			const result = await stmt.execute({ timeWindow: '40 days' });
+
+			expect(result).toEqual([]);
+		});
+
 		test.concurrent('Insert all defaults in 1 row', async ({ db, push }) => {
 			const users = pgTable('users_42', {
 				id: serial('id').primaryKey(),
