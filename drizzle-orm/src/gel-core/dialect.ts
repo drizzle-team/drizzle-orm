@@ -51,7 +51,6 @@ export interface GelDialectConfig {
 export class GelDialect {
 	static readonly [entityKind]: string = 'GelDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 
 	constructor(config?: GelDialectConfig) {

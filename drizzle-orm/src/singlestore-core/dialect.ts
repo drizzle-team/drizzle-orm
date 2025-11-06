@@ -43,7 +43,6 @@ export interface SingleStoreDialectConfig {
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 
 	constructor(config?: SingleStoreDialectConfig) {

@@ -45,7 +45,6 @@ export class GelDatabase<
 		};
 
 	constructor(
-		/** @internal */
 		readonly dialect: GelDialect,
 		/** @internal */
 		readonly session: GelSession<any, any, any>,

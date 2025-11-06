@@ -44,7 +44,6 @@ export interface MySqlDialectConfig {
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 
 	constructor(config?: MySqlDialectConfig) {

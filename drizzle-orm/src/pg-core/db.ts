@@ -54,7 +54,6 @@ export class PgDatabase<
 		};
 
 	constructor(
-		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
 		readonly session: PgSession<any, any, any>,

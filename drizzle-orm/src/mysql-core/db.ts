@@ -52,7 +52,6 @@ export class MySqlDatabase<
 		};
 
 	constructor(
-		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any>,

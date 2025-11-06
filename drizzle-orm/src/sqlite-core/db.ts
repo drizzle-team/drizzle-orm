@@ -51,7 +51,6 @@ export class BaseSQLiteDatabase<
 
 	constructor(
 		private resultKind: TResultKind,
-		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
 		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TSchema>,

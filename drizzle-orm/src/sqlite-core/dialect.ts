@@ -47,7 +47,6 @@ export interface SQLiteDialectConfig {
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 
 	constructor(config?: SQLiteDialectConfig) {

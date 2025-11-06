@@ -63,7 +63,6 @@ export interface PgDialectConfig {
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 
 	constructor(config?: PgDialectConfig) {

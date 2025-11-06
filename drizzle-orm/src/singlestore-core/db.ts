@@ -47,7 +47,6 @@ export class SingleStoreDatabase<
 	query: unknown;
 
 	constructor(
-		/** @internal */
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
 		readonly session: SingleStoreSession<any, any, any, any>,
