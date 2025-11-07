@@ -292,6 +292,7 @@ jobs:
                 singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
                 mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
                 cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+                gel)                 compose_files+=("-f" "compose/gel.yml") ;;
                 *) echo "Unknown db '$db'"; exit 1 ;;
               esac
             done
