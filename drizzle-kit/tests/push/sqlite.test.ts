@@ -1611,3 +1611,65 @@ test('rename table with composite primary key', async () => {
 		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
 	]);
 });
+
+test('push respects casing configuration', async () => {
+	const client = new Database(':memory:');
+
+	const schema = {
+		users: sqliteTable('users', {
+			userId: integer('user_id').primaryKey(),
+			firstName: text('first_name').notNull(),
+			lastName: text('last_name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		{},
+		schema,
+		[],
+		false,
+		[],
+		'snake_case',
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'sqlite_create_table',
+			tableName: 'users',
+			columns: [
+				{
+					name: 'user_id',
+					type: 'integer',
+					primaryKey: true,
+					notNull: true,
+					autoincrement: false,
+				},
+				{
+					name: 'first_name',
+					type: 'text',
+					primaryKey: false,
+					notNull: true,
+					autoincrement: false,
+				},
+				{
+					name: 'last_name',
+					type: 'text',
+					primaryKey: false,
+					notNull: false,
+					autoincrement: false,
+				},
+			],
+			compositePKs: [],
+			referenceData: [],
+			uniqueConstraints: [],
+			checkConstraints: [],
+		},
+	]);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toContain('CREATE TABLE');
+	expect(sqlStatements[0]).toContain('`user_id`');
+	expect(sqlStatements[0]).toContain('`first_name`');
+	expect(sqlStatements[0]).toContain('`last_name`');
+});
