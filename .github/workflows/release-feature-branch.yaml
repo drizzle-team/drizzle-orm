@@ -281,7 +281,7 @@ jobs:
 
           containers=${{ join(matrix.dbs, ' ') }}
 
-          if [ -n "$containers" ]
+          if [ -n "$containers" ]; then
             compose_files=()
             for db in $containers; do
               case "$db" in
