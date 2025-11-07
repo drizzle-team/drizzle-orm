@@ -331,6 +331,8 @@ export class AwsDataApiSession<
 			session,
 			this.relations,
 			this.schema,
+			undefined,
+			true,
 		);
 		if (config) {
 			await tx.setTransaction(config);
