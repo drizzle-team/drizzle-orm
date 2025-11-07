@@ -760,6 +760,37 @@ test.concurrent('drop table + rename schema #1', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop tables with fk constraint', async ({ dbc: db }) => {
+	const table1 = cockroachTable('table1', {
+		column1: int4().primaryKey(),
+	});
+	const table2 = cockroachTable('table2', {
+		column1: int4().primaryKey(),
+		column2: int4().references(() => table1.column1),
+	});
+	const schema1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"column1" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "table2" (\n\t"column1" integer PRIMARY KEY,\n\t"column2" integer\n);\n',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column2_table1_column1_fkey" FOREIGN KEY ("column2") REFERENCES "table1"("column1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, {}, []);
+	const { sqlStatements: pst2 } = await push({ db, to: {} });
+
+	const expectedSt2 = [
+		'DROP TABLE "table2";',
+		'DROP TABLE "table1";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test.concurrent('create table with tsvector', async ({ dbc: db }) => {
 	const from = {};
 	const to = {
