@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { createDDL, MysqlDDL, MysqlEntity } from '../mysql/ddl';
 import { array, validator } from '../simpleValidator';
@@ -85,9 +85,14 @@ export const kitInternals = object({
 // use main dialect
 const dialect = literal('singlestore');
 
-const schemaHash = object({
+const schemaHashV1 = object({
 	id: string(),
 	prevId: string(),
+});
+
+const schemaHash = object({
+	id: string(),
+	prevIds: zArray(string()),
 });
 
 export const schemaInternal = object({
@@ -102,6 +107,7 @@ export const schemaInternal = object({
 	internal: kitInternals,
 }).strict();
 
+export const schemaV1 = schemaInternal.merge(schemaHashV1);
 export const schema = schemaInternal.merge(schemaHash);
 
 const tableSquashed = object({
@@ -136,23 +142,23 @@ export type SingleStoreSchemaSquashed = TypeOf<typeof schemaSquashed>;
 export type Index = TypeOf<typeof index>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
-/* export type View = TypeOf<typeof view>; */
-/* export type ViewSquashed = TypeOf<typeof viewSquashed>; */
+
+export type SchemaV1 = TypeOf<typeof schemaV1>;
 
 const ddl = createDDL();
 export const snapshotValidator = validator({
 	version: ['2'],
 	dialect: ['singlestore'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<MysqlEntity>((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 
-export type MysqlSnapshot = typeof snapshotValidator.shape;
+export type SingleStoreSnapshot = typeof snapshotValidator.shape;
 
-export const toJsonSnapshot = (ddl: MysqlDDL, prevId: string, renames: string[]): MysqlSnapshot => {
-	return { dialect: 'singlestore', id: randomUUID(), prevId, version: '2', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: MysqlDDL, prevIds: string[], renames: string[]): SingleStoreSnapshot => {
+	return { dialect: 'singlestore', id: randomUUID(), prevIds, version: '2', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
@@ -160,8 +166,8 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '2',
 		dialect: 'singlestore',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
-	} satisfies MysqlSnapshot,
+	} satisfies SingleStoreSnapshot,
 );

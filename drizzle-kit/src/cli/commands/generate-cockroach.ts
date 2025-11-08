@@ -1,5 +1,5 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroach/drizzle';
-import { prepareFilenames } from 'src/utils/utils-node';
+import { assertV3OutFolder, prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
 import {
 	CheckConstraint,
 	CockroachEntities,
@@ -17,7 +17,6 @@ import {
 } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';
@@ -25,20 +24,19 @@ import { ExportConfig, GenerateConfig } from './utils';
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
-	assertV1OutFolder(outFolder);
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'cockroach');
+	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
 			sqlStatements: [],
-			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
 			prefixMode: config.prefix,
 			renames: [],
+			snapshots,
 		});
 		return;
 	}
@@ -63,12 +61,12 @@ export const handle = async (config: GenerateConfig) => {
 	writeResult({
 		snapshot: snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		prefixMode: config.prefix,
 		renames,
+		snapshots,
 	});
 };
 

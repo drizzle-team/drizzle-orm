@@ -1,52 +1,58 @@
+import { readFileSync } from 'fs';
 import { Dialect } from '../../utils/schemaValidator';
-import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
+import { info } from '../views';
 
-export const checkHandler = (out: string, dialect: Dialect) => {
-	const { snapshots } = prepareOutFolder(out, dialect);
-	const report = validateWithReport(snapshots, dialect);
+export const checkHandler = async (out: string, dialect: Dialect) => {
+	const { snapshots } = prepareOutFolder(out);
+	const validator = validatorForDialect(dialect);
 
-	if (report.nonLatest.length > 0) {
-		console.log(
-			report.nonLatest
-				.map((it) => {
-					return `${it} is not of the latest version, please run "drizzle-kit up"`;
-				})
-				.join('\n'),
-		);
-		process.exit(1);
+	const snapshotsData: any[] = [];
+
+	for (const snapshot of snapshots) {
+		const raw = JSON.parse(readFileSync(`./${snapshot}`).toString());
+
+		snapshotsData.push(raw);
+
+		const res = validator(raw);
+		if (res.status === 'unsupported') {
+			console.log(
+				info(
+					`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+				),
+			);
+			process.exit(0);
+		}
+		if (res.status === 'malformed') {
+			// more explanation
+			console.log(`${snapshot} data is malformed`);
+			process.exit(1);
+		}
+
+		if (res.status === 'nonLatest') {
+			console.log(`${snapshot} is not of the latest version, please run "drizzle-kit up"`);
+			process.exit(1);
+		}
 	}
 
-	if (report.malformed.length) {
-		const message = report.malformed
-			.map((it) => {
-				return `${it} data is malformed`;
-			})
-			.join('\n');
-		console.log(message);
-	}
+	// Non-commutative detection for branching
+	// try {
+	// 	const nc = await detectNonCommutative(snapshotsData, dialect);
+	// 	if (nc.conflicts.length > 0) {
+	// 		console.log('\nNon-commutative migration branches detected:');
+	// 		for (const c of nc.conflicts) {
+	// 			console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
+	// 			console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
+	// 			console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
+	// 			// for (const r of c.reasons) console.log(`    • ${r}`);
+	// 		}
+	// 	}
+	// } catch (e) {
+	// }
 
-	const collisionEntries = Object.entries(report.idsMap).filter(
-		(it) => it[1].snapshots.length > 1,
-	);
+	// const abort = report.malformed.length!! || collisionEntries.length > 0;
 
-	const message = collisionEntries
-		.map((it) => {
-			const data = it[1];
-			return `[${
-				data.snapshots.join(
-					', ',
-				)
-			}] are pointing to a parent snapshot: ${data.parent}/snapshot.json which is a collision.`;
-		})
-		.join('\n');
-
-	if (message) {
-		console.log(message);
-	}
-
-	const abort = report.malformed.length!! || collisionEntries.length > 0;
-
-	if (abort) {
-		process.exit(1);
-	}
+	// if (abort) {
+	// 	process.exit(1);
+	// }
 };

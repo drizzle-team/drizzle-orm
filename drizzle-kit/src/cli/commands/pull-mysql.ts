@@ -50,7 +50,7 @@ export const handle = async (
 	writeFileSync(relationsFile, relations.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
+	const { snapshots } = prepareOutFolder(out);
 
 	if (snapshots.length === 0) {
 		const { sqlStatements } = await ddlDiff(
@@ -63,14 +63,14 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl, '', []),
+			snapshot: toJsonSnapshot(ddl, [], []),
 			sqlStatements,
-			journal,
 			renames: [],
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(

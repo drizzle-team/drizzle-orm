@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import { createDDL, MysqlDDL, MysqlEntity } from './ddl';
@@ -118,6 +118,11 @@ const dialect = literal('mysql');
 
 const schemaHash = object({
 	id: string(),
+	prevIds: zArray(string()),
+});
+
+const schemaHashV6 = object({
+	id: string(),
 	prevId: string(),
 });
 
@@ -162,12 +167,14 @@ export const schemaInternal = object({
 export const schemaV3 = schemaInternalV3.merge(schemaHash);
 export const schemaV4 = schemaInternalV4.merge(schemaHash);
 export const schemaV5 = schemaInternalV5.merge(schemaHash);
+export const schemaV6 = schemaInternal.merge(schemaHashV6);
 export const schema = schemaInternal.merge(schemaHash);
 
 export type Table = TypeOf<typeof table>;
 export type Column = TypeOf<typeof column>;
 export type SchemaV4 = TypeOf<typeof schemaV4>;
 export type SchemaV5 = TypeOf<typeof schemaV5>;
+export type SchemaV6 = TypeOf<typeof schemaV6>;
 export type Schema = TypeOf<typeof schema>;
 
 const tableSquashedV4 = object({
@@ -214,6 +221,7 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
+export type MysqlSchemaV6 = SchemaV6;
 export type MysqlSchema = Schema;
 
 const ddl = createDDL();
@@ -221,15 +229,15 @@ export const snapshotValidator = validator({
 	version: ['6'],
 	dialect: ['mysql'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<MysqlEntity>((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 
 export type MysqlSnapshot = typeof snapshotValidator.shape;
 
-export const toJsonSnapshot = (ddl: MysqlDDL, prevId: string, renames: string[]): MysqlSnapshot => {
-	return { dialect: 'mysql', id: randomUUID(), prevId, version: '6', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: MysqlDDL, prevIds: string[], renames: string[]): MysqlSnapshot => {
+	return { dialect: 'mysql', id: randomUUID(), prevIds, version: '6', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
@@ -237,7 +245,7 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '6',
 		dialect: 'mysql',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
 	} satisfies MysqlSnapshot,

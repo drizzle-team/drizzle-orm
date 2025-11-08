@@ -80,7 +80,7 @@ export const handle = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'cockroach');
+	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
@@ -100,14 +100,14 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
-			journal,
 			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(
