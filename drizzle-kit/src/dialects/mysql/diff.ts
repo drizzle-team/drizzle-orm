@@ -285,7 +285,11 @@ export const ddlDiff = async (
 	).map((it) => prepareStatement('drop_index', { index: it }));
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
-		.filter((it) => !deletedTables.some((x) => x.name === it.table))
+		.filter((it) => {
+			const tableDeteled = deletedTables.some((x) => x.name === it.table);
+			const tableToDeleted = deletedTables.some((x) => x.name === it.tableTo);
+			return !(tableDeteled && !tableToDeleted);
+		})
 		.map((it) => prepareStatement('drop_constraint', { table: it.table, constraint: it.name }));
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
@@ -440,6 +444,7 @@ export const ddlDiff = async (
 
 	const statements = [
 		...createTableStatements,
+		...dropFKStatements,
 		...dropTableStatements,
 		...renameTableStatements,
 
@@ -450,16 +455,16 @@ export const ddlDiff = async (
 		...alterViewStatements,
 
 		...dropCheckStatements,
-		...dropFKStatements,
+
 		...dropIndexeStatements,
 		...dropPKStatements,
 
 		...columnAlterStatements,
 		...columnRecreateStatatements,
 
+		...addColumnsStatemets,
 		...createPKStatements,
 
-		...addColumnsStatemets,
 		...createIndexesStatements,
 		...createFKsStatements,
 		...createCheckStatements,
