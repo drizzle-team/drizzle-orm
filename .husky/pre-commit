@@ -1,1 +1,21 @@
-pnpm lint-staged
+#!/usr/bin/env sh
+# Add common Node.js installation paths
+export PATH="$PATH:/usr/local/bin:/usr/bin:/opt/homebrew/bin:/usr/local/share/npm/bin:$HOME/.npm-global/bin:$HOME/.nvm/current/bin"
+
+# Try to find Node.js in common locations
+if [ -d "$HOME/.nvm" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+fi
+
+# Try to find and use the package manager that installed dependencies
+if command -v pnpm >/dev/null 2>&1; then
+    pnpm lint-staged
+elif command -v yarn >/dev/null 2>&1; then
+    yarn lint-staged
+elif command -v npm >/dev/null 2>&1; then
+    npm run lint-staged
+else
+    echo "Error: No package manager found (pnpm, yarn, or npm)"
+    exit 1
+fi

@@ -218,8 +218,8 @@ export type CockroachSchema = TypeOf<typeof cockroachSchema>;
 export type Index = TypeOf<typeof index>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: CockroachDDL, prevId: string, renames: string[]): CockroachSnapshot => {
-	return { dialect: 'cockroach', id: randomUUID(), prevId, version: '1', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: CockroachDDL, prevIds: string[], renames: string[]): CockroachSnapshot => {
+	return { dialect: 'cockroach', id: randomUUID(), prevIds, version: '1', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -227,7 +227,7 @@ export const snapshotValidator = validator({
 	version: ['1'],
 	dialect: ['cockroach'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<CockroachEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
@@ -245,7 +245,7 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '1',
 		dialect: 'cockroach',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
 	} satisfies CockroachSnapshot,

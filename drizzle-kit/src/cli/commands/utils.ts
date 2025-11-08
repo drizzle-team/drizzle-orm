@@ -1,9 +1,9 @@
 import chalk from 'chalk';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rm, unlinkSync, writeFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { assertUnreachable, getTablesFilterByExtensions, Journal } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
@@ -51,6 +51,7 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
+import { prepareSnapshotFolderName } from './generate-common';
 
 export const prepareCheckParams = async (
 	options: {
@@ -1057,4 +1058,55 @@ export const drizzleConfigFromFile = async (
 	}
 
 	return res.data;
+};
+
+export const migrateToFoldersV3 = (out: string) => {
+	// if there is meta folder - and there is a journal - it's version 8
+	const metaPath = join(out, 'meta');
+	const journalPath = join(metaPath, '_journal.json');
+	if (existsSync(metaPath) && existsSync(journalPath)) {
+		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
+		const sqlFiles = readdirSync(out);
+		for (const entry of journal.entries) {
+			const folderName = prepareSnapshotFolderName(entry.when);
+			// Reading Snapshots files
+			const [snapshotPrefix, ...rest] = entry.tag.split('_');
+			const migrationName = rest.join('_');
+			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+
+			if (!existsSync(oldSnapshotPath)) {
+				// If for some reason this happens we need to throw an error
+				// This can't happen unless there were wrong drizzle-kit migrations usage
+				console.error('No snapshot was found');
+				process.exit(1);
+			}
+
+			const oldSnapshot = readFileSync(oldSnapshotPath);
+
+			// Reading SQL files
+			let oldSqlPath = join(out, `${entry.tag}.sql`);
+			const sqlFileFromJournal = join(out, `${entry.tag}.sql`);
+			if (!existsSync(sqlFileFromJournal)) {
+				// We will try to find it by prefix, but this is a sign that something went wrong
+				// with properly using drizzle-kit migrations
+				const sqlFileName = sqlFiles.find((file) => file.startsWith(snapshotPrefix));
+				if (!sqlFileName) continue;
+				if (sqlFileName?.length > 1) {
+					console.error('Several sql files were found');
+					process.exit(1);
+				}
+			}
+			const oldSql = readFileSync(oldSqlPath);
+
+			mkdirSync(join(out, `${folderName}_${migrationName}`));
+			writeFileSync(join(out, `${folderName}_${migrationName}/snapshot.json`), oldSnapshot);
+			writeFileSync(join(out, `${folderName}_${migrationName}/migration.sql`), oldSql);
+
+			unlinkSync(oldSqlPath);
+		}
+
+		rm(metaPath, { recursive: true, force: true }, () => {});
+		return true;
+	}
+	return false;
 };

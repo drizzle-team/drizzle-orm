@@ -354,6 +354,11 @@ const table = object({
 
 const schemaHash = object({
 	id: string(),
+	prevIds: zodArray(string()),
+});
+
+const schemaHashV7 = object({
+	id: string(),
 	prevId: string(),
 });
 
@@ -517,6 +522,7 @@ export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
 export const pgSchemaV4 = pgSchemaInternalV4.merge(schemaHash);
 export const pgSchemaV5 = pgSchemaInternalV5.merge(schemaHash);
 export const pgSchemaV6 = pgSchemaInternalV6.merge(schemaHash);
+export const pgSchemaV7 = pgSchemaInternal.merge(schemaHashV7);
 export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -525,14 +531,15 @@ export type PgSchemaV3 = TypeOf<typeof pgSchemaV3>;
 export type PgSchemaV4 = TypeOf<typeof pgSchemaV4>;
 export type PgSchemaV5 = TypeOf<typeof pgSchemaV5>;
 export type PgSchemaV6 = TypeOf<typeof pgSchemaV6>;
+export type PgSchemaV7 = TypeOf<typeof pgSchemaV7>;
 export type PgSchema = TypeOf<typeof pgSchema>;
 
 export type Index = TypeOf<typeof index>;
 export type TableV5 = TypeOf<typeof tableV5>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevId: string, renames: string[]): PostgresSnapshot => {
-	return { dialect: 'postgres', id: randomUUID(), prevId, version: '8', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[], renames: string[]): PostgresSnapshot => {
+	return { dialect: 'postgres', id: randomUUID(), prevIds, version: '8', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -540,7 +547,7 @@ export const snapshotValidator = validator({
 	version: ['8'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<PostgresEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
@@ -558,7 +565,7 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '8',
 		dialect: 'postgres',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
 	} satisfies PostgresSnapshot,

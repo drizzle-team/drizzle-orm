@@ -74,7 +74,7 @@ export const handle = async (
 	// writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'mssql');
+	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
@@ -93,14 +93,14 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
-			journal,
 			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(
@@ -119,17 +119,6 @@ export const handle = async (
 			)
 		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
-	// render(
-	// 	`[${
-	// 		chalk.green(
-	// 			'✓',
-	// 		)
-	// 	}] Your relations file is ready ➜ ${
-	// 		chalk.bold.underline.blue(
-	// 			relationsFile,
-	// 		)
-	// 	} 🚀`,
-	// );
 	process.exit(0);
 };
 

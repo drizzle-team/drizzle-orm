@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
 import { parse } from 'url';
@@ -92,6 +92,21 @@ export const assertV1OutFolder = (out: string) => {
 	}
 };
 
+export const assertV3OutFolder = (out: string) => {
+	if (!existsSync(out)) return;
+
+	if (existsSync(join(out, 'meta/_journal.json'))) {
+		console.log(
+			`Your migrations folder format is outdated, please run ${
+				chalk.green.bold(
+					`drizzle-kit up`,
+				)
+			}`,
+		);
+		process.exit(1);
+	}
+};
+
 export const dryJournal = (dialect: Dialect): Journal => {
 	return {
 		version: '7',
@@ -100,23 +115,18 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
-export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const meta = join(out, 'meta');
-	const journalPath = join(meta, '_journal.json');
-
-	if (!existsSync(join(out, 'meta'))) {
-		mkdirSync(meta, { recursive: true });
-		writeFileSync(journalPath, JSON.stringify(dryJournal(dialect)));
+export const prepareOutFolder = (out: string) => {
+	if (!existsSync(out)) {
+		mkdirSync(out, { recursive: true });
 	}
 
-	const journal = JSON.parse(readFileSync(journalPath).toString());
-
-	const snapshots = readdirSync(meta)
-		.filter((it) => !it.startsWith('_'))
-		.map((it) => join(meta, it));
+	const snapshots = readdirSync(out)
+		.map((subdir) => join(out, subdir, 'snapshot.json'))
+		.filter((filePath) => existsSync(filePath));
 
 	snapshots.sort();
-	return { meta, snapshots, journal };
+
+	return { snapshots };
 };
 
 type ValidationResult = { status: 'valid' | 'unsupported' | 'nonLatest' } | { status: 'malformed'; errors: string[] };
@@ -286,61 +296,6 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 	);
 
 	return result;
-};
-
-export const prepareMigrationFolder = (
-	outFolder: string = 'drizzle',
-	dialect: Dialect,
-) => {
-	const { snapshots, journal } = prepareOutFolder(outFolder, dialect);
-	const report = validateWithReport(snapshots, dialect);
-	if (report.nonLatest.length > 0) {
-		console.log(
-			report.nonLatest
-				.map((it) => {
-					return `${it}/snapshot.json is not of the latest version`;
-				})
-				.concat(`Run ${chalk.green.bold(`drizzle-kit up`)}`)
-				.join('\n'),
-		);
-		process.exit(0);
-	}
-
-	if (report.malformed.length) {
-		const message = report.malformed
-			.map((it) => {
-				return `${it} data is malformed`;
-			})
-			.join('\n');
-		console.log(message);
-	}
-
-	const collisionEntries = Object.entries(report.idsMap).filter(
-		(it) => it[1].snapshots.length > 1,
-	);
-
-	const message = collisionEntries
-		.map((it) => {
-			const data = it[1];
-			return `[${
-				data.snapshots.join(
-					', ',
-				)
-			}] are pointing to a parent snapshot: ${data.parent}/snapshot.json which is a collision.`;
-		})
-		.join('\n')
-		.trim();
-	if (message) {
-		console.log(chalk.red.bold('Error:'), message);
-	}
-
-	const abort = report.malformed.length!! || collisionEntries.length > 0;
-
-	if (abort) {
-		process.exit(0);
-	}
-
-	return { snapshots, journal };
 };
 
 export const normaliseSQLiteUrl = (
