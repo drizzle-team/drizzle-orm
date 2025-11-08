@@ -1,64 +1,6 @@
-#!/usr/bin/env sh
-
-# Cross-platform Node.js detection and execution
-# Works on macOS, Linux, and Windows (Git Bash/WSL)
-
-# Function to check Node.js version is 24+
-check_node_version() {
-    if command -v node >/dev/null 2>&1; then
-        NODE_VERSION=$(node -v 2>/dev/null | sed 's/^v//')
-        if [ -n "$NODE_VERSION" ]; then
-            NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1)
-            if [ "$NODE_MAJOR" -ge 24 ]; then
-                return 0
-            fi
-        fi
-    fi
-    return 1
-}
-
-# Try to find Node.js 24+ in various locations
-if check_node_version; then
-    echo "Using Node.js $(node -v)"
-else
-    # Try common Node.js installation paths
-    for node_dir in \
-        "$HOME/.nvm/versions/node/v24.*/bin" \
-        "$HOME/.nvm/versions/node/v2[5-9]*/bin" \
-        "$HOME/.nvm/versions/node/v[3-9][0-9]*/bin" \
-        "/usr/local/bin" \
-        "/opt/homebrew/bin" \
-        "/usr/bin" \
-        "$PROGRAMFILES/nodejs" \
-        "$LOCALAPPDATA/nodejs"; do
-        
-        # Expand wildcards and check if node exists
-        for expanded_dir in $node_dir; do
-            if [ -x "$expanded_dir/node" ]; then
-                export PATH="$expanded_dir:$PATH"
-                if check_node_version; then
-                    echo "Found Node.js $(node -v) at $expanded_dir"
-                    break 2
-                fi
-            fi
-        done
-    done
-    
-    # Final check
-    if ! check_node_version; then
-        echo "Error: Node.js 24+ not found. Please install Node.js 24 or higher."
-        exit 1
-    fi
-fi
-
-# Run lint-staged with available package manager
 if command -v pnpm >/dev/null 2>&1; then
-    pnpm lint-staged
-elif command -v yarn >/dev/null 2>&1; then
-    yarn lint-staged
-elif command -v npm >/dev/null 2>&1; then
-    npm run lint-staged
+  pnpm lint-staged
 else
-    echo "Error: No package manager found (pnpm, yarn, or npm)"
-    exit 1
+  echo "pnpm unavailable, trying via docker..."
+  sh ./compose/lint.sh
 fi
