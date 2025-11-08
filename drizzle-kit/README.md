@@ -7,6 +7,7 @@ Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and o
 
 Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
+
 ### How it works
 
 Drizzle Kit traverses a schema module and generates a snapshot to compare with the previous version, if there is one.
