@@ -285,6 +285,7 @@ jobs:
               case "$db" in
                 postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
                 postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
+                postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
                 mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
                 singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
                 singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
