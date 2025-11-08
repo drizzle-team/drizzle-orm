@@ -622,9 +622,9 @@ test('drop tables with fk constraint', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
-		'CREATE TABLE [table1] (\n\t[column1] integer PRIMARY KEY\n);\n',
-		'CREATE TABLE [table2] (\n\t[column1] integer PRIMARY KEY,\n\t[column2] integer\n);\n',
-		'ALTER TABLE [table2] ADD CONSTRAINT [table2_column2_table1_column1_fkey] FOREIGN KEY ([column2]) REFERENCES [table1]([column1]);',
+		'CREATE TABLE [table1] (\n\t[column1] int,\n\tCONSTRAINT [table1_pkey] PRIMARY KEY([column1])\n);\n',
+		'CREATE TABLE [table2] (\n\t[column1] int,\n\t[column2] int,\n\tCONSTRAINT [table2_pkey] PRIMARY KEY([column1])\n);\n',
+		'ALTER TABLE [table2] ADD CONSTRAINT [table2_column2_table1_column1_fk] FOREIGN KEY ([column2]) REFERENCES [table1]([column1]);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
