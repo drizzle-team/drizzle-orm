@@ -12,7 +12,6 @@ Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/
 Drizzle Kit traverses a schema module and generates a snapshot to compare with the previous version, if there is one.
 Based on the difference, it will generate all needed SQL migrations. If there are any cases that can't be resolved automatically, such as renames, it will prompt the user for input.
 
-
 For example, for this schema module:
 
 ```typescript
