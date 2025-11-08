@@ -1,21 +1,26 @@
 #!/usr/bin/env sh
-# Add common Node.js installation paths
-export PATH="$PATH:/usr/local/bin:/usr/bin:/opt/homebrew/bin:/usr/local/share/npm/bin:$HOME/.npm-global/bin:$HOME/.nvm/current/bin"
 
-# Try to find Node.js in common locations
-if [ -d "$HOME/.nvm" ]; then
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# Force use Node.js 24+ from NVM
+NODE_24_PATH="$HOME/.nvm/versions/node/v24.10.0/bin"
+if [ -x "$NODE_24_PATH/node" ]; then
+    export PATH="$NODE_24_PATH:$PATH"
+else
+    echo "Error: Node.js 24.10.0 not found at $NODE_24_PATH"
+    exit 1
 fi
 
-# Try to find and use the package manager that installed dependencies
+# Verify Node.js version
+NODE_VERSION=$(node -v | cut -d'v' -f2)
+NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1)
+if [ "$NODE_MAJOR" -lt 24 ]; then
+    echo "Error: Node.js version $NODE_VERSION is too old. Requires Node.js 24+"
+    exit 1
+fi
+
+# Run lint-staged with pnpm (since this project uses pnpm)
 if command -v pnpm >/dev/null 2>&1; then
     pnpm lint-staged
-elif command -v yarn >/dev/null 2>&1; then
-    yarn lint-staged
-elif command -v npm >/dev/null 2>&1; then
-    npm run lint-staged
 else
-    echo "Error: No package manager found (pnpm, yarn, or npm)"
+    echo "Error: pnpm not found"
     exit 1
 fi
