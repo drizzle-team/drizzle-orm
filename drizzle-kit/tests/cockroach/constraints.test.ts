@@ -1638,8 +1638,8 @@ test('fk multistep #4', async ({ dbc: db }) => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
-		'CREATE TABLE "foo" (\n\t"id" integer PRIMARY KEY\n);\n',
-		'CREATE TABLE "bar" (\n\t"id" integer PRIMARY KEY,\n\t"fooId" integer\n);\n',
+		'CREATE TABLE "foo" (\n\t"id" int4 PRIMARY KEY\n);\n',
+		'CREATE TABLE "bar" (\n\t"id" int4 PRIMARY KEY,\n\t"fooId" int4\n);\n',
 		'ALTER TABLE "bar" ADD CONSTRAINT "bar_fooId_foo_id_fkey" FOREIGN KEY ("fooId") REFERENCES "foo"("id");',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
@@ -1897,7 +1897,7 @@ test('drop column with pk and add pk to another column #1', async ({ dbc: db }) 
 	const expectedSt2: string[] = [
 		'ALTER TABLE "authors" ADD COLUMN "orcid_id" varchar(64);',
 		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey";',
-		'ALTER TABLE "authors" ADD PRIMARY KEY ("publication_id","author_id","orcid_id");',
+		'ALTER TABLE "authors" ADD CONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id","orcid_id");',
 	];
 
 	expect(st2).toStrictEqual(expectedSt2);

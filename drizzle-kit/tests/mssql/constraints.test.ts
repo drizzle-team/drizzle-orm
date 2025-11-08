@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm';
-import { cockroachTable } from 'drizzle-orm/cockroach-core';
 import {
 	AnyMsSqlColumn,
 	check,
@@ -1688,9 +1687,9 @@ test('fk multistep #3', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
-		'CREATE TABLE [foo] (\n\t[id] int PRIMARY KEY\n);\n',
-		'CREATE TABLE [bar] (\n\t[id] int PRIMARY KEY,\n\t[fooId] int\n);\n',
-		'ALTER TABLE [bar] ADD CONSTRAINT [bar_fooId_foo_id_fkey] FOREIGN KEY ([fooId]) REFERENCES [foo]([id]);',
+		'CREATE TABLE [foo] (\n\t[id] int,\n\tCONSTRAINT [foo_pkey] PRIMARY KEY([id])\n);\n',
+		'CREATE TABLE [bar] (\n\t[id] int,\n\t[fooId] int,\n\tCONSTRAINT [bar_pkey] PRIMARY KEY([id])\n);\n',
+		'ALTER TABLE [bar] ADD CONSTRAINT [bar_fooId_foo_id_fk] FOREIGN KEY ([fooId]) REFERENCES [foo]([id]);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1704,7 +1703,7 @@ test('fk multistep #3', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
-		'ALTER TABLE [bar] DROP CONSTRAINT [bar_fooId_foo_id_fkey];',
+		'ALTER TABLE [bar] DROP CONSTRAINT [bar_fooId_foo_id_fk];',
 		'DROP TABLE [foo];',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
@@ -2441,7 +2440,7 @@ test('drop column with pk and add pk to another column #1', async () => {
 	expect(pst1).toStrictEqual(expectedSt1);
 
 	const schema2 = {
-		authors: cockroachTable('authors', {
+		authors: mssqlTable('authors', {
 			publicationId: varchar('publication_id', { length: 64 }),
 			authorID: varchar('author_id', { length: 10 }),
 			orcidId: varchar('orcid_id', { length: 64 }),
@@ -2454,9 +2453,9 @@ test('drop column with pk and add pk to another column #1', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
 	const expectedSt2: string[] = [
-		'ALTER TABLE [authors] ADD COLUMN [orcid_id] varchar(64);',
 		'ALTER TABLE [authors] DROP CONSTRAINT [authors_pkey];',
-		'ALTER TABLE [authors] ADD PRIMARY KEY ([publication_id],[author_id],[orcid_id]);',
+		'ALTER TABLE [authors] ADD [orcid_id] varchar(64);',
+		'ALTER TABLE [authors] ADD CONSTRAINT [authors_pkey] PRIMARY KEY ([publication_id],[author_id],[orcid_id]);',
 	];
 
 	expect(st2).toStrictEqual(expectedSt2);
