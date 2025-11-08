@@ -279,11 +279,9 @@ jobs:
         run: |
           set -euxo pipefail
 
-          containers=${{ join(matrix.dbs, ' ') }}
-
-          if [ -n "$containers" ]; then
+          if [ -n "${{ join(matrix.dbs, ' ') }}" ]; then
             compose_files=()
-            for db in $containers; do
+            for db in ${{ join(matrix.dbs, ' ') }}; do
               case "$db" in
                 postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
                 postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
