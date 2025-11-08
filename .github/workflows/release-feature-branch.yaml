@@ -273,23 +273,6 @@ jobs:
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
-      - name: Stop DBs
-        if: always() && ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          for db in ${{ join(matrix.dbs, ' ') }}; do
-            case "$db" in
-              postgres)            docker compose -f compose/postgres.yml down -v ;;
-              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
-              mysql)               docker compose -f compose/mysql.yml down -v ;;
-              singlestore)         docker compose -f compose/singlestore.yml down -v ;;
-              singlestore-many)    docker compose -f compose/singlestore-many.yml down -v ;;
-              mssql)               docker compose -f compose/mssql.yml down -v ;;
-              cockroach)           docker compose -f compose/cockroach.yml down -v ;;
-            esac
-          done
-
   attw:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository

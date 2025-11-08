@@ -593,6 +593,45 @@ test('fk name is too long', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4456#issuecomment-3076042688
+test('fk multistep #1', async () => {
+	const foo = mysqlTable('foo', {
+		id: int().primaryKey(),
+	});
+
+	const bar = mysqlTable('bar', {
+		id: int().primaryKey(),
+		fooId: int().references(() => foo.id),
+	});
+
+	const schema1 = { foo, bar };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `foo` (\n\t`id` int PRIMARY KEY\n);\n',
+		'CREATE TABLE `bar` (\n\t`id` int PRIMARY KEY,\n\t`fooId` int\n);\n',
+		'ALTER TABLE `bar` ADD CONSTRAINT `bar_fooId_foo_id_fkey` FOREIGN KEY (`fooId`) REFERENCES `foo`(`id`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		bar: mysqlTable('bar', {
+			id: int().primaryKey(),
+			fooId: int(),
+		}),
+	};
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `bar` DROP CONSTRAINT `bar_fooId_foo_id_fkey`;',
+		'DROP TABLE `foo`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/265
 // https://github.com/drizzle-team/drizzle-orm/issues/3293
 // https://github.com/drizzle-team/drizzle-orm/issues/2018
