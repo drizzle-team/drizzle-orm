@@ -859,18 +859,10 @@ test('drop column with pk and add pk to another column #2', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4456
 test('drop column with pk and add pk to another column #3', async () => {
 	const schema1 = {
-		authors: mysqlTable(
-			'authors',
-			{
-				publicationId: varchar('publication_id', { length: 64 }),
-				authorID: varchar('author_id', { length: 10 }),
-			},
-			(table) => {
-				return {
-					pk: primaryKey(table.publicationId, table.authorID),
-				};
-			},
-		),
+		authors: mysqlTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+		}, (table) => [primaryKey({ columns: [table.publicationId, table.authorID] })]),
 	};
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
@@ -883,19 +875,13 @@ test('drop column with pk and add pk to another column #3', async () => {
 	expect(pst1).toStrictEqual(expectedSt1);
 
 	const schema2 = {
-		authors: mysqlTable(
-			'authors',
-			{
-				publicationId: varchar('publication_id', { length: 64 }),
-				authorID: varchar('author_id', { length: 10 }),
-				orcidId: varchar('orcid_id', { length: 64 }),
-			},
-			(table) => {
-				return {
-					pk: primaryKey(table.publicationId, table.authorID, table.orcidId),
-				};
-			},
-		),
+		authors: mysqlTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+			orcidId: varchar('orcid_id', { length: 64 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID, table.orcidId] }),
+		]),
 	};
 
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);

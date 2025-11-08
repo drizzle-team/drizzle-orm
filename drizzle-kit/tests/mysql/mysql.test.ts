@@ -242,7 +242,7 @@ test('drop tables with fk constraint', async () => {
 	const table1 = mysqlTable('table1', {
 		column1: int().primaryKey(),
 	});
-	const table2 = mysqlTable('table1', {
+	const table2 = mysqlTable('table2', {
 		column1: int().primaryKey(),
 		column2: int().references(() => table1.column1),
 	});
@@ -252,8 +252,8 @@ test('drop tables with fk constraint', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int,'
-		+ '\n\tCONSTRAINT `table1_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'ALTER TABLE \`table2\` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -262,8 +262,9 @@ test('drop tables with fk constraint', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: {} });
 
 	const expectedSt2 = [
-		'DROP TABLE `table2`;',
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_column2_table1_column1_fkey`;',
 		'DROP TABLE `table1`;',
+		'DROP TABLE `table2`;',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
