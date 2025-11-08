@@ -1622,6 +1622,45 @@ test.concurrent('fk multistep #2', async ({ dbc: db }) => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4456#issuecomment-3076042688
+test('fk multistep #4', async ({ dbc: db }) => {
+	const foo = cockroachTable('foo', {
+		id: int4().primaryKey(),
+	});
+
+	const bar = cockroachTable('bar', {
+		id: int4().primaryKey(),
+		fooId: int4().references(() => foo.id),
+	});
+
+	const schema1 = { foo, bar };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "foo" (\n\t"id" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "bar" (\n\t"id" integer PRIMARY KEY,\n\t"fooId" integer\n);\n',
+		'ALTER TABLE "bar" ADD CONSTRAINT "bar_fooId_foo_id_fkey" FOREIGN KEY ("fooId") REFERENCES "foo"("id");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		bar: cockroachTable('bar', {
+			id: int4().primaryKey(),
+			fooId: int4(),
+		}),
+	};
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE "bar" DROP CONSTRAINT "bar_fooId_foo_id_fkey";',
+		'DROP TABLE "foo";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test.concurrent('unique duplicate name', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
@@ -1820,4 +1859,47 @@ test.concurrent('alter pk test #3', async ({ dbc: db }) => {
 	];
 	expect(sqlStatements).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4456
+test('drop column with pk and add pk to another column #1', async ({ dbc: db }) => {
+	const schema1 = {
+		authors: cockroachTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "authors" (\n\t"publication_id" varchar(64),\n\t"author_id" varchar(10),'
+		+ '\n\tCONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id")\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		authors: cockroachTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+			orcidId: varchar('orcid_id', { length: 64 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID, table.orcidId] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE "authors" ADD COLUMN "orcid_id" varchar(64);',
+		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey";',
+		'ALTER TABLE "authors" ADD PRIMARY KEY ("publication_id","author_id","orcid_id");',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
