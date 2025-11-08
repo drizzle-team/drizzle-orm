@@ -48,5 +48,5 @@ docker run --rm \
       --ignore-scripts \
       --filter .
 
-    pnpm lint
+    pnpm lint-staged
   '
