@@ -81,6 +81,8 @@ jobs:
         include:
           - shard: int:gel
             dbs: [gel]
+          - shard: int:singlestore
+            dbs: [singlestore]
           - shard: int:singlestore-core
             dbs: [singlestore-many]
           - shard: int:singlestore-proxy
@@ -214,8 +216,9 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
+            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
