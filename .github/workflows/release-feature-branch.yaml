@@ -33,6 +33,8 @@ jobs:
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
+
+      # has to be after build step, otherwise turbo cache miss
       - name: Apply version suffix to packages
         shell: bash
         run: |
@@ -362,7 +364,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', always-auth: true }
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
