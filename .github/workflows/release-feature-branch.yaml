@@ -74,21 +74,17 @@ jobs:
       - name: Pack
         run: pnpm pack:artifact
       - uses: actions/upload-artifact@v4
-        with: { name: drizzle-orm, path: drizzle-orm/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-kit, path: drizzle-kit/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-zod, path: drizzle-zod/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-seed, path: drizzle-seed/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-typebox, path: drizzle-typebox/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-valibot, path: drizzle-valibot/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-arktype, path: drizzle-arktype/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: eslint-plugin-drizzle, path: eslint-plugin-drizzle/package.tgz }
+        with: 
+          name: packages
+          path: |
+            drizzle-orm/package.tgz
+            drizzle-kit/package.tgz
+            drizzle-zod/package.tgz
+            drizzle-seed/package.tgz
+            drizzle-typebox/package.tgz
+            drizzle-valibot/package.tgz
+            drizzle-arktype/package.tgz
+            eslint-plugin-drizzle/package.tgz
 
       # Tiny marker so other jobs can wait without failing
       - name: Upload build-ready marker
@@ -324,7 +320,7 @@ jobs:
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/package.tgz
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz
 
   attw-orm:
     needs: [prepare]
@@ -367,14 +363,14 @@ jobs:
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.package }}
+          name: packages
           path: ./artifacts
       - name: Check preconditions (from tarball)
         id: checks
         shell: bash
         run: |
           set -euxo pipefail
-          version="$(tar -xOf ./artifacts/package.tgz package/package.json | jq -r .version)"
+          version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
           tag="${{ github.ref_name }}"
           
           is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
@@ -391,5 +387,5 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           set -euxo pipefail
-          npm publish ./artifacts/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+          npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
           echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
