@@ -73,7 +73,7 @@ export const fromDatabase = async (
 		SELECT 
 			* 
 		FROM information_schema.columns
-		WHERE table_schema = '${schema}' and table_name !== '__drizzle_migrations'
+		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
 		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
@@ -89,7 +89,7 @@ export const fromDatabase = async (
 			* 
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
-			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME !== 'PRIMARY'
+			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
 		ORDER BY lower(INDEX_NAME);
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
@@ -206,7 +206,7 @@ export const fromDatabase = async (
 		FROM information_schema.table_constraints t
 		LEFT JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
 		WHERE t.constraint_type='PRIMARY KEY'
-			AND table_name !== '__drizzle_migrations'
+			AND table_name != '__drizzle_migrations'
 			AND t.table_schema = '${schema}'
 		ORDER BY ordinal_position
 	`).then((rows) => {
@@ -259,7 +259,7 @@ export const fromDatabase = async (
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
 		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
-			AND kcu.CONSTRAINT_NAME !== 'PRIMARY' 
+			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;
 	`).then((rows) => {
 		queryCallback('fks', rows, null);
