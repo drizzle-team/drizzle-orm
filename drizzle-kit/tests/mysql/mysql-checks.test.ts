@@ -226,7 +226,7 @@ test('alter multiple check constraints', async (t) => {
 				table,
 			) => [
 				check('some_check_name_1', sql`${table.age} > 21`),
-				check('some_check_name_2', sql`${table.name} !== 'Alex'`),
+				check('some_check_name_2', sql`${table.name} != 'Alex'`),
 			],
 		),
 	};
@@ -243,7 +243,7 @@ test('alter multiple check constraints', async (t) => {
 				table,
 			) => [
 				check('some_check_name_3', sql`${table.age} > 21`),
-				check('some_check_name_4', sql`${table.name} !== 'Alex'`),
+				check('some_check_name_4', sql`${table.name} != 'Alex'`),
 			],
 		),
 	};
@@ -257,7 +257,7 @@ test('alter multiple check constraints', async (t) => {
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name_1\`;`,
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name_2\`;`,
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name_3\` CHECK (\`users\`.\`age\` > 21);`,
-		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name_4\` CHECK (\`users\`.\`name\` !== \'Alex\');`,
+		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name_4\` CHECK (\`users\`.\`name\` != \'Alex\');`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -271,7 +271,7 @@ test('create checks with same names', async (t) => {
 			name: varchar('name', { length: 255 }),
 		}, (table) => [
 			check('some_check_name', sql`${table.age} > 21`),
-			check('some_check_name', sql`${table.name} !== 'Alex'`),
+			check('some_check_name', sql`${table.name} != 'Alex'`),
 		]),
 	};
 
