@@ -85,10 +85,6 @@ jobs:
             dbs: [singlestore-many]
           - shard: int:singlestore-proxy
             dbs: [singlestore-many]
-          - shard: int:singlestore-prefixed
-            dbs: [singlestore]
-          - shard: int:singlestore-custom
-            dbs: [singlestore]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -218,10 +214,8 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
-            int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
-            int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
+            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
