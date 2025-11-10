@@ -87,6 +87,7 @@ export interface DropConstraint {
 	type: 'drop_constraint';
 	table: string;
 	constraint: string;
+	dropAutoIndex: boolean;
 }
 
 export interface CreateView {

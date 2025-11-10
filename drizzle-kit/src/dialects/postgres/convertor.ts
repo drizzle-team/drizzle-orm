@@ -278,7 +278,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const isSerial = isSerialType(column.type);
 
-	const notNullStatement = column.notNull && !identity && !generated && !isSerial ? ' NOT NULL' : '';
+	const notNullStatement = column.notNull && !identity && !generated && !isSerial && !st.isCompositePK
+		? ' NOT NULL'
+		: '';
 
 	const identityWithSchema = schema !== 'public'
 		? `"${schema}"."${identity?.name}"`
@@ -335,7 +337,7 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK }) as string;
+	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK, isCompositePK: false }) as string;
 
 	return [drop, add];
 });

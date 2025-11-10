@@ -2,21 +2,22 @@ import chalk from 'chalk';
 import { render, renderWithTask } from 'hanji';
 import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
 import { JsonStatement } from 'src/dialects/mysql/statements';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
+import { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import { ProgressView } from '../views';
-import { prepareTablesFilter } from './pull-common';
 
 export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
-	tablesFilter: string[],
+	filters: EntitiesFilterConfig,
 	strict: boolean,
 	verbose: boolean,
 	force: boolean,
@@ -25,7 +26,7 @@ export const handle = async (
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
 
-	const filter = prepareTablesFilter(tablesFilter);
+	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
 
 	const { db, database } = await connectToSingleStore(credentials);
 	const progress = new ProgressView(

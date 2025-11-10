@@ -3,11 +3,11 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
-import { Entities, pullParams, pushParams } from '../validations/cli';
+import { EntitiesFilterConfig, pullParams, pushParams } from '../validations/cli';
 import { CockroachCredentials, cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import {
@@ -265,10 +265,8 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		strict: boolean;
 		force: boolean;
-		tablesFilter: string[];
-		schemasFilter: string[];
 		casing?: CasingType;
-		entities?: Entities;
+		filters: EntitiesFilterConfig;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -303,22 +301,12 @@ export const preparePushConfig = async (
 		process.exit(0);
 	}
 
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	const schemasFilterConfig = config.schemaFilter;
-
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
-
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -335,9 +323,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -355,8 +341,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -374,8 +359,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -393,8 +377,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -412,8 +395,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -440,8 +422,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -460,9 +441,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -510,10 +489,8 @@ export const preparePullConfig = async (
 		out: string;
 		breakpoints: boolean;
 		casing: Casing;
-		tablesFilter: string[];
-		schemasFilter: string[];
 		prefix: Prefix;
-		entities: Entities;
+		filters: EntitiesFilterConfig;
 	}
 > => {
 	const raw = flattenPull(
@@ -532,36 +509,12 @@ export const preparePullConfig = async (
 	const config = parsed.data;
 	const dialect = config.dialect;
 
-	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
-	if (isEmptySchemaFilter) {
-		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
-		config.schemaFilter = [defaultSchema];
-	}
-
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
-
-	const schemasFilterConfig = config.schemaFilter; // TODO: consistent naming
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -576,10 +529,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -595,10 +546,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -615,10 +564,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -634,10 +581,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -653,10 +598,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -672,10 +615,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -692,10 +633,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -712,10 +651,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 

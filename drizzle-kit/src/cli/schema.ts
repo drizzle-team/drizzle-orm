@@ -325,11 +325,9 @@ export const push = command({
 			strict,
 			verbose,
 			credentials,
-			tablesFilter,
-			schemasFilter,
 			force,
 			casing,
-			entities,
+			filters,
 		} = config;
 
 		try {
@@ -338,11 +336,11 @@ export const push = command({
 				await handle(
 					schemaPath,
 					credentials,
-					tablesFilter,
 					strict,
 					verbose,
 					force,
 					casing,
+					filters,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -367,9 +365,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
-					entities,
+					filters,
 					force,
 					casing,
 				);
@@ -380,7 +376,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -391,7 +387,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -400,7 +396,7 @@ export const push = command({
 				await handle(
 					schemaPath,
 					credentials,
-					tablesFilter,
+					filters,
 					strict,
 					verbose,
 					force,
@@ -413,9 +409,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
-					entities,
+					filters,
 					force,
 					casing,
 				);
@@ -426,8 +420,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -517,8 +510,8 @@ export const up = command({
 });
 
 export const pull = command({
-	name: 'introspect',
-	aliases: ['pull'],
+	name: 'pull',
+	aliases: ['introspect'],
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
@@ -565,23 +558,10 @@ export const pull = command({
 			out,
 			casing,
 			breakpoints,
-			tablesFilter,
-			schemasFilter,
 			prefix,
-			entities,
+			filters,
 		} = config;
 		mkdirSync(out, { recursive: true });
-
-		console.log(
-			grey(
-				`Pulling from [${
-					schemasFilter
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}] list of schemas`,
-			),
-		);
-		console.log();
 
 		try {
 			if (dialect === 'postgresql') {
@@ -607,61 +587,28 @@ export const pull = command({
 				}
 
 				const { handle: introspectPostgres } = await import('./commands/pull-postgres');
-				await introspectPostgres(casing, out, breakpoints, credentials, tablesFilter, schemasFilter, prefix, entities);
+				await introspectPostgres(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'mysql') {
 				const { handle: introspectMysql } = await import('./commands/pull-mysql');
-				await introspectMysql(casing, out, breakpoints, credentials, tablesFilter, prefix);
+				await introspectMysql(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'sqlite') {
 				const { handle } = await import('./commands/pull-sqlite');
-				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'turso') {
 				const { handle } = await import('./commands/pull-libsql');
-				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix, 'libsql');
+				await handle(casing, out, breakpoints, credentials, filters, prefix, 'libsql');
 			} else if (dialect === 'singlestore') {
 				const { handle } = await import('./commands/pull-singlestore');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'gel') {
 				const { handle } = await import('./commands/pull-gel');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-					entities,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'mssql') {
 				const { handle } = await import('./commands/pull-mssql');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'cockroach') {
 				const { handle } = await import('./commands/pull-cockroach');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-					entities,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else {
 				assertUnreachable(dialect);
 			}

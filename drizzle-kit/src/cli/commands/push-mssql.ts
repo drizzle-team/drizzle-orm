@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
 import {
 	CheckConstraint,
@@ -21,6 +22,7 @@ import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
+import { EntitiesFilterConfig, SchemasFilter, TablesFilter } from '../validations/cli';
 import { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { withStyle } from '../validations/outputs';
@@ -31,8 +33,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: MssqlCredentials,
-	tablesFilter: string[],
-	schemasFilter: string[],
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -49,9 +50,11 @@ export const handle = async (
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
+	const drizzleSchemas = res.schemas.map((x) => x.schemaName).filter((x) => x !== 'public');
+	const filter = prepareEntityFilter('mssql', { ...filters, drizzleSchemas });
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
+	const { schema: schemaFrom } = await introspect(db, filter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

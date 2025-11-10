@@ -216,7 +216,9 @@ const createCheck = convertor('create_check', (st) => {
 });
 
 const dropConstraint = convertor('drop_constraint', (st) => {
-	return `ALTER TABLE \`${st.table}\` DROP CONSTRAINT \`${st.constraint}\`;`;
+	const statements = [`ALTER TABLE \`${st.table}\` DROP CONSTRAINT \`${st.constraint}\`;`];
+	if (st.dropAutoIndex) statements.push(`DROP INDEX \`${st.constraint}\` ON \`${st.table}\``);
+	return statements;
 });
 
 const createView = convertor('create_view', (st) => {

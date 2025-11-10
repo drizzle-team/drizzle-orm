@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { Column, interimToDDL, Table } from 'src/dialects/sqlite/ddl';
 import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
@@ -8,6 +9,7 @@ import type { SQLiteDB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
+import { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { SqliteCredentials } from '../validations/sqlite';
@@ -18,7 +20,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: SqliteCredentials,
-	tablesFilter: string[],
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -35,7 +37,9 @@ export const handle = async (
 		'Pulling schema from database...',
 	);
 
-	const { ddl: ddl1, errors: e2 } = await sqliteIntrospect(db, tablesFilter, progress);
+	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
+
+	const { ddl: ddl1, errors: e2 } = await sqliteIntrospect(db, filter, progress);
 
 	const { sqlStatements, statements, renames, warnings } = await ddlDiff(
 		ddl1,

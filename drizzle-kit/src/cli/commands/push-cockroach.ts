@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import {
 	CheckConstraint,
 	CockroachEntities,
@@ -21,7 +22,7 @@ import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { Entities } from '../validations/cli';
+import type { EntitiesFilterConfig, ExtensionsFilter } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
@@ -32,9 +33,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: CockroachCredentials,
-	tablesFilter: string[],
-	schemasFilter: string[],
-	entities: Entities,
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -56,8 +55,10 @@ export const handle = async (
 		process.exit(1);
 	}
 
+	const drizzleSchemas = res.schemas.map((x) => x.schemaName).filter((x) => x !== 'public');
+	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas });
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await cockroachPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
+	const { schema: schemaFrom } = await cockroachPushIntrospect(db, filter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

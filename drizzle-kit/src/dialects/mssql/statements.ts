@@ -49,6 +49,7 @@ export interface AddColumn {
 	type: 'add_column';
 	column: Column;
 	defaults: DefaultConstraint[];
+	isPK: boolean;
 }
 
 export interface DropColumn {

@@ -1,9 +1,9 @@
-import { type Simplify } from '../utils';
-import { CockroachDDL } from './cockroach/ddl';
-import { MssqlDDL } from './mssql/ddl';
+import type { Simplify } from '../utils';
+import type { CockroachDDL } from './cockroach/ddl';
+import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
-import { SQLiteDDL } from './sqlite/ddl';
+import type { SQLiteDDL } from './sqlite/ddl';
 
 export type Named = {
 	name: string;

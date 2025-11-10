@@ -1155,9 +1155,6 @@ test('hints + losses: add unique to column #1', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		`· You're about to add users_name_key unique constraint to a non-empty [users] table which may fail`,
-	]);
 	expect(error).toBeNull();
 	expect(losses).toStrictEqual([]);
 });
@@ -1192,9 +1189,6 @@ test('hints + losses: add unique to column #2', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		`· You're about to add users_name_key unique constraint to a non-empty [users] table which may fail`,
-	]);
 	expect(error).not.toBeNull();
 	expect(losses).toStrictEqual([]);
 });

@@ -28,7 +28,6 @@ import {
 	PgSchema,
 	PgSequence,
 	PgTable,
-	PgVector,
 	PgView,
 	uniqueKeyName,
 	UpdateDeleteAction,
@@ -36,8 +35,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -239,7 +239,7 @@ export const fromDrizzleSchema = (
 		matViews: PgMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -269,7 +269,7 @@ export const fromDrizzleSchema = (
 
 	res.schemas = schema.schemas
 		.filter((it) => {
-			return !it.isExisting && it.schemaName !== 'public';
+			return !it.isExisting && it.schemaName !== 'public' && filter({ type: 'schema', name: it.schemaName });
 		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
@@ -278,6 +278,8 @@ export const fromDrizzleSchema = (
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((x) => {
+		return filter({ type: 'table', schema: x.config.schema ?? 'public', name: x.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -331,13 +333,9 @@ export const fromDrizzleSchema = (
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
 			policies: drizzlePolicies,
-			enableRLS,
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
-			continue;
-		}
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {

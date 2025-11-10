@@ -2,12 +2,13 @@ import Docker from 'dockerode';
 import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import createClient from 'gel';
 import getPort from 'get-port';
-import { Entities } from 'src/cli/validations/cli';
+import { EntitiesFilter } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabase } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { tsc } from 'tests/utils';
 import { v4 as uuid } from 'uuid';
@@ -79,11 +80,12 @@ export const pull = async (
 	db: DB,
 	testName: string,
 	schemas: string[] = ['public'],
-	entities?: Entities,
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
 	// introspect to schema
-	const interim = await fromDatabase(db, () => true, (x) => schemas.indexOf(x) >= 0, entities);
+	const filter = prepareEntityFilter('gel', { tables: [], schemas, entities, drizzleSchemas: [], extensions: [] });
+	const interim = await fromDatabase(db, filter);
 	const { ddl } = interimToDDL(interim);
 	// write to ts file
 	const file = ddlToTypeScript(ddl, interim.viewColumns, 'camel', 'gel');
