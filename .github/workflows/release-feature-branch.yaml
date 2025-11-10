@@ -247,6 +247,7 @@ jobs:
               (cd ../drizzle-valibod && pnpm --stream test --reporter=verbose --silent=false)
               (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
               (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
+            ;;
             orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
