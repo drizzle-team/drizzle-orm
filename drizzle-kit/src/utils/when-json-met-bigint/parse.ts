@@ -1,13 +1,5 @@
-import {
-	Cache,
-	CONSTRUCTOR_ACTIONS,
-	error,
-	ignore,
-	isNonNullObject,
-	JsonBigIntOptions,
-	preserve,
-	PROTO_ACTIONS,
-} from './lib';
+import type { JsonBigIntOptions } from './lib';
+import { Cache, CONSTRUCTOR_ACTIONS, error, ignore, isNonNullObject, preserve, PROTO_ACTIONS } from './lib';
 
 const bigint = `bigint`;
 const number = `number`;
@@ -41,7 +33,7 @@ type InternalSchema =
 	| (InternalSchema | null)[]
 	| { [key: StringOrNumberOrSymbol]: InternalSchema | undefined };
 export type Schema<T = unknown> = unknown extends T ? InternalSchema
-	: T extends number | Number | bigint ? SimpleSchema
+	: T extends number | number | bigint ? SimpleSchema
 	: T extends (infer E)[] ? (Schema<E> | null)[]
 	// unknown wouldn't work for interface, have to be any, see https://github.com/microsoft/TypeScript/issues/42825
 	: T extends Record<StringOrNumberOrSymbol, any> ? {

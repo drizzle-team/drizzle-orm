@@ -1,30 +1,31 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/mssql/snapshot';
-import { EntityFilter, prepareEntityFilter } from 'src/dialects/pull-utils';
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareOutFolder } from 'src/utils/utils-node';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	DefaultConstraint,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	MssqlEntities,
 	PrimaryKey,
 	Schema,
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { createDDL, interimToDDL } from '../../dialects/mssql/ddl';
 import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mssql/introspect';
 import { ddlToTypeScript } from '../../dialects/mssql/typescript';
 import { type DB, originUUID } from '../../utils';
 import { resolver } from '../prompts';
-import { EntitiesFilter, EntitiesFilterConfig, SchemasFilter, TablesFilter } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { IntrospectProgress, mssqlSchemaError } from '../views';

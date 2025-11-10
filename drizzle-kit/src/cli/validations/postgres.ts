@@ -1,10 +1,11 @@
-import { boolean, coerce, literal, object, string, TypeOf, undefined, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { boolean, coerce, literal, object, string, undefined as zUndefined, union } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
 export const postgresCredentials = union([
 	object({
-		driver: undefined(),
+		driver: zUndefined(),
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
@@ -23,7 +24,7 @@ export const postgresCredentials = union([
 		return o as Omit<typeof o, 'driver'>;
 	}),
 	object({
-		driver: undefined(),
+		driver: zUndefined(),
 		url: string().min(1),
 	}).transform<{ url: string }>((o) => {
 		delete o.driver;

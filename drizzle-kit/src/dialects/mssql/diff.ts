@@ -4,14 +4,12 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	DefaultConstraint,
 	DiffEntities,
 	ForeignKey,
-	fullTableFromDDL,
 	Index,
 	MssqlDDL,
 	MssqlEntities,
@@ -20,8 +18,10 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
+import { createDDL, fullTableFromDDL } from './ddl';
 import { typesCommutative } from './grammar';
-import { JsonStatement, prepareStatement } from './statements';
+import type { JsonStatement } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -509,7 +509,7 @@ export const ddlDiff = async (
 		};
 	};
 
-	const columnsFilter = (type: 'added') => {
+	const columnsFilter = (_type: 'added') => {
 		return (it: { schema: string; table: string; column: string }) => {
 			return !columnsToCreate.some((t) => t.schema === it.schema && t.table === it.table && t.name === it.column);
 		};
@@ -566,13 +566,13 @@ export const ddlDiff = async (
 			delete it.type;
 		}
 
-		const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+		// const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
 		// When adding primary key to column it is needed to add not null first
 		// if (it.notNull && pkIn2) {
 		// 	delete it.notNull;
 		// }
 
-		const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+		// const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
 		// if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
 		// 	delete it.notNull;
 		// }

@@ -138,7 +138,7 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	const provider = typeof roles === 'object' ? roles.provider : undefined;
 
 	if (provider === 'supabase') {
-		exclude.push(...[
+		exclude.push(
 			'anon',
 			'authenticator',
 			'authenticated',
@@ -147,11 +147,11 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 			'supabase_storage_admin',
 			'dashboard_user',
 			'supabase_admin',
-		]);
+		);
 	}
 
 	if (provider === 'neon') {
-		exclude.push(...['authenticated', 'anonymous']);
+		exclude.push('authenticated', 'anonymous');
 	}
 
 	const useRoles: boolean = typeof roles === 'boolean' ? roles : include.length > 0 || exclude.length > 0;

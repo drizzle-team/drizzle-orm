@@ -1,4 +1,4 @@
-import { type IntrospectStage, type IntrospectStatus, warning } from '../../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import type {
@@ -441,7 +441,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 			const key = `${row.table_id}_${row.index_id}`;
 			if (!acc[key]) {
-				const { column_id, ...rest } = row;
+				const { column_id: _, ...rest } = row;
 				acc[key] = { ...rest, column_ids: [] };
 			}
 			acc[key].column_ids.push(row.column_id);
@@ -469,7 +469,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		const columns = unique.column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == unique.table_id && column.column_id === it
+				column.table_object_id === unique.table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
@@ -491,7 +491,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = pk.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id == pk.table_id && column.column_id === it)!;
+			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
 			return column.name;
 		});
 
@@ -512,7 +512,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = index.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id == index.table_id && column.column_id === it)!;
+			const column = columnsList.find((column) =>
+				column.table_object_id === index.table_id && column.column_id === it
+			)!;
 			return column.name;
 		});
 
@@ -566,14 +568,14 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == fk.parent_table_id && column.column_id === it
+				column.table_object_id === fk.parent_table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columns.reference_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == fk.reference_table_id && column.column_id === it
+				column.table_object_id === fk.reference_table_id && column.column_id === it
 			)!;
 			return column.name;
 		});

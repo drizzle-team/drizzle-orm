@@ -155,7 +155,7 @@ export const preserveEntityNames = <
 ) => {
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
 	for (const left of items) {
-		const { entityType: _, name, nameExplicit, ...filter } = left;
+		const { entityType: _1, name: _2, nameExplicit: _3, ...filter } = left;
 
 		const match = collection2.list({ ...filter, nameExplicit: false } as any);
 

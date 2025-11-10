@@ -94,13 +94,13 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const [ams, tablespaces, namespaces] = await Promise.all([
+	const [_ams, _tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
 	]);
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { system: _, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -786,7 +786,7 @@ export const fromDatabase = async (
 
 		const columns: typeof columnsList = [];
 		for (const ordinal of pk.columnsOrdinals) {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.ordinality === ordinal);
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === ordinal);
 
 			if (!column) {
 				continue;
@@ -813,12 +813,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableToId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -967,7 +967,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId == metadata.tableId && column.ordinality === ordinal;
+					return column.tableId === metadata.tableId && column.ordinality === ordinal;
 				});
 
 				if (column?.isHidden) continue;

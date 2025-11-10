@@ -1,12 +1,12 @@
 export const originUUID = '00000000-0000-0000-0000-000000000000';
 export const snapshotVersion = '7';
 
-export function assertUnreachable(x: never | undefined): never {
+export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
 }
 
 // don't fail in runtime, types only
-export function softAssertUnreachable(x: never) {
+export function softAssertUnreachable(_x: never) {
 	return null as never;
 }
 

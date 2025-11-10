@@ -52,7 +52,7 @@ test('adding basic indexes', async () => {
 				index()
 					.on(t.name.desc(), t.id.asc().nullsLast())
 					.with({ fillfactor: 70 })
-					.where(sql`name != 'alef'`),
+					.where(sql`name !== 'alef'`),
 				index('indx1')
 					.using('hash', t.name)
 					.with({ fillfactor: 70 }),
@@ -66,7 +66,7 @@ test('adding basic indexes', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE name != 'alef';`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE name !== 'alef';`,
 		`CREATE INDEX "indx1" ON "users" USING hash ("name") WITH (fillfactor=70);`,
 	];
 
@@ -453,7 +453,7 @@ test('index #3', async (t) => {
 			id: serial('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }).where(sql`name != 'alex'`),
+			index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }).where(sql`name !== 'alex'`),
 			index('indx1').using('hash', sql`${t.name}`).with({ fillfactor: 70 }),
 		]),
 	};
@@ -464,7 +464,7 @@ test('index #3', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE name != 'alex';`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE name !== 'alex';`,
 		`CREATE INDEX "indx1" ON "users" USING hash ("name") WITH (fillfactor=70);`,
 	];
 	expect(st).toStrictEqual(st0);

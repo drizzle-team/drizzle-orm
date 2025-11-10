@@ -1720,7 +1720,7 @@ test('add check', async () => {
 	const schema2 = {
 		table: mssqlTable('table', {
 			id: int(),
-		}, (t) => [check('new_check', sql`${t.id} != 10`), check('new_check2', sql`${t.id} != 10`)]),
+		}, (t) => [check('new_check', sql`${t.id} !== 10`), check('new_check2', sql`${t.id} !== 10`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1728,8 +1728,8 @@ test('add check', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
 	const st0 = [
-		'ALTER TABLE [table] ADD CONSTRAINT [new_check] CHECK ([table].[id] != 10);',
-		'ALTER TABLE [table] ADD CONSTRAINT [new_check2] CHECK ([table].[id] != 10);',
+		'ALTER TABLE [table] ADD CONSTRAINT [new_check] CHECK ([table].[id] !== 10);',
+		'ALTER TABLE [table] ADD CONSTRAINT [new_check2] CHECK ([table].[id] !== 10);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1739,7 +1739,7 @@ test('drop check', async () => {
 	const schema1 = {
 		table: mssqlTable('table', {
 			id: int(),
-		}, (t) => [check('new_check', sql`${t.id} != 10`)]),
+		}, (t) => [check('new_check', sql`${t.id} !== 10`)]),
 	};
 
 	const schema2 = {
@@ -1928,7 +1928,7 @@ test('alter multiple check constraints (rename)', async (t) => {
 				table,
 			) => [
 				check('some_check_name_1', sql`${table.age} > 21`),
-				check('some_check_name_2', sql`${table.name} != 'Alex'`),
+				check('some_check_name_2', sql`${table.name} !== 'Alex'`),
 			],
 		),
 	};
@@ -1945,7 +1945,7 @@ test('alter multiple check constraints (rename)', async (t) => {
 				table,
 			) => [
 				check('some_check_name_3', sql`${table.age} > 21`),
-				check('some_check_name_4', sql`${table.name} != 'Alex'`),
+				check('some_check_name_4', sql`${table.name} !== 'Alex'`),
 			],
 		),
 	};
@@ -1958,7 +1958,7 @@ test('alter multiple check constraints (rename)', async (t) => {
 		`ALTER TABLE [users] DROP CONSTRAINT [some_check_name_1];`,
 		`ALTER TABLE [users] DROP CONSTRAINT [some_check_name_2];`,
 		`ALTER TABLE [users] ADD CONSTRAINT [some_check_name_3] CHECK ([users].[age] > 21);`,
-		`ALTER TABLE [users] ADD CONSTRAINT [some_check_name_4] CHECK ([users].[name] != 'Alex');`,
+		`ALTER TABLE [users] ADD CONSTRAINT [some_check_name_4] CHECK ([users].[name] !== 'Alex');`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1975,7 +1975,7 @@ test('create checks with same names', async (t) => {
 			},
 			(
 				table,
-			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} != 'Alex'`)],
+			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} !== 'Alex'`)],
 		),
 	};
 
@@ -1992,7 +1992,7 @@ test('rename table. Table has checks', async (t) => {
 				id: int('id'),
 				name: varchar(),
 			},
-			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
+			(t) => [check('hello_world', sql`${t.name} !== 'Alex'`)],
 		),
 	};
 
@@ -2000,7 +2000,7 @@ test('rename table. Table has checks', async (t) => {
 		users: mssqlTable('users2', {
 			id: int('id'),
 			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
+		}, (t) => [check('hello_world', sql`${t.name} !== 'Alex'`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
@@ -2010,7 +2010,7 @@ test('rename table. Table has checks', async (t) => {
 	expect(st).toStrictEqual([
 		`EXEC sp_rename 'users', [users2];`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [hello_world];',
-		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
+		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] !== 'Alex');",
 	]);
 	expect(pst).toStrictEqual([`EXEC sp_rename 'users', [users2];`]); // do not trigger on definition change when using push
 });

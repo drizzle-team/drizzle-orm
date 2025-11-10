@@ -2,13 +2,12 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	DefaultConstraint,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	MssqlDDL,
 	MssqlEntities,
 	PrimaryKey,
@@ -16,14 +15,15 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { interimToDDL } from '../../dialects/mssql/ddl';
 import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { EntitiesFilterConfig, SchemasFilter, TablesFilter } from '../validations/cli';
-import { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { withStyle } from '../validations/outputs';
 import { mssqlSchemaError, ProgressView } from '../views';
@@ -102,7 +102,7 @@ export const handle = async (
 	}
 
 	if (!force && strict && hints.length === 0) {
-		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -122,7 +122,7 @@ export const handle = async (
 
 		console.log(chalk.white('Do you still want to push changes?'));
 
-		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);

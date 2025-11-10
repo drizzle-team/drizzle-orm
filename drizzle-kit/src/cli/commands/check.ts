@@ -1,4 +1,4 @@
-import { Dialect } from '../../utils/schemaValidator';
+import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
 export const checkHandler = (out: string, dialect: Dialect) => {
@@ -44,7 +44,7 @@ export const checkHandler = (out: string, dialect: Dialect) => {
 		console.log(message);
 	}
 
-	const abort = report.malformed.length!! || collisionEntries.length > 0;
+	const abort = report.malformed.length! || collisionEntries.length > 0;
 
 	if (abort) {
 		process.exit(1);

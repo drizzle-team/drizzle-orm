@@ -9,7 +9,7 @@ import { assertUnreachable } from '../utils';
 import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
-import { type Setup } from './commands/studio';
+import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
@@ -28,7 +28,7 @@ import {
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import { error, grey, MigrateProgress } from './views';
+import { error, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -673,7 +673,6 @@ export const studio = command({
 			prepareSingleStoreSchema,
 			drizzleForSingleStore,
 			drizzleForLibSQL,
-			prepareMsSqlSchema,
 			// drizzleForMsSQL,
 		} = await import('./commands/studio');
 
@@ -774,7 +773,7 @@ export const studio = command({
 				port,
 				key,
 				cert,
-				cb: (err, address) => {
+				cb: (err, _address) => {
 					if (err) {
 						console.error(err);
 					} else {

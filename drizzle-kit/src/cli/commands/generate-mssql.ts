@@ -3,25 +3,26 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
 import { prepareFilenames } from 'src/utils/utils-node';
-import { createDDL, DefaultConstraint } from '../../dialects/mssql/ddl';
-import {
+import type { DefaultConstraint } from '../../dialects/mssql/ddl';
+import { createDDL } from '../../dialects/mssql/ddl';
+import type {
 	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	MssqlEntities,
 	PrimaryKey,
 	Schema,
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { interimToDDL } from '../../dialects/mssql/ddl';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
-import { ExportConfig, GenerateConfig } from './utils';
+import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
@@ -65,7 +66,7 @@ export const handle = async (config: GenerateConfig) => {
 	const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
 	if (
 		recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
-		&& !Boolean(recreateIdentity.column.identity?.from)
+		&& !recreateIdentity.column.identity?.from
 	) {
 		console.log(
 			withStyle.warning(

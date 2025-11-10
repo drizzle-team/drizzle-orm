@@ -1,21 +1,21 @@
-import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { areStringArraysEqual, type DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
-import {
-	type CheckConstraint,
-	type Column,
-	type ForeignKey,
-	type Index,
+import type {
+	CheckConstraint,
+	Column,
+	ForeignKey,
+	Index,
 	InterimColumn,
-	type PrimaryKey,
-	type SqliteEntities,
-	type UniqueConstraint,
-	type View,
-	type ViewColumn,
+	PrimaryKey,
+	SqliteEntities,
+	UniqueConstraint,
+	View,
+	ViewColumn,
 } from './ddl';
+import type { Generated } from './grammar';
 import {
 	extractGeneratedColumns,
-	Generated,
 	nameForForeignKey,
 	nameForPk,
 	nameForUnique,
@@ -82,7 +82,7 @@ export const fromDatabase = async (
 			JOIN pragma_table_xinfo(m.name) AS p
 		WHERE 
 			m.type = 'table'
-			and m.tbl_name != '__drizzle_migrations' 
+			and m.tbl_name !== '__drizzle_migrations' 
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -109,7 +109,7 @@ export const fromDatabase = async (
 		FROM sqlite_master AS m
 			WHERE
 			m.type = 'view'
-			and m.tbl_name != '__drizzle_migrations'
+			and m.tbl_name !== '__drizzle_migrations'
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -174,7 +174,7 @@ export const fromDatabase = async (
 				JOIN pragma_table_xinfo(m.name) AS p
 			WHERE 
 				m.type = 'view'
-				and m.tbl_name != '__drizzle_migrations' 
+				and m.tbl_name !== '__drizzle_migrations' 
 				and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -190,7 +190,7 @@ export const fromDatabase = async (
 			queryCallback('viewColumns', [], error);
 			throw error;
 		});
-	} catch (_) {
+	} catch {
 		for (const view of views) {
 			try {
 				const viewColumns = await db.query<{
@@ -236,11 +236,11 @@ export const fromDatabase = async (
 	const dbTablesWithSequences = await db.query<{
 		name: string;
 	}>(
-		`SELECT * FROM sqlite_master WHERE name != 'sqlite_sequence' 
-    and name != 'sqlite_stat1' 
-    and name != '_litestream_seq' 
-    and name != '_litestream_lock' 
-    and tbl_name != '_cf_KV' 
+		`SELECT * FROM sqlite_master WHERE name !== 'sqlite_sequence' 
+    and name !== 'sqlite_stat1' 
+    and name !== '_litestream_seq' 
+    and name !== '_litestream_lock' 
+    and tbl_name !== '_cf_KV' 
     and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
 	).then((tables) => {
 		queryCallback('tablesWithSequences', tables, null);
@@ -274,7 +274,7 @@ export const fromDatabase = async (
 			pragma_index_info(il.name) AS ii
 		WHERE 
 			m.type = 'table' 
-			and m.tbl_name != '_cf_KV'
+			and m.tbl_name !== '_cf_KV'
 		ORDER BY m.name COLLATE NOCASE;
 	`).then((indexes) => {
 		queryCallback('indexes', indexes, null);
@@ -434,7 +434,7 @@ export const fromDatabase = async (
 					&& idx.column === column.name;
 			}).map((it) => {
 				const parsed = parseSqliteDdl(it.index.sql);
-				if (parsed.pk.columns.length > 1) return undefined;
+				if (parsed.pk.columns.length > 1) return;
 
 				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
 				if (!constraint) return { name: null };
@@ -483,7 +483,7 @@ export const fromDatabase = async (
 			f."on_delete" as "onDelete", 
 			f.seq as "seq"
 		FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
-		WHERE m.tbl_name != '_cf_KV';`,
+		WHERE m.tbl_name !== '_cf_KV';`,
 	).then((fks) => {
 		queryCallback('fks', fks, null);
 		return fks.filter((it) => filter({ type: 'table', schema: false, name: it.tableFrom }));

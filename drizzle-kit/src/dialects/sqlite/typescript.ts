@@ -70,7 +70,7 @@ export const ddlToTypeScript = (
 	schema: SQLiteDDL,
 	casing: Casing,
 	viewColumns: Record<string, ViewColumn[]>,
-	type: 'sqlite' | 'libsql',
+	_type: 'sqlite' | 'libsql',
 ) => {
 	for (const fk of schema.fks.list()) {
 		const relation = `${fk.table}-${fk.tableTo}`;
@@ -378,7 +378,7 @@ const createTableUniques = (
 
 const createTableChecks = (
 	checks: CheckConstraint[],
-	casing: Casing,
+	_casing: Casing,
 ): string => {
 	let statement = '';
 

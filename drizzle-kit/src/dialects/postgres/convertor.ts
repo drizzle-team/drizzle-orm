@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, splitSqlType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -91,7 +91,7 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 
 	const setOptions = Object.entries(withTo).filter(([key, val]) => {
 		const from = key in withFrom ? withFrom[key as keyof typeof withFrom] : null;
-		return val !== null && from != val;
+		return val !== null && from !== val;
 	}).map((it) => `${it[0].snake_case()} = ${it[1]}`).join(', ');
 
 	if (setOptions.length > 0) statements.push(`ALTER ${viewClause} SET (${setOptions});`);
@@ -196,14 +196,14 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 	if (pk && (pk.columns.length > 1 || pk.name !== defaultNameForPK(st.table.name))) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
+		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join(`","`)}")`;
 	}
 
 	for (const it of uniques.filter((u) => u.columns.length > 1)) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
+		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}("${
 			it.columns.join(`","`)
-		}\")`;
+		}")`;
 	}
 
 	for (const check of checks) {
@@ -1067,7 +1067,8 @@ export function fromJson(
 
 // blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/
 // test case for enum altering
-https: `
+// oxlint-disable-next-line no-unused-expressions
+`
 create table users (
 	id int,
     name character varying(128)
