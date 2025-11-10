@@ -244,7 +244,7 @@ jobs:
             kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
             validators) 
               (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
-              (cd ../drizzle-valibod && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-valibot && pnpm --stream test --reporter=verbose --silent=false)
               (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
               (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
             ;;
