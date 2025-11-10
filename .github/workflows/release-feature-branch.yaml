@@ -319,7 +319,7 @@ jobs:
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.package }}
+          name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         working-directory: ${{ matrix.package }}
@@ -344,11 +344,11 @@ jobs:
       - name: Download drizzle-orm tarball
         uses: actions/download-artifact@v4
         with:
-          name: drizzle-orm
+          name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/package.tgz ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
 
   release:
     needs: [test, prepare, attw, attw-orm]
