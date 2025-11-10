@@ -314,6 +314,7 @@ test('enums #12', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4338
 test('enums #13', async () => {
 	const from = {
 		enum: pgEnum('enum1', ['value1']),
@@ -633,6 +634,7 @@ test('enums #22', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4375
 test('enums #23', async () => {
 	const schema = pgSchema('schema');
 	const en = schema.enum('e', ['a', 'b']);

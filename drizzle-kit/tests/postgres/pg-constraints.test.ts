@@ -1405,6 +1405,7 @@ test('pk multistep #4', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4369
 test('fk #1', async () => {
 	const users = pgTable('users', {
 		id: serial().primaryKey(),

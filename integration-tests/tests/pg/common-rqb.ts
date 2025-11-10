@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { sql } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, PgColumnBuilder, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
 import { Test } from './instrumentation';
 
@@ -788,6 +788,75 @@ export function tests(test: Test) {
 					name: 'Second',
 				}]);
 			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4358
+		test.concurrent('RQB v2 find many - table creation func', async ({ push, createDB }) => {
+			const createUserTable = <T extends Record<string, PgColumnBuilder<any>>>(
+				{ customColumns, tableName }: { customColumns: T; tableName: string },
+			) =>
+				pgTable(tableName, {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					email: text('email').notNull().unique(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+					...customColumns,
+				});
+			const users = createUserTable(
+				{
+					tableName: 'rqb_users_17',
+					customColumns: {
+						test: text('test').notNull(),
+					},
+				},
+			);
+
+			const orders = pgTable('rqb_orders_17', {
+				id: serial('id').primaryKey(),
+				userId: integer('user_id').references(() => users.id).notNull(),
+				amount: integer('amount').notNull(),
+				status: text('status').notNull(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			await push({ users, orders });
+			const db = createDB({ users, orders }, (r) => ({
+				orders: {
+					user: r.one.users({
+						from: [r.orders.userId],
+						to: [r.users.id],
+					}),
+				},
+			}));
+
+			await db.insert(users).values([{ id: 1, email: 'a', name: 'b', test: 'c' }, {
+				id: 2,
+				email: 'aa',
+				name: 'bb',
+				test: 'cc',
+			}]);
+			await db.insert(orders).values([{ userId: 1, amount: 11, status: 'delivered' }, {
+				userId: 2,
+				amount: 22,
+				status: 'delivered',
+			}]);
+
+			const ordersWithUser = await db.query.orders.findMany({
+				with: {
+					user: {
+						columns: {
+							id: true,
+							// This fails type checking. `id` column works, but not `test`
+							test: true,
+						},
+					},
+				},
+			});
+
+			for (const order of ordersWithUser) {
+				expect(order.user!.id).toBeDefined();
+				expect(order.user!.test).toBeDefined();
+			}
 		});
 	});
 }

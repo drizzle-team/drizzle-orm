@@ -337,6 +337,7 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4349
 // https://github.com/drizzle-team/drizzle-orm/issues/4632
 // https://github.com/drizzle-team/drizzle-orm/issues/4644
 // https://github.com/drizzle-team/drizzle-orm/issues/4730

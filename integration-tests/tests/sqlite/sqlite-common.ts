@@ -847,6 +847,52 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4389
+		test('inner join', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const teams = sqliteTable('teams', {
+				id: integer().primaryKey(),
+			});
+			const users = sqliteTable('users', {
+				id: integer().primaryKey(),
+				name: text().notNull(),
+				teamId: integer('team_id').references(() => teams.id),
+			});
+
+			await db.run(sql`drop table if exists ${teams}`);
+			await db.run(sql`create table ${teams} (id integer primary key);`);
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`create table ${users} (id integer primary key, name text not null, team_id integer, FOREIGN KEY (team_id) REFERENCES teams(id));`,
+			);
+
+			await db.insert(teams).values([{ id: 1 }, { id: 2 }]).run();
+			await db.insert(users).values([{ id: 10, name: 'Ivan', teamId: 1 }, { id: 11, name: 'Hans', teamId: 2 }]).run();
+			const query = db
+				.select({ id: users.id, name: users.name, team_id: teams.id }).from(users)
+				.innerJoin(teams, eq(teams.id, users.teamId));
+
+			const result = await query.all();
+
+			expect(result).toEqual([{
+				users: {
+					id: 10,
+					name: 'Ivan',
+					team_id: 1,
+				},
+				customer: {
+					id: 11,
+					name: 'Hans',
+					team_id: 2,
+				},
+			}]);
+
+			await db.run(sql`drop table ${teams}`);
+			await db.run(sql`drop table ${users}`);
+		});
+
 		test('select from alias', async (ctx) => {
 			const { db } = ctx.sqlite;
 
