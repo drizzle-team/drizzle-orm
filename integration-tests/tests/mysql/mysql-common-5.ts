@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { eq, sql } from 'drizzle-orm';
 import { alias, getViewConfig, int, mysqlTable, serial, text } from 'drizzle-orm/mysql-core';
 import { describe, expect } from 'vitest';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { citiesMySchemaTable, mySchema, users2MySchemaTable, usersMySchemaTable } from './schema2';
 
 async function setupReturningFunctionsTest(batch: (s: string[]) => Promise<void>) {

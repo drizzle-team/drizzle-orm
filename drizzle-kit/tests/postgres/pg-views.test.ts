@@ -1833,7 +1833,7 @@ test('alter using - materialize', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,

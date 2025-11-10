@@ -177,6 +177,7 @@ const moveTableConvertor = convertor('move_table', (st) => {
 });
 
 const addColumnConvertor = convertor('add_column', (st) => {
+	const { isPK, isCompositePK } = st;
 	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 
@@ -192,6 +193,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		: column.type;
 	let fixedType = `${schemaPrefix}${type}${'[]'.repeat(column.dimensions)}`;
 
+	// unlike postgres cockroach requires explicit not null columns for pk
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
 	const identityStatement = identity
@@ -229,7 +231,11 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK }) as string;
+	const add = addColumnConvertor.convert({
+		column: st.column,
+		isPK: st.isPK,
+		isCompositePK: st.isCompositePK,
+	}) as string;
 
 	return [drop, add];
 });

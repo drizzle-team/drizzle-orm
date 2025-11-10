@@ -1663,7 +1663,7 @@ test('fk #11', async () => {
 	const renames = ['public.users->public.users2'];
 	const { sqlStatements } = await diff(from, to, renames);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames, log: 'statements' });
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const e = [
 		'ALTER TABLE "users" RENAME TO "users2";',
@@ -1993,7 +1993,7 @@ test('generated + pk', async (t) => {
 	const renames = ['public.table.column2->public.table.column3'];
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	expect(st).toStrictEqual([

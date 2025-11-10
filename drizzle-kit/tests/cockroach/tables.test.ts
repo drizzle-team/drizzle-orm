@@ -784,8 +784,9 @@ test('drop tables with fk constraint', async ({ dbc: db }) => {
 	const { sqlStatements: pst2 } = await push({ db, to: {} });
 
 	const expectedSt2 = [
-		'DROP TABLE "table2";',
+		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
 		'DROP TABLE "table1";',
+		'DROP TABLE "table2";',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);

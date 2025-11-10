@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { alias, boolean, int, json, serial, singlestoreTable, text, timestamp } from 'drizzle-orm/singlestore-core';
 import { describe, expect, vi } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 const usersTable = singlestoreTable('users', {
 	id: serial('id').primaryKey(),
