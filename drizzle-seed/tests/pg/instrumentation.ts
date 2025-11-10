@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { PgDatabase } from 'drizzle-orm/pg-core';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { test as base } from 'vitest';
 

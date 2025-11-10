@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { sql } from 'drizzle-orm';
 import { describe, expect } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
 
 export function tests(test: Test) {

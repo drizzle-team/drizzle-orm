@@ -18,7 +18,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
 import { toLocalDate } from '~/utils';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { createUserTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

@@ -60,7 +60,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 const msDelay = 15000;
 

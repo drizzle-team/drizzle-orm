@@ -232,8 +232,6 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
-		this.customResultMapper = customResultMapper;
-		this.fields = fields;
 	}
 
 	async run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {

@@ -62,7 +62,7 @@ import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expr
 import { describe, expect, expectTypeOf } from 'vitest';
 import { Expect } from '~/utils';
 import type { Equal } from '~/utils';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import type relations from './relations';
 
 type TestSingleStoreDB = SingleStoreDatabase<any, any, any, typeof relations>;

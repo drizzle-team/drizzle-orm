@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { boolean, integer, jsonb, PgDatabase, pgSchema, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	integer,
+	jsonb,
+	type PgDatabase,
+	pgSchema,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 
 export const rqbUser = pgTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
