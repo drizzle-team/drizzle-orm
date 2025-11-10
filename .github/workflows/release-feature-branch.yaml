@@ -346,7 +346,6 @@ jobs:
           set -euxo pipefail
           old_version="$(tar -xOf ./artifacts/package.tgz package/package.json | jq -r .version)"
           version="$old_version-$(git rev-parse --short HEAD)"
-          npm version $version
           tag="${{ github.ref_name }}"
           is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
           if [[ "$is_published" == "true" ]]; then
