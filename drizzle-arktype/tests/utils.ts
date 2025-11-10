@@ -1,4 +1,4 @@
-import { Type } from 'arktype';
+import type { Type } from 'arktype';
 import { expect, type TestContext } from 'vitest';
 
 export function expectSchemaShape<T extends Type<any, any>>(t: TestContext, expected: T) {

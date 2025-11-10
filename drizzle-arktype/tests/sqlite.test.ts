@@ -1,4 +1,4 @@
-import { Type, type } from 'arktype';
+import { type Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import type { TopLevelCondition } from 'json-rules-engine';

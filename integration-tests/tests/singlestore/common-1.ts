@@ -31,7 +31,7 @@ import {
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import { describe, expect } from 'vitest';
 import { toLocalDate } from '~/utils';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 const usersTable = singlestoreTable('userstest', {
 	id: serial('id').primaryKey(),
