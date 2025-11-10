@@ -51,17 +51,20 @@ jobs:
           )
 
           for pkg in "${packages[@]}"; do
-            pushd "$pkg" >/dev/null
+            pkg_dir="$pkg/dist"
+            package_json="$pkg_dir/package.json"
 
-            base_version="$(jq -r '.version' package.json)"
+            if [[ ! -f "$package_json" ]]; then
+              echo "WARN: $package_json not found, skipping"
+              continue
+            fi
+
+            base_version="$(jq -r '.version' "$package_json")"
             new_version="${base_version}-${suffix}"
 
-            echo "Setting $pkg version to $new_version"
-
-            jq --arg v "$new_version" '.version = $v' package.json > package.json.tmp
-            mv package.json.tmp ./dist/package.json
-
-            popd >/dev/null
+            echo "Setting $pkg dist version to $new_version"
+            jq --arg v "$new_version" '.version = $v' "$package_json" > "$package_json.tmp"
+            mv "$package_json.tmp" "$package_json"
           done
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
