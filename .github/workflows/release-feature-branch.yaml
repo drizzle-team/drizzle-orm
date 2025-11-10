@@ -64,13 +64,13 @@ jobs:
       - name: Build all
         run: pnpm build:artifact
       # Upload compiled JS for tests to reuse
-      - name: Upload build-dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-dist
-          path: |
-            **/dist
-            **/*.tsbuildinfo
+      # - name: Upload build-dist
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: build-dist
+      #     path: |
+      #       **/dist
+      #       **/*.tsbuildinfo
       - name: Pack
         run: pnpm pack:artifact
       - uses: actions/upload-artifact@v4
@@ -203,11 +203,11 @@ jobs:
             sleep 5
           done
 
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v4
-        with:
-          name: build-dist
-          path: .
+      # - name: Download build-dist (compiled JS)
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: build-dist
+      #     path: .
 
       # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
