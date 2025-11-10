@@ -1,19 +1,13 @@
 import { getTableName, is } from 'drizzle-orm';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	Many,
-	One,
-	Relation,
-	Relations,
-} from 'drizzle-orm/_relations';
-import { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { Relation, Relations } from 'drizzle-orm/_relations';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, Many, One } from 'drizzle-orm/_relations';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { Casing } from '../../cli/validations/common';
+import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
 import { escapeForTsLiteral, inspect } from '../utils';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	ForeignKey,
@@ -21,11 +15,11 @@ import {
 	Policy,
 	PostgresDDL,
 	PrimaryKey,
-	tableFromDDL,
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
-import { defaultNameForIdentitySequence, defaults, Enum, typeFor } from './grammar';
+import { tableFromDDL } from './ddl';
+import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -1007,7 +1001,7 @@ const createTableUniques = (
 
 const createTableChecks = (
 	checkConstraints: CheckConstraint[],
-	casing: Casing,
+	_casing: Casing,
 ) => {
 	let statement = '';
 

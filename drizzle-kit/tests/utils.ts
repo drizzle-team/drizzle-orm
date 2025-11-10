@@ -1,5 +1,5 @@
 export const measure = <T>(prom: Promise<T>, label: string): Promise<T> => {
-	return new Promise<T>(async (res, rej) => {
+	return new Promise<T>(async (res, rej) => { // oxlint-disable-line no-async-promise-executor
 		console.time(label);
 		try {
 			const result = await prom;
@@ -43,7 +43,7 @@ export function makeTSC2(options: ts.CompilerOptions, fileName = 'temp.ts') {
 			if (mem) return ts.ScriptSnapshot.fromString(mem.text);
 			// Defer to real FS for everything else
 			if (sys.fileExists(fn)) return ts.ScriptSnapshot.fromString(sys.readFile(fn)!);
-			return undefined;
+			return;
 		},
 		getCurrentDirectory: () => sys.getCurrentDirectory(),
 		getDefaultLibFileName: (opts) => ts.getDefaultLibFilePath(opts),

@@ -1,14 +1,15 @@
 import chalk from 'chalk';
 import { render, renderWithTask } from 'hanji';
-import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
-import { JsonStatement } from 'src/dialects/mysql/statements';
+import type { Column, Table, View } from 'src/dialects/mysql/ddl';
+import { interimToDDL } from 'src/dialects/mysql/ddl';
+import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
@@ -78,7 +79,7 @@ export const handle = async (
 		}
 
 		if (!force && strict && hints.length > 0) {
-			const { status, data } = await render(
+			const { data } = await render(
 				new Select(['No, abort', `Yes, I want to execute all statements`]),
 			);
 			if (data?.index === 0) {
@@ -99,7 +100,7 @@ export const handle = async (
 
 			console.log(chalk.white('Do you still want to push changes?'));
 
-			const { status, data } = await render(new Select(['No, abort', `Yes, execute`]));
+			const { data } = await render(new Select(['No, abort', `Yes, execute`]));
 			if (data?.index === 0) {
 				render(`[${chalk.red('x')}] All changes were aborted`);
 				process.exit(0);
@@ -216,7 +217,7 @@ export const handle = async (
 // 	});
 // };
 
-export const suggestions = async (db: DB, statements: JsonStatement[]) => {
+export const suggestions = async (_db: DB, _statements: JsonStatement[]) => {
 	const hints: string[] = [];
 	const truncates: string[] = [];
 

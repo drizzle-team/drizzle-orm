@@ -1,20 +1,18 @@
 import type { PgDatabase } from 'drizzle-orm/pg-core';
 import { upToV8 } from 'src/cli/commands/up-postgres';
-import { EntitiesFilterConfig } from 'src/cli/validations/cli';
+import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
 import type { CasingType } from '../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../cli/views';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -25,8 +23,10 @@ import {
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
-import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
+import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { toJsonSnapshot } from '../dialects/postgres/snapshot';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -115,7 +115,7 @@ export const pushSchema = async (
 	const { sql } = await import('drizzle-orm');
 
 	const db: DB = {
-		query: async (query: string, params?: any[]) => {
+		query: async (query: string, _params?: any[]) => {
 			const res = await drizzleInstance.execute(sql.raw(query));
 			return res.rows;
 		},
@@ -136,10 +136,10 @@ export const pushSchema = async (
 	const prepared = fromExports(imports);
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema: cur, errors, warnings } = fromDrizzleSchema(prepared, casing, filter);
+	const { schema: cur } = fromDrizzleSchema(prepared, casing, filter);
 
-	const { ddl: from, errors: err1 } = interimToDDL(prev);
-	const { ddl: to, errors: err2 } = interimToDDL(cur);
+	const { ddl: from, errors: _err1 } = interimToDDL(prev);
+	const { ddl: to, errors: _err2 } = interimToDDL(cur);
 
 	// TODO: handle errors, for now don't throw
 

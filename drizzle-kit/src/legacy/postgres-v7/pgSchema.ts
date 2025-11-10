@@ -1,4 +1,5 @@
-import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { any, array, boolean, enum as enumType, literal, number, object, record, string, union } from 'zod';
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
 const indexV2 = object({
@@ -609,7 +610,7 @@ export const PgSquasher = {
 		const columns: IndexColumnType[] = [];
 
 		for (const column of columnString) {
-			const [expression, asc, nulls, opclass] = column.split(',');
+			const [expression, asc, nulls] = column.split(',');
 			columns.push({
 				nulls: nulls as IndexColumnType['nulls'],
 				isExpression: expression === '',

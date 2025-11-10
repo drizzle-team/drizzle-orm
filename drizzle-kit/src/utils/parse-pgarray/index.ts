@@ -2,7 +2,7 @@ import PGArray from './grammar/grammar.ohm-bundle';
 
 const literalArraySemantics = PGArray.PGArrayLiteral.createSemantics();
 literalArraySemantics.addOperation('parseArray', {
-	Array(lBracket, argList, rBracket) {
+	Array(_lBracket, argList, _rBracket) {
 		return argList['parseArray']();
 	},
 
@@ -23,10 +23,10 @@ literalArraySemantics.addOperation('parseArray', {
 	},
 
 	_terminal() {
-		return undefined;
+		return;
 	},
 
-	stringLiteral(lQuote, string, rQuote) {
+	stringLiteral(_lQuote, string, _rQuote) {
 		return JSON.parse('"' + string.sourceString.replaceAll("''", "'") + '"');
 	},
 
@@ -41,7 +41,7 @@ literalArraySemantics.addOperation('parseArray', {
 
 const expressionArraySemantics = PGArray.PGArrayExpression.createSemantics();
 expressionArraySemantics.addOperation('parseExpressionArray', {
-	Array(lBracket, argList, rBracket) {
+	Array(_lBracket, argList, _rBracket) {
 		return argList['parseExpressionArray']();
 	},
 
@@ -62,10 +62,10 @@ expressionArraySemantics.addOperation('parseExpressionArray', {
 	},
 
 	_terminal() {
-		return undefined;
+		return;
 	},
 
-	stringLiteral(lQuote, string, rQuote) {
+	stringLiteral(_lQuote, string, _rQuote) {
 		return JSON.parse('"' + string.sourceString.replaceAll("''", "'") + '"');
 	},
 
