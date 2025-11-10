@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import {
 	CheckConstraint,
 	Column,
@@ -24,7 +25,7 @@ import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { Entities } from '../validations/cli';
+import { EntitiesFilterConfig } from '../validations/cli';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
@@ -35,9 +36,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: PostgresCredentials,
-	tablesFilter: string[],
-	allowedSchemas: string[],
-	entities: Entities,
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -48,25 +47,8 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	console.log(allowedSchemas);
-	if (allowedSchemas.length > 0) {
-		const toCheck = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
-		const missing = toCheck.filter((it) => !allowedSchemas.includes(it));
-		if (missing.length > 0) {
-			const missingArr = missing.map((it) => chalk.underline(it)).join(', ');
-			const allowedArr = allowedSchemas.map((it) => chalk.underline(it)).join(', ');
-			render(
-				`[${chalk.red('x')}] ${missingArr} schemas missing in drizzle config file "schemaFilter": [${allowedArr}]`,
-			);
-			// TODO: write a guide and link here
-			process.exit(1);
-		}
-	} else {
-		allowedSchemas.push(...res.schemas.map((it) => it.schemaName));
-	}
-	console.log('.', allowedSchemas);
-
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
+	const drizzleFilters = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas: [] });
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, drizzleFilters);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -78,7 +60,11 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, allowedSchemas, entities, progress);
+
+	const drizzleSchemas = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
+	const entityFilter = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas });
+
+	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

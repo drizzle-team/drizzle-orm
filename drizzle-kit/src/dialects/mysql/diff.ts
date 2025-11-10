@@ -278,7 +278,7 @@ export const ddlDiff = async (
 
 	const dropCheckStatements = checksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table }));
+		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table, dropAutoIndex: false }));
 
 	const dropIndexeStatements = indexesDiff.filter((it) => it.$diffType === 'drop').filter((it) =>
 		!deletedTables.some((x) => x.name === it.table)
@@ -290,7 +290,11 @@ export const ddlDiff = async (
 			const tableToDeleted = deletedTables.some((x) => x.name === it.tableTo);
 			return !(tableDeteled && !tableToDeleted);
 		})
-		.map((it) => prepareStatement('drop_constraint', { table: it.table, constraint: it.name }));
+		.map((it) => {
+			let dropAutoIndex = ddl2.indexes.one({ table: it.table, name: it.name }) === null;
+			dropAutoIndex &&= !deletedTables.some((x) => x.name === it.table);
+			return prepareStatement('drop_constraint', { table: it.table, constraint: it.name, dropAutoIndex });
+		});
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
@@ -437,7 +441,8 @@ export const ddlDiff = async (
 
 	for (const fk of alters.filter((x) => x.entityType === 'fks')) {
 		if (fk.onDelete || fk.onUpdate) {
-			dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name });
+			const dropAutoIndex = false;
+			dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name, dropAutoIndex });
 			createFKsStatements.push({ type: 'create_fk', fk: fk.$right });
 		}
 	}

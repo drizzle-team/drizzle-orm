@@ -15,11 +15,8 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { introspect } from 'src/cli/commands/pull-postgres';
-import { EmptyProgressView } from 'src/cli/views';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabase } from 'src/ext/studio-postgres';
-import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -1665,7 +1662,7 @@ test('fk #11', async () => {
 	const renames = ['public.users->public.users2'];
 	const { sqlStatements } = await diff(from, to, renames);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames });
+	const { sqlStatements: pst } = await push({ db, to, renames, log: 'statements' });
 
 	const e = [
 		'ALTER TABLE "users" RENAME TO "users2";',

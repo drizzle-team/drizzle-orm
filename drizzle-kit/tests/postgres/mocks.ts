@@ -45,15 +45,10 @@ import { PGlite } from '@electric-sql/pglite';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-ignore
 import { vector } from '@electric-sql/pglite/vector';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
-import crypto from 'node:crypto';
-import { type Client as ClientT } from 'pg';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
@@ -61,11 +56,13 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
-import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
+import { EntitiesFilter } from 'src/cli/validations/cli';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
 import { tsc } from 'tests/utils';
+import { expect } from 'vitest';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });
 
@@ -125,6 +122,7 @@ export const drizzleToDDL = (
 	} = fromDrizzleSchema(
 		{ schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews },
 		casing,
+		() => true,
 	);
 
 	if (errors.length > 0) {
@@ -185,20 +183,30 @@ export const push = async (config: {
 	tables?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	entities?: Entities;
+	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
 }) => {
-	const { db, to, tables } = config;
+	const { db, to } = config;
 
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ((_: string) => true);
+	const schemas = config.schemas ?? [];
+	const tables = config.tables ?? [];
 
-	const { schema } = await introspect(db, tables ?? [], schemas, config.entities, new EmptyProgressView());
-	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as PostgresDDL, errors: [] }
 		: drizzleToDDL(to, casing);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables,
+		schemas,
+		drizzleSchemas: ddl2.schemas.list().map((x) => x.name),
+		entities: config.entities,
+		extensions: [],
+	});
+
+	const { schema } = await introspect(db, filter, new EmptyProgressView());
+	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -247,9 +255,7 @@ export const push = async (config: {
 		{
 			const { schema } = await introspect(
 				db,
-				tables ?? [],
-				config.schemas ?? ((_: string) => true),
-				config.entities,
+				filter,
 				new EmptyProgressView(),
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -275,8 +281,7 @@ export const push = async (config: {
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}
@@ -290,22 +295,31 @@ export const diffIntrospect = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
-	entities?: Entities,
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 	for (const st of init) await db.query(st);
 
+	const filter = prepareEntityFilter('postgresql', {
+		tables: [],
+		schemas,
+		drizzleSchemas: [],
+		entities,
+		extensions: [],
+	});
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
+	const schema = await fromDatabaseForDrizzle(db, filter);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/postgres/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
 	writeFileSync(filePath, file.file);
 
-	await tsc(file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -316,7 +330,7 @@ export const diffIntrospect = async (
 		schema: schema2,
 		errors: e2,
 		warnings,
-	} = fromDrizzleSchema(response, casing);
+	} = fromDrizzleSchema(response, casing, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 
@@ -347,11 +361,6 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	schemasFilter?: string[],
 ) => {
 	await kit.clear();
-
-	let filter: ((_schema: string, tableName: string) => boolean) | undefined;
-	if (tablesFilter?.length) {
-		filter = prepareTablesFilter(tablesFilter);
-	}
 
 	const config = (builder as any).config;
 	const def = config['default'];
@@ -405,6 +414,14 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	await db.query('INSERT INTO "table" ("column") VALUES (default);');
 
+	const filter = prepareEntityFilter('postgresql', {
+		tables: tablesFilter ?? [],
+		schemas: [],
+		drizzleSchemas: [],
+		entities: undefined,
+		extensions: [],
+	});
+
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(
 		db,
@@ -421,7 +438,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

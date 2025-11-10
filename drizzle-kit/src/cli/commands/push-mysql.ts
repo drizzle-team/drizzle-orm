@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { Column, interimToDDL, Table, View } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import { JsonStatement } from '../../dialects/mysql/statements';
@@ -8,30 +9,31 @@ import { prepareFilenames } from '../../utils/utils-node';
 import { connectToMySQL } from '../connections';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
+import type { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import { ProgressView } from '../views';
-import { prepareTablesFilter } from './pull-common';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
-	tablesFilter: string[],
 	strict: boolean,
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
+	filters: EntitiesFilterConfig,
 ) => {
-	const filter = prepareTablesFilter(tablesFilter);
+	const filter = prepareEntityFilter('mysql', { ...filters, drizzleSchemas: [] });
+
 	const { db, database } = await connectToMySQL(credentials);
 	const progress = new ProgressView(
 		'Pulling schema from database...',
 		'Pulling schema from database...',
 	);
 
-	const { schema: interimFromDB } = await introspect({ db, database, progress, tablesFilter });
+	const { schema: interimFromDB } = await introspect({ db, database, progress, filter });
 
 	const filenames = prepareFilenames(schemaPath);
 

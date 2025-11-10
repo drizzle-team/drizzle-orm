@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -32,41 +32,6 @@ import {
 	wrapRecord,
 } from './grammar';
 
-function prepareRoles(entities?: {
-	roles: boolean | {
-		provider?: string | undefined;
-		include?: string[] | undefined;
-		exclude?: string[] | undefined;
-	};
-}) {
-	if (!entities || !entities.roles) return { useRoles: false, include: [], exclude: [] };
-
-	const roles = entities.roles;
-	const useRoles: boolean = typeof roles === 'boolean' ? roles : false;
-	const include: string[] = typeof roles === 'object' ? roles.include ?? [] : [];
-	const exclude: string[] = typeof roles === 'object' ? roles.exclude ?? [] : [];
-	const provider = typeof roles === 'object' ? roles.provider : undefined;
-
-	if (provider === 'supabase') {
-		exclude.push(...[
-			'anon',
-			'authenticator',
-			'authenticated',
-			'service_role',
-			'supabase_auth_admin',
-			'supabase_storage_admin',
-			'dashboard_user',
-			'supabase_admin',
-		]);
-	}
-
-	if (provider === 'neon') {
-		exclude.push(...['authenticated', 'anonymous']);
-	}
-
-	return { useRoles, include, exclude };
-}
-
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
 
@@ -74,9 +39,7 @@ function prepareRoles(entities?: {
 
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -196,7 +159,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -247,14 +210,19 @@ export const fromDatabase = async (
 		: [] as TableListItem[];
 
 	const viewsList = tablesList.filter((it) => {
-		if ((it.kind === 'v' || it.kind === 'm') && tablesFilter(it.schema, it.name)) return true;
+		if ((it.kind === 'v' || it.kind === 'm')) {
+			return filter({ type: 'table', schema: it.schema, name: it.name });
+		}
 		return false;
 	});
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.schema, it.name))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
-		return true;
+
+		if ((it.kind === 'r' || it.kind === 'p')) {
+			return filter({ type: 'table', schema: it.schema, name: it.name });
+		}
+		return false;
 	});
 
 	const filteredTableIds = filteredTables.map((it) => it.oid);
@@ -715,17 +683,7 @@ export const fromDatabase = async (
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	// TODO: drizzle link
-	const res = prepareRoles(entities);
-
-	const filteredRoles = res.useRoles
-		? rolesList
-		: (!res.include.length && !res.exclude.length
-			? []
-			: rolesList.filter(
-				(role) =>
-					(!res.exclude.length || !res.exclude.includes(role.rolname))
-					&& (!res.include.length || res.include.includes(role.rolname)),
-			));
+	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.rolname }));
 
 	for (const dbRole of filteredRoles) {
 		roles.push({
@@ -1183,7 +1141,6 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		if (!tablesFilter(view.schema, view.name)) continue;
 		tableCount += 1;
 
 		const accessMethod = view.accessMethod == 0 ? null : ams.find((it) => it.oid == view.accessMethod);
@@ -1270,16 +1227,14 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
 	res.privileges = [];

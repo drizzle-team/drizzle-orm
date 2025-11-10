@@ -108,8 +108,10 @@ jobs:
             dbs: [mssql]
           - shard: orm
             dbs: []
-          - shard: kit
-            dbs: [postgres, mysql, mssql, cockroach, postgres-postgis]
+          - shard: kit:other
+            dbs: [mysql]
+          - shard: kit:postgres
+            dbs: [postgres, postgres-postgis]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
@@ -247,12 +249,11 @@ jobs:
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            kit)
-              cd ../drizzle-kit
-              pnpm --stream vitest --reporter=verbose --silent=false run --exclude ./tests/cockroach/ --exclude ./tests/mssql/
-            ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/mssql ;;
+            
+            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
+            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
             orm|zod|seed|typebox|valibot|arktype)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;

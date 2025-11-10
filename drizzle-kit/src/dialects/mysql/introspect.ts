@@ -1,34 +1,34 @@
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
-import { DB } from '../../utils';
-import { parseParams } from '../utils';
-import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
+import type { DB } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
+import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	schema: string,
-	tablesFilter: (schema: string, table: string) => boolean = (table) => true,
+	filter: EntityFilter = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ): Promise<InterimSchema> => {
-	const res = await fromDatabase(db, schema, tablesFilter, progressCallback);
+	const res = await fromDatabase(db, schema, filter, progressCallback);
 	res.indexes = res.indexes.filter((x) => {
 		let skip = x.isUnique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
 		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
-
 		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
 		return !skip;
 	});
+
 	return res;
 };
 
 export const fromDatabase = async (
 	db: DB,
 	schema: string,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -61,7 +61,9 @@ export const fromDatabase = async (
 		ORDER BY lower(TABLE_NAME);
 	`).then((rows) => {
 		queryCallback('tables', rows, null);
-		return rows.filter((it) => tablesFilter(schema, it.name));
+		return rows.filter((it) => {
+			return filter({ type: 'table', schema: false, name: it.name });
+		});
 	}).catch((err) => {
 		queryCallback('tables', [], err);
 		throw err;
@@ -74,8 +76,9 @@ export const fromDatabase = async (
 		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
 		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => {
-		queryCallback('columns', rows, null);
-		return rows.filter((it) => tablesFilter(schema, it['TABLE_NAME']));
+		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
+		queryCallback('columns', filtered, null);
+		return filtered;
 	}).catch((err) => {
 		queryCallback('columns', [], err);
 		throw err;
@@ -89,8 +92,9 @@ export const fromDatabase = async (
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
 		ORDER BY lower(INDEX_NAME);
 	`).then((rows) => {
-		queryCallback('indexes', rows, null);
-		return rows.filter((it) => tablesFilter(schema, it['TABLE_NAME']));
+		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
+		queryCallback('indexes', filtered, null);
+		return filtered;
 	}).catch((err) => {
 		queryCallback('indexes', [], err);
 		throw err;

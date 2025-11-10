@@ -160,6 +160,7 @@ export interface JsonAddColumn {
 	type: 'add_column';
 	column: Column;
 	isPK: boolean;
+	isCompositePK: boolean;
 }
 
 export interface JsonCreatePolicy {

@@ -1,6 +1,6 @@
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -27,9 +27,7 @@ import { defaultForColumn, isSystemNamespace, parseViewDefinition } from './gram
 export const fromDatabase = async (
 	db: DB,
 	database: string,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -100,7 +98,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 
 	if (filteredNamespaces.length === 0) {
 		return {
@@ -169,7 +167,7 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.type === 'view');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!(it.type === 'table' && tablesFilter(it.schema, it.name))) return false;
+		if (!(it.type === 'table' && filter({ type: 'table', schema: it.schema, name: it.name }))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -838,7 +836,7 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		if (!tablesFilter(view.schema, view.name)) continue;
+		if (!filter({ type: 'table', schema: view.schema, name: view.name })) continue;
 		tableCount += 1;
 
 		const definition = parseViewDefinition(view.definition);

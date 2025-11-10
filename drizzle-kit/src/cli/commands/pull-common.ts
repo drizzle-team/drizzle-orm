@@ -1,4 +1,3 @@
-import { Minimatch } from 'minimatch';
 import { plural, singular } from 'pluralize';
 import { MysqlEntities } from 'src/dialects/mysql/ddl';
 import { PostgresEntities } from 'src/dialects/postgres/ddl';
@@ -16,67 +15,6 @@ const withCasing = (value: string, casing: Casing) => {
 	}
 
 	assertUnreachable(casing);
-};
-
-export const prepareTablesFilter = (set: string[]) => {
-	const matchers = set.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (_schema: string, tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	return filter;
-};
-export const prepareTablesFilterWithoutSchema = (set: string[]) => {
-	const matchers = set.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	return filter;
 };
 
 // TODO: take from beta

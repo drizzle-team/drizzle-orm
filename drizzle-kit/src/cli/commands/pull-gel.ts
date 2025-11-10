@@ -4,41 +4,33 @@ import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
-import { Entities } from '../validations/cli';
+import { EntitiesFilterConfig } from '../validations/cli';
 import { Casing, Prefix } from '../validations/common';
 import { GelCredentials } from '../validations/gel';
 import { IntrospectProgress } from '../views';
-import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
 	credentials: GelCredentials | undefined,
-	tablesFilter: string[],
-	schemasFilter: string[],
+	filters: EntitiesFilterConfig,
 	prefix: Prefix,
-	entities: Entities,
 ) => {
 	const { prepareGelDB } = await import('../connections');
 	const db = await prepareGelDB(credentials);
 
-	const filter = prepareTablesFilter(tablesFilter);
 	const progress = new IntrospectProgress(true);
+	const entityFilter = prepareEntityFilter('gel', { ...filters, drizzleSchemas: [] });
 
-	const res = await renderWithTask(
-		progress,
-		fromDatabase(
-			db,
-			filter,
-			(x) => schemasFilter.some((s) => x === s),
-			entities,
-			(stage, count, status) => {
-				progress.update(stage, count, status);
-			},
-		),
-	);
+	const task = fromDatabase(db, entityFilter, (stage, count, status) => {
+		progress.update(stage, count, status);
+	});
+
+	const res = await renderWithTask(progress, task);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 

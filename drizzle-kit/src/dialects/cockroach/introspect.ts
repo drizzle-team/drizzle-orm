@@ -1,6 +1,6 @@
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -67,9 +67,7 @@ function prepareRoles(entities?: {
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
 	queryCallback: (id: string, rows: Record<string, unknown>[], error: Error | null) => void = () => {},
 ): Promise<InterimSchema> => {
@@ -151,7 +149,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -202,10 +200,12 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const viewsList = tablesList.filter((it) => (it.kind === 'v' || it.kind === 'm') && tablesFilter(it.schema, it.name));
+	const viewsList = tablesList.filter((it) =>
+		(it.kind === 'v' || it.kind === 'm') && filter({ type: 'table', schema: it.schema, name: it.name })
+	);
 
 	const filteredTables = tablesList
-		.filter((it) => it.kind === 'r' && tablesFilter(it.schema, it.name))
+		.filter((it) => it.kind === 'r' && filter({ type: 'table', schema: it.schema, name: it.name }))
 		.map((it) => {
 			return {
 				...it,
@@ -683,16 +683,7 @@ export const fromDatabase = async (
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	// TODO: drizzle link
-	const res = prepareRoles(entities);
-	const filteredRoles = res.useRoles
-		? rolesList
-		: (!res.include.length && !res.exclude.length
-			? []
-			: rolesList.filter(
-				(role) =>
-					(!res.exclude.length || !res.exclude.includes(role.username))
-					&& (!res.include.length || res.include.includes(role.username)),
-			));
+	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.username }));
 
 	for (const dbRole of filteredRoles) {
 		const createDb = dbRole.options.includes('CREATEDB');
@@ -1114,9 +1105,6 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		const viewName = view.name;
-		if (!tablesFilter(view.schema, viewName)) continue;
-
 		const definition = parseViewDefinition(view.definition);
 
 		views.push({
@@ -1155,12 +1143,10 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (schema: string, it: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback);
 
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK);

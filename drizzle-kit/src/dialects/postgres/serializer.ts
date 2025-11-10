@@ -32,10 +32,8 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		res,
-		casing,
-	);
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema, errors, warnings } = fromDrizzleSchema(res, casing, () => true);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
