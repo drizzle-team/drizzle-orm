@@ -26,43 +26,6 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 } from './grammar';
 
-function prepareRoles(entities?: {
-	roles:
-		| boolean
-		| {
-			provider?: string | undefined;
-			include?: string[] | undefined;
-			exclude?: string[] | undefined;
-		};
-}) {
-	if (!entities || !entities.roles) return { useRoles: false, include: [], exclude: [] };
-
-	const roles = entities.roles;
-	const useRoles: boolean = typeof roles === 'boolean' ? roles : false;
-	const include: string[] = typeof roles === 'object' ? (roles.include ?? []) : [];
-	const exclude: string[] = typeof roles === 'object' ? (roles.exclude ?? []) : [];
-	const provider = typeof roles === 'object' ? roles.provider : undefined;
-
-	if (provider === 'supabase') {
-		exclude.push(...[
-			'anon',
-			'authenticator',
-			'authenticated',
-			'service_role',
-			'supabase_auth_admin',
-			'supabase_storage_admin',
-			'dashboard_user',
-			'supabase_admin',
-		]);
-	}
-
-	if (provider === 'neon') {
-		exclude.push(...['authenticated', 'anonymous']);
-	}
-
-	return { useRoles, include, exclude };
-}
-
 // TODO: tables/schema/entities -> filter: (entity: {type: ..., metadata....})=>boolean;
 // TODO: since we by default only introspect public
 export const fromDatabase = async (

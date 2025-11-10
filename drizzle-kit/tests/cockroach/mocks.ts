@@ -48,7 +48,7 @@ import { EntitiesFilter } from 'src/cli/validations/cli';
 import { hash } from 'src/dialects/common';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { measure, tsc } from 'tests/utils';
-import { test as base } from 'vitest';
+import { expect, test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -243,8 +243,7 @@ export const push = async (
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}

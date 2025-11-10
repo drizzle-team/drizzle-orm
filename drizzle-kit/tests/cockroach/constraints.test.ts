@@ -1109,7 +1109,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: sch1, log: 'statements' });
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
 	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
@@ -1126,7 +1126,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 		'public.users2.name->public.users2.name2',
 	];
 	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
-	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
 
 	const e2 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
@@ -1136,7 +1136,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	expect(pst2).toStrictEqual(e2);
 
 	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
-	const { sqlStatements: pst3 } = await push({ db, to: sch2, log: 'statements' });
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
@@ -1149,7 +1149,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, []);
-	const { sqlStatements: pst4 } = await push({ db, to: sch3, log: 'statements' });
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
 	const e4 = [
 		'ALTER TABLE "users2" DROP CONSTRAINT "users_pkey", ADD CONSTRAINT "users2_pk" PRIMARY KEY("name2");',
@@ -1165,7 +1165,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
-	const { sqlStatements: pst5 } = await push({ db, to: sch4, log: 'statements' });
+	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
 
 	const st05 = [
 		'ALTER TABLE "users2" ALTER COLUMN "id" SET NOT NULL;',
@@ -1895,9 +1895,8 @@ test('drop column with pk and add pk to another column #1', async ({ dbc: db }) 
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
 	const expectedSt2: string[] = [
-		'ALTER TABLE "authors" ADD COLUMN "orcid_id" varchar(64);',
-		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey";',
-		'ALTER TABLE "authors" ADD CONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id","orcid_id");',
+		'ALTER TABLE "authors" ADD COLUMN "orcid_id" varchar(64) NOT NULL;',
+		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey", ADD CONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id","orcid_id");',
 	];
 
 	expect(st2).toStrictEqual(expectedSt2);

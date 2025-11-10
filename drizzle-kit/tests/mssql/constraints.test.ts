@@ -1685,7 +1685,7 @@ test('fk multistep #3', async () => {
 	const schema1 = { foo, bar };
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE [foo] (\n\t[id] int,\n\tCONSTRAINT [foo_pkey] PRIMARY KEY([id])\n);\n',
 		'CREATE TABLE [bar] (\n\t[id] int,\n\t[fooId] int,\n\tCONSTRAINT [bar_pkey] PRIMARY KEY([id])\n);\n',
@@ -1701,7 +1701,7 @@ test('fk multistep #3', async () => {
 		}),
 	};
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
 		'ALTER TABLE [bar] DROP CONSTRAINT [bar_fooId_foo_id_fk];\n',
 		'DROP TABLE [foo];',
@@ -2142,7 +2142,7 @@ test('default #4', async () => {
 		'my_schema.users.name->my_schema.users.name2',
 	]);
 
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
@@ -2450,7 +2450,7 @@ test('drop column with pk and add pk to another column #1', async () => {
 	};
 
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
 	const expectedSt2: string[] = [
 		'ALTER TABLE [authors] DROP CONSTRAINT [authors_pkey];',

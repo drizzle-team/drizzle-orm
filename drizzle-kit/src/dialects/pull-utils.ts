@@ -155,8 +155,9 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	}
 
 	const useRoles: boolean = typeof roles === 'boolean' ? roles : include.length > 0 || exclude.length > 0;
+
 	if (!useRoles) return () => false;
-	if (!include.length && !exclude.length) return () => false;
+	if (!include.length && !exclude.length) return () => true;
 
 	const rolesFilter: (it: { type: 'role'; name: string }) => boolean = (it) => {
 		const notExcluded = !exclude.length || !exclude.includes(it.name);
