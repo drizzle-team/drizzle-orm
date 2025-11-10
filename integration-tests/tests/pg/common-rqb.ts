@@ -1,6 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { sql } from 'drizzle-orm';
-import { integer, PgColumnBuilder, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
 
