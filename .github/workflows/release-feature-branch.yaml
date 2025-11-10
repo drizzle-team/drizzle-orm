@@ -116,15 +116,9 @@ jobs:
             dbs: [cockroach]
           - shard: kit:mssql
             dbs: [mssql]
-          - shard: zod
-            dbs: []
           - shard: seed
             dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
-          - shard: typebox
-            dbs: []
-          - shard: valibot
-            dbs: []
-          - shard: arktype
+          - shard: validators
             dbs: []
          
     name: ${{ matrix.shard }}
@@ -254,7 +248,12 @@ jobs:
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
             kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
-            orm|zod|seed|typebox|valibot|arktype)
+            validators) 
+              (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-valibod && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
+            orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
           
