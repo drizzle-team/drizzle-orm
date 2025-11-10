@@ -397,14 +397,14 @@ test('rename column #3. Part of check constraint', async (t) => {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id'),
-		}, (t) => [check('hey', sql`${t.id} !== 2`)]),
+		}, (t) => [check('hey', sql`${t.id} != 2`)]),
 	};
 
 	const schema2 = {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id1'),
-		}, (t) => [check('hey', sql`${t.id} !== 2`)]),
+		}, (t) => [check('hey', sql`${t.id} != 2`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, [
@@ -425,7 +425,7 @@ test('rename column #3. Part of check constraint', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
-		`ALTER TABLE [new_schema].[users] ADD CONSTRAINT [hey] CHECK ([users].[id1] !== 2);`,
+		`ALTER TABLE [new_schema].[users] ADD CONSTRAINT [hey] CHECK ([users].[id1] != 2);`,
 	]);
 	// error expected
 	// since there will be changes in defintion
@@ -448,7 +448,7 @@ test('drop column #1. Part of check constraint', async (t) => {
 		users: newSchema.table('users', {
 			id: int('id'),
 			name: varchar('name'),
-		}, (t) => [check('hey', sql`${t.id} !== 2`)]),
+		}, (t) => [check('hey', sql`${t.id} != 2`)]),
 	};
 
 	const schema2 = {
@@ -1492,14 +1492,14 @@ test('drop identity from existing column #10. Table has checks', async (t) => {
 			{
 				id: int('id').identity(),
 			},
-			(t) => [check('hello_world', sql`${t.id} !== 1`)],
+			(t) => [check('hello_world', sql`${t.id} != 1`)],
 		),
 	};
 
 	const schema2 = {
 		users: mssqlTable('users', {
 			id: int('id'),
-		}, (t) => [check('hello_world', sql`${t.id} !== 1`)]),
+		}, (t) => [check('hello_world', sql`${t.id} != 1`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1516,7 +1516,7 @@ test('drop identity from existing column #10. Table has checks', async (t) => {
 		`ALTER TABLE [users] ADD [id] int;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
-		'ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[id] !== 1);',
+		'ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[id] != 1);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1531,7 +1531,7 @@ test('drop identity from existing column #11. Table has checks. Column is not in
 				id: int('id').identity(),
 				name: varchar(),
 			},
-			(t) => [check('hello_world', sql`${t.name} !== 'Alex'`)],
+			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
 		),
 	};
 
@@ -1539,7 +1539,7 @@ test('drop identity from existing column #11. Table has checks. Column is not in
 		users: mssqlTable('users', {
 			id: int('id'),
 			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} !== 'Alex'`)]),
+		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1556,7 +1556,7 @@ test('drop identity from existing column #11. Table has checks. Column is not in
 		`ALTER TABLE [users] ADD [id] int;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
-		"ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[name] !== 'Alex');",
+		"ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[name] != 'Alex');",
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -1571,7 +1571,7 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 				id: int('id').identity(),
 				name: varchar(),
 			},
-			(t) => [check('hello_world', sql`${t.name} !== 'Alex'`)],
+			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
 		),
 	};
 
@@ -1579,7 +1579,7 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 		users: mssqlTable('users2', {
 			id: int('id'),
 			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} !== 'Alex'`)]),
+		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
@@ -1598,7 +1598,7 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 		`ALTER TABLE [users2] ADD [id] int;`,
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
-		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] !== 'Alex');",
+		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -1620,7 +1620,7 @@ test('drop identity from existing column #13. Rename table + Rename column. Add 
 		users: mssqlTable('users2', {
 			id: int('id1'),
 			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} !== 'Alex'`)]),
+		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, [
@@ -1642,7 +1642,7 @@ test('drop identity from existing column #13. Rename table + Rename column. Add 
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] !== 'Alex');",
+		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1656,7 +1656,7 @@ test('drop identity from existing column #14. Rename table + Rename column. Drop
 				id: int('id').identity(),
 				name: varchar(),
 			},
-			(t) => [check('hello_world', sql`${t.name} !== 'Alex'`)],
+			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
 		),
 	};
 
@@ -1700,7 +1700,7 @@ test('drop identity from existing column #15. Rename table + Rename column. Tabl
 				id: int('id').identity(),
 				name: varchar(),
 			},
-			(t) => [check('hello_world', sql`${t.name} !== 'Alex'`)],
+			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
 		),
 	};
 
@@ -1708,7 +1708,7 @@ test('drop identity from existing column #15. Rename table + Rename column. Tabl
 		users: mssqlTable('users2', {
 			id: int('id1'),
 			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} !== 'Alex'`)]),
+		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, [
@@ -1731,7 +1731,7 @@ test('drop identity from existing column #15. Rename table + Rename column. Tabl
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] !== 'Alex');",
+		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
