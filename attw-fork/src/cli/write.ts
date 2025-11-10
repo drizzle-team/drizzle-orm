@@ -1,4 +1,4 @@
-import { Readable, Writable } from 'node:stream';
+import { Readable, type Writable } from 'node:stream';
 
 // JSON output is often longer than 64 kb, so we need to use streams to write it to stdout
 // in order to avoid truncation when piping to other commands.

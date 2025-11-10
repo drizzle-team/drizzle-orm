@@ -1,22 +1,22 @@
 import {
-	AnyRelationsBuilderConfig,
+	type AnyRelationsBuilderConfig,
 	defineRelations,
-	ExtractTablesFromSchema,
-	ExtractTablesWithRelations,
+	type ExtractTablesFromSchema,
+	type ExtractTablesWithRelations,
 	getTableName,
 	is,
-	RelationsBuilder,
-	RelationsBuilderConfig,
+	type RelationsBuilder,
+	type RelationsBuilderConfig,
 	Table,
 } from 'drizzle-orm';
-import { Cache, MutationOption } from 'drizzle-orm/cache/core';
+import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import { drizzle as drizzleSingleStore, SingleStoreDatabase } from 'drizzle-orm/singlestore';
-import { SingleStoreEnumColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
-import { SingleStoreView } from 'drizzle-orm/singlestore-core/view';
+import { drizzle as drizzleSingleStore, type SingleStoreDatabase } from 'drizzle-orm/singlestore';
+import type { SingleStoreEnumColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { SingleStoreView } from 'drizzle-orm/singlestore-core/view';
 import { drizzle as drizzleProxy } from 'drizzle-orm/singlestore-proxy';
 import Keyv from 'keyv';
-import { Connection, createConnection } from 'mysql2/promise';
+import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 import relations from './relations';
 
@@ -191,9 +191,9 @@ export const prepareSingleStoreClient = async (db: string, port: string = '3306'
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
+		return Promise.all(
 			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -228,9 +228,9 @@ export const prepareProxy = async (db: string, port: string = '3306') => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
+		return Promise.all(
 			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };

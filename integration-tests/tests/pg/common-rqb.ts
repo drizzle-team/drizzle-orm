@@ -2,7 +2,7 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 export function tests(test: Test) {
 	describe('common', () => {
