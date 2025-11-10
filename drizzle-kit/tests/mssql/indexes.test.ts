@@ -35,7 +35,7 @@ test('indexes #0', async (t) => {
 				index('changeName').on(t.name),
 				index('removeColumn').on(t.name, t.id),
 				index('addColumn').on(t.name),
-				index('removeWhere').on(t.name).where(sql`${t.name} !== 'name'`),
+				index('removeWhere').on(t.name).where(sql`${t.name} != 'name'`),
 				index('addWhere').on(t.name),
 			],
 		),
@@ -53,7 +53,7 @@ test('indexes #0', async (t) => {
 				index('removeColumn').on(t.name),
 				index('addColumn').on(t.name, t.id),
 				index('removeWhere').on(t.name),
-				index('addWhere').on(t.name).where(sql`${t.name} !== 'name'`),
+				index('addWhere').on(t.name).where(sql`${t.name} != 'name'`),
 			],
 		),
 	};
@@ -73,7 +73,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] !== 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
 	]);
 	expect(pst).toStrictEqual([
 		'DROP INDEX [changeName] ON [users];',
@@ -83,7 +83,7 @@ test('indexes #0', async (t) => {
 		'DROP INDEX [removeWhere] ON [users];',
 		'CREATE INDEX [newName] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] !== 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
 	]);
@@ -107,7 +107,7 @@ test('adding basic indexes', async () => {
 			(t) => [
 				index('indx1')
 					.on(t.name)
-					.where(sql`name !== 'alex'`),
+					.where(sql`name != 'alex'`),
 				index('indx2').on(t.id),
 			],
 		),
@@ -119,7 +119,7 @@ test('adding basic indexes', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
 	const st0 = [
-		`CREATE INDEX [indx1] ON [users] ([name]) WHERE name !== 'alex';`,
+		`CREATE INDEX [indx1] ON [users] ([name]) WHERE name != 'alex';`,
 		`CREATE INDEX [indx2] ON [users] ([id]);`,
 	];
 
@@ -209,7 +209,7 @@ test('Alter where property', async () => {
 			id: int('id').primaryKey(),
 			name: varchar('name', { length: 1000 }),
 		}, (t) => [
-			index('indx2').on(t.name).where(sql`name !== 'alex'`),
+			index('indx2').on(t.name).where(sql`name != 'alex'`),
 		]),
 	};
 
@@ -218,7 +218,7 @@ test('Alter where property', async () => {
 			id: int('id').primaryKey(),
 			name: varchar('name', { length: 1000 }),
 		}, (t) => [
-			index('indx2').on(t.name).where(sql`name !== 'alex2'`),
+			index('indx2').on(t.name).where(sql`name != 'alex2'`),
 		]),
 	};
 
@@ -229,7 +229,7 @@ test('Alter where property', async () => {
 
 	expect(st).toStrictEqual([
 		'DROP INDEX [indx2] ON [users];',
-		"CREATE INDEX [indx2] ON [users] ([name]) WHERE name !== 'alex2';",
+		"CREATE INDEX [indx2] ON [users] ([name]) WHERE name != 'alex2';",
 	]);
 	expect(pst).toStrictEqual([]);
 });

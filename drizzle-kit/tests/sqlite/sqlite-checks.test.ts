@@ -194,7 +194,7 @@ test('create checks with same names', async (t) => {
 			},
 			(
 				table,
-			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} !== 'Alex'`)],
+			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} != 'Alex'`)],
 		),
 	};
 
