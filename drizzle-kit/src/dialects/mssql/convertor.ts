@@ -1,6 +1,6 @@
-import { Simplify } from '../../utils';
-import { DefaultConstraint } from './ddl';
-import { DropColumn, JsonStatement, RenameColumn } from './statements';
+import type { Simplify } from '../../utils';
+import type { DefaultConstraint } from './ddl';
+import type { DropColumn, JsonStatement, RenameColumn } from './statements';
 
 export const convertor = <
 	TType extends JsonStatement['type'],
@@ -95,7 +95,7 @@ const renameTable = convertor('rename_table', (st) => {
 });
 
 const addColumn = convertor('add_column', (st) => {
-	const { column, defaults, isPK } = st;
+	const { column, defaults } = st;
 	const {
 		name,
 		notNull,
@@ -386,7 +386,7 @@ const dropSchema = convertor('drop_schema', (st) => {
 	return `DROP SCHEMA [${st.name}];\n`;
 });
 
-const renameSchema = convertor('rename_schema', (st) => {
+const renameSchema = convertor('rename_schema', (_st) => {
 	return `/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
  * and therefore is not supported in Drizzle ORM at this time

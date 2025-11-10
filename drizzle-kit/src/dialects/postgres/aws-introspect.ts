@@ -61,11 +61,11 @@ export const fromDatabase = async (
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 
-	type OP = {
-		oid: string;
-		name: string;
-		default: boolean;
-	};
+	// type OP = {
+	// 	oid: string;
+	// 	name: string;
+	// 	default: boolean;
+	// };
 
 	type Namespace = {
 		oid: string;
@@ -140,7 +140,7 @@ export const fromDatabase = async (
 		defaultsQuery,
 	]);
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -828,13 +828,13 @@ export const fromDatabase = async (
 			identity: column.identityType !== ''
 				? {
 					type: column.identityType === 'a' ? 'always' : 'byDefault',
-					name: sequence?.name!,
+					name: sequence?.name ?? '',
 					increment: parseIdentityProperty(metadata?.increment),
 					minValue: parseIdentityProperty(metadata?.min),
 					maxValue: parseIdentityProperty(metadata?.max),
 					startWith: parseIdentityProperty(metadata?.start),
 					cycle: metadata?.cycle === 'YES',
-					cache: Number(parseIdentityProperty(sequence?.cacheSize)) ?? 1,
+					cache: Number(parseIdentityProperty(sequence?.cacheSize ?? 1)),
 				}
 				: null,
 		});
@@ -845,7 +845,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == unique.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === unique.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -865,7 +865,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -885,12 +885,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableToId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -1045,7 +1045,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId == String(metadata.tableId) && column.ordinality === ordinal;
+					return column.tableId === String(metadata.tableId) && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 

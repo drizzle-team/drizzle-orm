@@ -5,7 +5,6 @@ import type {
 	CheckConstraint,
 	Enum,
 	ForeignKey,
-	Index,
 	InterimColumn,
 	InterimIndex,
 	InterimSchema,
@@ -55,11 +54,11 @@ export const fromDatabase = async (
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 
-	type OP = {
-		oid: number;
-		name: string;
-		default: boolean;
-	};
+	// type OP = {
+	// 	oid: number;
+	// 	name: string;
+	// 	default: boolean;
+	// };
 
 	type Namespace = {
 		oid: number;
@@ -82,11 +81,9 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const [namespaces] = await Promise.all([
-		namespacesQuery,
-	]);
+	const namespaces = await namespacesQuery;
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -461,7 +458,7 @@ export const fromDatabase = async (
 
 	// progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
-	type DBColumn = (typeof columnsList)[number];
+	// type DBColumn = (typeof columnsList)[number];
 
 	const tableColumns = columnsList.filter((it) => {
 		const table = tablesList.find((tbl) => tbl.oid === it.tableId);
@@ -567,7 +564,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
 		const columns = unique.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == unique.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === unique.tableId && column.name === it)!;
 			return column.name;
 		});
 
@@ -587,7 +584,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
 		const columns = pk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.name === it)!;
 			return column.name;
 		});
 
@@ -607,12 +604,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName)!;
 
 		const columns = fk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.name === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == tableTo.oid && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === tableTo.oid && column.name === it)!;
 			return column.name;
 		});
 
@@ -745,7 +742,7 @@ export const fromDatabase = async (
 	// 			k += 1;
 	// 		} else {
 	// 			const column = columnsList.find((column) => {
-	// 				return column.tableId == metadata.tableId && column.ordinality === ordinal;
+	// 				return column.tableId === metadata.tableId && column.ordinality === ordinal;
 	// 			});
 	// 			if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 

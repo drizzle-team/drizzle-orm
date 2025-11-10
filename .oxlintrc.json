@@ -78,7 +78,11 @@
 			],
 			"rules": {
 				"import/extensions": "off",
-				"drizzle-internal/no-instanceof": "off"
+				"drizzle-internal/no-instanceof": "off",
+				"no-useless-escape": "off",
+				"consistent-type-imports": "off",
+				"no-unused-vars": "off",
+				"no-unused-expressions": "off"
 			}
 		},
 		{
@@ -97,6 +101,12 @@
 			"files": ["**/*.d.ts"],
 			"rules": {
 				"typescript/consistent-type-imports": "off"
+			}
+		},
+		{
+			"files": ["drizzle-kit/**/*"],
+			"rules": {
+				"drizzle-internal/require-entity-kind": "off"
 			}
 		}
 	],

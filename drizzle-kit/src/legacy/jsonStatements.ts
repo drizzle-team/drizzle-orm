@@ -1,18 +1,18 @@
 import type { MySqlView } from 'drizzle-orm/mysql-core/view';
-import { JsonCreateViewStatement } from 'src/dialects/sqlite/statements';
-import { MySqlSchema, MySqlSquasher } from './mysql-v5/mysqlSchema';
-import {
+import type { MySqlSchema } from './mysql-v5/mysqlSchema';
+import { MySqlSquasher } from './mysql-v5/mysqlSchema';
+import type {
 	Index,
 	MatViewWithOption,
 	PgSchema,
 	PgSchemaSquashed,
-	PgSquasher,
 	Policy,
 	Role,
 	View as PgView,
 	ViewWithOption,
 } from './postgres-v7/pgSchema';
-import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { PgSquasher } from './postgres-v7/pgSchema';
+import type { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -1905,7 +1905,7 @@ export const prepareAddCompositePrimaryKeyMySql = (
 	pks: Record<string, string>,
 	// TODO: remove?
 	json1: MySqlSchema,
-	json2: MySqlSchema,
+	_json2: MySqlSchema,
 ): JsonCreateCompositePK[] => {
 	const res: JsonCreateCompositePK[] = [];
 	for (const it of Object.values(pks)) {

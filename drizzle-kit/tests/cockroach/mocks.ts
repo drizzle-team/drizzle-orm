@@ -674,7 +674,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 
 export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
 	kit: [
-		async ({}, use) => {
+		async ({}, use) => { // oxlint-disable-line no-empty-pattern
 			const kit = await prepareTestDatabase();
 			try {
 				await use(kit);

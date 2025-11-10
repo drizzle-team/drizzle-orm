@@ -936,13 +936,13 @@ test('defaults: timestamptz with precision', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({
-		db: db,
+		db,
 		to: schema1,
 		tables: ['users'],
 		schemas: ['public'],
 	});
 	const { sqlStatements: pst } = await push({
-		db: db,
+		db,
 		to: schema2,
 		tables: ['users'],
 		schemas: ['public'],

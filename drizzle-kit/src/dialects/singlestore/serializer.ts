@@ -1,8 +1,9 @@
 import type { CasingType } from '../../cli/validations/common';
-import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MysqlDDL } from '../mysql/ddl';
-import { drySnapshot, MysqlSnapshot, snapshotValidator } from '../mysql/snapshot';
+import type { MysqlDDL } from '../mysql/ddl';
+import { createDDL, interimToDDL } from '../mysql/ddl';
+import type { MysqlSnapshot } from '../mysql/snapshot';
+import { drySnapshot, snapshotValidator } from '../mysql/snapshot';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 
 export const prepareSnapshot = async (
@@ -18,8 +19,8 @@ export const prepareSnapshot = async (
 		custom: MysqlSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -46,7 +47,7 @@ export const prepareSnapshot = async (
 	// 	process.exit(1);
 	// }
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
+	const { ddl: ddlCur, errors: _errors2 } = interimToDDL(interim);
 
 	// TODO: handle errors
 	// if (errors2.length > 0) {

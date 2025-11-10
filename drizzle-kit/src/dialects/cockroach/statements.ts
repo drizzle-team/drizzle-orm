@@ -1,5 +1,4 @@
 import type { Simplify } from '../../utils';
-import type { DiffColumn } from '../sqlite/ddl';
 import type {
 	CheckConstraint,
 	Column,

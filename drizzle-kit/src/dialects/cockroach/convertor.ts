@@ -129,7 +129,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 	if (pk && (pk.columns.length > 1 || pk.name !== defaultNameForPK(st.table.name))) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
+		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join(`","`)}")`;
 	}
 
 	for (const check of checks) {
@@ -177,7 +177,6 @@ const moveTableConvertor = convertor('move_table', (st) => {
 });
 
 const addColumnConvertor = convertor('add_column', (st) => {
-	const { isPK, isCompositePK } = st;
 	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 

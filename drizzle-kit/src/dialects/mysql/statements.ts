@@ -1,5 +1,5 @@
-import { Simplify } from '../../utils';
-import { CheckConstraint, Column, DiffEntities, ForeignKey, Index, PrimaryKey, TableFull, View } from './ddl';
+import type { Simplify } from '../../utils';
+import type { CheckConstraint, Column, DiffEntities, ForeignKey, Index, PrimaryKey, TableFull, View } from './ddl';
 
 export interface CreateTable {
 	type: 'create_table';

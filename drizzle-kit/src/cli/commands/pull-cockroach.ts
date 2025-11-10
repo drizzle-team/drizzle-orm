@@ -1,24 +1,25 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/cockroach/snapshot';
-import { EntityFilter, prepareEntityFilter } from 'src/dialects/pull-utils';
-import {
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	CockroachEntities,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PrimaryKey,
 	Schema,
 	Sequence,
 	View,
 } from '../../dialects/cockroach/ddl';
+import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
@@ -26,7 +27,7 @@ import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
-import type { EntitiesFilterConfig, ExtensionsFilter, SchemasFilter, TablesFilter } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { Casing, Prefix } from '../validations/common';
 import { IntrospectProgress } from '../views';

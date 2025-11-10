@@ -1,8 +1,16 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
-import {
+import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
+import type {
 	AnyPgColumn,
 	AnyPgTable,
+	PgEnum,
+	PgMaterializedView,
+	PgMaterializedViewWithConfig,
+	PgSequence,
+	UpdateDeleteAction,
+	ViewWithConfig,
+} from 'drizzle-orm/pg-core';
+import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
@@ -13,27 +21,21 @@ import {
 	isPgView,
 	PgArray,
 	PgDialect,
-	PgEnum,
 	PgEnumColumn,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
 	PgLineTuple,
-	PgMaterializedView,
-	PgMaterializedViewWithConfig,
 	PgPointObject,
 	PgPointTuple,
 	PgPolicy,
 	PgRole,
 	PgSchema,
-	PgSequence,
 	PgTable,
 	PgView,
 	uniqueKeyName,
-	UpdateDeleteAction,
-	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';

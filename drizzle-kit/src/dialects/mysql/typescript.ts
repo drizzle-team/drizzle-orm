@@ -1,8 +1,8 @@
 import { toCamelCase } from 'drizzle-orm/casing';
-import { Casing } from 'src/cli/validations/common';
+import type { Casing } from 'src/cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { inspect } from '../utils';
-import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
+import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
 
 export const imports = [

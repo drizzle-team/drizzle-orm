@@ -1,7 +1,8 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mysql/serializer';
 import { prepareFilenames } from 'src/utils/utils-node';
-import { Column, createDDL, interimToDDL, type Table, View } from '../../dialects/mysql/ddl';
+import type { Column, View } from '../../dialects/mysql/ddl';
+import { createDDL, interimToDDL, type Table } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
@@ -17,7 +18,7 @@ export const handle = async (config: GenerateConfig) => {
 	assertV1OutFolder(outFolder);
 
 	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mysql');
-	const { ddlCur, ddlPrev, snapshot, snapshotPrev, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({

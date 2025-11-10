@@ -1,7 +1,7 @@
-import { Casing, getTableName, is, SQL } from 'drizzle-orm';
+import type { Casing } from 'drizzle-orm';
+import { getTableName, is, SQL } from 'drizzle-orm';
+import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
-	AnyMsSqlColumn,
-	AnyMsSqlTable,
 	getTableConfig,
 	getViewConfig,
 	MsSqlColumn,
@@ -10,10 +10,10 @@ import {
 	MsSqlTable,
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
-import { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
+import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
@@ -97,7 +97,7 @@ export const fromDrizzleSchema = (
 		defaults: [],
 	};
 
-	for (const { table, config } of tableConfigPairs) {
+	for (const { config } of tableConfigPairs) {
 		const {
 			name: tableName,
 			columns,

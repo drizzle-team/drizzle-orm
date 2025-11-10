@@ -1,4 +1,5 @@
-import { enum as enumType, TypeOf } from 'zod';
+import type { TypeOf } from 'zod';
+import { enum as enumType } from 'zod';
 
 export const dialects = [
 	'postgresql',
