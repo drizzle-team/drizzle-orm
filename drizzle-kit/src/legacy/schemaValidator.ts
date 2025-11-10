@@ -1,4 +1,5 @@
-import { enum as enumType, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { enum as enumType } from 'zod';
 
 export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'gel'] as const;
 export const dialect = enumType(dialects);

@@ -4,16 +4,10 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import { Column, createDDL, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
-import { nameForForeignKey } from './grammar';
-import {
-	JsonCreateViewStatement,
-	JsonDropViewStatement,
-	JsonStatement,
-	prepareAddColumns,
-	prepareRecreateColumn,
-	prepareStatement,
-} from './statements';
+import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
+import { tableFromDDL } from './ddl';
+import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
+import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, mode: 'push' | 'default') => {
 	const empty = new Set<string>();
@@ -293,9 +287,9 @@ export const ddlDiff = async (
 	const tablesToRecreate = Array.from(setOfTablesToRecereate);
 
 	// TODO: handle
-	const viewsToRecreateBecauseOfTables = tablesToRecreate.map((it) => {
-		return ddl2.views.one({});
-	});
+	// const viewsToRecreateBecauseOfTables = tablesToRecreate.map((it) => {
+	// 	return ddl2.views.one({});
+	// });
 
 	const jsonRecreateTables = tablesToRecreate.map((it) => {
 		return prepareStatement('recreate_table', { to: tableFromDDL(it, ddl2), from: tableFromDDL(it, ddl1) });

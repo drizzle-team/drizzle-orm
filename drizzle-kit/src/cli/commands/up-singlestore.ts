@@ -1,1 +1,1 @@
-export const upSinglestoreHandler = (out: string) => {};
+export const upSinglestoreHandler = (_out: string) => {};

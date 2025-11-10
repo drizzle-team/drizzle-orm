@@ -6,10 +6,9 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	DiffEntities,
 	Enum,
 	ForeignKey,
@@ -23,12 +22,13 @@ import {
 	Role,
 	Schema,
 	Sequence,
-	tableFromDDL,
 	UniqueConstraint,
 	View,
 } from './ddl';
+import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative } from './grammar';
-import { JsonStatement, prepareStatement } from './statements';
+import type { JsonStatement } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();

@@ -674,7 +674,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 
 export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
 	kit: [
-		async ({}, use) => {
+		async (_, use) => {
 			const kit = await prepareTestDatabase();
 			try {
 				await use(kit);

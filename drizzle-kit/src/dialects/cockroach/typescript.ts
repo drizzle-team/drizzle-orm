@@ -1,19 +1,10 @@
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, possibleIntervals, trimChar } from '../../utils';
+import type { Casing } from '../../cli/validations/common';
+import { assertUnreachable, trimChar } from '../../utils';
 import { inspect } from '../utils';
-import {
-	CheckConstraint,
-	CockroachDDL,
-	Column,
-	ForeignKey,
-	Index,
-	Policy,
-	PrimaryKey,
-	tableFromDDL,
-	ViewColumn,
-} from './ddl';
+import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
+import { tableFromDDL } from './ddl';
 import { defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass...
@@ -60,31 +51,31 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 	return statement;
 };
 
-const intervalStrToObj = (str: string) => {
-	if (str.startsWith('interval(')) {
-		return {
-			precision: Number(str.substring('interval('.length, str.length - 1)),
-		};
-	}
-	const splitted = str.split(' ');
-	if (splitted.length === 1) {
-		return {};
-	}
-	const rest = splitted.slice(1, splitted.length).join(' ');
-	if (possibleIntervals.includes(rest)) {
-		return { fields: `"${rest}"` };
-	}
+// const intervalStrToObj = (str: string) => {
+// 	if (str.startsWith('interval(')) {
+// 		return {
+// 			precision: Number(str.substring('interval('.length, str.length - 1)),
+// 		};
+// 	}
+// 	const splitted = str.split(' ');
+// 	if (splitted.length === 1) {
+// 		return {};
+// 	}
+// 	const rest = splitted.slice(1, splitted.length).join(' ');
+// 	if (possibleIntervals.includes(rest)) {
+// 		return { fields: `"${rest}"` };
+// 	}
 
-	for (const s of possibleIntervals) {
-		if (rest.startsWith(`${s}(`)) {
-			return {
-				fields: `"${s}"`,
-				precision: Number(rest.substring(s.length + 1, rest.length - 1)),
-			};
-		}
-	}
-	return {};
-};
+// 	for (const s of possibleIntervals) {
+// 		if (rest.startsWith(`${s}(`)) {
+// 			return {
+// 				fields: `"${s}"`,
+// 				precision: Number(rest.substring(s.length + 1, rest.length - 1)),
+// 			};
+// 		}
+// 	}
+// 	return {};
+// };
 
 const relations = new Set<string>();
 
@@ -676,7 +667,7 @@ const createTablePolicies = (
 	return statement;
 };
 
-const createTableChecks = (checkConstraints: CheckConstraint[], casing: Casing) => {
+const createTableChecks = (checkConstraints: CheckConstraint[], _casing: Casing) => {
 	let statement = '';
 
 	checkConstraints.forEach((it) => {

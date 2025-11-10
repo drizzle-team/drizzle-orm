@@ -3,12 +3,12 @@ import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import { trimChar } from '../../utils';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMysqlHandler = (_out: string) => {};
 
 export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 	const json = it as MysqlSchema;
 
-	const hints = [] as string[];
+	// const hints = [] as string[];
 
 	const ddl = createDDL();
 

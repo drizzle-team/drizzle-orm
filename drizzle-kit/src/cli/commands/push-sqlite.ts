@@ -1,16 +1,17 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { Column, interimToDDL, Table } from 'src/dialects/sqlite/ddl';
+import type { Column, Table } from 'src/dialects/sqlite/ddl';
+import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
-import { JsonStatement } from 'src/dialects/sqlite/statements';
+import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteDB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
-import { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { ProgressView } from '../views';
@@ -30,7 +31,7 @@ export const handle = async (
 	const db = await connectToSQLite(credentials);
 	const files = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(files);
-	const { ddl: ddl2, errors: e1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+	const { ddl: ddl2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	const progress = new ProgressView(
 		'Pulling schema from database...',
@@ -39,9 +40,9 @@ export const handle = async (
 
 	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
 
-	const { ddl: ddl1, errors: e2 } = await sqliteIntrospect(db, filter, progress);
+	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress);
 
-	const { sqlStatements, statements, renames, warnings } = await ddlDiff(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),
@@ -54,7 +55,7 @@ export const handle = async (
 		return;
 	}
 
-	const { hints, statements: truncateStatements } = await suggestions(db, statements);
+	const { hints } = await suggestions(db, statements);
 
 	if (verbose && sqlStatements.length > 0) {
 		console.log();
@@ -67,7 +68,7 @@ export const handle = async (
 	}
 
 	if (!force && strict) {
-		const { status, data } = await render(
+		const { data } = await render(
 			new Select(['No, abort', `Yes, I want to execute all statements`]),
 		);
 		if (data?.index === 0) {
@@ -88,7 +89,7 @@ export const handle = async (
 
 		console.log(chalk.white('Do you still want to push changes?'));
 
-		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -103,16 +104,17 @@ export const handle = async (
 			// D1-HTTP does not support transactions
 			// there might a be a better way to fix this
 			// in the db connection itself
-			const isNotD1 = !('driver' in credentials && credentials.driver === 'd1-http');
-			isNotD1 ?? await db.run('begin');
+			const isD1 = 'driver' in credentials && credentials.driver === 'd1-http';
+			if (!isD1) await db.run('begin');
 			try {
 				for (const dStmnt of sqlStatements) {
 					await db.run(dStmnt);
 				}
-				isNotD1 ?? await db.run('commit');
+				if (!isD1) await db.run('commit');
 			} catch (e) {
 				console.error(e);
-				isNotD1 ?? await db.run('rollback');
+
+				if (!isD1) await db.run('rollback');
 				process.exit(1);
 			}
 		}

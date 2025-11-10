@@ -9,7 +9,7 @@ import {
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test.concurrent('create view', async ({ db: db }) => {
+test.concurrent('create view', async ({ db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
@@ -37,7 +37,7 @@ test.concurrent('create view', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and view #1', async ({ db: db }) => {
+test.concurrent('create table and view #1', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -61,7 +61,7 @@ test.concurrent('create table and view #1', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and view #2', async ({ db: db }) => {
+test.concurrent('create table and view #2', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -85,7 +85,7 @@ test.concurrent('create table and view #2', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and view #5', async ({ db: db }) => {
+test.concurrent('create table and view #5', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -100,7 +100,7 @@ test.concurrent('create table and view #5', async ({ db: db }) => {
 	await expect(push({ db, to })).rejects.toThrow();
 });
 
-test.concurrent('create view with existing flag', async ({ db: db }) => {
+test.concurrent('create view with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -127,7 +127,7 @@ test.concurrent('create view with existing flag', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create materialized view', async ({ db: db }) => {
+test.concurrent('create materialized view', async ({ db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
@@ -158,7 +158,7 @@ test.concurrent('create materialized view', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and materialized view #1', async ({ db: db }) => {
+test.concurrent('create table and materialized view #1', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -182,7 +182,7 @@ test.concurrent('create table and materialized view #1', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and materialized view #2', async ({ db: db }) => {
+test.concurrent('create table and materialized view #2', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -206,7 +206,7 @@ test.concurrent('create table and materialized view #2', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and materialized view #3', async ({ db: db }) => {
+test.concurrent('create table and materialized view #3', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -230,7 +230,7 @@ test.concurrent('create table and materialized view #3', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('create table and materialized view #4', async ({ db: db }) => {
+test.concurrent('create table and materialized view #4', async ({ db }) => {
 	// same names
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
@@ -246,7 +246,7 @@ test.concurrent('create table and materialized view #4', async ({ db: db }) => {
 	await expect(push({ db, to })).rejects.toThrow();
 });
 
-test.concurrent('create materialized view with existing flag', async ({ db: db }) => {
+test.concurrent('create materialized view with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -273,7 +273,7 @@ test.concurrent('create materialized view with existing flag', async ({ db: db }
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop view #1', async ({ db: db }) => {
+test.concurrent('drop view #1', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -302,7 +302,7 @@ test.concurrent('drop view #1', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop view #2', async ({ db: db }) => {
+test.concurrent('drop view #2', async ({ db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
@@ -330,7 +330,7 @@ test.concurrent('drop view #2', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop view with existing flag', async ({ db: db }) => {
+test.concurrent('drop view with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -357,7 +357,7 @@ test.concurrent('drop view with existing flag', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop view with data', async ({ db: db }) => {
+test.concurrent('drop view with data', async ({ db }) => {
 	const table = cockroachTable('table', {
 		id: int4('id').primaryKey(),
 	});
@@ -452,7 +452,7 @@ test.concurrent('drop materialized view #2', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop materialized view with existing flag', async ({ db: db }) => {
+test.concurrent('drop materialized view with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -542,7 +542,7 @@ test.concurrent('drop materialized view without data', async ({ db }) => {
 	expect(phints).toStrictEqual(hints0);
 });
 
-test.concurrent('rename view #1', async ({ db: db }) => {
+test.concurrent('rename view #1', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', { id: int4() }),
 		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
@@ -566,7 +566,7 @@ test.concurrent('rename view #1', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('rename view with existing flag', async ({ db: db }) => {
+test.concurrent('rename view with existing flag', async ({ db }) => {
 	const from = {
 		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
@@ -614,7 +614,7 @@ test.concurrent('rename materialized view #1', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('rename materialized view with existing flag', async ({ db: db }) => {
+test.concurrent('rename materialized view with existing flag', async ({ db }) => {
 	const from = {
 		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
@@ -638,7 +638,7 @@ test.concurrent('rename materialized view with existing flag', async ({ db: db }
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('view alter schema', async ({ db: db }) => {
+test.concurrent('view alter schema', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const from = {
@@ -666,7 +666,7 @@ test.concurrent('view alter schema', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('view alter schema with existing flag', async ({ db: db }) => {
+test.concurrent('view alter schema with existing flag', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const from = {
@@ -723,7 +723,7 @@ test.concurrent('view alter schema for materialized', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('view alter schema for materialized with existing flag', async ({ db: db }) => {
+test.concurrent('view alter schema for materialized with existing flag', async ({ db }) => {
 	const schema = cockroachSchema('new_schema');
 
 	const from = {
@@ -752,7 +752,7 @@ test.concurrent('view alter schema for materialized with existing flag', async (
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('alter view ".as" value', async ({ db: db }) => {
+test.concurrent('alter view ".as" value', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -783,7 +783,7 @@ test.concurrent('alter view ".as" value', async ({ db: db }) => {
 	expect(pst).toStrictEqual([]); // push ignored definition change
 });
 
-test.concurrent('alter view ".as" value with existing flag', async ({ db: db }) => {
+test.concurrent('alter view ".as" value with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -842,7 +842,7 @@ test.concurrent('alter materialized view ".as" value', async ({ db }) => {
 	expect(pst).toStrictEqual([]); // we ignore definition changes for push
 });
 
-test.concurrent('alter materialized view ".as" value with existing flag', async ({ db: db }) => {
+test.concurrent('alter materialized view ".as" value with existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -870,7 +870,7 @@ test.concurrent('alter materialized view ".as" value with existing flag', async 
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop existing flag', async ({ db: db }) => {
+test.concurrent('drop existing flag', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -930,7 +930,7 @@ test.concurrent('set existing - materialized', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('drop existing - materialized', async ({ db: db }) => {
+test.concurrent('drop existing - materialized', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -959,7 +959,7 @@ test.concurrent('drop existing - materialized', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('set existing', async ({ db: db }) => {
+test.concurrent('set existing', async ({ db }) => {
 	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
@@ -985,7 +985,7 @@ test.concurrent('set existing', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('moved schema', async ({ db: db }) => {
+test.concurrent('moved schema', async ({ db }) => {
 	const schema = cockroachSchema('my_schema');
 	const from = {
 		schema,
@@ -1014,7 +1014,7 @@ test.concurrent('moved schema', async ({ db: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('push view with same name', async ({ db: db }) => {
+test.concurrent('push view with same name', async ({ db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});

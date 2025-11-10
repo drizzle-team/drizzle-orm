@@ -1,7 +1,7 @@
 import { plural, singular } from 'pluralize';
-import { MysqlEntities } from 'src/dialects/mysql/ddl';
-import { PostgresEntities } from 'src/dialects/postgres/ddl';
-import { SqliteEntities } from 'src/dialects/sqlite/ddl';
+import type { MysqlEntities } from 'src/dialects/mysql/ddl';
+import type { PostgresEntities } from 'src/dialects/postgres/ddl';
+import type { SqliteEntities } from 'src/dialects/sqlite/ddl';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';

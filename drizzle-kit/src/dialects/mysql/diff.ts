@@ -1,13 +1,14 @@
 import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
-import { Resolver } from '../common';
+import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
+import type { Column, DiffEntities, Index, MysqlDDL, Table, View } from './ddl';
+import { fullTableFromDDL } from './ddl';
 import { charSetAndCollationCommutative, commutative, defaultNameForFK } from './grammar';
 import { prepareStatement } from './statements';
-import { JsonStatement } from './statements';
+import type { JsonStatement } from './statements';
 
 export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
 	const s = new Set<string>();
@@ -416,7 +417,7 @@ export const ddlDiff = async (
 
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
-			const { $diffType, $left, $right, entityType, table, ...rest } = it;
+			// const { $diffType: _1, $left: _2, $right: _3, entityType: _4, table: _5, ...rest } = it;
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const isPK = !!ddl2.pks.one({ table: it.table, columns: [it.name] });
 			const wasPK = !!ddl1.pks.one({ table: it.table, columns: [it.name] });

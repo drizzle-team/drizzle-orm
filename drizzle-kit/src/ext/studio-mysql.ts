@@ -1,17 +1,17 @@
 import { fromDatabase as fd } from 'src/dialects/mysql/introspect';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	ForeignKey,
 	Index,
 	InterimColumn,
 	InterimSchema,
-	interimToDDL,
 	MysqlEntities,
 	PrimaryKey,
 	View,
 	ViewColumn,
 } from '../dialects/mysql/ddl';
+import { interimToDDL } from '../dialects/mysql/ddl';
 import { ddlDiff } from '../dialects/mysql/diff';
 import { mockResolver } from '../utils/mocks';
 
@@ -89,7 +89,7 @@ const fromInterims = ({
 		})
 		.flat(1);
 
-	const vws: View[] = views.map(({ columns, ...it }) => {
+	const vws: View[] = views.map(({ columns: _, ...it }) => {
 		return {
 			entityType: 'views',
 			algorithm: it.algorithm,

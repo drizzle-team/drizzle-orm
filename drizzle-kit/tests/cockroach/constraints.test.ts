@@ -1100,7 +1100,7 @@ test.concurrent('pk multistep #2', async ({ dbc: db }) => {
 	]);
 });
 
-test.concurrent('pk multistep #3', async ({ db: db }) => {
+test.concurrent('pk multistep #3', async ({ db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().primaryKey(),

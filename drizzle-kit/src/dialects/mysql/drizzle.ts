@@ -1,7 +1,7 @@
-import { Casing, getTableName, is, SQL } from 'drizzle-orm';
+import type { Casing } from 'drizzle-orm';
+import { getTableName, is, SQL } from 'drizzle-orm';
+import type { AnyMySqlColumn, AnyMySqlTable } from 'drizzle-orm/mysql-core';
 import {
-	AnyMySqlColumn,
-	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
 	MySqlChar,
@@ -15,10 +15,10 @@ import {
 	MySqlVarChar,
 	MySqlView,
 } from 'drizzle-orm/mysql-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
-import { Column, InterimSchema } from './ddl';
+import type { Column, InterimSchema } from './ddl';
 import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
 
 export const defaultFromColumn = (
@@ -254,7 +254,6 @@ export const fromDrizzleSchema = (
 			isExisting,
 			name,
 			query,
-			schema,
 			selectedFields,
 			algorithm,
 			sqlSecurity,

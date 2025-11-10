@@ -6,9 +6,9 @@ import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
-import { EntitiesFilterConfig } from '../validations/cli';
-import { Casing, Prefix } from '../validations/common';
-import { GelCredentials } from '../validations/gel';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { Casing, Prefix } from '../validations/common';
+import type { GelCredentials } from '../validations/gel';
 import { IntrospectProgress } from '../views';
 import { relationsToTypeScript } from './pull-common';
 
@@ -18,7 +18,7 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: GelCredentials | undefined,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
+	_prefix: Prefix,
 ) => {
 	const { prepareGelDB } = await import('../connections');
 	const db = await prepareGelDB(credentials);

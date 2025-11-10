@@ -3,7 +3,8 @@ import { writeFileSync } from 'fs';
 import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
-import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6, SqliteSnapshot } from '../../dialects/sqlite/snapshot';
+import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
+import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6 } from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
 
 export const upSqliteHandler = (out: string) => {
@@ -13,7 +14,7 @@ export const upSqliteHandler = (out: string) => {
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it]! as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;
@@ -143,7 +144,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	};
 };
 
-const updateUpToV6 = (json: Object): SQLiteSchemaV6 => {
+const updateUpToV6 = (json: object): SQLiteSchemaV6 => {
 	const schema = sqliteSchemaV5.parse(json);
 
 	const tables = mapEntries(schema.tables, (tableKey, table) => {

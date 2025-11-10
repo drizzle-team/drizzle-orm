@@ -21,7 +21,7 @@ test.concurrent('adding basic indexes', async ({ dbc: db }) => {
 			(t) => [
 				index()
 					.on(t.name, t.id.desc())
-					.where(sql`name != 'alef'`),
+					.where(sql`name !== 'alef'`),
 				index('indx1').using('hash', t.name),
 			],
 		),
@@ -33,7 +33,7 @@ test.concurrent('adding basic indexes', async ({ dbc: db }) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		`CREATE INDEX "users_name_id_index" ON "users" ("name","id" DESC) WHERE name != 'alef';`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name","id" DESC) WHERE name !== 'alef';`,
 		`CREATE INDEX "indx1" ON "users" ("name") USING hash;`,
 	];
 
@@ -379,7 +379,7 @@ test.concurrent('index #3', async ({ dbc: db }) => {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index().on(t.name.desc(), t.id.asc()).where(sql`name != 'alex'`),
+			index().on(t.name.desc(), t.id.asc()).where(sql`name !== 'alex'`),
 			index('indx1').using('hash', sql`${t.name}`),
 		]),
 	};
@@ -390,7 +390,7 @@ test.concurrent('index #3', async ({ dbc: db }) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, ignoreSubsequent: true });
 
 	const st0 = [
-		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC,"id") WHERE name != 'alex';`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC,"id") WHERE name !== 'alex';`,
 		`CREATE INDEX "indx1" ON "users" ("name") USING hash;`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -409,7 +409,7 @@ test.concurrent('index #3_1', async ({ dbc: db }) => {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index().on(t.name.desc(), t.id.asc()).where(sql`name != 'alex'::STRING`),
+			index().on(t.name.desc(), t.id.asc()).where(sql`name !== 'alex'::STRING`),
 			index('indx1').using('hash', sql`${t.name}`),
 		]),
 	};
@@ -420,7 +420,7 @@ test.concurrent('index #3_1', async ({ dbc: db }) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC,"id") WHERE name != 'alex'::STRING;`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC,"id") WHERE name !== 'alex'::STRING;`,
 		`CREATE INDEX "indx1" ON "users" ("name") USING hash;`,
 	];
 	expect(st).toStrictEqual(st0);
