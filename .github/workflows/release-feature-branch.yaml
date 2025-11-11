@@ -373,6 +373,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24' }
       
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
+    
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
         run: npm install -g npm@latest
