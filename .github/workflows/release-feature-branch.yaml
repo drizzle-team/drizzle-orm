@@ -355,9 +355,10 @@ jobs:
         run: |
           set -euxo pipefail
           
-          version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
+          _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
           tag="${{ github.ref_name }}"
           suffix=$(git rev-parse --short HEAD)
+          version="$_version-$suffix"
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 
