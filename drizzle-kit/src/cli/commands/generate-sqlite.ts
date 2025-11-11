@@ -1,10 +1,8 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
-import { prepareFilenames } from 'src/utils/utils-node';
-import type { Column, SqliteEntities } from '../../dialects/sqlite/ddl';
-import { createDDL, interimToDDL } from '../../dialects/sqlite/ddl';
+import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { warning } from '../views';
 import { writeResult } from './generate-common';
@@ -16,9 +14,7 @@ export const handle = async (config: GenerateConfig) => {
 	const casing = config.casing;
 
 	try {
-		assertV1OutFolder(outFolder);
-
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { snapshots } = prepareOutFolder(outFolder);
 		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 			snapshots,
 			schemaPath,
@@ -29,7 +25,6 @@ export const handle = async (config: GenerateConfig) => {
 			writeResult({
 				snapshot: custom,
 				sqlStatements: [],
-				journal,
 				outFolder,
 				name: config.name,
 				breakpoints: config.breakpoints,
@@ -37,6 +32,7 @@ export const handle = async (config: GenerateConfig) => {
 				type: 'custom',
 				prefixMode: config.prefix,
 				renames: [],
+				snapshots,
 			});
 			return;
 		}
@@ -56,7 +52,6 @@ export const handle = async (config: GenerateConfig) => {
 		writeResult({
 			snapshot: snapshot,
 			sqlStatements,
-			journal,
 			renames,
 			outFolder,
 			name: config.name,
@@ -64,6 +59,7 @@ export const handle = async (config: GenerateConfig) => {
 			bundle: config.bundle,
 			prefixMode: config.prefix,
 			driver: config.driver,
+			snapshots,
 		});
 	} catch (e) {
 		console.error(e);
