@@ -363,8 +363,12 @@ jobs:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
+
+      # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+        with: { node-version: '24' }
+      
+      # >= 11.5.1 for trusted publishing
       - name: Update NPM
         run: npm install -g npm@latest
       - name: Download package tarball
