@@ -364,7 +364,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', always-auth: true }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - name: Update NPM
+        run: npm install -g npm@latest
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
@@ -390,5 +392,5 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+          pnpm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
           echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
