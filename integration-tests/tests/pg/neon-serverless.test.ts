@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { PgDatabase, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { type PgDatabase, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';

@@ -1,20 +1,19 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'orm044';
+import type { AnyMySqlTable, MySqlView } from 'orm044/mysql-core';
 import {
-	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
 	MySqlColumn,
 	MySqlDialect,
-	MySqlView,
 	type PrimaryKey as PrimaryKeyORM,
 	uniqueKeyName,
 } from 'orm044/mysql-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../outputs';
 import { escapeSingleQuotes } from '../utils';
 import { getColumnCasing, sqlToStr } from '../utils';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	ForeignKey,
@@ -114,7 +113,7 @@ export const generateMySqlSnapshot = (
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
 						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+							withStyle.errorWarning(`We've found duplicated unique constraint names in ${
 								chalk.underline.blue(
 									tableName,
 								)
@@ -151,7 +150,7 @@ export const generateMySqlSnapshot = (
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
-						} else if (column.default instanceof Date) {
+						} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 							if (sqlTypeLowered === 'date') {
 								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 							} else if (
@@ -209,7 +208,7 @@ export const generateMySqlSnapshot = (
 				console.log(
 					`\n${
 						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${
+							`We've found duplicated unique constraint names in ${
 								chalk.underline.blue(
 									tableName,
 								)
@@ -314,7 +313,7 @@ export const generateMySqlSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(
-								`We\'ve found duplicated unique constraint names in ${
+								`We've found duplicated unique constraint names in ${
 									chalk.underline.blue(
 										tableName,
 									)
@@ -369,14 +368,13 @@ export const generateMySqlSnapshot = (
 		});
 
 		checks.forEach((check) => {
-			check;
 			const checkName = check.name;
 			if (typeof checksInTable[tableName] !== 'undefined') {
 				if (checksInTable[tableName].includes(check.name)) {
 					console.log(
 						`\n${
 							withStyle.errorWarning(
-								`We\'ve found duplicated check constraint name in ${
+								`We've found duplicated check constraint name in ${
 									chalk.underline.blue(
 										tableName,
 									)
@@ -434,7 +432,7 @@ export const generateMySqlSnapshot = (
 			console.log(
 				`\n${
 					withStyle.errorWarning(
-						`We\'ve found duplicated view name across ${
+						`We've found duplicated view name across ${
 							chalk.underline.blue(
 								schema ?? 'public',
 							)
@@ -487,7 +485,7 @@ export const generateMySqlSnapshot = (
 						} else {
 							if (sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'`;
-							} else if (column.default instanceof Date) {
+							} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 								if (sqlTypeLowered === 'date') {
 									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 								} else if (
@@ -538,23 +536,23 @@ export const generateMySqlSnapshot = (
 	};
 };
 
-function clearDefaults(defaultValue: any, collate: string) {
-	if (typeof collate === 'undefined' || collate === null) {
-		collate = `utf8mb4`;
-	}
+// function clearDefaults(defaultValue: any, collate: string) {
+// 	if (typeof collate === 'undefined' || collate === null) {
+// 		collate = `utf8mb4`;
+// 	}
 
-	let resultDefault = defaultValue;
-	collate = `_${collate}`;
-	if (defaultValue.startsWith(collate)) {
-		resultDefault = resultDefault
-			.substring(collate.length, defaultValue.length)
-			.replace(/\\/g, '');
-		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
-			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
-		} else {
-			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
-		}
-	} else {
-		return `(${resultDefault})`;
-	}
-}
+// 	let resultDefault = defaultValue;
+// 	collate = `_${collate}`;
+// 	if (defaultValue.startsWith(collate)) {
+// 		resultDefault = resultDefault
+// 			.substring(collate.length, defaultValue.length)
+// 			.replace(/\\/g, '');
+// 		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
+// 			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
+// 		} else {
+// 			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
+// 		}
+// 	} else {
+// 		return `(${resultDefault})`;
+// 	}
+// }

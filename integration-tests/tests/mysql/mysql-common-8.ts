@@ -16,7 +16,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { expect } from 'vitest';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { eq, gt, like, not, sql } from 'drizzle-orm';
 import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
 import { createCitiesTable, createCountTestTable, createUsers2Table, createUserTable } from './schema2';
 

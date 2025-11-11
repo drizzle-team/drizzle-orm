@@ -1,11 +1,10 @@
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Enum,
 	ForeignKey,
-	Index,
 	InterimColumn,
 	InterimIndex,
 	InterimSchema,
@@ -27,9 +26,7 @@ import { defaultForColumn, isSystemNamespace, parseViewDefinition } from './gram
 export const fromDatabase = async (
 	db: DB,
 	database: string,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -57,11 +54,11 @@ export const fromDatabase = async (
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 
-	type OP = {
-		oid: number;
-		name: string;
-		default: boolean;
-	};
+	// type OP = {
+	// 	oid: number;
+	// 	name: string;
+	// 	default: boolean;
+	// };
 
 	type Namespace = {
 		oid: number;
@@ -84,11 +81,9 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const [namespaces] = await Promise.all([
-		namespacesQuery,
-	]);
+	const namespaces = await namespacesQuery;
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -100,7 +95,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 
 	if (filteredNamespaces.length === 0) {
 		return {
@@ -169,7 +164,7 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.type === 'view');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!(it.type === 'table' && tablesFilter(it.schema, it.name))) return false;
+		if (!(it.type === 'table' && filter({ type: 'table', schema: it.schema, name: it.name }))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -463,7 +458,7 @@ export const fromDatabase = async (
 
 	// progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
-	type DBColumn = (typeof columnsList)[number];
+	// type DBColumn = (typeof columnsList)[number];
 
 	const tableColumns = columnsList.filter((it) => {
 		const table = tablesList.find((tbl) => tbl.oid === it.tableId);
@@ -569,7 +564,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
 		const columns = unique.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == unique.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === unique.tableId && column.name === it)!;
 			return column.name;
 		});
 
@@ -589,7 +584,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
 		const columns = pk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.name === it)!;
 			return column.name;
 		});
 
@@ -609,12 +604,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName)!;
 
 		const columns = fk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.name === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId == tableTo.oid && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === tableTo.oid && column.name === it)!;
 			return column.name;
 		});
 
@@ -747,7 +742,7 @@ export const fromDatabase = async (
 	// 			k += 1;
 	// 		} else {
 	// 			const column = columnsList.find((column) => {
-	// 				return column.tableId == metadata.tableId && column.ordinality === ordinal;
+	// 				return column.tableId === metadata.tableId && column.ordinality === ordinal;
 	// 			});
 	// 			if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
@@ -838,7 +833,7 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		if (!tablesFilter(view.schema, view.name)) continue;
+		if (!filter({ type: 'table', schema: view.schema, name: view.name })) continue;
 		tableCount += 1;
 
 		const definition = parseViewDefinition(view.definition);

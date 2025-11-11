@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { Dialect } from '../../utils/schemaValidator';
+import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
 

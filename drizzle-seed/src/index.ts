@@ -21,7 +21,7 @@ import type { SingleStoreColumn, SingleStoreSchema, SingleStoreTable } from 'dri
 import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 
 import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
-import { generatorsFuncs, generatorsFuncsV2, generatorsFuncsV3 } from './generators/GeneratorFuncs.ts';
+import { generatorsFuncs, generatorsFuncsV2, type generatorsFuncsV3 } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
 import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts';
 import { filterMysqlTables, resetMySql, seedMySql } from './mysql-core/index.ts';

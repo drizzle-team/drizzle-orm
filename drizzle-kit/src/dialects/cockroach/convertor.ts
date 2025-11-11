@@ -129,7 +129,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 	if (pk && (pk.columns.length > 1 || pk.name !== defaultNameForPK(st.table.name))) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
+		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join(`","`)}")`;
 	}
 
 	for (const check of checks) {
@@ -192,6 +192,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		: column.type;
 	let fixedType = `${schemaPrefix}${type}${'[]'.repeat(column.dimensions)}`;
 
+	// unlike postgres cockroach requires explicit not null columns for pk
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
 	const identityStatement = identity
@@ -229,7 +230,11 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK }) as string;
+	const add = addColumnConvertor.convert({
+		column: st.column,
+		isPK: st.isPK,
+		isCompositePK: st.isCompositePK,
+	}) as string;
 
 	return [drop, add];
 });

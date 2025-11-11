@@ -201,7 +201,7 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 	}
 
 	for (const column of schema.columns) {
-		const { isUnique, uniqueName, pk, pkName, ...rest } = column;
+		const { isUnique: _1, uniqueName: _2, pk: _3, pkName: _4, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_column', table: column.table, column: column.name });

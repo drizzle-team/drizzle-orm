@@ -2,7 +2,7 @@ import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
-import { DefaultConstraint, MssqlEntities } from './ddl';
+import type { DefaultConstraint, MssqlEntities } from './ddl';
 import type { Import } from './typescript';
 
 const getDefaultOptions = (x: keyof typeof defaults.options): string | null => {
@@ -322,7 +322,7 @@ export const Char: SqlType = {
 	},
 	toTs: (type, value) => {
 		// for text compatibility
-		let optionsToSet: { length: number | 'max' } | undefined = undefined;
+		let optionsToSet: { length: number | 'max' } | undefined;
 
 		const param = parseParams(type)[0];
 		if (param) optionsToSet = { length: param === 'max' ? 'max' : Number(param) };
@@ -390,7 +390,7 @@ export const NVarchar: SqlType = {
 	defaultFromIntrospect: Char.defaultFromIntrospect,
 	toTs: (type, value) => {
 		// for text compatibility
-		let optionsToSet: { length: number | 'max' } | undefined = undefined;
+		let optionsToSet: { length: number | 'max' } | undefined;
 
 		const param = parseParams(type)[0];
 		if (param) optionsToSet = { length: param === 'max' ? 'max' : Number(param) };
@@ -568,7 +568,7 @@ export const Datetime: SqlType = {
 	is: (type) => type === 'datetime' || type.startsWith('datetime('),
 	drizzleImport: () => 'datetime',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return `('${value.toISOString().replace('T', ' ').replace('Z', '')}')`;
 		}
 
@@ -599,7 +599,7 @@ export const DateType: SqlType = {
 	is: (type) => type === 'date' || type.startsWith('date('),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return `('${value.toISOString().split('T')[0]}')`;
 		}
 
@@ -639,7 +639,7 @@ export const Datetimeoffset: SqlType = {
 	is: (type) => type === 'datetimeoffset' || type.startsWith('datetimeoffset('),
 	drizzleImport: () => 'datetimeoffset',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return `('${value.toISOString()}')`;
 		}
 
@@ -674,7 +674,7 @@ export const Time: SqlType = {
 	is: (type) => type === 'time' || type.startsWith('time('),
 	drizzleImport: () => 'time',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return `('${value.toISOString().split('T')[1].replace('Z', '')}')`;
 		}
 

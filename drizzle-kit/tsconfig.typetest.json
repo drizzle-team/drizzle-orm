@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
-		"target": "ESNext",
-		"module": "ES2020",
+		"target": "es2022",
+		"module": "esnext",
 		"moduleResolution": "node",
-		"lib": ["es2021"],
+		"lib": ["es2022"],
 		"types": ["node"],
 		"strictNullChecks": true,
 		"strictFunctionTypes": false,

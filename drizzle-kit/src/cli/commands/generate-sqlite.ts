@@ -1,12 +1,12 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
-import { Column, createDDL, interimToDDL, SqliteEntities } from '../../dialects/sqlite/ddl';
+import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { resolver } from '../prompts';
 import { warning } from '../views';
 import { writeResult } from './generate-common';
-import { ExportConfig, GenerateConfig } from './utils';
+import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const outFolder = config.out;

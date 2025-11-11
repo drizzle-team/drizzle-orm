@@ -1,7 +1,10 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { createDDL, interimToDDL } from 'src/dialects/sqlite/ddl';
 import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
 import { ddlDiffDry } from '../../dialects/sqlite/diff';
@@ -10,18 +13,19 @@ import { ddlToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../utils';
 import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { Casing, Prefix } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { Casing, Prefix } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
-import { prepareTablesFilterWithoutSchema, relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
 	credentials: SqliteCredentials,
-	tablesFilter: string[],
+	filters: EntitiesFilterConfig,
 	prefix: Prefix,
 	type: 'sqlite' | 'libsql' = 'sqlite',
 ) => {
@@ -29,8 +33,8 @@ export const handle = async (
 	const db = await connectToSQLite(credentials);
 
 	const progress = new IntrospectProgress();
-
-	const { ddl, viewColumns } = await introspect(db, tablesFilter, progress, (stage, count, status) => {
+	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
+	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
 
@@ -93,7 +97,7 @@ export const handle = async (
 
 export const introspect = async (
 	db: SQLiteDB,
-	filters: string[],
+	filter: EntityFilter,
 	taskView: TaskView,
 	progressCallback: (
 		stage: IntrospectStage,
@@ -101,8 +105,6 @@ export const introspect = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const filter = prepareTablesFilterWithoutSchema(filters);
-
 	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback));
 	const res = interimToDDL(schema);
 	return { ...res, viewColumns: schema.viewsToColumns };

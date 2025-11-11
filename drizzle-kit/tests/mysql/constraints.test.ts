@@ -626,6 +626,7 @@ test('fk multistep #1', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
 		'ALTER TABLE `bar` DROP CONSTRAINT `bar_fooId_foo_id_fkey`;',
+		'DROP INDEX `bar_fooId_foo_id_fkey` ON `bar`',
 		'DROP TABLE `foo`;',
 	];
 	expect(st2).toStrictEqual(expectedSt2);

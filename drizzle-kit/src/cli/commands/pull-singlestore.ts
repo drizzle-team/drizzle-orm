@@ -5,36 +5,36 @@ import { join } from 'path';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from 'src/dialects/singlestore/diff';
 import { toJsonSnapshot } from 'src/dialects/singlestore/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
-import { SingleStoreCredentials } from '../validations/singlestore';
+import type { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
 	credentials: SingleStoreCredentials,
-	tablesFilter: string[],
+	filters: EntitiesFilterConfig,
 	prefix: Prefix,
 ) => {
 	const { connectToSingleStore } = await import('../connections');
 	const { db, database } = await connectToSingleStore(credentials);
 
-	const filter = prepareTablesFilter(tablesFilter);
+	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
 
 	const progress = new IntrospectProgress();
-	const res = await renderWithTask(
-		progress,
-		fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
-	);
+	const task = fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
+		progress.update(stage, count, status);
+	});
+	const res = await renderWithTask(progress, task);
 
 	const { ddl } = interimToDDL(res);
 

@@ -1,4 +1,4 @@
-import {
+import type {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
 	JsonAlterColumnAlterGeneratedStatement,
@@ -21,7 +21,6 @@ import {
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
 	JsonAlterIndPolicyStatement,
-	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
 	JsonAlterReferenceStatement,
 	JsonAlterRoleStatement,
@@ -68,7 +67,6 @@ import {
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
-	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
 	JsonRenamePolicyStatement,
@@ -80,8 +78,8 @@ import {
 	JsonStatement,
 } from './jsonStatements';
 import { MySqlSquasher } from './mysql-v5/mysqlSchema';
-import { PgSquasher, policy } from './postgres-v7/pgSchema';
-import { Dialect } from './schemaValidator';
+import { PgSquasher } from './postgres-v7/pgSchema';
+import type { Dialect } from './schemaValidator';
 import { BREAKPOINT } from './sqlgenerator';
 
 import { escapeSingleQuotes } from './utils';
@@ -448,7 +446,7 @@ class PgCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = PgSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
+			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY("${compositePK.columns.join(`","`)}")`;
 			// statement += `\n`;
 		}
 
@@ -461,7 +459,7 @@ class PgCreateTableConvertor extends Convertor {
 				const unsquashedUnique = PgSquasher.unsquashUnique(uniqueConstraint);
 				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${
 					unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-				}(\"${unsquashedUnique.columns.join(`","`)}\")`;
+				}("${unsquashedUnique.columns.join(`","`)}")`;
 				// statement += `\n`;
 			}
 		}
@@ -496,7 +494,6 @@ class MySqlCreateTableConvertor extends Convertor {
 		const {
 			tableName,
 			columns,
-			schema,
 			checkConstraints,
 			compositePKs,
 			uniqueConstraints,
@@ -741,7 +738,7 @@ class PgAlterViewDropWithOptionConvertor extends Convertor {
 
 		const options: string[] = [];
 
-		Object.entries(withOptions).forEach(([key, value]) => {
+		Object.entries(withOptions).forEach(([key]) => {
 			options.push(`${key.snake_case()}`);
 		});
 
@@ -1084,9 +1081,9 @@ class RenamePgSequenceConvertor extends Convertor {
 		const sequenceWithSchemaFrom = schema
 			? `"${schema}"."${nameFrom}"`
 			: `"${nameFrom}"`;
-		const sequenceWithSchemaTo = schema
-			? `"${schema}"."${nameTo}"`
-			: `"${nameTo}"`;
+		// const sequenceWithSchemaTo = schema
+		// 	? `"${schema}"."${nameTo}"`
+		// 	: `"${nameTo}"`;
 
 		return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${nameTo}";`;
 	}
@@ -1342,7 +1339,7 @@ class PgRenameTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRenameTableStatement) {
-		const { tableNameFrom, tableNameTo, toSchema, fromSchema } = statement;
+		const { tableNameFrom, tableNameTo, fromSchema } = statement;
 		const from = fromSchema
 			? `"${fromSchema}"."${tableNameFrom}"`
 			: `"${tableNameFrom}"`;
@@ -1501,7 +1498,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 
 	convert(statement: JsonAddColumnStatement) {
 		const { tableName, column, schema } = statement;
-		const { name, type, notNull, generated, primaryKey, identity } = column;
+		const { name, notNull, generated, primaryKey, identity } = column;
 
 		const primaryKeyStatement = primaryKey ? ' PRIMARY KEY' : '';
 
@@ -1883,7 +1880,7 @@ class MySqlModifyColumn extends Convertor {
 		let columnNotNull = '';
 		let columnOnUpdate = '';
 		let columnAutoincrement = '';
-		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
+		// let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
 
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
@@ -2072,7 +2069,7 @@ class MySqlModifyColumn extends Convertor {
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
-		columnDefault = columnDefault instanceof Date
+		columnDefault = columnDefault instanceof Date // oxlint-disable-line drizzle-internal/no-instanceof
 			? columnDefault.toISOString()
 			: columnDefault;
 
@@ -2128,33 +2125,33 @@ class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor extends Convertor
 	}
 }
 
-class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_set_default'
-			&& dialect === 'singlestore'
-		);
-	}
+// class SingleStoreAlterTableAlterColumnSetDefaultConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return (
+// 			statement.type === 'alter_table_alter_column_set_default'
+// 			&& dialect === 'singlestore'
+// 		);
+// 	}
 
-	convert(statement: JsonAlterColumnSetDefaultStatement) {
-		const { tableName, columnName } = statement;
-		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` SET DEFAULT ${statement.newDefaultValue};`;
-	}
-}
+// 	convert(statement: JsonAlterColumnSetDefaultStatement) {
+// 		const { tableName, columnName } = statement;
+// 		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` SET DEFAULT ${statement.newDefaultValue};`;
+// 	}
+// }
 
-class SingleStoreAlterTableAlterColumnDropDefaultConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_default'
-			&& dialect === 'singlestore'
-		);
-	}
+// class SingleStoreAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return (
+// 			statement.type === 'alter_table_alter_column_drop_default'
+// 			&& dialect === 'singlestore'
+// 		);
+// 	}
 
-	convert(statement: JsonAlterColumnDropDefaultStatement) {
-		const { tableName, columnName } = statement;
-		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` DROP DEFAULT;`;
-	}
-}
+// 	convert(statement: JsonAlterColumnDropDefaultStatement) {
+// 		const { tableName, columnName } = statement;
+// 		return `ALTER TABLE \`${tableName}\` ALTER COLUMN \`${columnName}\` DROP DEFAULT;`;
+// 	}
+// }
 
 class SingleStoreAlterTableAddPk extends Convertor {
 	can(statement: JsonStatement, dialect: string): boolean {
@@ -2218,7 +2215,7 @@ class SingleStoreModifyColumn extends Convertor {
 		let columnNotNull = '';
 		let columnOnUpdate = '';
 		let columnAutoincrement = '';
-		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
+		// let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
 
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
@@ -2407,32 +2404,32 @@ class SingleStoreModifyColumn extends Convertor {
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
-		columnDefault = columnDefault instanceof Date
+		columnDefault = columnDefault instanceof Date // oxlint-disable-line drizzle-internal/no-instanceof
 			? columnDefault.toISOString()
 			: columnDefault;
 
 		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
 	}
 }
-class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return (
-			statement.type === 'alter_table_alter_column_drop_default'
-			&& dialect === 'sqlite'
-		);
-	}
+// class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return (
+// 			statement.type === 'alter_table_alter_column_drop_default'
+// 			&& dialect === 'sqlite'
+// 		);
+// 	}
 
-	convert(statement: JsonAlterColumnDropDefaultStatement) {
-		return (
-			'/*\n SQLite does not support "Drop default from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
-			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
-			+ '\n                  https://www.sqlite.org/lang_altertable.html'
-			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
-			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
-			+ '\n*/'
-		);
-	}
-}
+// 	convert(statement: JsonAlterColumnDropDefaultStatement) {
+// 		return (
+// 			'/*\n SQLite does not support "Drop default from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
+// 			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
+// 			+ '\n                  https://www.sqlite.org/lang_altertable.html'
+// 			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
+// 			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
+// 			+ '\n*/'
+// 		);
+// 	}
+// }
 
 class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2440,7 +2437,7 @@ class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		const { columns } = PgSquasher.unsquashPK(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -2457,7 +2454,7 @@ class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		// const { name, columns } = PgSquasher.unsquashPK(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -2473,8 +2470,8 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = PgSquasher.unsquashPK(
+		// const { name, columns } = PgSquasher.unsquashPK(statement.old);
+		const { columns: newColumns } = PgSquasher.unsquashPK(
 			statement.new,
 		);
 
@@ -2494,7 +2491,7 @@ class MySqlAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
+		const { columns } = MySqlSquasher.unsquashPK(statement.data);
 		return `ALTER TABLE \`${statement.tableName}\` ADD PRIMARY KEY(\`${columns.join('`,`')}\`);`;
 	}
 }
@@ -2505,7 +2502,7 @@ class MySqlAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
+		// const { name, columns } = MySqlSquasher.unsquashPK(statement.data);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY;`;
 	}
 }
@@ -2516,96 +2513,96 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterCompositePK) {
-		const { name, columns } = MySqlSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = MySqlSquasher.unsquashPK(
+		// const { name, columns } = MySqlSquasher.unsquashPK(statement.old);
+		const { columns: newColumns } = MySqlSquasher.unsquashPK(
 			statement.new,
 		);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
 	}
 }
 
-class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
-	}
+// class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
+// 	}
 
-	convert(statement: JsonCreateCompositePK) {
-		let msg = '/*\n';
-		msg += `You're trying to add PRIMARY KEY(${statement.data}) to '${statement.tableName}' table\n`;
-		msg += 'SQLite does not support adding primary key to an already created table\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
-		return msg;
-	}
-}
-class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
-	}
+// 	convert(statement: JsonCreateCompositePK) {
+// 		let msg = '/*\n';
+// 		msg += `You're trying to add PRIMARY KEY(${statement.data}) to '${statement.tableName}' table\n`;
+// 		msg += 'SQLite does not support adding primary key to an already created table\n';
+// 		msg += 'You can do it in 3 steps with drizzle orm:\n';
+// 		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+// 		msg += ' - migrate old data from one table to another\n';
+// 		msg += ' - delete old_table in schema, generate sql\n\n';
+// 		msg += 'or create manual migration like below:\n\n';
+// 		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+// 		msg += 'CREATE TABLE table_name (\n';
+// 		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\t...\n';
+// 		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+// 		msg += ' );\n';
+// 		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+// 		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+// 		msg += '*/\n';
+// 		return msg;
+// 	}
+// }
+// class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
+// 	}
 
-	convert(statement: JsonDeleteCompositePK) {
-		let msg = '/*\n';
-		msg += `You're trying to delete PRIMARY KEY(${statement.data}) from '${statement.tableName}' table\n`;
-		msg += 'SQLite does not supportprimary key deletion from existing table\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table table without pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
-		return msg;
-	}
-}
+// 	convert(statement: JsonDeleteCompositePK) {
+// 		let msg = '/*\n';
+// 		msg += `You're trying to delete PRIMARY KEY(${statement.data}) from '${statement.tableName}' table\n`;
+// 		msg += 'SQLite does not supportprimary key deletion from existing table\n';
+// 		msg += 'You can do it in 3 steps with drizzle orm:\n';
+// 		msg += ' - create new mirror table table without pk, rename current table to old_table, generate SQL\n';
+// 		msg += ' - migrate old data from one table to another\n';
+// 		msg += ' - delete old_table in schema, generate sql\n\n';
+// 		msg += 'or create manual migration like below:\n\n';
+// 		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+// 		msg += 'CREATE TABLE table_name (\n';
+// 		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\t...\n';
+// 		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+// 		msg += ' );\n';
+// 		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+// 		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+// 		msg += '*/\n';
+// 		return msg;
+// 	}
+// }
 
-class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
-	}
+// class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+// 	can(statement: JsonStatement, dialect: Dialect): boolean {
+// 		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
+// 	}
 
-	convert(statement: JsonAlterCompositePK) {
-		let msg = '/*\n';
-		msg += 'SQLite does not support altering primary key\n';
-		msg += 'You can do it in 3 steps with drizzle orm:\n';
-		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
-		msg += ' - migrate old data from one table to another\n';
-		msg += ' - delete old_table in schema, generate sql\n\n';
-		msg += 'or create manual migration like below:\n\n';
-		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
-		msg += 'CREATE TABLE table_name (\n';
-		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
-		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
-		msg += '\t...\n';
-		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
-		msg += ' );\n';
-		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
-		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
-		msg += '*/\n';
+// 	convert(statement: JsonAlterCompositePK) {
+// 		let msg = '/*\n';
+// 		msg += 'SQLite does not support altering primary key\n';
+// 		msg += 'You can do it in 3 steps with drizzle orm:\n';
+// 		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+// 		msg += ' - migrate old data from one table to another\n';
+// 		msg += ' - delete old_table in schema, generate sql\n\n';
+// 		msg += 'or create manual migration like below:\n\n';
+// 		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+// 		msg += 'CREATE TABLE table_name (\n';
+// 		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+// 		msg += '\t...\n';
+// 		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+// 		msg += ' );\n';
+// 		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+// 		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+// 		msg += '*/\n';
 
-		return msg;
-	}
-}
+// 		return msg;
+// 	}
+// }
 
 class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2616,7 +2613,7 @@ class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnSetPrimaryKeyStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -2635,7 +2632,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnDropPrimaryKeyStatement) {
-		const { tableName, columnName, schema } = statement;
+		const { tableName, schema } = statement;
 		return `/* 
     Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
     We are working on making it available!
@@ -2664,7 +2661,7 @@ class PgAlterTableAlterColumnSetNotNullConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnSetNotNullStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -2683,7 +2680,7 @@ class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnDropNotNullStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -3186,7 +3183,8 @@ export function fromJson(
 
 // blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/
 // test case for enum altering
-https: `
+// oxlint-disable-next-line no-unused-expressions
+`
 create table users (
 	id int,
     name character varying(128)

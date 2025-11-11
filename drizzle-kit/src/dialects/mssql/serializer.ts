@@ -1,9 +1,11 @@
 import { mssqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MssqlDDL } from './ddl';
+import type { MssqlDDL } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { drySnapshot, MssqlSnapshot, snapshotValidator } from './snapshot';
+import type { MssqlSnapshot } from './snapshot';
+import { drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -18,8 +20,8 @@ export const prepareSnapshot = async (
 		custom: MssqlSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));

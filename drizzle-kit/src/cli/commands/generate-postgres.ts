@@ -1,13 +1,11 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
 import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -18,12 +16,13 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { resolver } from '../prompts';
 import { checkHandler } from './check';
 import { writeResult } from './generate-common';
-import { ExportConfig, GenerateConfig } from './utils';
+import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
@@ -83,7 +82,8 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const { schema } = fromDrizzleSchema(res, config.casing);
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema } = fromDrizzleSchema(res, config.casing, () => true);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));

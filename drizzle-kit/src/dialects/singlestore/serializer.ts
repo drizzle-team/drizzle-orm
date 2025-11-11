@@ -1,7 +1,7 @@
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MysqlDDL } from '../mysql/ddl';
-import { drySnapshot, SingleStoreSnapshot, snapshotValidator } from '../singlestore/snapshot';
+import { createDDL, interimToDDL, type MysqlDDL } from '../mysql/ddl';
+import { drySnapshot, type SingleStoreSnapshot, snapshotValidator } from '../singlestore/snapshot';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 
 export const prepareSnapshot = async (
@@ -17,8 +17,8 @@ export const prepareSnapshot = async (
 		custom: SingleStoreSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -45,7 +45,7 @@ export const prepareSnapshot = async (
 	// 	process.exit(1);
 	// }
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
+	const { ddl: ddlCur, errors: _errors2 } = interimToDDL(interim);
 
 	// TODO: handle errors
 	// if (errors2.length > 0) {

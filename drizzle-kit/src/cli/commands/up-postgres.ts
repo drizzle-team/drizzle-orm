@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { createDDL, Index } from '../../dialects/postgres/ddl';
+import { createDDL, type Index } from '../../dialects/postgres/ddl';
 import {
 	defaultNameForIndex,
 	defaultNameForPK,
@@ -8,7 +8,7 @@ import {
 	defaults,
 	trimDefaultValueSuffix,
 } from '../../dialects/postgres/grammar';
-import {
+import type {
 	Column,
 	Index as LegacyIndex,
 	PgSchema,
@@ -32,7 +32,7 @@ export const upPgHandler = (out: string) => {
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it]! as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;

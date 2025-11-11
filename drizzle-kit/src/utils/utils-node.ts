@@ -10,7 +10,7 @@ import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
-import { Journal } from '.';
+import type { Journal } from '.';
 import type { Dialect } from './schemaValidator';
 
 export const prepareFilenames = (path: string | string[]) => {
@@ -40,16 +40,16 @@ export const prepareFilenames = (path: string | string[]) => {
 	const res = [...result];
 
 	// TODO: properly handle and test
-	const errors = res.filter((it) => {
-		return !(
-			it.endsWith('.ts')
-			|| it.endsWith('.js')
-			|| it.endsWith('.cjs')
-			|| it.endsWith('.mjs')
-			|| it.endsWith('.mts')
-			|| it.endsWith('.cts')
-		);
-	});
+	// const errors = res.filter((it) => {
+	// 	return !(
+	// 		it.endsWith('.ts')
+	// 		|| it.endsWith('.js')
+	// 		|| it.endsWith('.cjs')
+	// 		|| it.endsWith('.mjs')
+	// 		|| it.endsWith('.mts')
+	// 		|| it.endsWith('.cts')
+	// 	);
+	// });
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
@@ -131,7 +131,7 @@ export const prepareOutFolder = (out: string) => {
 
 type ValidationResult = { status: 'valid' | 'unsupported' | 'nonLatest' } | { status: 'malformed'; errors: string[] };
 
-const assertVersion = (obj: Object, current: number): 'unsupported' | 'nonLatest' | null => {
+const assertVersion = (obj: object, current: number): 'unsupported' | 'nonLatest' | null => {
 	const version = 'version' in obj ? Number(obj['version']) : undefined;
 	if (!version) return 'unsupported';
 	if (version > current) return 'unsupported';
@@ -140,7 +140,7 @@ const assertVersion = (obj: Object, current: number): 'unsupported' | 'nonLatest
 	return null;
 };
 
-const postgresValidator = (snapshot: Object): ValidationResult => {
+const postgresValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 8);
 	if (versionError) return { status: versionError };
 
@@ -152,7 +152,7 @@ const postgresValidator = (snapshot: Object): ValidationResult => {
 	return { status: 'valid' };
 };
 
-const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
+const cockroachSnapshotValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
 
@@ -165,7 +165,7 @@ const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
 };
 
 const mysqlValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 6);
 	if (versionError) return { status: versionError };
@@ -177,7 +177,7 @@ const mysqlValidator = (
 };
 
 const mssqlSnapshotValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
@@ -189,7 +189,7 @@ const mssqlSnapshotValidator = (
 };
 
 const sqliteValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 7);
 	if (versionError) return { status: versionError };
@@ -203,7 +203,7 @@ const sqliteValidator = (
 };
 
 const singlestoreSnapshotValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
@@ -216,7 +216,7 @@ const singlestoreSnapshotValidator = (
 	return { status: 'valid' };
 };
 
-export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => ValidationResult => {
+export const validatorForDialect = (dialect: Dialect): (snapshot: object) => ValidationResult => {
 	switch (dialect) {
 		case 'postgresql':
 			return postgresValidator;
@@ -312,7 +312,7 @@ export const normaliseSQLiteUrl = (
 				return `file:${it}`;
 			}
 			return it;
-		} catch (e) {
+		} catch {
 			return `file:${it}`;
 		}
 	}

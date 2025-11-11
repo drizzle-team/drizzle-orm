@@ -1,4 +1,4 @@
-import { Column, DiffColumn, ForeignKey, Index, PrimaryKey, Table, TableFull, View } from './ddl';
+import type { Column, DiffColumn, ForeignKey, Index, TableFull, View } from './ddl';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';

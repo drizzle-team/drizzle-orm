@@ -15,7 +15,7 @@ import {
 import { expect } from 'vitest';
 import { Expect } from '~/utils';
 import type { Equal } from '~/utils';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { createOrdersTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

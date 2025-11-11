@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto';
-import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, MssqlDDL, MssqlEntity } from './ddl';
+import type { MssqlDDL, MssqlEntity } from './ddl';
+import { createDDL } from './ddl';
 
 const index = object({
 	name: string(),

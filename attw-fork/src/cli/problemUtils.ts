@@ -1,4 +1,4 @@
-import * as core from '../index.ts';
+import type * as core from '../index.ts';
 import type { ProblemKind } from '../index.ts';
 
 export const problemFlags = {

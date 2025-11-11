@@ -1,6 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { assert, expect, test } from 'vitest';
-import { push } from '../src/cli/schema';
+import { push } from '../../src/cli/schema';
 
 // good:
 // #1 drizzle-kit push
@@ -23,9 +23,12 @@ test('push #1', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
-		schemasFilter: ['public'],
-		tablesFilter: [],
-		entities: undefined,
+		filters: {
+			schemas: ['public'],
+			tables: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
 		strict: false,
 		verbose: false,
 		casing: undefined,
@@ -43,8 +46,12 @@ test('push #2', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
-		schemasFilter: ['public'],
-		tablesFilter: [],
+		filters: {
+			schemas: ['public'],
+			tables: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
 		strict: false,
 		verbose: false,
 		casing: undefined,
@@ -64,8 +71,12 @@ test('push #3', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
-		schemasFilter: ['public'],
-		tablesFilter: [],
+		filters: {
+			schemas: ['public'],
+			tables: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
 		strict: false,
 		verbose: false,
 		casing: undefined,
@@ -85,10 +96,13 @@ test('push #4', async (t) => {
 			user: 'postgresql',
 		},
 		force: false,
+		filters: {
+			schemas: ['public'],
+			tables: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
 		schemaPath: './schema.ts',
-		schemasFilter: ['public'],
-		tablesFilter: [],
-		entities: undefined,
 		strict: false,
 		verbose: false,
 		casing: undefined,
@@ -112,10 +126,13 @@ test('push #5', async (t) => {
 			user: 'postgresql',
 		},
 		schemaPath: './schema.ts',
-		schemasFilter: ['public'],
-		tablesFilter: [],
+		filters: {
+			schemas: ['public'],
+			tables: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
 		strict: false,
-		entities: undefined,
 		force: false,
 		verbose: false,
 		casing: undefined,

@@ -1,12 +1,12 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import {
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	Column,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -17,6 +17,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
+import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
@@ -24,8 +25,8 @@ import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { Entities } from '../validations/cli';
-import { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
 import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
@@ -35,9 +36,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: PostgresCredentials,
-	tablesFilter: string[],
-	allowedSchemas: string[],
-	entities: Entities,
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -48,25 +47,8 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	console.log(allowedSchemas);
-	if (allowedSchemas.length > 0) {
-		const toCheck = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
-		const missing = toCheck.filter((it) => !allowedSchemas.includes(it));
-		if (missing.length > 0) {
-			const missingArr = missing.map((it) => chalk.underline(it)).join(', ');
-			const allowedArr = allowedSchemas.map((it) => chalk.underline(it)).join(', ');
-			render(
-				`[${chalk.red('x')}] ${missingArr} schemas missing in drizzle config file "schemaFilter": [${allowedArr}]`,
-			);
-			// TODO: write a guide and link here
-			process.exit(1);
-		}
-	} else {
-		allowedSchemas.push(...res.schemas.map((it) => it.schemaName));
-	}
-	console.log('.', allowedSchemas);
-
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
+	const drizzleFilters = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas: [] });
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, drizzleFilters);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -78,10 +60,14 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, allowedSchemas, entities, progress);
+
+	const drizzleSchemas = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
+	const entityFilter = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas });
+
+	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
-	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
+	const { ddl: ddl2 } = interimToDDL(schemaTo);
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
@@ -89,7 +75,7 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const blanks = new Set<string>();
+	// const blanks = new Set<string>();
 	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -126,7 +112,7 @@ export const handle = async (
 	}
 
 	if (!force && strict && hints.length === 0) {
-		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -146,7 +132,7 @@ export const handle = async (
 
 		console.log(chalk.white('Do you still want to push changes?'));
 
-		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);

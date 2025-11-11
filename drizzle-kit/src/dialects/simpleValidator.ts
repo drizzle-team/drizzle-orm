@@ -1,5 +1,4 @@
-import { err } from 'src/cli/views';
-import { Simplify } from '../utils';
+import type { Simplify } from '../utils';
 
 export const array = <T>(validate: (it: unknown) => boolean) => {
 	return {
