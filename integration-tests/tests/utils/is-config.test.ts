@@ -180,7 +180,7 @@ describe('Rejects drivers', (it) => {
 
 	it('vercel:Client', async () => {
 		const cl = vcClient({
-			connectionString: process.env['NEON_CONNECTION_STRING'],
+			connectionString: process.env['NEON_CONNECTION_STRING']?.replace('-pooler', ''),
 		});
 
 		const res = isConfig(cl);
@@ -374,7 +374,7 @@ describe('Accepts drivers in .client', (it) => {
 
 	it('vercel:Client', async () => {
 		const cl = vcClient({
-			connectionString: process.env['NEON_CONNECTION_STRING'],
+			connectionString: process.env['NEON_CONNECTION_STRING']?.replace('-pooler', ''),
 		});
 
 		const res = isConfig({ client: cl });

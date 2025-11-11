@@ -14,6 +14,7 @@ import {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
+import { Relations } from 'drizzle-orm/relations';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -25,6 +26,7 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const policies: PgPolicy[] = [];
 	const views: PgView[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -59,9 +61,13 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		if (is(t, PgPolicy)) {
 			policies.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
-	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
+	return { tables, enums, schemas, sequences, views, matViews, roles, policies, relations };
 };
 
 export const prepareFromPgImports = async (imports: string[]) => {
@@ -73,6 +79,7 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	const roles: PgRole[] = [];
 	const policies: PgPolicy[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {
@@ -89,8 +96,19 @@ export const prepareFromPgImports = async (imports: string[]) => {
 		matViews.push(...prepared.matViews);
 		roles.push(...prepared.roles);
 		policies.push(...prepared.policies);
+		relations.push(...prepared.relations);
 	}
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), enums, schemas, sequences, views, matViews, roles, policies };
+	return {
+		tables: Array.from(new Set(tables)),
+		enums,
+		schemas,
+		sequences,
+		views,
+		matViews,
+		roles,
+		policies,
+		relations,
+	};
 };
