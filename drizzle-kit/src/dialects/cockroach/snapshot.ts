@@ -1,19 +1,10 @@
 import { randomUUID } from 'crypto';
-import {
-	any,
-	array as zodArray,
-	boolean,
-	enum as enumType,
-	literal,
-	number,
-	object,
-	record,
-	string,
-	TypeOf,
-} from 'zod';
+import type { TypeOf } from 'zod';
+import { any, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { CockroachDDL, CockroachEntity, createDDL } from './ddl';
+import type { CockroachDDL, CockroachEntity } from './ddl';
+import { createDDL } from './ddl';
 import { defaults } from './grammar';
 
 const enumSchema = object({

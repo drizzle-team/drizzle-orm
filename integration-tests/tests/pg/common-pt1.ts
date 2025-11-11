@@ -18,7 +18,7 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 export function tests(test: Test) {
 	describe('common', () => {
@@ -972,6 +972,27 @@ export function tests(test: Test) {
 
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 			expect(result).toHaveLength(1);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4468
+		test.concurrent('prepared statement with placeholder in .where', async ({ db, push }) => {
+			const usersTable = pgTable('users_391', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+			});
+
+			await push({ usersTable });
+			await db.insert(usersTable).values({ name: 'John' });
+			const stmt = db
+				.select()
+				.from(usersTable)
+				.where(lt(usersTable.createdAt, sql`now() - ${sql.placeholder('timeWindow')}::interval`))
+				.prepare('get_old_users');
+
+			const result = await stmt.execute({ timeWindow: '40 days' });
+
+			expect(result).toEqual([]);
 		});
 
 		test.concurrent('Insert all defaults in 1 row', async ({ db, push }) => {

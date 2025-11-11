@@ -1,7 +1,9 @@
-import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import type { TypeOf } from 'zod';
+import { boolean, enum as enumType, literal, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
+import type { SQLiteDDL, SqliteEntity } from './ddl';
+import { createDDL } from './ddl';
 
 // ------- V3 --------
 const index = object({

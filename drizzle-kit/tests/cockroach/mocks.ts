@@ -36,7 +36,6 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
-import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
@@ -45,9 +44,11 @@ import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { EntitiesFilter } from 'src/cli/validations/cli';
 import { hash } from 'src/dialects/common';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { measure, tsc } from 'tests/utils';
-import { test as base } from 'vitest';
+import { expect, test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -146,7 +147,7 @@ export const pushM = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	entities?: Entities;
+	entities?: EntitiesFilter;
 }) => {
 	return measure(push(config), 'push');
 };
@@ -159,16 +160,24 @@ export const push = async (
 		schemas?: string[];
 		casing?: CasingType;
 		log?: 'statements' | 'none';
-		entities?: Entities;
+		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
 	},
 ) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ((_: string) => true);
+	const schemas = config.schemas ?? [];
 
-	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
+	const filter = prepareEntityFilter('cockroach', {
+		schemas,
+		tables: [],
+		entities: config.entities,
+		drizzleSchemas: [],
+		extensions: [],
+	});
+
+	const { schema } = await introspect(db, filter, new EmptyProgressView());
 
 	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err3 } = 'entities' in to && '_' in to
@@ -213,13 +222,7 @@ export const push = async (
 	// subsequent push
 	if (!config.ignoreSubsequent) {
 		{
-			const { schema } = await introspect(
-				db,
-				[],
-				config.schemas ?? ((_: string) => true),
-				config.entities,
-				new EmptyProgressView(),
-			);
+			const { schema } = await introspect(db, filter, new EmptyProgressView());
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 			const { sqlStatements, statements } = await ddlDiff(
@@ -240,8 +243,7 @@ export const push = async (
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}
@@ -256,14 +258,14 @@ export const diffPush = async (config: {
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
-	entities?: Entities;
+	entities?: EntitiesFilter;
 	before?: string[];
 	after?: string[];
 	apply?: boolean;
 }) => {
 	const { db, from: initSchema, to: destination, casing, before, after, renames: rens, entities } = config;
 
-	const schemas = config.schemas ?? ['public'];
+	const schemas = config.schemas ?? [];
 	const apply = typeof config.apply === 'undefined' ? true : config.apply;
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
@@ -281,8 +283,16 @@ export const diffPush = async (config: {
 		await db.query(st);
 	}
 
+	const filter = prepareEntityFilter('cockroach', {
+		tables: [],
+		schemas,
+		drizzleSchemas: [],
+		entities,
+		extensions: [],
+	});
+
 	// do introspect into CockroachSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
+	const introspectedSchema = await fromDatabaseForDrizzle(db, filter);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
@@ -316,22 +326,23 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: CockroachDBSchema,
 	testName: string,
-	schemas: string[] = ['public'],
-	entities?: Entities,
+	schemas: string[] = [],
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	for (const st of init) await db.query(st);
-
-	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(
-		db,
-		(_) => true,
-		(it) => schemas.indexOf(it) >= 0,
+	const filter = prepareEntityFilter('cockroach', {
+		schemas,
+		tables: [],
+		drizzleSchemas: [],
 		entities,
-	);
+		extensions: [],
+	});
+	// introspect to schema
+	const schema = await fromDatabaseForDrizzle(db, filter);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -423,8 +434,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		res.push(`Insert default failed`);
 	}
 
+	const filter = () => true;
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, filter);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
@@ -662,7 +674,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 
 export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
 	kit: [
-		async ({}, use) => {
+		async ({}, use) => { // oxlint-disable-line no-empty-pattern
 			const kit = await prepareTestDatabase();
 			try {
 				await use(kit);

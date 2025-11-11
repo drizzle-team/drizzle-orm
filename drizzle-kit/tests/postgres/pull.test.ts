@@ -169,7 +169,7 @@ test('advanced index test', async () => {
 	db.query('CREATE table job (name text, start_after text, priority text, created_on text, id text, state text);');
 	db.query("CREATE INDEX job_i5 ON job (name, start_after) INCLUDE (priority, created_on, id) WHERE state < 'active';");
 
-	const { indexes } = await fromDatabase(db);
+	const { indexes } = await fromDatabase(db, () => true);
 
 	expect(indexes).toStrictEqual([
 		{

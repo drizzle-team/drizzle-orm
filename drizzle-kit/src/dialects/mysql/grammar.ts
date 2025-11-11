@@ -2,7 +2,7 @@ import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
-import { Column, ForeignKey } from './ddl';
+import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
 /*
@@ -136,11 +136,11 @@ export const BigInt: SqlType = {
 export const Serial: SqlType = {
 	is: (type: string) => /^(?:serial)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'serial',
-	defaultFromDrizzle: (value) => {
+	defaultFromDrizzle: (_value) => {
 		return ''; // handled in interim to ddl
 	},
 	defaultFromIntrospect: (value) => value,
-	toTs: (type, value) => {
+	toTs: (_type, _value) => {
 		return { default: '' };
 	},
 };
@@ -425,7 +425,7 @@ export const Timestamp: SqlType = {
 	is: (type) => /^(?:timestamp)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			const converted = value.toISOString().replace('T', ' ').slice(0, 23);
 			return `'${converted}'`;
 		}
@@ -489,7 +489,7 @@ export const Date_: SqlType = {
 	is: (type) => /^\s*date\s*$/i.test(type),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			const converted = value.toISOString().split('T')[0];
 			return `'${converted}'`;
 		}

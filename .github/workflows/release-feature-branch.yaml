@@ -85,13 +85,9 @@ jobs:
           - shard: int:gel
             dbs: [gel]
           - shard: int:singlestore-core
-            dbs: [singlestore]
+            dbs: [singlestore-many]
           - shard: int:singlestore-proxy
-            dbs: [singlestore]
-          - shard: int:singlestore-prefixed
-            dbs: [singlestore]
-          - shard: int:singlestore-custom
-            dbs: [singlestore]
+            dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -111,21 +107,17 @@ jobs:
             dbs: [mssql]
           - shard: orm
             dbs: []
-          - shard: kit
-            dbs: [postgres, mysql, mssql, cockroach, postgres-postgis]
+          - shard: kit:other
+            dbs: [mysql]
+          - shard: kit:postgres
+            dbs: [postgres, postgres-postgis]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
             dbs: [mssql]
-          - shard: zod
-            dbs: []
           - shard: seed
             dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
-          - shard: typebox
-            dbs: []
-          - shard: valibot
-            dbs: []
-          - shard: arktype
+          - shard: validators
             dbs: []
          
     name: ${{ matrix.shard }}
@@ -151,6 +143,7 @@ jobs:
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
               singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
+              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
               gel)                 compose_files+=("-f" "compose/gel.yml") ;;
@@ -224,10 +217,8 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts ;;
-            int:singlestore-prefixed) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts ;;
-            int:singlestore-custom) pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts ;;
+            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
@@ -249,13 +240,18 @@ jobs:
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            kit)
-              cd ../drizzle-kit
-              pnpm --stream vitest --reporter=verbose --silent=false run --exclude ./tests/cockroach/ --exclude ./tests/mssql/
+            
+            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
+            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
+            validators) 
+              (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-valibot && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
             ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream vitest --reporter=verbose --silent=false run ./tests/mssql ;;
-            orm|zod|seed|typebox|valibot|arktype)
+            orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
           
@@ -275,22 +271,6 @@ jobs:
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
-      - name: Stop DBs
-        if: always() && ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          for db in ${{ join(matrix.dbs, ' ') }}; do
-            case "$db" in
-              postgres)            docker compose -f compose/postgres.yml down -v ;;
-              postgres-postgis)    docker compose -f compose/postgres-postgis.yml up -d ;;
-              mysql)               docker compose -f compose/mysql.yml down -v ;;
-              singlestore)         docker compose -f compose/singlestore.yml down -v ;;
-              mssql)               docker compose -f compose/mssql.yml down -v ;;
-              cockroach)           docker compose -f compose/cockroach.yml down -v ;;
-            esac
-          done
-
   attw:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
@@ -301,16 +281,11 @@ jobs:
         package: [drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       - name: Download package tarball
         uses: actions/download-artifact@v4
@@ -331,15 +306,10 @@ jobs:
         package: [node10, node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: pnpm/action-setup@v3
-        with: { version: latest, run_install: false }
-      - uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       - name: Download drizzle-orm tarball

@@ -3,52 +3,36 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
-import { Entities, pullParams, pushParams } from '../validations/cli';
-import { CockroachCredentials, cockroachCredentials } from '../validations/cockroach';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import { pullParams, pushParams } from '../validations/cli';
+import type { CockroachCredentials } from '../validations/cockroach';
+import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import {
-	Casing,
-	CasingType,
-	CliConfig,
-	configCommonSchema,
-	configMigrations,
-	Driver,
-	Prefix,
-	wrapParam,
-} from '../validations/common';
-import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
-import {
-	LibSQLCredentials,
-	libSQLCredentials,
-	printConfigConnectionIssues as printIssuesLibSQL,
-} from '../validations/libsql';
+import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { GelCredentials } from '../validations/gel';
+import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import type { LibSQLCredentials } from '../validations/libsql';
+import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
 import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
-import { MssqlCredentials, mssqlCredentials } from '../validations/mssql';
-import {
-	MysqlCredentials,
-	mysqlCredentials,
-	printConfigConnectionIssues as printIssuesMysql,
-} from '../validations/mysql';
+import type { MssqlCredentials } from '../validations/mssql';
+import { mssqlCredentials } from '../validations/mssql';
+import type { MysqlCredentials } from '../validations/mysql';
+import { mysqlCredentials, printConfigConnectionIssues as printIssuesMysql } from '../validations/mysql';
 import { outputs } from '../validations/outputs';
-import {
-	PostgresCredentials,
-	postgresCredentials,
-	printConfigConnectionIssues as printIssuesPg,
-} from '../validations/postgres';
+import type { PostgresCredentials } from '../validations/postgres';
+import { postgresCredentials, printConfigConnectionIssues as printIssuesPg } from '../validations/postgres';
+import type { SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
-	SingleStoreCredentials,
 	singlestoreCredentials,
 } from '../validations/singlestore';
-import {
-	printConfigConnectionIssues as printIssuesSqlite,
-	SqliteCredentials,
-	sqliteCredentials,
-} from '../validations/sqlite';
+import type { SqliteCredentials } from '../validations/sqlite';
+import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
 
@@ -181,7 +165,7 @@ export const prepareExportConfig = async (
 ): Promise<ExportConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
 
-	const { schema, dialect, sql, config: conf } = config;
+	const { schema, dialect, sql } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -265,10 +249,8 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		strict: boolean;
 		force: boolean;
-		tablesFilter: string[];
-		schemasFilter: string[];
 		casing?: CasingType;
-		entities?: Entities;
+		filters: EntitiesFilterConfig;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -303,22 +285,12 @@ export const preparePushConfig = async (
 		process.exit(0);
 	}
 
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	const schemasFilterConfig = config.schemaFilter;
-
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
-
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -335,9 +307,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -355,8 +325,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -374,8 +343,7 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -393,8 +361,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -412,8 +379,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -440,8 +406,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
 		};
 	}
 
@@ -460,9 +425,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -510,10 +473,8 @@ export const preparePullConfig = async (
 		out: string;
 		breakpoints: boolean;
 		casing: Casing;
-		tablesFilter: string[];
-		schemasFilter: string[];
 		prefix: Prefix;
-		entities: Entities;
+		filters: EntitiesFilterConfig;
 	}
 > => {
 	const raw = flattenPull(
@@ -532,36 +493,12 @@ export const preparePullConfig = async (
 	const config = parsed.data;
 	const dialect = config.dialect;
 
-	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
-	if (isEmptySchemaFilter) {
-		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
-		config.schemaFilter = [defaultSchema];
-	}
-
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
-
-	const schemasFilterConfig = config.schemaFilter; // TODO: consistent naming
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -576,10 +513,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -595,10 +530,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -615,10 +548,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -634,10 +565,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -653,10 +582,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -672,10 +599,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -692,10 +617,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -712,10 +635,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -1013,9 +934,9 @@ export const drizzleConfigFromFile = async (
 
 	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
 	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
-	const defaultJsonConfigExists = existsSync(
-		join(resolve('drizzle.config.json')),
-	);
+	// const defaultJsonConfigExists = existsSync(
+	// 	join(resolve('drizzle.config.json')),
+	// );
 
 	const defaultConfigPath = defaultTsConfigExists
 		? 'drizzle.config.ts'

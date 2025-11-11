@@ -1,6 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { assert, expect, test } from 'vitest';
-import { migrate } from '../src/cli/schema';
+import { migrate } from '../../src/cli/schema';
 
 // good:
 // #1 drizzle-kit generate

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { tests as tests1 } from './mysql-common-1';
 import { tests as tests2 } from './mysql-common-2';
 import { tests as tests3 } from './mysql-common-3';

@@ -44,7 +44,13 @@
 		"build:ext": "bun scripts/build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
-		"publish": "npm publish package.tgz"
+		"publish": "npm publish package.tgz",
+		"test:postgres": "vitest run ./postgres/",
+		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
+		"test:cockroach": "vitest run ./cockroach",
+		"test:mssql": "vitest run ./mssql",
+		"test:gel": "vitest run ./gel",
+		"test:singlestore": "vitest run ./singlestore"
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",

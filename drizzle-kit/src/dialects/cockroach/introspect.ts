@@ -1,6 +1,6 @@
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -26,50 +26,11 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 } from './grammar';
 
-function prepareRoles(entities?: {
-	roles:
-		| boolean
-		| {
-			provider?: string | undefined;
-			include?: string[] | undefined;
-			exclude?: string[] | undefined;
-		};
-}) {
-	if (!entities || !entities.roles) return { useRoles: false, include: [], exclude: [] };
-
-	const roles = entities.roles;
-	const useRoles: boolean = typeof roles === 'boolean' ? roles : false;
-	const include: string[] = typeof roles === 'object' ? (roles.include ?? []) : [];
-	const exclude: string[] = typeof roles === 'object' ? (roles.exclude ?? []) : [];
-	const provider = typeof roles === 'object' ? roles.provider : undefined;
-
-	if (provider === 'supabase') {
-		exclude.push(...[
-			'anon',
-			'authenticator',
-			'authenticated',
-			'service_role',
-			'supabase_auth_admin',
-			'supabase_storage_admin',
-			'dashboard_user',
-			'supabase_admin',
-		]);
-	}
-
-	if (provider === 'neon') {
-		exclude.push(...['authenticated', 'anonymous']);
-	}
-
-	return { useRoles, include, exclude };
-}
-
 // TODO: tables/schema/entities -> filter: (entity: {type: ..., metadata....})=>boolean;
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
 	queryCallback: (id: string, rows: Record<string, unknown>[], error: Error | null) => void = () => {},
 ): Promise<InterimSchema> => {
@@ -133,13 +94,13 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const [ams, tablespaces, namespaces] = await Promise.all([
+	const [_ams, _tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
 	]);
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { system: _, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -151,7 +112,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -202,10 +163,12 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const viewsList = tablesList.filter((it) => (it.kind === 'v' || it.kind === 'm') && tablesFilter(it.schema, it.name));
+	const viewsList = tablesList.filter((it) =>
+		(it.kind === 'v' || it.kind === 'm') && filter({ type: 'table', schema: it.schema, name: it.name })
+	);
 
 	const filteredTables = tablesList
-		.filter((it) => it.kind === 'r' && tablesFilter(it.schema, it.name))
+		.filter((it) => it.kind === 'r' && filter({ type: 'table', schema: it.schema, name: it.name }))
 		.map((it) => {
 			return {
 				...it,
@@ -683,16 +646,7 @@ export const fromDatabase = async (
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	// TODO: drizzle link
-	const res = prepareRoles(entities);
-	const filteredRoles = res.useRoles
-		? rolesList
-		: (!res.include.length && !res.exclude.length
-			? []
-			: rolesList.filter(
-				(role) =>
-					(!res.exclude.length || !res.exclude.includes(role.username))
-					&& (!res.include.length || res.include.includes(role.username)),
-			));
+	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.username }));
 
 	for (const dbRole of filteredRoles) {
 		const createDb = dbRole.options.includes('CREATEDB');
@@ -832,7 +786,7 @@ export const fromDatabase = async (
 
 		const columns: typeof columnsList = [];
 		for (const ordinal of pk.columnsOrdinals) {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.ordinality === ordinal);
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === ordinal);
 
 			if (!column) {
 				continue;
@@ -859,12 +813,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableToId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -1013,7 +967,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId == metadata.tableId && column.ordinality === ordinal;
+					return column.tableId === metadata.tableId && column.ordinality === ordinal;
 				});
 
 				if (column?.isHidden) continue;
@@ -1114,9 +1068,6 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		const viewName = view.name;
-		if (!tablesFilter(view.schema, viewName)) continue;
-
 		const definition = parseViewDefinition(view.definition);
 
 		views.push({
@@ -1155,12 +1106,10 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (schema: string, it: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback);
 
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK);

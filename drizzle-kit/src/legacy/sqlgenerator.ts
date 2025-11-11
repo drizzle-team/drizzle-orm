@@ -1,24 +1,19 @@
-import {
+import type {
 	JsonAddColumnStatement,
 	JsonAddValueToEnumStatement,
 	JsonAlterColumnAlterGeneratedStatement,
 	JsonAlterColumnAlterIdentityStatement,
-	JsonAlterColumnDropAutoincrementStatement,
 	JsonAlterColumnDropDefaultStatement,
 	JsonAlterColumnDropGeneratedStatement,
 	JsonAlterColumnDropIdentityStatement,
 	JsonAlterColumnDropNotNullStatement,
-	JsonAlterColumnDropOnUpdateStatement,
 	JsonAlterColumnDropPrimaryKeyStatement,
 	JsonAlterColumnPgTypeStatement,
-	JsonAlterColumnSetAutoincrementStatement,
 	JsonAlterColumnSetDefaultStatement,
 	JsonAlterColumnSetGeneratedStatement,
 	JsonAlterColumnSetIdentityStatement,
 	JsonAlterColumnSetNotNullStatement,
-	JsonAlterColumnSetOnUpdateStatement,
 	JsonAlterColumnSetPrimaryKeyStatement,
-	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
 	JsonAlterIndPolicyStatement,
 	JsonAlterPolicyStatement,
@@ -36,7 +31,6 @@ import {
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
-	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
 	JsonCreatePgViewStatement,
 	JsonCreatePolicyStatement,
@@ -66,7 +60,6 @@ import {
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
-	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
 	JsonRenamePolicyStatement,
@@ -78,7 +71,7 @@ import {
 	JsonStatement,
 } from './jsonStatements';
 import { PgSquasher } from './postgres-v7/pgSchema';
-import { Dialect } from './schemaValidator';
+import type { Dialect } from './schemaValidator';
 
 export const BREAKPOINT = '--> statement-breakpoint\n';
 
@@ -443,7 +436,7 @@ class PgCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = PgSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
+			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY("${compositePK.columns.join(`","`)}")`;
 			// statement += `\n`;
 		}
 
@@ -456,7 +449,7 @@ class PgCreateTableConvertor extends Convertor {
 				const unsquashedUnique = PgSquasher.unsquashUnique(uniqueConstraint);
 				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${
 					unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-				}(\"${unsquashedUnique.columns.join(`","`)}\")`;
+				}("${unsquashedUnique.columns.join(`","`)}")`;
 				// statement += `\n`;
 			}
 		}
@@ -603,7 +596,7 @@ class PgAlterViewDropWithOptionConvertor extends Convertor {
 
 		const options: string[] = [];
 
-		Object.entries(withOptions).forEach(([key, value]) => {
+		Object.entries(withOptions).forEach(([key]) => {
 			options.push(`${key.snake_case()}`);
 		});
 
@@ -895,9 +888,9 @@ class RenamePgSequenceConvertor extends Convertor {
 		const sequenceWithSchemaFrom = schema
 			? `"${schema}"."${nameFrom}"`
 			: `"${nameFrom}"`;
-		const sequenceWithSchemaTo = schema
-			? `"${schema}"."${nameTo}"`
-			: `"${nameTo}"`;
+		// const sequenceWithSchemaTo = schema
+		// 	? `"${schema}"."${nameTo}"`
+		// 	: `"${nameTo}"`;
 
 		return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${nameTo}";`;
 	}
@@ -1152,7 +1145,7 @@ class PgRenameTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRenameTableStatement) {
-		const { tableNameFrom, tableNameTo, toSchema, fromSchema } = statement;
+		const { tableNameFrom, tableNameTo, fromSchema } = statement;
 		const from = fromSchema
 			? `"${fromSchema}"."${tableNameFrom}"`
 			: `"${tableNameFrom}"`;
@@ -1311,7 +1304,7 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 
 	convert(statement: JsonAddColumnStatement) {
 		const { tableName, column, schema } = statement;
-		const { name, type, notNull, generated, primaryKey, identity } = column;
+		const { name, notNull, generated, primaryKey, identity } = column;
 
 		const primaryKeyStatement = primaryKey ? ' PRIMARY KEY' : '';
 
@@ -1599,7 +1592,7 @@ class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		const { columns } = PgSquasher.unsquashPK(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1616,7 +1609,7 @@ class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonDeleteCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		// const { name, columns } = PgSquasher.unsquashPK(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1632,8 +1625,8 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = PgSquasher.unsquashPK(
+		// const { name, columns } = PgSquasher.unsquashPK(statement.old);
+		const { columns: newColumns } = PgSquasher.unsquashPK(
 			statement.new,
 		);
 
@@ -1656,7 +1649,7 @@ class PgAlterTableAlterColumnSetPrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnSetPrimaryKeyStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1675,7 +1668,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnDropPrimaryKeyStatement) {
-		const { tableName, columnName, schema } = statement;
+		const { tableName, schema } = statement;
 		return `/* 
     Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
     We are working on making it available!
@@ -1704,7 +1697,7 @@ class PgAlterTableAlterColumnSetNotNullConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnSetNotNullStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
@@ -1723,7 +1716,7 @@ class PgAlterTableAlterColumnDropNotNullConvertor extends Convertor {
 	}
 
 	convert(statement: JsonAlterColumnDropNotNullStatement) {
-		const { tableName, columnName } = statement;
+		const { columnName } = statement;
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`

@@ -1,26 +1,28 @@
 import chalk from 'chalk';
 import { getTableName, is, SQL } from 'orm044';
 import { CasingCache, toCamelCase, toSnakeCase } from 'orm044/casing';
-import {
+import type {
 	AnyPgTable,
+	IndexedColumn,
+	PgEnum,
+	PgMaterializedView,
+	PgPolicy,
+	PgSchema,
+	PgSequence,
+} from 'orm044/pg-core';
+import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
-	IndexedColumn,
 	PgArray,
 	PgColumn,
 	PgDialect,
-	PgEnum,
 	PgEnumColumn,
-	PgMaterializedView,
-	PgPolicy,
 	PgRole,
-	PgSchema,
-	PgSequence,
 	PgView,
 	uniqueKeyName,
 } from 'orm044/pg-core';
-import { CasingType } from '../common';
+import type { CasingType } from '../common';
 import { withStyle } from '../outputs';
 import { escapeSingleQuotes, isPgArrayType } from '../utils';
 import type {
@@ -99,15 +101,15 @@ function minRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'integer' ? '-2147483648' : columnType === 'bigint' ? '-9223372036854775808' : '-32768';
 }
 
-function stringFromDatabaseIdentityProperty(field: any): string | undefined {
-	return typeof field === 'string'
-		? (field as string)
-		: typeof field === 'undefined'
-		? undefined
-		: typeof field === 'bigint'
-		? field.toString()
-		: String(field);
-}
+// function stringFromDatabaseIdentityProperty(field: any): string | undefined {
+// 	return typeof field === 'string'
+// 		? (field as string)
+// 		: typeof field === 'undefined'
+// 		? undefined
+// 		: typeof field === 'bigint'
+// 		? field.toString()
+// 		: String(field);
+// }
 
 export function buildArrayString(array: any[], sqlType: string): string {
 	// patched
@@ -124,7 +126,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				return value ? 'true' : 'false';
 			} else if (Array.isArray(value)) {
 				return buildArrayString(value, sqlType);
-			} else if (value instanceof Date) {
+			} else if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 				if (sqlType === 'date') {
 					return `"${value.toISOString().split('T')[0]}"`;
 				} else if (sqlType === 'timestamp') {
@@ -260,7 +262,7 @@ export const generatePgSnapshot = (
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
 						`\n${
-							withStyle.errorWarning(`We\'ve found duplicated unique constraint names in ${
+							withStyle.errorWarning(`We've found duplicated unique constraint names in ${
 								chalk.underline.blue(
 									tableName,
 								)
@@ -298,7 +300,7 @@ export const generatePgSnapshot = (
 					} else {
 						if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-						} else if (column.default instanceof Date) {
+						} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 							if (sqlTypeLowered === 'date') {
 								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 							} else if (sqlTypeLowered === 'timestamp') {
@@ -346,7 +348,7 @@ export const generatePgSnapshot = (
 				console.log(
 					`\n${
 						withStyle.errorWarning(
-							`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
+							`We've found duplicated unique constraint names in ${chalk.underline.blue(tableName)} table. 
         The unique constraint ${chalk.underline.blue(name)} on the ${
 								chalk.underline.blue(
 									columnNames.join(','),
@@ -501,7 +503,7 @@ export const generatePgSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(
-								`We\'ve found duplicated index name across ${
+								`We've found duplicated index name across ${
 									chalk.underline.blue(schema ?? 'public')
 								} schema. Please rename your index in either the ${
 									chalk.underline.blue(
@@ -554,7 +556,7 @@ export const generatePgSnapshot = (
 				console.log(
 					`\n${
 						withStyle.errorWarning(
-							`We\'ve found duplicated policy name across ${
+							`We've found duplicated policy name across ${
 								chalk.underline.blue(tableKey)
 							} table. Please rename one of the policies with ${
 								chalk.underline.blue(
@@ -585,7 +587,7 @@ export const generatePgSnapshot = (
 					console.log(
 						`\n${
 							withStyle.errorWarning(
-								`We\'ve found duplicated check constraint name across ${
+								`We've found duplicated check constraint name across ${
 									chalk.underline.blue(
 										schema ?? 'public',
 									)
@@ -676,7 +678,7 @@ export const generatePgSnapshot = (
 			console.log(
 				`\n${
 					withStyle.errorWarning(
-						`We\'ve found duplicated policy name across ${
+						`We've found duplicated policy name across ${
 							chalk.underline.blue(tableKey)
 						} table. Please rename one of the policies with ${
 							chalk.underline.blue(
@@ -780,7 +782,7 @@ export const generatePgSnapshot = (
 			console.log(
 				`\n${
 					withStyle.errorWarning(
-						`We\'ve found duplicated view name across ${
+						`We've found duplicated view name across ${
 							chalk.underline.blue(schema ?? 'public')
 						} schema. Please rename your view`,
 					)
@@ -847,7 +849,7 @@ export const generatePgSnapshot = (
 						console.log(
 							`\n${
 								withStyle.errorWarning(
-									`We\'ve found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
+									`We've found duplicated unique constraint names in ${chalk.underline.blue(viewName)} table. 
           The unique constraint ${chalk.underline.blue(column.uniqueName)} on the ${
 										chalk.underline.blue(
 											column.name,
@@ -876,7 +878,7 @@ export const generatePgSnapshot = (
 						} else {
 							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-							} else if (column.default instanceof Date) {
+							} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 								if (sqlTypeLowered === 'date') {
 									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 								} else if (sqlTypeLowered === 'timestamp') {
