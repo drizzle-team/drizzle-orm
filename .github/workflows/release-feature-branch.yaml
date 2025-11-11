@@ -67,7 +67,9 @@ jobs:
             echo "Setting $pkg dist version to $new_version"
             jq --arg v "$new_version" '.version = $v' "$package_json" > "$package_json.tmp"
             mv "$package_json.tmp" "$package_json"
+            cat "$package_json"
           done
+
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
         uses: actions/upload-artifact@v4
@@ -373,6 +375,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24' }
       
+      # nuke, so npm can use OIDC
       - name: Remove temp npmrc
         run: rm -f "$NPM_CONFIG_USERCONFIG"
     
