@@ -923,6 +923,74 @@ test('column is enum type with default value. shuffle enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop enum value. column of enum type. drop default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value2'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
+		`DROP TYPE "enum";`,
+		`CREATE TYPE "enum" AS ENUM('value1', 'value3');`,
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4295
+test('drop enum value. column of enum type with default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value1'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
+		`DROP TYPE "enum";`,
+		`CREATE TYPE "enum" AS ENUM('value1', 'value3');`,
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
+		`ALTER TABLE \"table\" ALTER COLUMN \"column\" SET DEFAULT 'value1'::\"enum\";`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('enums as ts enum', async () => {
 	enum Test {
 		value = 'value',

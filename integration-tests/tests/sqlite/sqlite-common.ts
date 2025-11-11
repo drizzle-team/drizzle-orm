@@ -851,22 +851,22 @@ export function tests() {
 		test('inner join', async (ctx) => {
 			const { db } = ctx.sqlite;
 
-			const teams = sqliteTable('teams', {
+			const teams = sqliteTable('teams_1', {
 				id: integer().primaryKey(),
 			});
-			const users = sqliteTable('users', {
+			const users = sqliteTable('users_1', {
 				id: integer().primaryKey(),
 				name: text().notNull(),
 				teamId: integer('team_id').references(() => teams.id),
 			});
 
-			await db.run(sql`drop table if exists ${teams}`);
-			await db.run(sql`create table ${teams} (id integer primary key);`);
-
 			await db.run(sql`drop table if exists ${users}`);
 			await db.run(
-				sql`create table ${users} (id integer primary key, name text not null, team_id integer, FOREIGN KEY (team_id) REFERENCES teams(id));`,
+				sql`create table ${users} (id integer primary key, name text not null, team_id integer, FOREIGN KEY (team_id) REFERENCES ${teams}(id));`,
 			);
+
+			await db.run(sql`drop table if exists ${teams}`);
+			await db.run(sql`create table ${teams} (id integer primary key);`);
 
 			await db.insert(teams).values([{ id: 1 }, { id: 2 }]).run();
 			await db.insert(users).values([{ id: 10, name: 'Ivan', teamId: 1 }, { id: 11, name: 'Hans', teamId: 2 }]).run();
@@ -876,21 +876,21 @@ export function tests() {
 
 			const result = await query.all();
 
-			expect(result).toEqual([{
-				users: {
+			expect(result).toEqual([
+				{
 					id: 10,
 					name: 'Ivan',
 					team_id: 1,
 				},
-				customer: {
+				{
 					id: 11,
 					name: 'Hans',
 					team_id: 2,
 				},
-			}]);
+			]);
 
-			await db.run(sql`drop table ${teams}`);
 			await db.run(sql`drop table ${users}`);
+			await db.run(sql`drop table ${teams}`);
 		});
 
 		test('select from alias', async (ctx) => {
