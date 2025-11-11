@@ -380,5 +380,5 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          pnpm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+          npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
           echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
