@@ -1,19 +1,19 @@
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { assertUnreachable } from 'src/utils';
-import { Casing } from '../../cli/validations/common';
-import {
+import type { Casing } from '../../cli/validations/common';
+import type {
 	CheckConstraint,
 	Column,
 	DefaultConstraint,
 	ForeignKey,
-	fullTableFromDDL,
 	Index,
 	MssqlDDL,
 	PrimaryKey,
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
+import { fullTableFromDDL } from './ddl';
 import { typeFor } from './grammar';
 
 const imports = [

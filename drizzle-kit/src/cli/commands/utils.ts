@@ -7,48 +7,32 @@ import { assertUnreachable } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
-import { EntitiesFilterConfig, pullParams, pushParams } from '../validations/cli';
-import { CockroachCredentials, cockroachCredentials } from '../validations/cockroach';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import { pullParams, pushParams } from '../validations/cli';
+import type { CockroachCredentials } from '../validations/cockroach';
+import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import {
-	Casing,
-	CasingType,
-	CliConfig,
-	configCommonSchema,
-	configMigrations,
-	Driver,
-	Prefix,
-	wrapParam,
-} from '../validations/common';
-import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
-import {
-	LibSQLCredentials,
-	libSQLCredentials,
-	printConfigConnectionIssues as printIssuesLibSQL,
-} from '../validations/libsql';
+import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { GelCredentials } from '../validations/gel';
+import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import type { LibSQLCredentials } from '../validations/libsql';
+import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
 import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
-import { MssqlCredentials, mssqlCredentials } from '../validations/mssql';
-import {
-	MysqlCredentials,
-	mysqlCredentials,
-	printConfigConnectionIssues as printIssuesMysql,
-} from '../validations/mysql';
+import type { MssqlCredentials } from '../validations/mssql';
+import { mssqlCredentials } from '../validations/mssql';
+import type { MysqlCredentials } from '../validations/mysql';
+import { mysqlCredentials, printConfigConnectionIssues as printIssuesMysql } from '../validations/mysql';
 import { outputs } from '../validations/outputs';
-import {
-	PostgresCredentials,
-	postgresCredentials,
-	printConfigConnectionIssues as printIssuesPg,
-} from '../validations/postgres';
+import type { PostgresCredentials } from '../validations/postgres';
+import { postgresCredentials, printConfigConnectionIssues as printIssuesPg } from '../validations/postgres';
+import type { SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
-	SingleStoreCredentials,
 	singlestoreCredentials,
 } from '../validations/singlestore';
-import {
-	printConfigConnectionIssues as printIssuesSqlite,
-	SqliteCredentials,
-	sqliteCredentials,
-} from '../validations/sqlite';
+import type { SqliteCredentials } from '../validations/sqlite';
+import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
 
@@ -181,7 +165,7 @@ export const prepareExportConfig = async (
 ): Promise<ExportConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
 
-	const { schema, dialect, sql, config: conf } = config;
+	const { schema, dialect, sql } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -950,9 +934,9 @@ export const drizzleConfigFromFile = async (
 
 	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
 	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
-	const defaultJsonConfigExists = existsSync(
-		join(resolve('drizzle.config.json')),
-	);
+	// const defaultJsonConfigExists = existsSync(
+	// 	join(resolve('drizzle.config.json')),
+	// );
 
 	const defaultConfigPath = defaultTsConfigExists
 		? 'drizzle.config.ts'

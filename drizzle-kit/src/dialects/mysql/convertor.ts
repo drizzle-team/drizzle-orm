@@ -1,5 +1,5 @@
-import { Simplify } from '../../utils';
-import { JsonStatement } from './statements';
+import type { Simplify } from '../../utils';
+import type { JsonStatement } from './statements';
 
 export const convertor = <
 	TType extends JsonStatement['type'],
@@ -134,7 +134,7 @@ const renameColumn = convertor('rename_column', (st) => {
 });
 
 const alterColumn = convertor('alter_column', (st) => {
-	const { diff, column, isPK, wasPK } = st;
+	const { column, isPK, wasPK } = st;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
@@ -163,7 +163,7 @@ const recreateColumn = convertor('recreate_column', (st) => {
 
 const createIndex = convertor('create_index', (st) => {
 	// TODO: handle everything?
-	const { name, table, columns, isUnique, algorithm, entityType, lock, using } = st.index;
+	const { name, table, columns, isUnique } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
 	const uniqueString = columns

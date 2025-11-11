@@ -1,21 +1,21 @@
-import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { areStringArraysEqual, type DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
-import {
-	type CheckConstraint,
-	type Column,
-	type ForeignKey,
-	type Index,
+import type {
+	CheckConstraint,
+	Column,
+	ForeignKey,
+	Index,
 	InterimColumn,
-	type PrimaryKey,
-	type SqliteEntities,
-	type UniqueConstraint,
-	type View,
-	type ViewColumn,
+	PrimaryKey,
+	SqliteEntities,
+	UniqueConstraint,
+	View,
+	ViewColumn,
 } from './ddl';
+import type { Generated } from './grammar';
 import {
 	extractGeneratedColumns,
-	Generated,
 	nameForForeignKey,
 	nameForPk,
 	nameForUnique,
@@ -190,7 +190,7 @@ export const fromDatabase = async (
 			queryCallback('viewColumns', [], error);
 			throw error;
 		});
-	} catch (_) {
+	} catch {
 		for (const view of views) {
 			try {
 				const viewColumns = await db.query<{
@@ -434,7 +434,7 @@ export const fromDatabase = async (
 					&& idx.column === column.name;
 			}).map((it) => {
 				const parsed = parseSqliteDdl(it.index.sql);
-				if (parsed.pk.columns.length > 1) return undefined;
+				if (parsed.pk.columns.length > 1) return;
 
 				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
 				if (!constraint) return { name: null };

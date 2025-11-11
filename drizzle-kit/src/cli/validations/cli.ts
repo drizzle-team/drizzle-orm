@@ -1,4 +1,5 @@
-import { boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { boolean, intersection, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { casing, casingType, prefix } from './common';
 

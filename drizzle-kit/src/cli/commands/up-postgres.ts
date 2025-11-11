@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { createDDL, Index } from '../../dialects/postgres/ddl';
+import type { Index } from '../../dialects/postgres/ddl';
+import { createDDL } from '../../dialects/postgres/ddl';
 import { defaultNameForIndex, defaultNameForPK, defaultNameForUnique, defaults } from '../../dialects/postgres/grammar';
-import {
+import type {
 	Column,
 	Index as LegacyIndex,
 	PgSchema,
@@ -22,12 +23,12 @@ export const upPgHandler = (out: string) => {
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it]! as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;
 
-			const { snapshot, hints } = upToV8(it.raw);
+			const { snapshot } = upToV8(it.raw);
 
 			console.log(`[${chalk.green('✓')}] ${path}`);
 

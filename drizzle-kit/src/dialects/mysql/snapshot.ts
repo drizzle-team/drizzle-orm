@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto';
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import type { TypeOf } from 'zod';
+import { any, boolean, enum as enumType, literal, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, MysqlDDL, MysqlEntity } from './ddl';
+import type { MysqlDDL, MysqlEntity } from './ddl';
+import { createDDL } from './ddl';
 
 // ------- V3 --------
 const index = object({
@@ -90,7 +92,7 @@ export const view = object({
 	definition: string().optional(),
 	isExisting: boolean(),
 }).strict().merge(viewMeta);
-type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>;
+// type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>;
 
 export const kitInternals = object({
 	tables: record(

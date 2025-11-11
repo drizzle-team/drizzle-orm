@@ -137,11 +137,11 @@ export const fromDatabase = async (
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
 		const extra = column['EXTRA'] ?? '';
-		const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
-		const dataType = column['DATA_TYPE']; // varchar
+		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
+		// const dataType = column['DATA_TYPE']; // varchar
 		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
-		const numericPrecision = column['NUMERIC_PRECISION'];
-		const numericScale = column['NUMERIC_SCALE'];
+		// const numericPrecision = column['NUMERIC_PRECISION'];
+		// const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
 		const onUpdateNow: boolean = extra.includes('on update CURRENT_TIMESTAMP');
 
@@ -221,7 +221,7 @@ export const fromDatabase = async (
 		(acc, it) => {
 			const table: string = it['TABLE_NAME'];
 			const column: string = it['COLUMN_NAME'];
-			const position: string = it['ordinal_position'];
+			// const position: string = it['ordinal_position'];
 
 			if (table in acc) {
 				acc[table].columns.push(column);

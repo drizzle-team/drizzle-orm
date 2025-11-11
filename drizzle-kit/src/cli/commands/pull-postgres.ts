@@ -1,17 +1,17 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import { EntityFilter, prepareEntityFilter } from 'src/dialects/pull-utils';
-import {
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -22,6 +22,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
@@ -32,7 +33,8 @@ import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { IntrospectProgress, IntrospectStage, IntrospectStatus } from '../views';
+import type { IntrospectStage, IntrospectStatus } from '../views';
+import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -76,7 +78,7 @@ export const handle = async (
 
 	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
 	if (snapshots.length === 0) {
-		const blanks = new Set<string>();
+		// const blanks = new Set<string>();
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,

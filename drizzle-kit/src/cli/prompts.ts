@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { Resolver } from 'src/dialects/common';
-import { isRenamePromptItem, RenamePropmtItem, ResolveSelect } from './views';
+import type { Resolver } from 'src/dialects/common';
+import type { RenamePropmtItem } from './views';
+import { isRenamePromptItem, ResolveSelect } from './views';
 
 export const resolver = <T extends { name: string; schema?: string; table?: string }>(
 	entity:

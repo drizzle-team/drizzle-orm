@@ -5,32 +5,30 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	CockroachDDL,
 	CockroachEntities,
 	Column,
-	createDDL,
 	DiffEntities,
 	Enum,
 	ForeignKey,
 	Index,
 	Policy,
 	PrimaryKey,
-	Role,
 	Schema,
 	Sequence,
-	tableFromDDL,
 	View,
 } from './ddl';
+import { createDDL, tableFromDDL } from './ddl';
 import { defaultsCommutative, typesCommutative } from './grammar';
-import {
+import type {
 	JsonAlterColumn,
 	JsonAlterColumnAddNotNull,
 	JsonAlterColumnDropNotNull,
 	JsonStatement,
-	prepareStatement,
 } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -868,7 +866,7 @@ export const ddlDiff = async (
 
 	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
 	// TODO:
-	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
+	const _jsonPloiciesAlterStatements = policiesAlters.map((it) =>
 		prepareStatement('alter_policy', { diff: it, policy: it.$right })
 	);
 

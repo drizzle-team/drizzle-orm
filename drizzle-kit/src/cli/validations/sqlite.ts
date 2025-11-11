@@ -1,4 +1,5 @@
-import { literal, object, string, TypeOf, undefined, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { literal, object, string, undefined as zUndefined, union } from 'zod';
 import { softAssertUnreachable } from '../../utils';
 import { error } from '../views';
 import { sqliteDriver, wrapParam } from './common';
@@ -16,7 +17,7 @@ export const sqliteCredentials = union([
 		token: string().min(1),
 	}),
 	object({
-		driver: undefined(),
+		driver: zUndefined(),
 		url: string().min(1),
 	}).transform<{ url: string }>((o) => {
 		delete o.driver;

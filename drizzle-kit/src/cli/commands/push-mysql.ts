@@ -1,15 +1,16 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { Column, interimToDDL, Table, View } from '../../dialects/mysql/ddl';
+import type { Column, Table, View } from '../../dialects/mysql/ddl';
+import { interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
-import { JsonStatement } from '../../dialects/mysql/statements';
+import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { connectToMySQL } from '../connections';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig, TablesFilter } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
@@ -75,7 +76,7 @@ export const handle = async (
 		}
 
 		if (!force && strict && hints.length > 0) {
-			const { status, data } = await render(
+			const { data } = await render(
 				new Select(['No, abort', `Yes, I want to execute all statements`]),
 			);
 			if (data?.index === 0) {
@@ -96,7 +97,7 @@ export const handle = async (
 
 			console.log(chalk.white('Do you still want to push changes?'));
 
-			const { status, data } = await render(new Select(['No, abort', `Yes, execute`]));
+			const { data } = await render(new Select(['No, abort', `Yes, execute`]));
 			if (data?.index === 0) {
 				render(`[${chalk.red('x')}] All changes were aborted`);
 				process.exit(0);
@@ -213,7 +214,7 @@ export const handle = async (
 // 	});
 // };
 
-export const suggestions = async (db: DB, statements: JsonStatement[]) => {
+export const suggestions = async (_db: DB, _statements: JsonStatement[]) => {
 	const hints: string[] = [];
 	const truncates: string[] = [];
 

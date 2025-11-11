@@ -1,5 +1,5 @@
-import { Simplify } from '../../utils';
-import {
+import type { Simplify } from '../../utils';
+import type {
 	CheckConstraint,
 	Column,
 	DefaultConstraint,

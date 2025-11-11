@@ -1,9 +1,11 @@
 import type { CasingType } from 'src/cli/validations/common';
 import { sqliteSchemaError } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, SQLiteDDL } from './ddl';
+import type { SQLiteDDL } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { drySqliteSnapshot, snapshotValidator, SqliteSnapshot } from './snapshot';
+import type { SqliteSnapshot } from './snapshot';
+import { drySqliteSnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSqliteSnapshot = async (
 	snapshots: string[],
@@ -18,8 +20,8 @@ export const prepareSqliteSnapshot = async (
 		custom: SqliteSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySqliteSnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));

@@ -3,7 +3,7 @@ import { readFileSync, rmSync, writeFileSync } from 'fs';
 import fs from 'fs';
 import { render } from 'hanji';
 import { join } from 'path';
-import { Journal } from '../../utils';
+import type { Journal } from '../../utils';
 import { DropMigrationView } from '../views';
 import { embeddedMigrations } from './generate-common';
 

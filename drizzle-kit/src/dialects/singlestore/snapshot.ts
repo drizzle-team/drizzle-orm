@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { any, boolean, enum as enumType, literal, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
-import { createDDL, MysqlDDL, MysqlEntity } from '../mysql/ddl';
+import type { MysqlDDL, MysqlEntity } from '../mysql/ddl';
+import { createDDL } from '../mysql/ddl';
 import { array, validator } from '../simpleValidator';
 
 // ------- V3 --------
@@ -47,11 +49,11 @@ const table = object({
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 }).strict();
 
-const viewMeta = object({
-	algorithm: enumType(['undefined', 'merge', 'temptable']),
-	sqlSecurity: enumType(['definer', 'invoker']),
-	withCheckOption: enumType(['local', 'cascaded']).optional(),
-}).strict();
+// const viewMeta = object({
+// 	algorithm: enumType(['undefined', 'merge', 'temptable']),
+// 	sqlSecurity: enumType(['definer', 'invoker']),
+// 	withCheckOption: enumType(['local', 'cascaded']).optional(),
+// }).strict();
 
 /* export const view = object({
 	name: string(),
