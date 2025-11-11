@@ -358,6 +358,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
+    
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
     strategy:
       matrix:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
