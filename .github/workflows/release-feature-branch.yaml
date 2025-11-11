@@ -395,7 +395,6 @@ jobs:
           is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
           if [[ "$is_published" == "true" ]]; then
             echo "\`${{ matrix.package }}@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version $tag || true
           else
             { echo "version=$version"; echo "tag=$tag"; echo "has_new_release=true"; } >> $GITHUB_OUTPUT
           fi
