@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/cockroach';
-import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
+import type { CockroachDatabase } from 'drizzle-orm/cockroach-core';
 import { Client } from 'pg';
 import { test as base } from 'vitest';
 

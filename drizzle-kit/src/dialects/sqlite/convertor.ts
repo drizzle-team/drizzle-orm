@@ -84,7 +84,6 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < referenceData.length; i++) {
 		const {
 			name,
-			table,
 			tableTo,
 			columns,
 			columnsTo,

@@ -18,7 +18,7 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 export function tests(test: Test) {
 	describe('common', () => {
@@ -987,7 +987,7 @@ export function tests(test: Test) {
 			const stmt = db
 				.select()
 				.from(usersTable)
-				.where(lt(usersTable.createdAt, sql`now() - interval '${sql.placeholder('timeWindow')}'`))
+				.where(lt(usersTable.createdAt, sql`now() - ${sql.placeholder('timeWindow')}::interval`))
 				.prepare('get_old_users');
 
 			const result = await stmt.execute({ timeWindow: '40 days' });

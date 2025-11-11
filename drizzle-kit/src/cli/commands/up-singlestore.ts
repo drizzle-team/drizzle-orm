@@ -1,5 +1,5 @@
 import { writeFileSync } from 'fs';
-import { SchemaV1, SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
+import type { SchemaV1, SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
@@ -15,7 +15,7 @@ export const upSinglestoreHandler = (out: string) => {
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it] as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;

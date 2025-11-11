@@ -4,7 +4,7 @@ import { asc, avg, avgDistinct, count, countDistinct, eq, gt, gte, max, min, sql
 import { except, exceptAll, intersect, intersectAll, union } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
 
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { createAggregateTable, createCitiesTable, createUsers2Table } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

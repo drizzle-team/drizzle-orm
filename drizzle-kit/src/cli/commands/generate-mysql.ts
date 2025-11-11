@@ -1,7 +1,7 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mysql/serializer';
 import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
-import { Column, createDDL, interimToDDL, type Table, View } from '../../dialects/mysql/ddl';
+import { type Column, createDDL, interimToDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
@@ -13,7 +13,7 @@ export const handle = async (config: GenerateConfig) => {
 	const casing = config.casing;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, snapshotPrev, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({

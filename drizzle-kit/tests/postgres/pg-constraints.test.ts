@@ -15,11 +15,8 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { introspect } from 'src/cli/commands/pull-postgres';
-import { EmptyProgressView } from 'src/cli/views';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabase } from 'src/ext/studio-postgres';
-import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -1995,7 +1992,7 @@ test('generated + pk', async (t) => {
 	const renames = ['public.table.column2->public.table.column3'];
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	expect(st).toStrictEqual([

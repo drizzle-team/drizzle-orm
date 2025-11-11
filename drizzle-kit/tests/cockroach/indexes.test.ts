@@ -360,7 +360,7 @@ test.concurrent('index #2', async ({ dbc: db }) => {
 
 /**
 There are two similar tests shown here
-When creating an index with the sql`name !== 'alex'`, Cockroach automatically adds 'alex'::STRING
+When creating an index with the sql`name != 'alex'`, Cockroach automatically adds 'alex'::STRING
 Since this behavior comes directly from the sql`` we can't handle it
 
 The second test passes because it explicitly add ::STRING

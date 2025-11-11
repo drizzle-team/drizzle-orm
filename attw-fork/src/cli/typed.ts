@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import Table, { type GenericTable, type HorizontalTableRow } from 'cli-table3';
 import { marked } from 'marked';
 import TerminalRenderer from 'marked-terminal';
-import * as core from '../index.ts';
+import type * as core from '../index.ts';
 import {
 	filterProblems,
 	problemAffectsEntrypoint,

@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { describe, expect, vi } from 'vitest';
-import { Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { postsTable, usersTable } from './schema';
 
 export function tests(test: Test) {

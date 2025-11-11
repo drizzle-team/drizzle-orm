@@ -2,13 +2,13 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
-import { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
+import type { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
+import type { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
+import type { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
-import { BREAKPOINT, type Journal } from '../../utils';
+import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver, Prefix } from '../validations/common';
 
@@ -34,7 +34,6 @@ export const writeResult = (config: {
 		renames,
 		bundle = false,
 		type = 'none',
-		prefixMode,
 		driver,
 		snapshots,
 	} = config;

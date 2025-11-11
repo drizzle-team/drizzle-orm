@@ -15,7 +15,7 @@ export const upMysqlHandler = (out: string) => {
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it] as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;

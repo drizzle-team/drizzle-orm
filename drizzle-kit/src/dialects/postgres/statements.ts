@@ -1,5 +1,4 @@
 import type { Simplify } from '../../utils';
-import type { DiffColumn } from '../sqlite/ddl';
 import type {
 	CheckConstraint,
 	Column,
@@ -160,6 +159,7 @@ export interface JsonAddColumn {
 	type: 'add_column';
 	column: Column;
 	isPK: boolean;
+	isCompositePK: boolean;
 }
 
 export interface JsonCreatePolicy {

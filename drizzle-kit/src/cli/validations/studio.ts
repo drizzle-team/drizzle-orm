@@ -1,4 +1,5 @@
-import { coerce, intersection, object, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { coerce, intersection, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { casingType } from './common';
 import { mysqlCredentials } from './mysql';

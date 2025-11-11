@@ -1,7 +1,7 @@
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
-import { drizzle, type NeonHttpDatabase, NeonHttpQueryResult } from 'drizzle-orm/neon-http';
-import { AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { drizzle, type NeonHttpDatabase, type NeonHttpQueryResult } from 'drizzle-orm/neon-http';
+import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
 import { _push, prepareNeonHttpClient } from './instrumentation';
 

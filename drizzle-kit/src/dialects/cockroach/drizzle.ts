@@ -1,18 +1,21 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import {
+import type {
 	AnyCockroachColumn,
 	AnyCockroachTable,
+	CockroachEnum,
+	CockroachMaterializedView,
+	CockroachSequence,
+	UpdateDeleteAction,
+} from 'drizzle-orm/cockroach-core';
+import {
 	CockroachArray,
 	CockroachDialect,
-	CockroachEnum,
 	CockroachEnumColumn,
 	CockroachGeometry,
 	CockroachGeometryObject,
-	CockroachMaterializedView,
 	CockroachPolicy,
 	CockroachRole,
 	CockroachSchema,
-	CockroachSequence,
 	CockroachTable,
 	CockroachView,
 	getMaterializedViewConfig,
@@ -23,11 +26,10 @@ import {
 	isCockroachMaterializedView,
 	isCockroachSequence,
 	isCockroachView,
-	UpdateDeleteAction,
 } from 'drizzle-orm/cockroach-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, trimChar } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -287,7 +289,7 @@ export const fromDrizzleSchema = (
 		} satisfies CockroachEntities['tables'];
 	});
 
-	for (const { table, config } of tableConfigPairs) {
+	for (const { config } of tableConfigPairs) {
 		const {
 			name: tableName,
 			columns: drizzleColumns,
@@ -298,7 +300,6 @@ export const fromDrizzleSchema = (
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
 			policies: drizzlePolicies,
-			enableRLS,
 		} = config;
 
 		const schema = drizzleSchema || 'public';

@@ -1703,7 +1703,7 @@ test('fk multistep #3', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
-		'ALTER TABLE [bar] DROP CONSTRAINT [bar_fooId_foo_id_fk];',
+		'ALTER TABLE [bar] DROP CONSTRAINT [bar_fooId_foo_id_fk];\n',
 		'DROP TABLE [foo];',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
@@ -2142,7 +2142,7 @@ test('default #4', async () => {
 		'my_schema.users.name->my_schema.users.name2',
 	]);
 
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
@@ -2454,7 +2454,13 @@ test('drop column with pk and add pk to another column #1', async () => {
 
 	const expectedSt2: string[] = [
 		'ALTER TABLE [authors] DROP CONSTRAINT [authors_pkey];',
-		'ALTER TABLE [authors] ADD [orcid_id] varchar(64);',
+		/*
+			HAS TO BE NOT NULL, othervise:
+
+			ALTER TABLE [authors] ADD CONSTRAINT [authors_pkey] PRIMARY KEY ([publication_id],[author_id],[orcid_id]);
+			Error: Could not create constraint or index. See previous errors.
+		*/
+		'ALTER TABLE [authors] ADD [orcid_id] varchar(64) NOT NULL;',
 		'ALTER TABLE [authors] ADD CONSTRAINT [authors_pkey] PRIMARY KEY ([publication_id],[author_id],[orcid_id]);',
 	];
 
