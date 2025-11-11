@@ -79,6 +79,8 @@ export const generate = command({
 		assertV3OutFolder(opts.out);
 
 		const dialect = opts.dialect;
+		await checkHandler(opts.out, dialect);
+
 		if (dialect === 'postgresql') {
 			const { handle } = await import('./commands/generate-postgres');
 			await handle(opts);

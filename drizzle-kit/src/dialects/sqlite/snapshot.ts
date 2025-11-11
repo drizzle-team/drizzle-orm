@@ -1,4 +1,4 @@
-import { array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import type { SQLiteDDL, SqliteEntity } from './ddl';
@@ -103,6 +103,7 @@ export const schemaInternalV6 = object({
 		tables: record(string(), string()),
 		columns: record(string(), string()),
 	}),
+	internal: any(),
 }).strict();
 
 export const schemaV5 = schemaInternalV5.merge(schemaHashV5).strict();

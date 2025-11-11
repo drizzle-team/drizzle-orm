@@ -2,11 +2,12 @@ import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
+import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse } from 'url';
 import { error, info } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
-import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
@@ -170,7 +171,7 @@ const mysqlValidator = (
 	const versionError = assertVersion(snapshot, 6);
 	if (versionError) return { status: versionError };
 
-	const { success } = mysqlSchemaV5.safeParse(snapshot);
+	const { success } = mysqlSnapshotValidator.parse(snapshot);
 	if (!success) return { status: 'malformed', errors: [] };
 
 	return { status: 'valid' };
@@ -202,17 +203,16 @@ const sqliteValidator = (
 	return { status: 'valid' };
 };
 
-const singlestoreSnapshotValidator = (
+const singlestoreValidator = (
 	snapshot: object,
 ): ValidationResult => {
-	const versionError = assertVersion(snapshot, 1);
+	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
-	// TODO uncomment this. @AlexSherman left this cause of error using pnpm run test (pnpm tsc was used)
-	// const { success } = singlestoreSchema.safeParse(snapshot);
-	// if (!success)
-	return { status: 'malformed', errors: [] };
-
+	const { success } = singlestoreSnapshotValidator.parse(snapshot);
+	if (!success) {
+		return { status: 'malformed', errors: [] };
+	}
 	return { status: 'valid' };
 };
 
@@ -227,7 +227,7 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: object) => Val
 		case 'mysql':
 			return mysqlValidator;
 		case 'singlestore':
-			return singlestoreSnapshotValidator;
+			return singlestoreValidator;
 		case 'mssql':
 			return mssqlSnapshotValidator;
 		case 'cockroach':
