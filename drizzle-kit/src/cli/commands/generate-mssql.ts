@@ -2,9 +2,8 @@ import chalk from 'chalk';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
-import { prepareFilenames } from 'src/utils/utils-node';
-import type { DefaultConstraint } from '../../dialects/mssql/ddl';
-import { createDDL } from '../../dialects/mssql/ddl';
+import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { createDDL, type DefaultConstraint, interimToDDL } from '../../dialects/mssql/ddl';
 import type {
 	CheckConstraint,
 	Column,
@@ -16,8 +15,6 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
-import { interimToDDL } from '../../dialects/mssql/ddl';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { mssqlSchemaError } from '../views';
@@ -27,22 +24,20 @@ import type { ExportConfig, GenerateConfig } from './utils';
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
-	assertV1OutFolder(outFolder);
-
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mssql');
+	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
 			sqlStatements: [],
-			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
 			prefixMode: config.prefix,
 			renames: [],
+			snapshots,
 		});
 		return;
 	}
@@ -84,12 +79,12 @@ export const handle = async (config: GenerateConfig) => {
 	writeResult({
 		snapshot: snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		prefixMode: config.prefix,
 		renames,
+		snapshots,
 	});
 };
 

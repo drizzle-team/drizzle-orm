@@ -62,13 +62,13 @@ export class MsSqlDialect {
 		await session.execute(migrationSchemaCreate);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
+		const dbMigrations = await session.execute<any>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} order by created_at desc offset 0 rows fetch next 1 rows only`,
 		);
 
-		const lastDbMigration = dbMigrations[0];
+		const lastDbMigration = dbMigrations.recordset[0];
 
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {

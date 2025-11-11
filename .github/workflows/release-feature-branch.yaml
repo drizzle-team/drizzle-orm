@@ -36,6 +36,41 @@ jobs:
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
+
+      # has to be after build step, otherwise turbo cache miss
+      - name: Apply version suffix to packages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          suffix=$(git rev-parse --short HEAD)
+
+          packages=(
+            "drizzle-orm"
+            "drizzle-kit"
+            "drizzle-zod"
+            "drizzle-seed"
+            "drizzle-typebox"
+            "drizzle-valibot"
+            "drizzle-arktype"
+            "eslint-plugin-drizzle"
+          )
+
+          for pkg in "${packages[@]}"; do
+            pkg_dir="$pkg/dist"
+            package_json="$pkg_dir/package.json"
+
+            if [[ ! -f "$package_json" ]]; then
+              echo "WARN: $package_json not found, skipping"
+              continue
+            fi
+
+            base_version="$(jq -r '.version' "$package_json")"
+            new_version="${base_version}-${suffix}"
+
+            echo "Setting $pkg dist version to $new_version"
+            jq --arg v "$new_version" '.version = $v' "$package_json" > "$package_json.tmp"
+            mv "$package_json.tmp" "$package_json"
+          done
       # Upload compiled JS for tests to reuse
       - name: Upload build-dist
         uses: actions/upload-artifact@v4
@@ -47,21 +82,17 @@ jobs:
       - name: Pack
         run: pnpm pack:artifact
       - uses: actions/upload-artifact@v4
-        with: { name: drizzle-orm, path: drizzle-orm/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-kit, path: drizzle-kit/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-zod, path: drizzle-zod/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-seed, path: drizzle-seed/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-typebox, path: drizzle-typebox/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-valibot, path: drizzle-valibot/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: drizzle-arktype, path: drizzle-arktype/package.tgz }
-      - uses: actions/upload-artifact@v4
-        with: { name: eslint-plugin-drizzle, path: eslint-plugin-drizzle/package.tgz }
+        with: 
+          name: packages
+          path: |
+            drizzle-orm/package.tgz
+            drizzle-kit/package.tgz
+            drizzle-zod/package.tgz
+            drizzle-seed/package.tgz
+            drizzle-typebox/package.tgz
+            drizzle-valibot/package.tgz
+            drizzle-arktype/package.tgz
+            eslint-plugin-drizzle/package.tgz
 
       # Tiny marker so other jobs can wait without failing
       - name: Upload build-ready marker
@@ -84,6 +115,8 @@ jobs:
         include:
           - shard: int:gel
             dbs: [gel]
+          - shard: int:singlestore
+            dbs: [singlestore]
           - shard: int:singlestore-core
             dbs: [singlestore-many]
           - shard: int:singlestore-proxy
@@ -217,8 +250,9 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
+            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
@@ -290,11 +324,11 @@ jobs:
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.package }}
+          name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/package.tgz
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz
 
   attw-orm:
     needs: [prepare]
@@ -315,11 +349,11 @@ jobs:
       - name: Download drizzle-orm tarball
         uses: actions/download-artifact@v4
         with:
-          name: drizzle-orm
+          name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/package.tgz ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
 
   release:
     needs: [test, prepare, attw, attw-orm]
@@ -327,38 +361,50 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
+    
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
     strategy:
       matrix:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
+
+      # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v4
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+        with: { node-version: '24' }
+      
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.package }}
+          name: packages
           path: ./artifacts
       - name: Check preconditions (from tarball)
         id: checks
         shell: bash
         run: |
           set -euxo pipefail
-          version="$(tar -xOf ./artifacts/package.tgz package/package.json | jq -r .version)"
-          tag="${GITHUB_REF_NAME}"
+          version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
+          tag="${{ github.ref_name }}"
+          
           is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
           if [[ "$is_published" == "true" ]]; then
             echo "\`${{ matrix.package }}@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version $tag || true
           else
             { echo "version=$version"; echo "tag=$tag"; echo "has_new_release=true"; } >> $GITHUB_OUTPUT
           fi
       - name: Publish (from tarball)
         if: steps.checks.outputs.has_new_release == 'true'
         shell: bash
-        env: 
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           set -euxo pipefail
-          npm publish ./artifacts/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+          pnpm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
           echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY

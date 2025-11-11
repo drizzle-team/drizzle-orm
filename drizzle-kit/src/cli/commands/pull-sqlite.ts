@@ -49,20 +49,20 @@ export const handle = async (
 	writeFileSync(relationsFile, relationsTs.file);
 
 	console.log();
-	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
+	const { snapshots } = prepareOutFolder(out);
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiffDry(createDDL(), ddl, 'default');
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl, originUUID, '', renames),
+			snapshot: toJsonSnapshot(ddl, originUUID, [], renames),
 			sqlStatements,
-			journal,
 			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(
