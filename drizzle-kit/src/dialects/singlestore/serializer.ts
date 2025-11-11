@@ -1,9 +1,7 @@
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import type { MysqlDDL } from '../mysql/ddl';
-import { createDDL, interimToDDL } from '../mysql/ddl';
-import type { MysqlSnapshot } from '../mysql/snapshot';
-import { drySnapshot, snapshotValidator } from '../mysql/snapshot';
+import { createDDL, interimToDDL, type MysqlDDL } from '../mysql/ddl';
+import { drySnapshot, type SingleStoreSnapshot, snapshotValidator } from '../singlestore/snapshot';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 
 export const prepareSnapshot = async (
@@ -14,9 +12,9 @@ export const prepareSnapshot = async (
 	{
 		ddlPrev: MysqlDDL;
 		ddlCur: MysqlDDL;
-		snapshot: MysqlSnapshot;
-		snapshotPrev: MysqlSnapshot;
-		custom: MysqlSnapshot;
+		snapshot: SingleStoreSnapshot;
+		snapshotPrev: SingleStoreSnapshot;
+		custom: SingleStoreSnapshot;
 	}
 > => {
 	const { readFileSync } = await import('fs');
@@ -56,23 +54,23 @@ export const prepareSnapshot = async (
 	// }
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
-		version: '6',
-		dialect: 'mysql',
+		version: '2',
+		dialect: 'singlestore',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
-	} satisfies MysqlSnapshot;
+	} satisfies SingleStoreSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: MysqlSnapshot = {
+	const custom: SingleStoreSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

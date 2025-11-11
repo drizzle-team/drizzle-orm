@@ -193,7 +193,7 @@ const table = object({
 
 const schemaHash = object({
 	id: string(),
-	prevId: string(),
+	prevIds: array(string()),
 });
 
 export const kitInternals = object({
@@ -299,7 +299,7 @@ export const dryGel = gelSchema.parse({
 	version: '1',
 	dialect: 'gel',
 	id: originUUID,
-	prevId: '',
+	prevIds: [],
 	tables: {},
 	enums: {},
 	schemas: {},

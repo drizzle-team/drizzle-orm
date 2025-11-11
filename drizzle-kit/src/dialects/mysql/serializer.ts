@@ -58,23 +58,23 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
 		version: '6',
 		dialect: 'mysql',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
 	} satisfies MysqlSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MysqlSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

@@ -1,5 +1,5 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { prepareFilenames } from 'src/utils/utils-node';
+import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -19,7 +19,6 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -27,22 +26,20 @@ import type { ExportConfig, GenerateConfig } from './utils';
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
-	assertV1OutFolder(outFolder);
-
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'postgresql');
+	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
 			sqlStatements: [],
-			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
 			prefixMode: config.prefix,
 			renames: [],
+			snapshots,
 		});
 		return;
 	}
@@ -70,12 +67,12 @@ export const handle = async (config: GenerateConfig) => {
 	writeResult({
 		snapshot: snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		prefixMode: config.prefix,
 		renames,
+		snapshots,
 	});
 };
 

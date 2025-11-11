@@ -12,7 +12,7 @@ APK_CACHE_VOLUME="apk-cache"
 
 docker run --rm \
   -e CI=1 \
-  -v "$PROJECT_ROOT":/src:ro \
+  -v "$PROJECT_ROOT":/src \
   -v "${PNPM_STORE_VOLUME}":/pnpm/store \
   -v "${PNPM_COREPACK_CACHE_VOLUME}":/root/.cache \
   -v "${APK_CACHE_VOLUME}":/var/cache/apk \

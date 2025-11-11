@@ -1,14 +1,19 @@
 import chalk from 'chalk';
-import { writeFileSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
+import { join } from 'path';
 import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6 } from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
+import { embeddedMigrations } from './generate-common';
+import { migrateToFoldersV3 } from './utils';
 
 export const upSqliteHandler = (out: string) => {
-	const { snapshots } = prepareOutFolder(out, 'sqlite');
+	migrateToFoldersV3(out);
+
+	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'sqlite');
 
 	report.nonLatest
@@ -31,6 +36,11 @@ export const upSqliteHandler = (out: string) => {
 			console.log(`[${chalk.green('✓')}] ${path}`);
 			writeFileSync(path, JSON.stringify(result, null, 2));
 		});
+
+	if (existsSync(join(out, 'migrations.js'))) {
+		const js = embeddedMigrations(snapshots);
+		writeFileSync(`${out}/migrations.js`, js);
+	}
 
 	console.log("Everything's fine 🐶🔥");
 };
@@ -137,7 +147,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	return {
 		dialect: 'sqlite',
 		id: snapshot.id,
-		prevId: snapshot.prevId,
+		prevIds: [snapshot.prevId],
 		version: '7',
 		ddl: ddl.entities.list(),
 		renames: renames,
