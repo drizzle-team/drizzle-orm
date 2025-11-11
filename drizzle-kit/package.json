@@ -91,6 +91,7 @@
 		"commander": "^12.1.0",
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.0.3",
+		"drizzle-kit": "^0.31.6",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",

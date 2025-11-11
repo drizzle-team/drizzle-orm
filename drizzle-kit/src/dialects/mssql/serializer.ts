@@ -49,23 +49,23 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
 		version: '1',
 		dialect: 'mssql',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
 	} satisfies MssqlSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MssqlSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

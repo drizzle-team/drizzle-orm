@@ -6,9 +6,8 @@ import { renderWithTask } from 'hanji';
 import { dialects } from 'src/utils/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../utils';
-import { assertV1OutFolder } from '../utils/utils-node';
+import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
-import { dropMigration } from './commands/drop';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
@@ -17,7 +16,6 @@ import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
 import {
 	prepareCheckParams,
-	prepareDropParams,
 	prepareExportConfig,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
@@ -78,9 +76,11 @@ export const generate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		// const parsed = cliConfigGenerate.parse(opts);
+		assertV3OutFolder(opts.out);
 
 		const dialect = opts.dialect;
+		await checkHandler(opts.out, dialect);
+
 		if (dialect === 'postgresql') {
 			const { handle } = await import('./commands/generate-postgres');
 			await handle(opts);
@@ -127,7 +127,12 @@ export const migrate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
+		assertV3OutFolder(opts.out);
+
 		const { dialect, schema, table, out, credentials } = opts;
+
+		await checkHandler(out, dialect);
+
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -455,8 +460,10 @@ export const check = command({
 	handler: async (config) => {
 		await assertOrmCoreVersion();
 
+		assertV3OutFolder(config.out);
+
 		const { out, dialect } = config;
-		checkHandler(out, dialect);
+		await checkHandler(out, dialect);
 		console.log("Everything's fine 🐶🔥");
 	},
 });
@@ -616,25 +623,6 @@ export const pull = command({
 			console.error(e);
 		}
 		process.exit(0);
-	},
-});
-
-export const drop = command({
-	name: 'drop',
-	options: {
-		config: optionConfig,
-		out: optionOut,
-		driver: optionDriver,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['driver', 'out']);
-		return prepareDropParams(opts, from);
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		assertV1OutFolder(config.out);
-		await dropMigration(config);
 	},
 });
 

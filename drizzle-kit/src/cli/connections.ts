@@ -990,7 +990,6 @@ export const connectToMsSQL = async (
 		const mssql = await import('mssql');
 		const { drizzle } = await import('drizzle-orm/node-mssql');
 		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
-
 		const connection = result.url
 			? await mssql.default.connect(result.url)
 			: await mssql.default.connect(result.credentials!);
