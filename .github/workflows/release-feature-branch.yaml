@@ -388,8 +388,6 @@ jobs:
       - name: Publish (from tarball)
         if: steps.checks.outputs.has_new_release == 'true'
         shell: bash
-        env: 
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           set -euxo pipefail
           npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
