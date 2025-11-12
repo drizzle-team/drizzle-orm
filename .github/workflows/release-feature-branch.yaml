@@ -334,8 +334,9 @@ jobs:
       NODE_AUTH_TOKEN: ""   
       NPM_TOKEN: ""
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
       - uses: actions/setup-node@v6
         with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
