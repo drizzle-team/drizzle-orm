@@ -432,16 +432,19 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npm run pack
-
+      
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
+         # force empty so npm can use OIDC
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+          NODE_AUTH_TOKEN: ""   
+          NPM_TOKEN: ""
         run: |
           version="${{ steps.checks.outputs.version }}"
 
