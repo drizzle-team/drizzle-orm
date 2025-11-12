@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { SQL, sql } from 'drizzle-orm';
-import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { AnySQLiteColumn, check, int, integer, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
@@ -8,6 +8,46 @@ import { expect, test } from 'vitest';
 import { dbFrom, diffAfterPull, push } from './mocks';
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
+
+test('introspect tables with fk constraint', async () => {
+	const sqlite = new Database(':memory:');
+
+	const users = sqliteTable('users', {
+		id: integer(),
+		name: text(),
+	});
+
+	const posts = sqliteTable('posts', {
+		id: integer(),
+		userId: integer('user_id').references(() => users.id).references(() => users.id, {
+			onDelete: 'no action',
+			onUpdate: 'no action',
+		}),
+	});
+	const schema = { users, posts };
+
+	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'fk-tables');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4247
+// TODO AnySQLiteColumn should be prefixed by `type` after introspection
+test('introspect table with self reference', async () => {
+	const sqlite = new Database(':memory:');
+
+	const users = sqliteTable('users', {
+		id: integer(),
+		name: text(),
+		invited_id: integer().references((): AnySQLiteColumn => users.id),
+	});
+
+	const schema = { users };
+
+	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'self-ref-table');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
 
 test('generated always column: link to another column', async () => {
 	const sqlite = new Database(':memory:');

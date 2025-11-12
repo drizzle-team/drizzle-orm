@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyMsSqlColumn,
 	bigint,
 	binary,
 	bit,
@@ -441,4 +442,42 @@ test('introspect primary key with unqiue', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect fk with onUpdate, onDelete set', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey(),
+		name: varchar('users'),
+	});
+
+	const schema = {
+		users,
+		posts: mssqlTable('posts', {
+			id: int(),
+			usersId: int().references(() => users.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-fk',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect table with self reference', async () => {
+	const table1 = mssqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references((): AnyMsSqlColumn => table1.column1),
+	});
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-table-with-self-ref');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyMySqlColumn,
 	bigint,
 	blob,
 	boolean,
@@ -411,7 +412,7 @@ test('introspect table with fk', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4115
-test('introspect fk name with onDelete, onUpdate set', async () => {
+test('introspect fk name with onDelete, onUpdate set to no action', async () => {
 	const table1 = mysqlTable('table1', {
 		column1: int().primaryKey(),
 	});
@@ -423,6 +424,20 @@ test('introspect fk name with onDelete, onUpdate set', async () => {
 	const schema = { table1, table2 };
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'fk-with-on-delete-and-on-update');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect table with self reference', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references((): AnyMySqlColumn => table1.column1),
+	});
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-self-ref');
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);

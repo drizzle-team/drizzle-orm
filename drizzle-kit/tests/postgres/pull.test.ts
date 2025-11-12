@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
@@ -671,6 +672,26 @@ test('introspect view #3', async () => {
 	// TODO: we need to check actual types generated;
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4262
+test('introspect view #4', async () => {
+	const table = pgTable('table', {
+		column1: text().notNull(),
+		column2: text(),
+	});
+	const myView = pgView('public_table_view_4', { column1: text().notNull(), column2: text() }).as(
+		sql`select column1, column2 from "table"`,
+	);
+
+	const schema = { table, myView };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-4');
+
+	throw new Error('');
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
+});
+
 test('introspect view in other schema', async () => {
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
@@ -1049,6 +1070,19 @@ test('introspect foreign keys', async () => {
 		tableTo: 'users',
 		columnsTo: ['id'],
 	})).not.toBeNull();
+});
+
+test('introspect table with self reference', async () => {
+	const users = pgTable('users', {
+		id: integer().primaryKey(),
+		name: text(),
+		invited_id: integer().references((): AnyPgColumn => users.id),
+	});
+	const schema = { users };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, schema, 'introspect-self-ref');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
 
 test('introspect partitioned tables', async () => {
