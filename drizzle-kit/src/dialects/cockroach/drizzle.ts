@@ -594,7 +594,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting && filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
+		if (view.isExisting && !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 
