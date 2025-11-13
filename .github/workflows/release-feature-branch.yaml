@@ -286,13 +286,13 @@ jobs:
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         run: \
-          cd ./drizzle-kit            && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-kit/package.tgz
-          cd ../drizzle-zod           && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-zod/package.tgz
-          cd ../drizzle-seed          && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-seed/package.tgz
-          cd ../drizzle-typebox       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-typebox/package.tgz
-          cd ../drizzle-valibot       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-valibot/package.tgz
-          cd ../drizzle-arktype       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-arktype/package.tgz
-          cd ../eslint-plugin-drizzle && bun --bun run ../attw-fork/src/run.ts ../artifacts/eslint-plugin-drizzle/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-typebox/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-valibot/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-arktype/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
 
   attw-orm:
     needs: [prepare]
