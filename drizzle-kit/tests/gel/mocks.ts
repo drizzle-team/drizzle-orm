@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import createClient from 'gel';
 import getPort from 'get-port';
-import { EntitiesFilter } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
@@ -79,12 +79,18 @@ export const prepareTestDatabase = async (
 export const pull = async (
 	db: DB,
 	testName: string,
-	schemas: string[] = ['public'],
+	schemas: string[] = [],
 	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
+	const filterConfig: EntitiesFilterConfig = {
+		entities,
+		schemas,
+		tables: [],
+		extensions: [],
+	};
 	// introspect to schema
-	const filter = prepareEntityFilter('gel', { tables: [], schemas, entities, drizzleSchemas: [], extensions: [] });
+	const filter = prepareEntityFilter('gel', filterConfig, []);
 	const interim = await fromDatabase(db, filter);
 	const { ddl } = interimToDDL(interim);
 	// write to ts file

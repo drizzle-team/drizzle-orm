@@ -34,7 +34,8 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema, errors } = fromDrizzleSchema(res, casing);
+	// DO we wanna respect entity filter here?
+	const { schema, errors } = fromDrizzleSchema(res, casing, () => true);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));

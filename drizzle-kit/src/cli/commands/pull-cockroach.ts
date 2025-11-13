@@ -45,7 +45,7 @@ export const handle = async (
 	const { prepareCockroach } = await import('../connections');
 	const db = await prepareCockroach(credentials);
 
-	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
 	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {

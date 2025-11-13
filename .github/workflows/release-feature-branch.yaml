@@ -334,7 +334,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '24' }
       
       # nuke, so npm can use OIDC

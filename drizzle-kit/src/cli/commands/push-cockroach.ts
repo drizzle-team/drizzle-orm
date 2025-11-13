@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
@@ -44,7 +45,10 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
+	const existing = extractCrdbExisting(res.schemas, res.views, res.matViews);
+	const filter = prepareEntityFilter('cockroach', filters, existing);
+
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, filter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -55,8 +59,6 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const drizzleSchemas = res.schemas.map((x) => x.schemaName).filter((x) => x !== 'public');
-	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas });
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await cockroachPushIntrospect(db, filter, progress);
 

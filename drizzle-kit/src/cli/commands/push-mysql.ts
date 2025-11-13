@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractMysqlExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type { Column, Table, View } from '../../dialects/mysql/ddl';
 import { interimToDDL } from '../../dialects/mysql/ddl';
@@ -26,7 +27,14 @@ export const handle = async (
 	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
 ) => {
-	const filter = prepareEntityFilter('mysql', { ...filters, drizzleSchemas: [] });
+	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
+
+	const filenames = prepareFilenames(schemaPath);
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	const res = await prepareFromSchemaFiles(filenames);
+
+	const existing = extractMysqlExisting(res.views);
+	const filter = prepareEntityFilter('mysql', filters, existing);
 
 	const { db, database } = await connectToMySQL(credentials);
 	const progress = new ProgressView(
@@ -36,13 +44,6 @@ export const handle = async (
 
 	const { schema: interimFromDB } = await introspect({ db, database, progress, filter });
 
-	const filenames = prepareFilenames(schemaPath);
-
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
-
-	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
-
-	const res = await prepareFromSchemaFiles(filenames);
 	const interimFromFiles = fromDrizzleSchema(res.tables, res.views, casing);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);

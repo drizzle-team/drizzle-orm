@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractSqliteExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type { Column, Table } from 'src/dialects/sqlite/ddl';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
@@ -31,14 +32,15 @@ export const handle = async (
 	const db = await connectToSQLite(credentials);
 	const files = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(files);
-	const { ddl: ddl2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
+	const existing = extractSqliteExisting(res.views);
+	const filter = prepareEntityFilter('sqlite', filters, existing);
+
+	const { ddl: ddl2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 	const progress = new ProgressView(
 		'Pulling schema from database...',
 		'Pulling schema from database...',
 	);
-
-	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
 
 	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress);
 

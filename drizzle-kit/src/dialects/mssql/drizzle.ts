@@ -13,6 +13,7 @@ import {
 import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
@@ -51,23 +52,19 @@ export const fromDrizzleSchema = (
 		views: MsSqlView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): { schema: InterimSchema; errors: SchemaError[] } => {
 	const dialect = new MsSqlDialect({ casing });
 	const errors: SchemaError[] = [];
 
 	const schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'dbo' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'dbo';
-			} else {
-				return it.name !== 'dbo';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
@@ -110,7 +107,7 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'dbo';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
+		if (!filter({ type: 'table', schema, name: tableName })) {
 			continue;
 		}
 
@@ -313,6 +310,7 @@ export const fromDrizzleSchema = (
 		} = cfg;
 
 		if (isExisting) continue;
+		if (!filter({ type: 'table', schema: drizzleSchema ?? 'dbo', name })) continue;
 
 		const schema = drizzleSchema ?? 'dbo';
 

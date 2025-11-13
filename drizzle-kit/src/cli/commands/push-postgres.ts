@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
@@ -47,8 +48,10 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const drizzleFilters = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas: [] });
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, drizzleFilters);
+	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
+	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
+
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, entityFilter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -60,9 +63,6 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-
-	const drizzleSchemas = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
-	const entityFilter = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas });
 
 	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
 
@@ -138,8 +138,12 @@ export const handle = async (
 			process.exit(0);
 		}
 	}
+	console.log(losses);
+	console.log(sqlStatements);
 
 	for (const statement of [...losses, ...sqlStatements]) {
+		if (verbose) console.log(statement);
+
 		await db.query(statement);
 	}
 

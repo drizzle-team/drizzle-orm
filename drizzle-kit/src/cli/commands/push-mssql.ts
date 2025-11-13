@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractMssqlExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
 import type {
@@ -44,14 +45,15 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing);
+	const existing = extractMssqlExisting(res.schemas, res.views);
+	const filter = prepareEntityFilter('mssql', filters, existing);
+
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing, filter);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
-	const drizzleSchemas = res.schemas.map((x) => x.schemaName).filter((x) => x !== 'public');
-	const filter = prepareEntityFilter('mssql', { ...filters, drizzleSchemas });
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await introspect(db, filter, progress);
