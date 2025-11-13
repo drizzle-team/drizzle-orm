@@ -274,12 +274,6 @@ export const preparePushConfig = async (
 
 	const config = parsed.data;
 
-	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
-	if (isEmptySchemaFilter) {
-		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
-		config.schemaFilter = [defaultSchema];
-	}
-
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);

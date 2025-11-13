@@ -3,10 +3,10 @@ import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } fr
 import { assertUnreachable } from 'src/utils';
 import type { Dialect } from 'src/utils/schemaValidator';
 
-export type KitEntity =
-	| { type: 'schema'; name: string }
-	| { type: 'table'; schema: string | false; name: string }
-	| { type: 'role'; name: string };
+export type Schema = { type: 'schema'; name: string };
+export type Table = { type: 'table'; schema: string | false; name: string };
+export type Role = { type: 'role'; name: string };
+export type KitEntity = Schema | Table | Role;
 
 export type EntityFilter = (it: KitEntity) => boolean;
 
@@ -15,10 +15,11 @@ export const prepareEntityFilter = (
 	params: {
 		tables: TablesFilter;
 		schemas: SchemasFilter;
-		drizzleSchemas: string[];
 		entities: EntitiesFilter;
 		extensions: ExtensionsFilter;
 	},
+	/* .existing() in drizzle schema */
+	existingEntities: (Schema | Table)[],
 ): EntityFilter => {
 	const tablesConfig = typeof params.tables === 'undefined'
 		? []
@@ -32,25 +33,8 @@ export const prepareEntityFilter = (
 		? [params.schemas]
 		: params.schemas;
 
-	const allowedSchemas = [...schemasConfig];
-
-	// if (allowedSchemas.length > 0) {
-	// 	const toCheck = params.drizzleSchemas;
-	// 	const missing = toCheck.filter((it) => !allowedSchemas.includes(it));
-	// 	if (missing.length > 0) {
-	// 		const missingArr = missing.map((it) => chalk.underline(it)).join(', ');
-	// 		const allowedArr = allowedSchemas.map((it) => chalk.underline(it)).join(', ');
-	// 		console.log(
-	// 			`[${chalk.red('x')}] ${missingArr} schemas missing in drizzle config file "schemaFilter": [${allowedArr}]`,
-	// 		);
-	// 		// TODO: write a guide and link here
-	// 		process.exit(1);
-	// 	}
-	// } else {
-	// 	allowedSchemas.push(...params.drizzleSchemas);
-	// }
-
-	const schemasFilter = prepareSchemasFitler(allowedSchemas);
+	const existingSchemas = existingEntities.filter((x) => x.type === 'schema').map((x) => x.name);
+	const schemasFilter = prepareSchemasFitler(schemasConfig, existingSchemas);
 
 	const postgisTablesGlobs = ['!geography_columns', '!geometry_columns', '!spatial_ref_sys'];
 	for (const ext of params.extensions ?? []) {
@@ -58,7 +42,11 @@ export const prepareEntityFilter = (
 		else assertUnreachable(ext);
 	}
 
-	const tablesFilter = prepareTablesFilter(tablesConfig);
+	const existingViews = existingEntities.filter((x) => x.type === 'table').map((x) => ({
+		schema: x.schema,
+		name: x.name,
+	}));
+	const tablesFilter = prepareTablesFilter(tablesConfig, existingViews);
 
 	const rolesFilter = prepareRolesFilter(params.entities);
 
@@ -80,13 +68,21 @@ export const prepareEntityFilter = (
 	};
 };
 
-const prepareSchemasFitler = (globs: string[]) => {
+const prepareSchemasFitler = (globs: string[], schemasExisting: string[]) => {
+	const filterForExisting = (it: Schema) => {
+		return !schemasExisting.some((x) => it.name === x);
+	};
+
 	const matchers = globs.map((it) => {
 		return new Minimatch(it);
 	});
-	if (matchers.length === 0) return () => true;
 
-	return (it: { type: 'schema'; name: string }) => {
+	if (matchers.length === 0 && schemasExisting.length === 0) return () => true;
+	if (matchers.length === 0) return filterForExisting;
+
+	return (it: Schema) => {
+		if (!filterForExisting(it)) return false;
+
 		let flags: boolean[] = [];
 
 		for (let matcher of matchers) {
@@ -104,13 +100,21 @@ const prepareSchemasFitler = (globs: string[]) => {
 	};
 };
 
-const prepareTablesFilter = (globs: string[]) => {
+const prepareTablesFilter = (globs: string[], existingViews: { schema: string | false; name: string }[]) => {
+	const existingFilter = (it: Table) => {
+		if (it.schema === false) return existingViews.some((x) => x.name === it.name);
+		return !existingViews.some((x) => x.schema === it.schema && x.name === it.name);
+	};
+
 	const matchers = globs.map((it) => {
 		return new Minimatch(it);
 	});
-	if (matchers.length === 0) return () => true;
+	if (matchers.length === 0 && existingViews.length === 0) return () => true;
+	if (matchers.length === 0) return existingFilter;
 
-	const filter = (it: { type: 'table'; schema: string | false; name: string }) => {
+	const filter = (it: Table) => {
+		if (!existingFilter(it)) return false;
+
 		let flags: boolean[] = [];
 
 		for (let matcher of matchers) {

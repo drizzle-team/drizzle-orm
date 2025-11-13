@@ -30,21 +30,23 @@ import { toJsonSnapshot } from '../dialects/postgres/snapshot';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
-export const generateDrizzleJson = (
+export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
 	casing?: CasingType,
-): PostgresSnapshot => {
+): Promise<PostgresSnapshot> => {
 	const prepared = fromExports(imports);
-	// TODO: ??
+	const { extractPostgresExisting } = await import('../dialects/drizzle');
+
+	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
+
 	const filter = prepareEntityFilter('postgresql', {
 		schemas: schemaFilters ?? [],
 		tables: [],
-		drizzleSchemas: [],
 		entities: undefined,
 		extensions: [],
-	});
+	}, existing);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, filter);
@@ -111,6 +113,7 @@ export const pushSchema = async (
 	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
 ) => {
+	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
 
@@ -120,8 +123,7 @@ export const pushSchema = async (
 			return res.rows;
 		},
 	};
-
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const prepared = fromExports(imports);
 
 	const filterConfig = entitiesConfig ?? {
 		tables: [],
@@ -129,11 +131,12 @@ export const pushSchema = async (
 		extensions: [],
 		entities: undefined,
 	} satisfies EntitiesFilterConfig;
+	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
+	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 
-	const filter = prepareEntityFilter('postgresql', { ...filterConfig, drizzleSchemas: [] });
+	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: prev } = await introspect(db, filter, progress);
 
-	const prepared = fromExports(imports);
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema: cur } = fromDrizzleSchema(prepared, casing, filter);

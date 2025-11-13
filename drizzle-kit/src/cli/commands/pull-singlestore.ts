@@ -28,7 +28,7 @@ export const handle = async (
 	const { connectToSingleStore } = await import('../connections');
 	const { db, database } = await connectToSingleStore(credentials);
 
-	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const progress = new IntrospectProgress();
 	const task = fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {

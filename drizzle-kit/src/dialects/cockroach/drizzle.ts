@@ -31,6 +31,7 @@ import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -209,7 +210,7 @@ export const fromDrizzleSchema = (
 		matViews: CockroachMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -236,17 +237,13 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'public' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
@@ -303,7 +300,7 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
+		if (!filter({ type: 'table', schema, name: tableName })) {
 			continue;
 		}
 
@@ -597,7 +594,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting) continue;
+		if (view.isExisting && filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 

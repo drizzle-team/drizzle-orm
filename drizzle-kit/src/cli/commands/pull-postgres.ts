@@ -50,7 +50,7 @@ export const handle = async (
 	const db = await preparePostgresDB(credentials);
 
 	const progress = new IntrospectProgress(true);
-	const entityFilter = prepareEntityFilter('postgresql', { ...filtersConfig, drizzleSchemas: [] });
+	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
 
 	const { schema: res } = await renderWithTask(
 		progress,

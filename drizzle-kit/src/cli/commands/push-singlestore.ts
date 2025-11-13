@@ -27,7 +27,11 @@ export const handle = async (
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
 
-	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
+	/*
+		schemas in singlestore are ignored just like in mysql
+		there're now views in singlestore either, so no entities with .existing() for now
+	 */
+	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const { db, database } = await connectToSingleStore(credentials);
 	const progress = new ProgressView(

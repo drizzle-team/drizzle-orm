@@ -33,7 +33,7 @@ export const handle = async (
 	const db = await connectToSQLite(credentials);
 
 	const progress = new IntrospectProgress();
-	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('sqlite', filters, []);
 	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
