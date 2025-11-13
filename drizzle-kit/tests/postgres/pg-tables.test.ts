@@ -506,7 +506,7 @@ test('add schema + table #1', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4796
-test.only('add schema + table #2', async () => {
+test('add schema + table #2', async () => {
 	const schema = pgSchema('folder');
 
 	const to = {
