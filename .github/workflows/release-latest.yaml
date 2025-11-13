@@ -356,36 +356,20 @@ jobs:
         ports:
           - 33306:3306
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v3
-        name: Install pnpm
-        id: pnpm-install
-        with:
-          version: latest
-          run_install: false
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
 
       - name: Check preconditions
         id: checks
@@ -398,7 +382,6 @@ jobs:
 
           if [[ "$is_version_published" == "true" ]]; then
             echo "\`${{ matrix.package }}@$version\` already published, adding tag \`latest\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version latest
           elif [[ "$latest" != "$version" ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
@@ -441,10 +424,6 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
-         # force empty so npm can use OIDC
-        env:
-          NODE_AUTH_TOKEN: ""   
-          NPM_TOKEN: ""
         run: |
           version="${{ steps.checks.outputs.version }}"
 
