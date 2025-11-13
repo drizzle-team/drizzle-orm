@@ -352,7 +352,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : tableFn;
+		const func = (tableSchema ? `${tableSchema}.table` : tableFn) + table.isRlsEnabled ? '.withRLS' : '';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
 		statement += '}';
@@ -376,7 +376,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
+		statement += ');';
 		return statement;
 	});
 
