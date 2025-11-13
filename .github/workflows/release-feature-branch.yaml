@@ -271,9 +271,6 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    strategy:
-      matrix:
-        package: [drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -288,8 +285,14 @@ jobs:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
-        working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz
+        run: \
+          cd ./drizzle-kit            && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-kit/package.tgz
+          cd ../drizzle-zod           && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-zod/package.tgz
+          cd ../drizzle-seed          && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-seed/package.tgz
+          cd ../drizzle-typebox       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-typebox/package.tgz
+          cd ../drizzle-valibot       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-valibot/package.tgz
+          cd ../drizzle-arktype       && bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-arktype/package.tgz
+          cd ../eslint-plugin-drizzle && bun --bun run ../attw-fork/src/run.ts ../artifacts/eslint-plugin-drizzle/package.tgz
 
   attw-orm:
     needs: [prepare]
