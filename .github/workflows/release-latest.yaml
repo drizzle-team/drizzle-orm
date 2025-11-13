@@ -303,6 +303,10 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
