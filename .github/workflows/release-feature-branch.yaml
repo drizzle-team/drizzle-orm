@@ -395,12 +395,12 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npm run pack
 
       - name: Publish
         if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        shell: bash
         run: |
           tag="${{ steps.checks.outputs.tag }}"
           version="${{ steps.checks.outputs.version }}"
@@ -412,7 +412,3 @@ jobs:
 
           # Post release message to Discord
           # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
-        working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
