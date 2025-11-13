@@ -285,7 +285,7 @@ jobs:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
-        run: \
+        run: |
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
