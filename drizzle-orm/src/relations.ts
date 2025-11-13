@@ -32,7 +32,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
+import { noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
 import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
@@ -722,7 +722,7 @@ export type BuildQueryResult<
 export interface BuildRelationalQueryResult {
 	selection: {
 		key: string;
-		field: Column<any> | Table | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
+		field: Column<any> | Table | View | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
 		isArray?: boolean;
 		selection?: BuildRelationalQueryResult['selection'];
 		isOptional?: boolean;
@@ -794,6 +794,8 @@ export function mapRelationalRow(
 			decoder = field.decoder;
 		} else if (is(field, SQL.Aliased)) {
 			decoder = field.sql.decoder;
+		} else if (is(field, Table) || is(field, View)) {
+			decoder = noopDecoder;
 		} else {
 			decoder = field.getSQL().decoder;
 		}
@@ -1232,7 +1234,7 @@ export interface WithContainer {
 }
 
 export interface ColumnWithTSName {
-	column: Column<any> | SQL | SQLWrapper | SQL.Aliased;
+	column: Table | View | Column<any> | SQL | SQLWrapper | SQL.Aliased;
 	tsName: string;
 }
 
