@@ -4754,9 +4754,9 @@ test('neon: neon_auth', () => {
 });
 
 test('Enable RLS function', () => {
-	const usersWithRLS = pgTable('users', {
+	const usersWithRLS = pgTable.withRLS('users', {
 		id: integer(),
-	}).enableRLS();
+	});
 
 	const config1 = getTableConfig(usersWithRLS);
 

@@ -2,6 +2,7 @@ import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { GelSession } from '../session.ts';
 import type { GelTable } from '../table.ts';
+import type { GelViewBase } from '../view-base.ts';
 
 export class GelCountBuilder<
 	TSession extends GelSession<any, any, any>,
@@ -14,14 +15,14 @@ export class GelCountBuilder<
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: GelTable | SQL | SQLWrapper,
+		source: GelTable | GelViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: GelTable | SQL | SQLWrapper,
+		source: GelTable | GelViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
@@ -29,7 +30,7 @@ export class GelCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: GelTable | SQL | SQLWrapper;
+			source: GelTable | GelViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			session: TSession;
 		},

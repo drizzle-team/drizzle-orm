@@ -1283,9 +1283,9 @@ test('rename table and enable rls', async () => {
 		}),
 	};
 	const schema2 = {
-		table: pgTable('table2', {
+		table: pgTable.withRLS('table2', {
 			id: text().primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const renames = ['public.table1->public.table2'];

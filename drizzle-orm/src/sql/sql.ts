@@ -652,7 +652,7 @@ export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
-> implements SQLWrapper {
+> {
 	static readonly [entityKind]: string = 'View';
 
 	declare _: {
@@ -722,10 +722,6 @@ export abstract class View<
 			isAlias: false,
 		};
 	}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
-	}
 }
 
 export function isView(view: unknown): view is View {
@@ -748,13 +744,9 @@ export type InferSelectViewModel<TView extends View> =
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
-
-// Defined separately from the Table class to resolve circular dependency
-Table.prototype.getSQL = function() {
-	return new SQL([this]);
-};
-
 // Defined separately from the Column class to resolve circular dependency
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };
+
+export type SQLEntity = SQL | SQLWrapper | SQL.Aliased | Table | View;
