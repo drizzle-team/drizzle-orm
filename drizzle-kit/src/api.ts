@@ -21,6 +21,7 @@ import { SingleStoreSchema as SingleStoreSchemaKit } from './serializer/singlest
 import { SQLiteSchema as SQLiteSchemaKit } from './serializer/sqliteSchema';
 import { ProxyParams } from './serializer/studio';
 import type { DB, Proxy } from './utils';
+import './@types/utils';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
