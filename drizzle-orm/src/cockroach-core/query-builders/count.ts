@@ -3,6 +3,7 @@ import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import type { CockroachSession } from '../session.ts';
 import type { CockroachTable } from '../table.ts';
+import type { CockroachViewBase } from '../view-base.ts';
 
 export class CockroachCountBuilder<
 	TSession extends CockroachSession<any, any, any>,
@@ -16,14 +17,14 @@ export class CockroachCountBuilder<
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: CockroachTable | SQL | SQLWrapper,
+		source: CockroachTable | CockroachViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: CockroachTable | SQL | SQLWrapper,
+		source: CockroachTable | CockroachViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
@@ -31,7 +32,7 @@ export class CockroachCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: CockroachTable | SQL | SQLWrapper;
+			source: CockroachTable | CockroachViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			session: TSession;
 		},

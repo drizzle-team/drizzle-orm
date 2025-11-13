@@ -1,7 +1,7 @@
 import type { Column, Columns, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { SQL, SQLWrapper, View } from './sql/sql.ts';
+import type { View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -47,7 +47,7 @@ export interface TableTypeConfig<T extends TableConfig> {
 	readonly dialect: T['dialect'];
 }
 
-export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
+export class Table<T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
 
 	declare readonly _: TableTypeConfig<T>;
@@ -105,8 +105,6 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		this[TableSchema] = schema;
 		this[BaseName] = baseName;
 	}
-
-	getSQL = undefined as unknown as (() => SQL);
 }
 
 export function isTable(table: unknown): table is Table {
