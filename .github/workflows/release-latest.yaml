@@ -286,7 +286,9 @@ jobs:
         run: bunx attw package.tgz
 
   release:
-    permissions: write-all
+    permissions:
+      contents: read
+      id-token: write
     needs:
       - test
       - attw
@@ -305,7 +307,7 @@ jobs:
     runs-on: ubuntu-22.04
     # force empty so npm can use OIDC
     env:
-      NODE_AUTH_TOKEN: ""   
+      NODE_AUTH_TOKEN: ""
       NPM_TOKEN: ""
     services:
       postgres-postgis:
@@ -366,14 +368,14 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
-
-      # nuke, so npm can use OIDC
-      - name: Remove temp npmrc
-        run: rm -f "$NPM_CONFIG_USERCONFIG"
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
         run: npm install -g npm@latest
+
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
 
       - name: Check preconditions
         id: checks
@@ -421,9 +423,6 @@ jobs:
         shell: bash
         run: npm run pack
       
-      # nuke, so npm can use OIDC
-      - name: Remove temp npmrc
-        run: rm -f "$NPM_CONFIG_USERCONFIG"
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
