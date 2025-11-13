@@ -247,6 +247,8 @@ export const fromDrizzleSchema = (
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((it) => {
+		return filter({ type: 'table', schema: it.config.schema ?? 'public', name: it.config.name });
 	});
 
 	for (const policy of schema.policies) {
