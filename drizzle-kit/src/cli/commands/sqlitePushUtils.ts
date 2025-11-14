@@ -304,9 +304,12 @@ export const logSuggestionsAndReturn = async (
 			}
 		} else {
 			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
-			statementsToExecute.push(
-				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
-			);
+			const pending = Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement];
+			pending.forEach(i => {
+				if (statementsToExecute.indexOf(i) == -1) {
+					statementsToExecute.push(i)
+				}
+			})
 		}
 	}
 
