@@ -189,4 +189,72 @@ describe('mssql to camel case', () => {
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
+
+	it('select columns as', ({ expect }) => {
+		const query = db
+			.select({ age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.orderBy(asc(users.id.as('userId')));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select [AGE] as [ageOfUser], [id] as [userId] from [users] order by [userId] asc',
+			params: [],
+		});
+	});
+
+	it('select join columns as', ({ expect }) => {
+		const query = db
+			.select({ name: fullName, age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.leftJoin(developers, eq(users.id.as('userId'), developers.user_id))
+			.orderBy(asc(users.first_name));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [users].[firstName] || ' ' || [users].[lastName] as [name], [users].[AGE] as [ageOfUser], [users].[id] as [userId] from [users] left join [test].[developers] on [userId] = [test].[developers].[userId] order by [users].[firstName] asc",
+			params: [],
+		});
+	});
+
+	it('insert output as', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.output({ firstName: users.first_name, age: users.age.as('userAge') })
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into [users] ([firstName], [lastName], [AGE]) output INSERTED.[firstName], INSERTED.[AGE] as [userAge] values (@par0, @par1, @par2)',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('update output as', ({ expect }) => {
+		const query = db
+			.update(users)
+			.set({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.output({
+				inserted: { firstName: users.first_name.as('usersNameIn'), age: users.age.as('ageIn') },
+				deleted: { firstName: users.first_name.as('usersNameOut'), age: users.age.as('ageOut') },
+			})
+			.where(eq(users.id, 1));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'update [users] set [firstName] = @par0, [lastName] = @par1, [AGE] = @par2 output INSERTED.[firstName] as [usersNameIn], INSERTED.[AGE] as [ageIn], DELETED.[firstName] as [usersNameOut], DELETED.[AGE] as [ageOut] where [users].[id] = @par3',
+			params: ['John', 'Doe', 30, 1],
+		});
+	});
+
+	it('delete output as', ({ expect }) => {
+		const query = db
+			.delete(users)
+			.output({ firstName: users.first_name, age: users.age.as('usersAge') })
+			.where(eq(users.id, 1));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'delete from [users] output DELETED.[firstName], DELETED.[AGE] as [usersAge] where [users].[id] = @par0',
+			params: [1],
+		});
+	});
 });
