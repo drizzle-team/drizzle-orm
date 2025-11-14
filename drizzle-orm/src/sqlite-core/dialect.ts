@@ -1,5 +1,11 @@
 import * as V1 from '~/_relations.ts';
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import {
+	aliasedTable,
+	aliasedTableColumn,
+	getOriginalColumnFromAlias,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
@@ -192,20 +198,31 @@ export abstract class SQLiteDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					const tableName = field.table[Table.Symbol.Name];
 					if (field.columnType === 'SQLiteNumericBigInt') {
 						if (isSingleTable) {
-							chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`);
+							chunk.push(
+								field.isAlias
+									? sql`cast(${
+										sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))
+									} as text) as ${field}`
+									: sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							);
 						} else {
 							chunk.push(
-								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+								field.isAlias
+									? sql`cast(${getOriginalColumnFromAlias(field)} as text) as ${field}`
+									: sql`cast(${field} as text)`,
 							);
 						}
 					} else {
 						if (isSingleTable) {
-							chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+							chunk.push(
+								field.isAlias
+									? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+									: sql.identifier(this.casing.getColumnCasing(field)),
+							);
 						} else {
-							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
+							chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
 						}
 					}
 				}
