@@ -146,7 +146,7 @@ export const fromDatabase = async (
 		defaultsQuery,
 	]);
 
-	const { other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { other: filteredNamespaces } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -158,7 +158,6 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -209,19 +208,13 @@ export const fromDatabase = async (
 		: [] as TableListItem[];
 
 	const viewsList = tablesList.filter((it) => {
-		if ((it.kind === 'v' || it.kind === 'm')) {
-			return filter({ type: 'table', schema: it.schema, name: it.name });
-		}
-		return false;
+		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+		return it.kind === 'v' || it.kind === 'm';
 	});
 
 	const filteredTables = tablesList.filter((it) => {
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
-
-		if ((it.kind === 'r' || it.kind === 'p')) {
-			return filter({ type: 'table', schema: it.schema, name: it.name });
-		}
-		return false;
+		return it.kind === 'r' || it.kind === 'p';
 	});
 
 	const filteredTableIds = filteredTables.map((it) => it.oid);
@@ -681,10 +674,7 @@ export const fromDatabase = async (
 
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
-	// TODO: drizzle link
-	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.rolname }));
-
-	for (const dbRole of filteredRoles) {
+	for (const dbRole of rolesList) {
 		roles.push({
 			entityType: 'roles',
 			name: dbRole.rolname,
@@ -1205,22 +1195,39 @@ export const fromDatabase = async (
 	progressCallback('checks', checksCount, 'done');
 	progressCallback('views', viewsCount, 'done');
 
+	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
+	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultEnums = enums.filter((x) => resultSchemas.some((s) => s.name === x.schema));
+	const resultColumns = columns.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultIndexes = indexes.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultPKs = pks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultFKs = fks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultUniques = uniques.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultChecks = checks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultSequences = sequences.filter((x) => resultSchemas.some((t) => t.name === x.schema));
+	// TODO: drizzle link
+	const resultRoles = roles.filter((x) => filter({ type: 'role', name: x.name }));
+	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultViewColumns = viewColumns.filter((x) =>
+		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
+	);
+
 	return {
-		schemas,
-		tables,
-		enums,
-		columns,
-		indexes,
-		pks,
-		fks,
-		uniques,
-		checks,
-		sequences,
-		roles,
+		schemas: resultSchemas,
+		tables: resultTables,
+		enums: resultEnums,
+		columns: resultColumns,
+		indexes: resultIndexes,
+		pks: resultPKs,
+		fks: resultFKs,
+		uniques: resultUniques,
+		checks: resultChecks,
+		sequences: resultSequences,
+		roles: resultRoles,
 		privileges,
 		policies,
-		views,
-		viewColumns,
+		views: resultViews,
+		viewColumns: resultViewColumns,
 	} satisfies InterimSchema;
 };
 

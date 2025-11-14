@@ -34,7 +34,6 @@ export const extractPostgresExisting = (
 		schema: x.schema ?? 'public',
 		name: x.name,
 	}));
-
 	const existingMatViews = matViews.map((x) => pgMatViewConfig(x)).filter((x) => x.isExisting).map<Table>((
 		x,
 	) => ({

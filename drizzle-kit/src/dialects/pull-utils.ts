@@ -6,6 +6,17 @@ import type { Dialect } from 'src/utils/schemaValidator';
 export type Schema = { type: 'schema'; name: string };
 export type Table = { type: 'table'; schema: string | false; name: string };
 export type Role = { type: 'role'; name: string };
+
+/*
+	there's a double edge sword with having narrow list here
+	on one hand we can filter other entities through these 3 types
+
+	on the other hand when debugged - you see schema/table filter invocation
+	for all other types like enums, sequences, etc.
+
+	I will leave this as is and in introspect I will rely on introspected schemas and tables
+	to filter list of dependent entities, that'd probably be the go to
+*/
 export type KitEntity = Schema | Table | Role;
 
 export type EntityFilter = (it: KitEntity) => boolean;
