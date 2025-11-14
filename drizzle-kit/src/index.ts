@@ -41,7 +41,7 @@ type Verify<T, U extends T> = U;
  * ---
  * `driver` - optional param that is responsible for explicitly providing a driver to use when accessing a database
  * *Possible values*: `aws-data-api`, `d1-http`, `expo`, `turso`, `pglite`
- * If you don't use AWS Data API, D1, Turso or Expo - ypu don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
+ * If you don't use AWS Data API, D1, Turso or Expo - you don't need this driver. You can check a driver strategy choice here: https://orm.drizzle.team/kit-docs/upgrade-21
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#driver
  *
@@ -53,7 +53,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  *
- * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param lets you specify custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.
@@ -72,7 +72,7 @@ type Verify<T, U extends T> = U;
  * ---
  *
  * `tablesFilters` - param lets you filter tables with glob syntax for db push command.
- * It’s useful when you have only one database avaialable for several separate projects with separate sql schemas.
+ * It’s useful when you have only one database available for several separate projects with separate sql schemas.
  *
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *
@@ -260,7 +260,7 @@ export type Config =
  *
  * **Config** usage:
  *
- * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
+ * `dialect` - mandatory and is responsible for explicitly providing a database dialect you are using for all the commands
  * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
