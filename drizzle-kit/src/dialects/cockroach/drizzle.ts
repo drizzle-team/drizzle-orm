@@ -247,6 +247,8 @@ export const fromDrizzleSchema = (
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((it) => {
+		return filter({ type: 'table', schema: it.config.schema ?? 'public', name: it.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -594,7 +596,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting && filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
+		if (view.isExisting && !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 
