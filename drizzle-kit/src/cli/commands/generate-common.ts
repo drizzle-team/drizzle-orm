@@ -2,19 +2,19 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
-import { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
+import type { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
+import type { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import type { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
-import { BREAKPOINT, type Journal } from '../../utils';
+import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver, Prefix } from '../validations/common';
 
 export const writeResult = (config: {
-	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot;
+	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
-	journal: Journal;
 	outFolder: string;
 	breakpoints: boolean;
 	prefixMode: Prefix;
@@ -23,50 +23,35 @@ export const writeResult = (config: {
 	type?: 'introspect' | 'custom' | 'none';
 	driver?: Driver;
 	renames: string[];
+	snapshots: string[];
 }) => {
 	const {
 		snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		breakpoints,
 		name,
 		renames,
 		bundle = false,
 		type = 'none',
-		prefixMode,
 		driver,
+		snapshots,
 	} = config;
 
 	if (type === 'none') {
-		// TODO: handle
-		// console.log(schema(cur));
-
 		if (sqlStatements.length === 0) {
 			console.log('No schema changes, nothing to migrate 😴');
 			return;
 		}
 	}
 
-	// append entry to _migrations.json
-	// append entry to _journal.json->entries
-	// dialect in _journal.json
-	// append sql file to out folder
-	// append snapshot file to meta folder
-	const lastEntryInJournal = journal.entries[journal.entries.length - 1];
-	const idx = typeof lastEntryInJournal === 'undefined' ? 0 : lastEntryInJournal.idx + 1;
-
-	// @ts-ignore
-	const { prefix, tag } = prepareMigrationMetadata(idx, prefixMode, name);
+	const { tag } = prepareMigrationMetadata(name);
 
 	snapshot.renames = renames;
 
-	// todo: save results to a new migration folder
-	const metaFolderPath = join(outFolder, 'meta');
-	const metaJournal = join(metaFolderPath, '_journal.json');
-
+	fs.mkdirSync(join(outFolder, tag));
 	fs.writeFileSync(
-		join(metaFolderPath, `${prefix}_snapshot.json`),
+		join(outFolder, `${tag}/snapshot.json`),
 		JSON.stringify(JSON.parse(JSON.stringify(snapshot)), null, 2),
 	);
 
@@ -83,21 +68,12 @@ export const writeResult = (config: {
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
-	journal.entries.push({
-		idx,
-		version: snapshot.version,
-		when: +new Date(),
-		tag,
-		breakpoints: breakpoints,
-	});
-
-	fs.writeFileSync(metaJournal, JSON.stringify(journal, null, 2));
-
-	fs.writeFileSync(`${outFolder}/${tag}.sql`, sql);
+	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
 
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
-		const js = embeddedMigrations(journal, driver);
+		// adding new migration to the list of all migrations
+		const js = embeddedMigrations([...snapshots || [], join(outFolder, `${tag}/snapshot.json`)], driver);
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
@@ -106,41 +82,41 @@ export const writeResult = (config: {
 			chalk.green(
 				'✓',
 			)
-		}] Your SQL migration file ➜ ${
+		}] Your SQL migration ➜ ${
 			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}.sql`),
+				path.join(`${outFolder}/${tag}`),
 			)
 		} 🚀`,
 	);
 };
 
-export const embeddedMigrations = (journal: Journal, driver?: Driver) => {
+export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	let content = driver === 'expo'
 		? '// This file is required for Expo/React Native SQLite migrations - https://orm.drizzle.team/quick-sqlite/expo\n\n'
 		: '';
 
-	content += "import journal from './meta/_journal.json';\n";
-	journal.entries.forEach((entry) => {
-		content += `import m${entry.idx.toString().padStart(4, '0')} from './${entry.tag}.sql';\n`;
+	const migrations: Record<string, string> = {};
+
+	snapshots.forEach((entry, idx) => {
+		const prefix = entry.split('/')[entry.split('/').length - 2];
+		const importName = idx.toString().padStart(4, '0');
+		content += `import m${importName} from './${prefix}/migration.sql';\n`;
+		migrations[prefix] = importName;
 	});
 
 	content += `
   export default {
-    journal,
     migrations: {
-      ${
-		journal.entries
-			.map((it) => `m${it.idx.toString().padStart(4, '0')}`)
-			.join(',\n')
-	}
-    }
+      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n')}
+}
   }
   `;
+
 	return content;
 };
 
-export const prepareSnapshotFolderName = () => {
-	const now = new Date();
+export const prepareSnapshotFolderName = (ms?: number) => {
+	const now = ms ? new Date(ms) : new Date();
 	return `${now.getFullYear()}${two(now.getUTCMonth() + 1)}${
 		two(
 			now.getUTCDate(),

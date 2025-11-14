@@ -1,4 +1,5 @@
-import { object, string, TypeOf } from 'zod';
+import type { TypeOf } from 'zod';
+import { object, string } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -16,7 +17,7 @@ const _: LibSQLCredentials = {} as TypeOf<typeof libSQLCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-	command: 'generate' | 'migrate' | 'push' | 'pull' | 'studio',
+	_command: 'generate' | 'migrate' | 'push' | 'pull' | 'studio',
 ) => {
 	let text = `Please provide required params for 'turso' dialect:\n`;
 	console.log(error(text));

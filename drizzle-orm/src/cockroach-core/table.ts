@@ -73,6 +73,7 @@ export type CockroachTableWithColumns<T extends TableConfig> =
 	& T['columns']
 	& InferTableColumnsModels<T['columns']>
 	& {
+		/** @deprecated use `cockroachTable.withRLS()` instead*/
 		enableRLS: () => Omit<
 			CockroachTableWithColumns<T>,
 			'enableRLS'
@@ -150,7 +151,7 @@ export function cockroachTableWithSchema<
 	}) as any;
 }
 
-export interface CockroachTableFn<TSchema extends string | undefined = undefined> {
+export interface CockroachTableFnInternal<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, ColumnBuilderBase>,
@@ -184,12 +185,44 @@ export interface CockroachTableFn<TSchema extends string | undefined = undefined
 	}>;
 }
 
-export const cockroachTable: CockroachTableFn = (name, columns, extraConfig) => {
+export interface CockroachTableFn<TSchema extends string | undefined = undefined>
+	extends CockroachTableFnInternal<TSchema>
+{
+	withRLS: CockroachTableFnInternal<TSchema>;
+}
+
+const cockroachTableInternal: CockroachTableFnInternal = (name, columns, extraConfig) => {
 	return cockroachTableWithSchema(name, columns, extraConfig, undefined);
 };
 
+const cockroachTableWithRLS: CockroachTableFn['withRLS'] = (name, columns, extraConfig) => {
+	const table = cockroachTableWithSchema(name, columns, extraConfig, undefined);
+	table[EnableRLS] = true;
+
+	return table;
+};
+
+export const cockroachTable: CockroachTableFn = Object.assign(cockroachTableInternal, {
+	withRLS: cockroachTableWithRLS,
+});
+
 export function cockroachTableCreator(customizeTableName: (name: string) => string): CockroachTableFn {
-	return (name, columns, extraConfig) => {
+	const fn: CockroachTableFnInternal = (name, columns, extraConfig) => {
 		return cockroachTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
+
+	return Object.assign(fn, {
+		withRLS: ((name, columns, extraConfig) => {
+			const table = cockroachTableWithSchema(
+				customizeTableName(name) as typeof name,
+				columns,
+				extraConfig,
+				undefined,
+				name,
+			);
+			table[EnableRLS] = true;
+
+			return table;
+		}) as CockroachTableFnInternal,
+	});
 }

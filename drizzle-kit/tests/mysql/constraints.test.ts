@@ -78,8 +78,8 @@ test('#1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
-		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX (`c1`)\n);\n',
+		'CREATE TABLE `users3` (\n\t`c1` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX(`c1`)\n);\n',
+		'CREATE TABLE `users4` (\n\t`c1` varchar(100),\n\t`c2` varchar(100),\n\tCONSTRAINT `c1_unique` UNIQUE INDEX(`c1`)\n);\n',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c1_users3_c1_fkey` FOREIGN KEY (`c1`) REFERENCES `users3`(`c1`);',
 		'ALTER TABLE `users4` ADD CONSTRAINT `users4_c2_users4_c1_fkey` FOREIGN KEY (`c2`) REFERENCES `users4`(`c1`);',
 	];
@@ -230,64 +230,6 @@ test('unique constraint errors #2', async () => {
 		],
 	);
 	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add UNIQUE on \`column1\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column2\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column3\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column4\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column5\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column6\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column7\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-		` Warning  You tried to add UNIQUE on \`column8\` column in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex("name").on(sql\`username(10)\`)]`,
-	]);
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
@@ -332,16 +274,6 @@ test('unique constraint errors #3', async () => {
 			},
 		],
 	);
-	expect(mappedErrors1).toStrictEqual([]);
-	expect(mappedErrors2).toStrictEqual([
-		` Warning  You tried to add COMPOSITE UNIQUE on \`column1\`, \`column2\`, \`column3\`, \`column4\`, \`column5\`, \`column6\`, \`column7\`, \`column8\` columns in \`table\` table
-It's not currently possible to create a UNIQUE constraint on BLOB/TEXT column type.
-To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length with sql\`\`
-Ex. 
-const users = mysqlTable('users', {
-	username: text()
-}, (t) => [uniqueIndex(\"name\").on(sql\`username(10)\`)]`,
-	]);
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
@@ -654,11 +586,51 @@ test('fk name is too long', async () => {
 	const expectedSt: string[] = [
 		'CREATE TABLE `table1_loooooong` (\n\t`column1_looooong` int PRIMARY KEY\n);\n',
 		'CREATE TABLE `table2_loooooong` (\n\t`column1_looooong` int NOT NULL\n);\n',
-		'ALTER TABLE `table2_loooooong` ADD CONSTRAINT `table2_loooooong_U1VxfDoI6aC2_fkey` FOREIGN KEY (`column1_looooong`) REFERENCES `table1_loooooong`(`column1_looooong`);',
+		'ALTER TABLE `table2_loooooong` ADD CONSTRAINT `table2_loooooong_KObGFnvgHDVg_fkey` FOREIGN KEY (`column1_looooong`) REFERENCES `table1_loooooong`(`column1_looooong`);',
 	];
 
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4456#issuecomment-3076042688
+test('fk multistep #1', async () => {
+	const foo = mysqlTable('foo', {
+		id: int().primaryKey(),
+	});
+
+	const bar = mysqlTable('bar', {
+		id: int().primaryKey(),
+		fooId: int().references(() => foo.id),
+	});
+
+	const schema1 = { foo, bar };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `foo` (\n\t`id` int PRIMARY KEY\n);\n',
+		'CREATE TABLE `bar` (\n\t`id` int PRIMARY KEY,\n\t`fooId` int\n);\n',
+		'ALTER TABLE `bar` ADD CONSTRAINT `bar_fooId_foo_id_fkey` FOREIGN KEY (`fooId`) REFERENCES `foo`(`id`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		bar: mysqlTable('bar', {
+			id: int().primaryKey(),
+			fooId: int(),
+		}),
+	};
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `bar` DROP CONSTRAINT `bar_fooId_foo_id_fkey`;',
+		'DROP INDEX `bar_fooId_foo_id_fkey` ON `bar`',
+		'DROP TABLE `foo`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/265
@@ -918,6 +890,47 @@ test('drop column with pk and add pk to another column #2', async () => {
 		'ALTER TABLE `table1` ADD PRIMARY KEY (`column3`,`column4`);',
 		'ALTER TABLE `table1` DROP COLUMN `column1`;',
 		'ALTER TABLE `table1` DROP COLUMN `column2`;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4456
+test('drop column with pk and add pk to another column #3', async () => {
+	const schema1 = {
+		authors: mysqlTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+		}, (table) => [primaryKey({ columns: [table.publicationId, table.authorID] })]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `authors` (\n\t`publication_id` varchar(64),\n\t`author_id` varchar(10),'
+		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		authors: mysqlTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+			orcidId: varchar('orcid_id', { length: 64 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID, table.orcidId] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `authors` DROP PRIMARY KEY;',
+		'ALTER TABLE `authors` ADD `orcid_id` varchar(64);',
+		'ALTER TABLE `authors` ADD PRIMARY KEY (`publication_id`,`author_id`,`orcid_id`);',
 	];
 
 	expect(st2).toStrictEqual(expectedSt2);

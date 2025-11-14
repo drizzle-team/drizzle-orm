@@ -230,7 +230,12 @@ test('alter inherit in role', async (t) => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
-	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		entities: { roles: { include: ['manager'] } },
+		log: 'statements',
+	});
 
 	const st0 = [
 		'ALTER ROLE "manager" WITH NOINHERIT;',

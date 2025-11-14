@@ -1,13 +1,5 @@
 import { is } from 'drizzle-orm';
-import {
-	int,
-	MsSqlColumnBuilder,
-	MsSqlDialect,
-	MsSqlSchema,
-	MsSqlTable,
-	mssqlTable,
-	MsSqlView,
-} from 'drizzle-orm/mssql-core';
+import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
@@ -19,7 +11,6 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
-import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
@@ -29,7 +20,10 @@ import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { hash } from 'src/dialects/common';
+import { extractMssqlExisting } from 'src/dialects/drizzle';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
 
 export type MssqlDBSchema = Record<
@@ -47,22 +41,31 @@ class MockError extends Error {
 
 export const drizzleToDDL = (
 	schema: MssqlDBSchema,
-	casing?: CasingType | undefined,
+	casing: CasingType | undefined,
+	filterConfig: EntitiesFilterConfig = {
+		schemas: undefined,
+		tables: undefined,
+		entities: undefined,
+		extensions: undefined,
+	},
 ) => {
 	const tables = Object.values(schema).filter((it) => is(it, MsSqlTable)) as MsSqlTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, MsSqlSchema)) as MsSqlSchema[];
 	const views = Object.values(schema).filter((it) => is(it, MsSqlView)) as MsSqlView[];
 
+	const existing = extractMssqlExisting(schemas, views);
+	const filter = prepareEntityFilter('mssql', filterConfig, existing);
 	const { schema: res, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		casing,
+		filter,
 	);
 
 	if (errors.length > 0) {
 		throw new Error();
 	}
 
-	return interimToDDL(res);
+	return { ...interimToDDL(res), existing };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -106,17 +109,25 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: MssqlDBSchema,
 	testName: string,
-	schemas: string[] = ['dbo'],
-	entities?: Entities,
+	schemas: string[] = [],
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const filterConfig: EntitiesFilterConfig = {
+		schemas,
+		entities,
+		tables: [],
+		extensions: [],
+	};
+
+	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	for (const st of init) await db.query(st);
 
-	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0);
+	const filter = prepareEntityFilter('mssql', filterConfig, existing);
+
+	const schema = await fromDatabaseForDrizzle(db, filter);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -137,7 +148,7 @@ export const diffIntrospect = async (
 		filePath,
 	]);
 
-	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, casing, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const {
@@ -167,14 +178,22 @@ export const push = async (config: {
 }) => {
 	const { db, to, force, expectError, log } = config;
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, new EmptyProgressView());
+	const filterConfig: EntitiesFilterConfig = {
+		schemas: config.schemas,
+		entities: undefined,
+		tables: [],
+		extensions: [],
+	};
+	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
+		? { ddl: to as MssqlDDL, errors: [], existing: [] }
+		: drizzleToDDL(to, casing, filterConfig);
+
+	const filter = prepareEntityFilter('mssql', filterConfig, existing);
+
+	const { schema } = await introspect(db, filter, new EmptyProgressView());
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as MssqlDDL, errors: [] }
-		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
 		throw new MockError(err2);
@@ -225,12 +244,7 @@ export const push = async (config: {
 	// subsequent push
 	if (!config.ignoreSubsequent) {
 		{
-			const { schema } = await introspect(
-				db,
-				[],
-				schemas,
-				new EmptyProgressView(),
-			);
+			const { schema } = await introspect(db, filter, new EmptyProgressView());
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 			const { sqlStatements, statements } = await ddlDiff(
@@ -305,7 +319,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	await db.query('INSERT INTO [table] ([column]) VALUES (default);');
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, () => true);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
@@ -317,7 +331,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase', () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -421,7 +435,9 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 			const db = {
 				query: async (sql: string, params: any[] = []) => {
-					const res = await req.query(sql);
+					const res = await req.query(sql).catch((e) => {
+						throw new Error(e.message);
+					});
 					return res.recordset as any[];
 				},
 			};

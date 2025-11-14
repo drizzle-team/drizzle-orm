@@ -1,5 +1,6 @@
 import { is } from 'drizzle-orm';
 import {
+	getViewConfig,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -45,15 +46,10 @@ import { PGlite } from '@electric-sql/pglite';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-ignore
 import { vector } from '@electric-sql/pglite/vector';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
-import crypto from 'node:crypto';
-import { type Client as ClientT } from 'pg';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
@@ -61,13 +57,16 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
-import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
 import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { extractPostgresExisting } from 'src/dialects/drizzle';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
 import { getReasonsFromStatements } from 'src/utils/commutativity';
 import { tsc } from 'tests/utils';
+import { expect } from 'vitest';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });
 
@@ -110,6 +109,12 @@ class MockError extends Error {
 export const drizzleToDDL = (
 	schema: PostgresSchema,
 	casing?: CasingType | undefined,
+	filtersConfig: EntitiesFilterConfig = {
+		entities: undefined,
+		extensions: undefined,
+		schemas: undefined,
+		tables: undefined,
+	},
 ) => {
 	const tables = Object.values(schema).filter((it) => is(it, PgTable)) as PgTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, PgSchema)) as PgSchema[];
@@ -120,20 +125,22 @@ export const drizzleToDDL = (
 	const views = Object.values(schema).filter((it) => isPgView(it)) as PgView[];
 	const materializedViews = Object.values(schema).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
+	const grouped = { schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews };
+
+	const existing = extractPostgresExisting(schemas, views, materializedViews);
+	const filter = prepareEntityFilter('postgresql', filtersConfig, existing);
+
 	const {
 		schema: res,
 		errors,
 		warnings,
-	} = fromDrizzleSchema(
-		{ schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews },
-		casing,
-	);
+	} = fromDrizzleSchema(grouped, casing, filter);
 
 	if (errors.length > 0) {
 		throw new Error();
 	}
 
-	return interimToDDL(res);
+	return { ...interimToDDL(res), existing };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -187,20 +194,31 @@ export const push = async (config: {
 	tables?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	entities?: Entities;
+	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
 }) => {
-	const { db, to, tables } = config;
+	const { db, to } = config;
 
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ((_: string) => true);
+	const schemas = config.schemas ?? [];
+	const tables = config.tables ?? [];
 
-	const { schema } = await introspect(db, tables ?? [], schemas, config.entities, new EmptyProgressView());
+	const filterConfig = {
+		tables,
+		schemas,
+		entities: config.entities,
+		extensions: [],
+	};
+
+	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [], existing: [] }
+		: drizzleToDDL(to, casing, filterConfig);
+
+	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
+	const { schema } = await introspect(db, filter, new EmptyProgressView());
+
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as PostgresDDL, errors: [] }
-		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -249,9 +267,7 @@ export const push = async (config: {
 		{
 			const { schema } = await introspect(
 				db,
-				tables ?? [],
-				config.schemas ?? ((_: string) => true),
-				config.entities,
+				filter,
 				new EmptyProgressView(),
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -277,8 +293,7 @@ export const push = async (config: {
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}
@@ -292,22 +307,30 @@ export const diffIntrospect = async (
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
-	entities?: Entities,
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 	for (const st of init) await db.query(st);
 
+	const filter = prepareEntityFilter('postgresql', {
+		tables: [],
+		schemas,
+		entities,
+		extensions: [],
+	}, []);
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
+	const schema = await fromDatabaseForDrizzle(db, filter);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/postgres/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
 	writeFileSync(filePath, file.file);
 
-	await tsc(file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -318,7 +341,7 @@ export const diffIntrospect = async (
 		schema: schema2,
 		errors: e2,
 		warnings,
-	} = fromDrizzleSchema(response, casing);
+	} = fromDrizzleSchema(response, casing, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 
@@ -349,11 +372,6 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	schemasFilter?: string[],
 ) => {
 	await kit.clear();
-
-	let filter: ((_schema: string, tableName: string) => boolean) | undefined;
-	if (tablesFilter?.length) {
-		filter = prepareTablesFilter(tablesFilter);
-	}
 
 	const config = (builder as any).config;
 	const def = config['default'];
@@ -407,6 +425,13 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	await db.query('INSERT INTO "table" ("column") VALUES (default);');
 
+	const filter = prepareEntityFilter('postgresql', {
+		tables: tablesFilter ?? [],
+		schemas: [],
+		entities: undefined,
+		extensions: [],
+	}, []);
+
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(
 		db,
@@ -423,7 +448,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -584,65 +609,24 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	return { db, close: async () => {}, clear, client };
 };
 
-export const createDockerPostgis = async () => {
-	const docker = new Docker();
-	const port = await getPort();
-	const image = 'postgis/postgis:16-3.4';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err: any) => err ? reject(err) : resolve(err))
-	);
-
-	const user = 'postgres', password = 'postgres', database = 'postgres';
-	const pgContainer = await docker.createContainer({
-		Image: image,
-		Env: [`POSTGRES_USER=${user}`, `POSTGRES_PASSWORD=${password}`, `POSTGRES_DATABASE=${database}`],
-		name: `drizzle-integration-tests-${crypto.randomUUID()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return {
-		url: `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`,
-		container: pgContainer,
-	};
-};
-
 export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
 	const envURL = process.env.POSTGIS_URL;
-	const { url, container } = envURL ? { url: envURL, container: null } : await createDockerPostgis();
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError;
-
-	let pgClient: ClientT;
-	do {
-		try {
-			pgClient = new Client({ connectionString: url });
-			await pgClient.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await pgClient!.end().catch(console.error);
-		await container?.stop().catch(console.error);
-		throw lastError;
+	if (!envURL) {
+		throw new Error('POSTGIS_URL is not set, starting a new Postgis container for tests...');
 	}
 
+	const parsed = new URL(envURL);
+	parsed.pathname = '/postgres';
+
+	const adminUrl = parsed.toString();
+	const admin = new Client({ connectionString: adminUrl });
+	await admin.connect();
+	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
+	await admin!.query(`CREATE DATABASE drizzle;`);
+	admin.end();
+
+	const pgClient = new Client({ connectionString: envURL });
+	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
@@ -682,7 +666,6 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 
 	const close = async () => {
 		await pgClient.end().catch(console.error);
-		await container?.stop().catch(console.error);
 	};
 
 	const db: TestDatabase['db'] = {

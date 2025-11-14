@@ -3,19 +3,21 @@ import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
-import { assertUnreachable, TransactionProxy } from '../utils';
-import { type DB, LibSQLDB, type Proxy, type SQLiteDB } from '../utils';
+import type { TransactionProxy } from '../utils';
+import { assertUnreachable } from '../utils';
+import type { LibSQLDB } from '../utils';
+import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage } from './utils';
-import { GelCredentials } from './validations/gel';
-import { LibSQLCredentials } from './validations/libsql';
-import { MssqlCredentials } from './validations/mssql';
+import type { GelCredentials } from './validations/gel';
+import type { LibSQLCredentials } from './validations/libsql';
+import type { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
-import { SingleStoreCredentials } from './validations/singlestore';
+import type { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
 
 const normalisePGliteUrl = (it: string) => {
@@ -46,7 +48,7 @@ export const preparePostgresDB = async (
 		const { driver } = credentials;
 		if (driver === 'aws-data-api') {
 			assertPackages('@aws-sdk/client-rds-data');
-			const { RDSDataClient, ExecuteStatementCommand, TypeHint } = await import(
+			const { RDSDataClient } = await import(
 				'@aws-sdk/client-rds-data'
 			);
 			const { AwsDataApiSession, drizzle } = await import(
@@ -108,7 +110,7 @@ export const preparePostgresDB = async (
 				const result = await prepared.execute();
 				return result.rows;
 			};
-			const transactionProxy: TransactionProxy = async (queries) => {
+			const transactionProxy: TransactionProxy = async (_queries) => {
 				throw new Error('Transaction not supported');
 			};
 
@@ -634,7 +636,7 @@ export const prepareGelDB = async (
 			try {
 				await client.querySQL(`select 1;`);
 			} catch (error: any) {
-				if (error instanceof gel.ClientConnectionError) {
+				if (error instanceof gel.ClientConnectionError) { // oxlint-disable-line drizzle-internal/no-instanceof
 					console.error(
 						`It looks like you forgot to link the Gel project or provide the database credentials.
 To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
@@ -645,9 +647,9 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 				throw error;
 			}
 		} else if ('url' in credentials) {
-			'tlsSecurity' in credentials
-				? client = gel.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
-				: client = gel.createClient({ dsn: credentials.url, concurrency: 1 });
+			client = 'tlsSecurity' in credentials
+				? gel.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
+				: gel.createClient({ dsn: credentials.url, concurrency: 1 });
 		} else {
 			gel.createClient({ ...credentials, concurrency: 1 });
 		}
@@ -658,7 +660,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 		};
 
 		const proxy: Proxy = async (params: ProxyParams) => {
-			const { method, mode, params: sqlParams, sql, typings } = params;
+			const { mode, params: sqlParams, sql } = params;
 
 			let result: any[];
 			switch (mode) {
@@ -882,7 +884,10 @@ export const connectToMySQL = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query(query.sql);
+					const res = await connection.query({
+						sql: query.sql,
+						typeCast,
+					});
 					results.push(res[0]);
 				}
 				await connection.commit();
@@ -985,7 +990,6 @@ export const connectToMsSQL = async (
 		const mssql = await import('mssql');
 		const { drizzle } = await import('drizzle-orm/node-mssql');
 		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
-
 		const connection = result.url
 			? await mssql.default.connect(result.url)
 			: await mssql.default.connect(result.credentials!);

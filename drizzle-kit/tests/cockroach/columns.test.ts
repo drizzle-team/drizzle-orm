@@ -86,7 +86,7 @@ test.concurrent('add columns #2', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('column conflict duplicate name #1', async ({ db: db }) => {
+test.concurrent('column conflict duplicate name #1', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id: int4('id'),
@@ -599,7 +599,7 @@ test.concurrent('add array column - default', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('add not null to a column', async ({ db: db }) => {
+test.concurrent('add not null to a column', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable(
 			'User',
@@ -666,7 +666,7 @@ test.concurrent('add not null to a column', async ({ db: db }) => {
 	expect(losses).toStrictEqual([]);
 });
 
-test.concurrent('add not null to a column with null data. Should rollback', async ({ db: db }) => {
+test.concurrent('add not null to a column with null data. Should rollback', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('User', {
 			id: text('id').primaryKey(),

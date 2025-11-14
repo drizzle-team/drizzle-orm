@@ -174,6 +174,7 @@ test('alter policy without recreation: changing roles', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('alter policy without recreation: changing roles #2', async ({ db }) => {
 	const role = cockroachRole('owner');
 	const schema1 = {
@@ -380,6 +381,7 @@ test('alter policy with recreation: changing all fields', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('alter policy with recreation: changing all fields #2', async ({ db }) => {
 	const root = cockroachRole('root');
 	const admin = cockroachRole('admin');
@@ -565,6 +567,7 @@ test('add policy with multiple "to" roles', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('add policy with multiple "to" roles #2', async ({ db }) => {
 	const role2 = cockroachRole('owner');
 	const schema1 = {
@@ -781,6 +784,7 @@ test('add policy with enabled rls', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('add policy with enabled rls #2', async ({ db }) => {
 	const role2 = cockroachRole('owner');
 	const schema1 = {
@@ -978,6 +982,7 @@ test('add policy in table and with link table', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('add policy in table and with link table #2', async ({ db }) => {
 	const role = cockroachRole('owner');
 	const schema1 = {
@@ -1218,6 +1223,7 @@ test('alter policy that is linked', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('alter policy that is linked #2', async ({ db }) => {
 	const role = cockroachRole('owner');
 	const users = cockroachTable('users', {
@@ -1377,6 +1383,7 @@ test('alter policy in the table', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
 test('alter policy in the table #2', async ({ db }) => {
 	const role = cockroachRole('owner');
 	const schema1 = {

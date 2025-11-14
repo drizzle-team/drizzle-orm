@@ -6,10 +6,9 @@ import { renderWithTask } from 'hanji';
 import { dialects } from 'src/utils/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../utils';
-import { assertV1OutFolder } from '../utils/utils-node';
+import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
-import { dropMigration } from './commands/drop';
-import { type Setup } from './commands/studio';
+import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
@@ -17,7 +16,6 @@ import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
 import {
 	prepareCheckParams,
-	prepareDropParams,
 	prepareExportConfig,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
@@ -28,7 +26,7 @@ import {
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import { error, grey, MigrateProgress } from './views';
+import { error, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -78,9 +76,11 @@ export const generate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		// const parsed = cliConfigGenerate.parse(opts);
+		assertV3OutFolder(opts.out);
 
 		const dialect = opts.dialect;
+		await checkHandler(opts.out, dialect);
+
 		if (dialect === 'postgresql') {
 			const { handle } = await import('./commands/generate-postgres');
 			await handle(opts);
@@ -127,7 +127,12 @@ export const migrate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
+		assertV3OutFolder(opts.out);
+
 		const { dialect, schema, table, out, credentials } = opts;
+
+		await checkHandler(out, dialect);
+
 		try {
 			if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -325,11 +330,9 @@ export const push = command({
 			strict,
 			verbose,
 			credentials,
-			tablesFilter,
-			schemasFilter,
 			force,
 			casing,
-			entities,
+			filters,
 		} = config;
 
 		try {
@@ -338,11 +341,11 @@ export const push = command({
 				await handle(
 					schemaPath,
 					credentials,
-					tablesFilter,
 					strict,
 					verbose,
 					force,
 					casing,
+					filters,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -367,9 +370,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
-					entities,
+					filters,
 					force,
 					casing,
 				);
@@ -380,7 +381,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -391,7 +392,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -400,7 +401,7 @@ export const push = command({
 				await handle(
 					schemaPath,
 					credentials,
-					tablesFilter,
+					filters,
 					strict,
 					verbose,
 					force,
@@ -413,9 +414,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
-					entities,
+					filters,
 					force,
 					casing,
 				);
@@ -426,8 +425,7 @@ export const push = command({
 					verbose,
 					strict,
 					credentials,
-					tablesFilter,
-					schemasFilter,
+					filters,
 					force,
 					casing,
 				);
@@ -461,6 +459,8 @@ export const check = command({
 	},
 	handler: async (config) => {
 		await assertOrmCoreVersion();
+
+		assertV3OutFolder(config.out);
 
 		const { out, dialect } = config;
 		await checkHandler(out, dialect);
@@ -517,8 +517,8 @@ export const up = command({
 });
 
 export const pull = command({
-	name: 'introspect',
-	aliases: ['pull'],
+	name: 'pull',
+	aliases: ['introspect'],
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
@@ -565,23 +565,10 @@ export const pull = command({
 			out,
 			casing,
 			breakpoints,
-			tablesFilter,
-			schemasFilter,
 			prefix,
-			entities,
+			filters,
 		} = config;
 		mkdirSync(out, { recursive: true });
-
-		console.log(
-			grey(
-				`Pulling from [${
-					schemasFilter
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}] list of schemas`,
-			),
-		);
-		console.log();
 
 		try {
 			if (dialect === 'postgresql') {
@@ -607,61 +594,28 @@ export const pull = command({
 				}
 
 				const { handle: introspectPostgres } = await import('./commands/pull-postgres');
-				await introspectPostgres(casing, out, breakpoints, credentials, tablesFilter, schemasFilter, prefix, entities);
+				await introspectPostgres(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'mysql') {
 				const { handle: introspectMysql } = await import('./commands/pull-mysql');
-				await introspectMysql(casing, out, breakpoints, credentials, tablesFilter, prefix);
+				await introspectMysql(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'sqlite') {
 				const { handle } = await import('./commands/pull-sqlite');
-				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'turso') {
 				const { handle } = await import('./commands/pull-libsql');
-				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix, 'libsql');
+				await handle(casing, out, breakpoints, credentials, filters, prefix, 'libsql');
 			} else if (dialect === 'singlestore') {
 				const { handle } = await import('./commands/pull-singlestore');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'gel') {
 				const { handle } = await import('./commands/pull-gel');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-					entities,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'mssql') {
 				const { handle } = await import('./commands/pull-mssql');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else if (dialect === 'cockroach') {
 				const { handle } = await import('./commands/pull-cockroach');
-				await handle(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-					entities,
-				);
+				await handle(casing, out, breakpoints, credentials, filters, prefix);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -669,25 +623,6 @@ export const pull = command({
 			console.error(e);
 		}
 		process.exit(0);
-	},
-});
-
-export const drop = command({
-	name: 'drop',
-	options: {
-		config: optionConfig,
-		out: optionOut,
-		driver: optionDriver,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['driver', 'out']);
-		return prepareDropParams(opts, from);
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		assertV1OutFolder(config.out);
-		await dropMigration(config);
 	},
 });
 
@@ -726,7 +661,6 @@ export const studio = command({
 			prepareSingleStoreSchema,
 			drizzleForSingleStore,
 			drizzleForLibSQL,
-			prepareMsSqlSchema,
 			// drizzleForMsSQL,
 		} = await import('./commands/studio');
 
@@ -827,7 +761,7 @@ export const studio = command({
 				port,
 				key,
 				cert,
-				cb: (err, address) => {
+				cb: (err, _address) => {
 					if (err) {
 						console.error(err);
 					} else {

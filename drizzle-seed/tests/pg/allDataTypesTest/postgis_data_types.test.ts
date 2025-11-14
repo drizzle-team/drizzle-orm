@@ -1,76 +1,42 @@
-import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import type { Client as ClientT } from 'pg';
-import pg from 'pg';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { seed } from '../../../src/index.ts';
-import { createDockerPostgis } from '../utils.ts';
+import { pgPostgisTest as test } from '../instrumentation.ts';
 import * as schema from './pgPostgisSchema.ts';
 
-const { Client } = pg;
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
+});
+test.beforeEach(async ({ db }) => {
+	if (firstTime) {
+		firstTime = false;
 
-let pgContainer: Container;
-let pgClient: ClientT;
-let db: NodePgDatabase;
+		await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis;`);
 
-beforeAll(async () => {
-	const { url, container } = await createDockerPostgis();
-	pgContainer = container;
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError;
-
-	do {
-		try {
-			pgClient = new Client({ connectionString: url });
-			await pgClient.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await pgClient!.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-
-	await pgClient.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
-
-	db = drizzle({ client: pgClient });
-
-	await db.execute(sql`CREATE SCHEMA if not exists "seeder_lib_pg";`);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postgis_data_types" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "postgis_data_types" (
 				"geometry" geometry(point, 0)
 			);
 		`,
-	);
+		);
 
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postgis_array_data_types" (
+		await db.execute(
+			sql`
+			    CREATE TABLE IF NOT EXISTS "postgis_array_data_types" (
 				"geometry_array" geometry(point, 0)[]
 			);
 		`,
-	);
+		);
+
+		resolveFunc('');
+	}
+	await promise;
 });
 
-afterAll(async () => {
-	await pgClient.end().catch(console.error);
-	await pgContainer.stop().catch(console.error);
-});
-
-test('postgis data types test', async () => {
+test('postgis data types test', async ({ db }) => {
 	await seed(db, { allDataTypes: schema.allDataTypes }, { count: 10000 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);

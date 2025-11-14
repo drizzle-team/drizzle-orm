@@ -14,20 +14,18 @@ test('tables with same name in different schemas', () => {
 		},
 	};
 
-	const relationalSchema = {
-		...Object.fromEntries(
-			Object.entries(schema)
-				.flatMap(([key, val]) => {
-					// have unique keys across schemas
+	const relationalSchema = Object.fromEntries(
+		Object.entries(schema)
+			.flatMap(([key, val]) => {
+				// have unique keys across schemas
 
-					const mappedTableEntries = Object.entries(val).map((tableEntry) => {
-						return [`__${key}__.${tableEntry[0]}`, tableEntry[1]];
-					});
+				const mappedTableEntries = Object.entries(val).map((tableEntry) => {
+					return [`__${key}__.${tableEntry[0]}`, tableEntry[1]];
+				});
 
-					return mappedTableEntries;
-				}),
-		),
-	};
+				return mappedTableEntries;
+			}),
+	);
 
 	const relationsConfig = extractTablesRelationalConfig(
 		relationalSchema,

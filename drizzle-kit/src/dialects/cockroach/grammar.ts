@@ -1,12 +1,10 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { parseArray } from 'src/utils/parse-pgarray';
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import type { possibleIntervals } from '../../utils';
 import {
 	dateExtractRegex,
 	hasTimeZoneSuffix,
 	parseEWKB,
 	parseIntervalFields,
-	possibleIntervals,
 	stringifyArray,
 	stringifyTuplesArray,
 	timeTzRegex,
@@ -14,9 +12,11 @@ import {
 	trimChar,
 	wrapWith,
 } from '../../utils';
+import { parseArray } from '../../utils/parse-pgarray';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { numberForTs, parseParams } from '../utils';
-import { CockroachEntities, Column, DiffEntities } from './ddl';
+import type { CockroachEntities, Column, DiffEntities } from './ddl';
 import type { Import } from './typescript';
 
 export const splitSqlType = (sqlType: string) => {
@@ -58,7 +58,7 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
 	return typeof field === 'string'
 		? (field as string)
-		: typeof field === undefined || field === null
+		: typeof field === 'undefined' || field === null
 		? null
 		: typeof field === 'bigint'
 		? field.toString()
@@ -165,7 +165,7 @@ export const defaultToSQL = (it: Pick<Column, 'default' | 'dimensions' | 'type' 
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions, typeSchema } = it;
-	const { type, value } = it.default;
+	const { value } = it.default;
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
@@ -960,7 +960,7 @@ export const Timestamp: SqlType = {
 	is: (type) => /^\s*timestamp(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '')}'` };
 		}
 
@@ -970,7 +970,7 @@ export const Timestamp: SqlType = {
 		return {
 			value: `'${
 				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) {
+					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 						return `"${v.toISOString().replace('T', ' ').replace('Z', '')}"`;
 					}
 
@@ -1028,7 +1028,7 @@ export const TimestampTZ: SqlType = {
 	is: (type) => /^\s*timestamptz(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '+00')}'` };
 		}
 
@@ -1038,7 +1038,7 @@ export const TimestampTZ: SqlType = {
 		return {
 			value: `'${
 				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) {
+					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 						return `"${v.toISOString().replace('T', ' ').replace('Z', '+00')}"`;
 					}
 
@@ -1201,7 +1201,7 @@ export const DateType: SqlType = {
 	is: (type) => /^\s*date(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return { type: 'unknown', value: `'${value.toISOString().split('T')[0]}'` };
 		}
 
@@ -1211,7 +1211,7 @@ export const DateType: SqlType = {
 		return {
 			value: `'${
 				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) {
+					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 						return v.toISOString().split('T')[0];
 					}
 
@@ -1411,7 +1411,8 @@ export const Jsonb: SqlType = {
 				true,
 			)!;
 			return { default: stringified };
-		} catch (e: any) {
+		} catch {
+			/*(e: any)*/
 			// console.log('error: ', e);
 		}
 		return { default: `sql\`${value}\`` };
@@ -1527,7 +1528,7 @@ export const Vector: SqlType = {
 // BUT if try to create table with default '{"e''text\\\\text''"}' query will fail
 // so create in simplest way and check in diff
 export const Enum: SqlType = {
-	is: (type: string) => {
+	is: (_type: string) => {
 		throw Error('Mocked');
 	},
 	drizzleImport: () => 'cockroachEnum',
@@ -1591,7 +1592,7 @@ export const Enum: SqlType = {
 };
 
 export const Custom: SqlType = {
-	is: (type: string) => {
+	is: (_type: string) => {
 		throw Error('Mocked');
 	},
 	drizzleImport: () => 'customType',
@@ -1665,7 +1666,7 @@ export const GeometryPoint: SqlType = {
 				return res;
 			});
 		} else if (mode === 'object') {
-			res = stringifyArray(value, 'sql', (x: { x: number; y: number }, depth: number) => {
+			res = stringifyArray(value, 'sql', (x: { x: number; y: number }, _depth: number) => {
 				const res = `${sridPrefix}POINT(${x.x} ${x.y})`;
 				return res;
 			});

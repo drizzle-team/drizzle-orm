@@ -1,7 +1,8 @@
-import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
+import type { SQLiteDDL, SqliteEntity } from './ddl';
+import { createDDL } from './ddl';
 
 // ------- V3 --------
 const index = object({
@@ -72,6 +73,11 @@ const dialect = enumType(['sqlite']);
 
 const schemaHash = object({
 	id: string(),
+	prevIds: zArray(string()),
+}).strict();
+
+const schemaHashV5 = object({
+	id: string(),
 	prevId: string(),
 }).strict();
 
@@ -97,11 +103,14 @@ export const schemaInternalV6 = object({
 		tables: record(string(), string()),
 		columns: record(string(), string()),
 	}),
+	internal: any(),
 }).strict();
 
-export const schemaV5 = schemaInternalV5.merge(schemaHash).strict();
-export const schemaV6 = schemaInternalV6.merge(schemaHash).strict();
+export const schemaV5 = schemaInternalV5.merge(schemaHashV5).strict();
+export const schemaV6 = schemaInternalV6.merge(schemaHashV5).strict();
+export const schema = schemaInternalV6.merge(schemaHash).strict();
 export type SQLiteSchemaV6 = TypeOf<typeof schemaV6>;
+export type SQLiteSchema = TypeOf<typeof schema>;
 
 export type Dialect = TypeOf<typeof dialect>;
 
@@ -134,8 +143,8 @@ export const schemaSquashed = object({
 export const sqliteSchemaV5 = schemaV5;
 export const sqliteSchemaV6 = schemaV6;
 
-export const toJsonSnapshot = (ddl: SQLiteDDL, id: string, prevId: string, renames: string[]): SqliteSnapshot => {
-	return { dialect: 'sqlite', id, prevId, version: '7', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: SQLiteDDL, id: string, prevIds: string[], renames: string[]): SqliteSnapshot => {
+	return { dialect: 'sqlite', id, prevIds, version: '7', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -143,7 +152,7 @@ export const snapshotValidator = validator({
 	version: ['7'],
 	dialect: ['sqlite'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<SqliteEntity>((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
@@ -153,7 +162,7 @@ export const drySqliteSnapshot = snapshotValidator.strict({
 	version: '7',
 	dialect: 'sqlite',
 	id: originUUID,
-	prevId: '',
+	prevIds: [],
 	ddl: [],
 	renames: [],
 });

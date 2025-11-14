@@ -1,35 +1,44 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { createDDL, Index } from '../../dialects/postgres/ddl';
-import { defaultNameForIndex, defaultNameForPK, defaultNameForUnique, defaults } from '../../dialects/postgres/grammar';
+import { createDDL, type Index } from '../../dialects/postgres/ddl';
 import {
+	defaultNameForIndex,
+	defaultNameForPK,
+	defaultNameForUnique,
+	defaults,
+	trimDefaultValueSuffix,
+} from '../../dialects/postgres/grammar';
+import type {
 	Column,
 	Index as LegacyIndex,
 	PgSchema,
 	PgSchemaV4,
 	PgSchemaV5,
 	PgSchemaV6,
+	PgSchemaV7,
 	PostgresSnapshot,
 	TableV5,
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { migrateToFoldersV3 } from './utils';
 
 export const upPgHandler = (out: string) => {
-	const { snapshots } = prepareOutFolder(out, 'postgresql');
+	migrateToFoldersV3(out);
+
+	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'postgresql');
 
 	report.nonLatest
 		.map((it) => ({
 			path: it,
-			raw: report.rawMap[it]!! as Record<string, any>,
+			raw: report.rawMap[it]! as Record<string, any>,
 		}))
 		.forEach((it) => {
 			const path = it.path;
 
-			const { snapshot, hints } = upToV8(it.raw);
+			const { snapshot } = upToV8(it.raw);
 
-			console.log(hints);
 			console.log(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));
@@ -40,7 +49,7 @@ export const upPgHandler = (out: string) => {
 
 export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; hints: string[] } => {
 	if (Number(it.version) < 7) return upToV8(updateUpToV7(it));
-	const json = it as PgSchema;
+	const json = it as PgSchemaV7;
 
 	const hints = [] as string[];
 
@@ -50,12 +59,29 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 		ddl.schemas.push({ name: schema });
 	}
 
+	for (const seq of Object.values(json.sequences)) {
+		ddl.sequences.push({
+			schema: seq.schema!,
+			name: seq.name,
+			startWith: seq.startWith ?? null,
+			incrementBy: seq.increment ?? null,
+			minValue: seq.minValue ?? null,
+			maxValue: seq.maxValue ?? null,
+			cacheSize: seq.cache ? Number(seq.cache) : null,
+			cycle: seq.cycle ?? null,
+		});
+	}
+
 	for (const table of Object.values(json.tables)) {
 		const schema = table.schema || 'public';
+
+		const isRlsEnabled = table.isRLSEnabled || Object.keys(table.policies).length > 0
+			|| Object.values(json.policies).some((it) => it.on === table.name && (it.schema ?? 'public') === schema);
+
 		ddl.tables.push({
 			schema,
 			name: table.name,
-			isRlsEnabled: table.isRLSEnabled ?? false,
+			isRlsEnabled: isRlsEnabled,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -72,6 +98,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			const [baseType, dimensions] = extractBaseTypeAndDimensions(column.type);
 
 			let fixedType = baseType.startsWith('numeric(') ? baseType.replace(', ', ',') : baseType;
+
 			ddl.columns.push({
 				schema,
 				table: table.name,
@@ -93,7 +120,9 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 						cycle: column.identity.cycle ?? null,
 					}
 					: null,
-				default: typeof column.default === 'undefined' ? null : { type: 'unknown', value: String(column.default) },
+				default: typeof column.default === 'undefined'
+					? null
+					: { type: 'unknown', value: trimDefaultValueSuffix(String(column.default)) },
 			});
 		}
 
@@ -291,7 +320,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 	return {
 		snapshot: {
 			id: json.id,
-			prevId: json.prevId,
+			prevIds: [json.prevId],
 			version: '8',
 			dialect: 'postgres',
 			ddl: ddl.entities.list(),
@@ -439,7 +468,7 @@ export const updateToV5 = (it: Record<string, any>): PgSchemaV5 => {
 		version: '5',
 		dialect: obj.dialect,
 		id: obj.id,
-		prevId: obj.prevId,
+		prevIds: obj.prevIds,
 		tables: mappedTables,
 		enums: obj.enums,
 		schemas: obj.schemas,

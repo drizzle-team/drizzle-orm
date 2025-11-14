@@ -15,7 +15,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { allTypesTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

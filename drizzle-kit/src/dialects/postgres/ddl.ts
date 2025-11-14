@@ -184,6 +184,7 @@ export type ViewColumn = {
 	schema: string;
 	view: string;
 	type: string;
+	typeDimensions: number;
 	typeSchema: string | null;
 	notNull: boolean;
 	dimensions: number;
@@ -405,7 +406,7 @@ export const interimToDDL = (
 	}
 
 	for (const column of schema.columns) {
-		const { pk, pkName, unique, uniqueName, uniqueNullsNotDistinct, ...rest } = column;
+		const { pk: _1, pkName: _2, unique: _3, uniqueName: _4, uniqueNullsNotDistinct: _5, ...rest } = column;
 
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
@@ -419,7 +420,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.indexes) {
-		const { forPK, forUnique, ...rest } = it;
+		const { forPK: _1, forUnique: _2, ...rest } = it;
 		// TODO: check within schema, pk =[schema, table, name], we need only [schema, table]
 		const res = ddl.indexes.push(rest);
 		if (res.status === 'CONFLICT') {

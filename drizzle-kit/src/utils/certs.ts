@@ -1,7 +1,8 @@
 import envPaths from 'env-paths';
 import { mkdirSync } from 'fs';
 import { access, readFile } from 'fs/promises';
-import { exec, ExecOptions } from 'node:child_process';
+import type { ExecOptions } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { join } from 'path';
 
 export function runCommand(command: string, options: ExecOptions = {}) {
@@ -30,7 +31,7 @@ export const certs = async () => {
 		try {
 			// check if the files exist
 			await Promise.all([access(keyPath), access(certPath)]);
-		} catch (e) {
+		} catch {
 			// if not create them
 			await runCommand(`mkcert localhost`, { cwd: p.data });
 		}

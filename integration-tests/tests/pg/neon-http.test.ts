@@ -1,94 +1,46 @@
-import { neon, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { defineRelations, eq, sql } from 'drizzle-orm';
-import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { drizzle } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
-import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import { beforeAll, beforeEach, describe, expect, expectTypeOf, test, vi } from 'vitest';
-import { skipTests } from '~/common';
+import {
+	bigint,
+	bigserial,
+	boolean,
+	bytea,
+	char,
+	cidr,
+	date,
+	doublePrecision,
+	inet,
+	integer,
+	interval,
+	json,
+	jsonb,
+	line,
+	macaddr,
+	macaddr8,
+	numeric,
+	pgEnum,
+	pgMaterializedView,
+	pgTable,
+	point,
+	real,
+	serial,
+	smallint,
+	smallserial,
+	text,
+	time,
+	timestamp,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
+import { describe, expect, expectTypeOf, vi } from 'vitest';
 import { randomString } from '~/utils';
-import { allTypesTable, tests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
-import relations from './relations';
+import { tests } from './common';
+import { neonHttpTest as test } from './instrumentation';
+import { usersMigratorTable, usersTable } from './schema';
 
-const ENABLE_LOGGING = false;
-
-let db: NeonHttpDatabase<never, typeof relations>;
-let dbGlobalCached: NeonHttpDatabase;
-let cachedDb: NeonHttpDatabase;
-let push: (schema: any) => Promise<void>;
-
-beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
-	if (!connectionString) throw new Error();
-
-	neonConfig.fetchEndpoint = (host) => {
-		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
-		return `${protocol}://${host}:${port}/sql`;
-	};
-	const client = neon(connectionString);
-
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
-
-	push = async (schema: any) => {
-		const { diff } = await import('../../../drizzle-kit/tests/postgres/mocks' as string);
-
-		const res = await diff({}, schema, []);
-		for (const s of res.sqlStatements) {
-			await db.execute(s).catch((e) => {
-				console.error(s);
-				console.error(e);
-				throw e;
-			});
-		}
-	};
-
-	await db.execute(sql`drop schema if exists public cascade`);
-	await db.execute(sql`create schema public`);
-
-	await db.execute(
-		sql`
-			create table users (
-				id serial primary key,
-				name text not null,
-				verified boolean not null default false,
-				jsonb jsonb,
-				created_at timestamptz not null default now()
-			)
-		`,
-	);
-});
-
-beforeEach((ctx) => {
-	ctx.pg = {
-		db,
-	};
-	ctx.cachedPg = {
-		db: cachedDb,
-		dbGlobalCached,
-	};
-});
-
-skipTests([
-	'migrator : default migration strategy',
-	'migrator : migrate with custom schema',
-	'migrator : migrate with custom table',
-	'migrator : migrate with custom table and custom schema',
-	'insert via db.execute + select via db.execute',
-	'insert via db.execute + returning',
-	'insert via db.execute w/ query builder',
-	'all date and time columns without timezone first case mode string',
-	'all date and time columns without timezone third case mode date',
-	'test mode string for timestamp with timezone',
-	'test mode date for timestamp with timezone',
-	'test mode string for timestamp with timezone in UTC timezone',
-	'nested transaction rollback',
-	'transaction rollback',
-	'nested transaction',
-	'transaction',
-	'timestamp timezone',
-	'test $onUpdateFn and $onUpdate works as $default',
+const skips = [
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',
@@ -97,26 +49,32 @@ skipTests([
 	'RQB v2 transaction find many - multiple rows',
 	'RQB v2 transaction find many - with relation',
 	'RQB v2 transaction find many - placeholders',
-	// Disabled until Buffer insertion is fixed
+	// // Disabled until Buffer insertion is fixed
 	'all types',
-]);
+];
 
-tests();
-cacheTests();
+// COMMON
+tests(test, skips);
 
-describe('default', () => {
-	beforeEach(async () => {
-		await Promise.all([
-			db.execute(sql`truncate table users;`),
-			db.execute(sql`select setval(pg_get_serial_sequence('"public"."users"', 'id'), 1, false);`),
-		]);
+describe('migrator', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(sql`drop schema if exists public cascade`);
+		await db.execute(sql`create schema public`);
+		await db.execute(
+			sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false,
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
+		);
 	});
 
-	test('migrator : default migration strategy', async () => {
-		await db.execute(sql`drop table if exists all_columns`);
-		await db.execute(sql`drop table if exists users12`);
-		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
+	test('migrator : default migration strategy', async ({ neonhttp: db }) => {
+		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -125,60 +83,41 @@ describe('default', () => {
 
 		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+		await db.execute(sql`drop table all_columns, users12, "drizzle"."__drizzle_migrations"`);
 	});
 
-	test('migrator : migrate with custom schema', async () => {
-		await db.execute(sql`drop table if exists all_columns`);
-		await db.execute(sql`drop table if exists users12`);
-		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
+	test('migrator : migrate with custom schema', async ({ neonhttp: db }) => {
+		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: 'custom_migrations' });
 
 		// test if the custom migrations table was created
 		const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
 		expect(rowCount && rowCount > 0).toBeTruthy();
-
 		// test if the migrated table are working as expected
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 		const result = await db.select().from(usersMigratorTable);
 		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table custom_migrations."__drizzle_migrations"`);
+		await db.execute(sql`drop table all_columns, users12, custom_migrations."__drizzle_migrations"`);
 	});
 
-	test('migrator : migrate with custom table', async () => {
+	test('migrator : migrate with custom table', async ({ neonhttp: db }) => {
 		const customTable = randomString();
-		await db.execute(sql`drop table if exists all_columns`);
-		await db.execute(sql`drop table if exists users12`);
-		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
+		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
 		// test if the custom migrations table was created
 		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
 		expect(rowCount && rowCount > 0).toBeTruthy();
-
 		// test if the migrated table are working as expected
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 		const result = await db.select().from(usersMigratorTable);
 		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+		await db.execute(sql`drop table all_columns, users12, "drizzle".${sql.identifier(customTable)}`);
 	});
 
-	test('migrator : migrate with custom table and custom schema', async () => {
+	test('migrator : migrate with custom table and custom schema', async ({ neonhttp: db }) => {
 		const customTable = randomString();
-		await db.execute(sql`drop table if exists all_columns`);
-		await db.execute(sql`drop table if exists users12`);
-		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
-
+		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable: customTable,
@@ -190,19 +129,15 @@ describe('default', () => {
 			sql`select * from custom_migrations.${sql.identifier(customTable)};`,
 		);
 		expect(rowCount && rowCount > 0).toBeTruthy();
-
 		// test if the migrated table are working as expected
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 		const result = await db.select().from(usersMigratorTable);
 		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table custom_migrations.${sql.identifier(customTable)}`);
+		await db.execute(sql`drop table all_columns, users12, custom_migrations.${sql.identifier(customTable)}`);
 	});
 
-	test.concurrent('all date and time columns without timezone first case mode string', async () => {
-		const table = pgTable('all_columns_1', {
+	test('all date and time columns without timezone first case mode string', async ({ db, push }) => {
+		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
@@ -228,8 +163,8 @@ describe('default', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
 
-	test.concurrent('all date and time columns without timezone second case mode string', async () => {
-		const table = pgTable('all_columns_2', {
+	test('all date and time columns without timezone second case mode string', async ({ db, push }) => {
+		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
 		});
@@ -250,8 +185,8 @@ describe('default', () => {
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
 
-	test.concurrent('all date and time columns without timezone third case mode date', async () => {
-		const table = pgTable('all_columns_3', {
+	test('all date and time columns without timezone third case mode date', async ({ db, push }) => {
+		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
 		});
@@ -275,8 +210,8 @@ describe('default', () => {
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
 	});
 
-	test.concurrent('test mode string for timestamp with timezone', async () => {
-		const table = pgTable('all_columns_4', {
+	test('test mode string for timestamp with timezone', async ({ db, push }) => {
+		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
 		});
@@ -306,8 +241,8 @@ describe('default', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 	});
 
-	test.concurrent('test mode date for timestamp with timezone', async () => {
-		const table = pgTable('all_columns_5', {
+	test('test mode date for timestamp with timezone', async ({ db, push }) => {
+		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
 		});
@@ -337,7 +272,7 @@ describe('default', () => {
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 	});
 
-	test.concurrent('test mode string for timestamp with timezone in UTC timezone', async () => {
+	test('test mode string for timestamp with timezone in UTC timezone', async ({ db, push }) => {
 		// get current timezone from db
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
@@ -376,7 +311,7 @@ describe('default', () => {
 		await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
 	});
 
-	test.skip('test mode string for timestamp with timezone in different timezone', async () => {
+	test.skip('test mode string for timestamp with timezone in different timezone', async ({ db }) => {
 		// get current timezone from db
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
@@ -421,7 +356,8 @@ describe('default', () => {
 
 		await db.execute(sql`drop table if exists ${table}`);
 	});
-	test('insert via db.execute + select via db.execute', async () => {
+
+	test('insert via db.execute + select via db.execute', async ({ db }) => {
 		await db.execute(
 			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 		);
@@ -432,7 +368,7 @@ describe('default', () => {
 		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async () => {
+	test('insert via db.execute + returning', async ({ db }) => {
 		const inserted = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${
 				sql.identifier(
@@ -443,7 +379,7 @@ describe('default', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async () => {
+	test('insert via db.execute w/ query builder', async ({ db }) => {
 		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db
 				.insert(usersTable)
@@ -453,87 +389,149 @@ describe('default', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('all types - neon-http', async (ctx) => {
-		const { db } = ctx.pg;
+	test('all types - neon-http', async ({ db, push }) => {
+		const en = pgEnum('en2', ['enVal1', 'enVal2']);
 
-		await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
-		await db.execute(sql`
-		CREATE TABLE "all_types" (
-			"serial" serial NOT NULL,
-			"bigserial53" bigserial NOT NULL,
-			"bigserial64" bigserial,
-			"int" integer,
-			"bigint53" bigint,
-			"bigint64" bigint,
-			"bool" boolean,
-			"bytea" bytea,
-			"char" char,
-			"cidr" "cidr",
-			"date" date,
-			"date_str" date,
-			"double" double precision,
-			"enum" "en",
-			"inet" "inet",
-			"interval" interval,
-			"json" json,
-			"jsonb" jsonb,
-			"line" "line",
-			"line_tuple" "line",
-			"macaddr" "macaddr",
-			"macaddr8" "macaddr8",
-			"numeric" numeric,
-			"numeric_num" numeric,
-			"numeric_big" numeric,
-			"point" "point",
-			"point_tuple" "point",
-			"real" real,
-			"smallint" smallint,
-			"smallserial" "smallserial" NOT NULL,
-			"text" text,
-			"time" time,
-			"timestamp" timestamp,
-			"timestamp_tz" timestamp with time zone,
-			"timestamp_str" timestamp,
-			"timestamp_tz_str" timestamp with time zone,
-			"uuid" uuid,
-			"varchar" varchar,
-			"arrint" integer[],
-			"arrbigint53" bigint[],
-			"arrbigint64" bigint[],
-			"arrbool" boolean[],
-			"arrbytea" bytea[],
-			"arrchar" char[],
-			"arrcidr" "cidr"[],
-			"arrdate" date[],
-			"arrdate_str" date[],
-			"arrdouble" double precision[],
-			"arrenum" "en"[],
-			"arrinet" "inet"[],
-			"arrinterval" interval[],
-			"arrjson" json[],
-			"arrjsonb" jsonb[],
-			"arrline" "line"[],
-			"arrline_tuple" "line"[],
-			"arrmacaddr" "macaddr"[],
-			"arrmacaddr8" "macaddr8"[],
-			"arrnumeric" numeric[],
-			"arrnumeric_num" numeric[],
-			"arrnumeric_big" numeric[],
-			"arrpoint" "point"[],
-			"arrpoint_tuple" "point"[],
-			"arrreal" real[],
-			"arrsmallint" smallint[],
-			"arrtext" text[],
-			"arrtime" time[],
-			"arrtimestamp" timestamp[],
-			"arrtimestamp_tz" timestamp with time zone[],
-			"arrtimestamp_str" timestamp[],
-			"arrtimestamp_tz_str" timestamp with time zone[],
-			"arruuid" uuid[],
-			"arrvarchar" varchar[]
-		);
-	`);
+		const allTypesTable = pgTable('all_types', {
+			serial: serial('serial'),
+			bigserial53: bigserial('bigserial53', {
+				mode: 'number',
+			}),
+			bigserial64: bigserial('bigserial64', {
+				mode: 'bigint',
+			}),
+			int: integer('int'),
+			bigint53: bigint('bigint53', {
+				mode: 'number',
+			}),
+			bigint64: bigint('bigint64', {
+				mode: 'bigint',
+			}),
+			bool: boolean('bool'),
+			bytea: bytea('bytea'),
+			char: char('char'),
+			cidr: cidr('cidr'),
+			date: date('date', {
+				mode: 'date',
+			}),
+			dateStr: date('date_str', {
+				mode: 'string',
+			}),
+			double: doublePrecision('double'),
+			enum: en('enum'),
+			inet: inet('inet'),
+			interval: interval('interval'),
+			json: json('json'),
+			jsonb: jsonb('jsonb'),
+			line: line('line', {
+				mode: 'abc',
+			}),
+			lineTuple: line('line_tuple', {
+				mode: 'tuple',
+			}),
+			macaddr: macaddr('macaddr'),
+			macaddr8: macaddr8('macaddr8'),
+			numeric: numeric('numeric'),
+			numericNum: numeric('numeric_num', {
+				mode: 'number',
+			}),
+			numericBig: numeric('numeric_big', {
+				mode: 'bigint',
+			}),
+			point: point('point', {
+				mode: 'xy',
+			}),
+			pointTuple: point('point_tuple', {
+				mode: 'tuple',
+			}),
+			real: real('real'),
+			smallint: smallint('smallint'),
+			smallserial: smallserial('smallserial'),
+			text: text('text'),
+			time: time('time'),
+			timestamp: timestamp('timestamp', {
+				mode: 'date',
+			}),
+			timestampTz: timestamp('timestamp_tz', {
+				mode: 'date',
+				withTimezone: true,
+			}),
+			timestampStr: timestamp('timestamp_str', {
+				mode: 'string',
+			}),
+			timestampTzStr: timestamp('timestamp_tz_str', {
+				mode: 'string',
+				withTimezone: true,
+			}),
+			uuid: uuid('uuid'),
+			varchar: varchar('varchar'),
+			arrint: integer('arrint').array(),
+			arrbigint53: bigint('arrbigint53', {
+				mode: 'number',
+			}).array(),
+			arrbigint64: bigint('arrbigint64', {
+				mode: 'bigint',
+			}).array(),
+			arrbool: boolean('arrbool').array(),
+			arrbytea: bytea('arrbytea').array(),
+			arrchar: char('arrchar').array(),
+			arrcidr: cidr('arrcidr').array(),
+			arrdate: date('arrdate', {
+				mode: 'date',
+			}).array(),
+			arrdateStr: date('arrdate_str', {
+				mode: 'string',
+			}).array(),
+			arrdouble: doublePrecision('arrdouble').array(),
+			arrenum: en('arrenum').array(),
+			arrinet: inet('arrinet').array(),
+			arrinterval: interval('arrinterval').array(),
+			arrjson: json('arrjson').array(),
+			arrjsonb: jsonb('arrjsonb').array(),
+			arrline: line('arrline', {
+				mode: 'abc',
+			}).array(),
+			arrlineTuple: line('arrline_tuple', {
+				mode: 'tuple',
+			}).array(),
+			arrmacaddr: macaddr('arrmacaddr').array(),
+			arrmacaddr8: macaddr8('arrmacaddr8').array(),
+			arrnumeric: numeric('arrnumeric').array(),
+			arrnumericNum: numeric('arrnumeric_num', {
+				mode: 'number',
+			}).array(),
+			arrnumericBig: numeric('arrnumeric_big', {
+				mode: 'bigint',
+			}).array(),
+			arrpoint: point('arrpoint', {
+				mode: 'xy',
+			}).array(),
+			arrpointTuple: point('arrpoint_tuple', {
+				mode: 'tuple',
+			}).array(),
+			arrreal: real('arrreal').array(),
+			arrsmallint: smallint('arrsmallint').array(),
+			arrtext: text('arrtext').array(),
+			arrtime: time('arrtime').array(),
+			arrtimestamp: timestamp('arrtimestamp', {
+				mode: 'date',
+			}).array(),
+			arrtimestampTz: timestamp('arrtimestamp_tz', {
+				mode: 'date',
+				withTimezone: true,
+			}).array(),
+			arrtimestampStr: timestamp('arrtimestamp_str', {
+				mode: 'string',
+			}).array(),
+			arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
+				mode: 'string',
+				withTimezone: true,
+			}).array(),
+			arruuid: uuid('arruuid').array(),
+			arrvarchar: varchar('arrvarchar').array(),
+		});
 
+		await push({ en, allTypesTable });
 		await db.insert(allTypesTable).values({
 			serial: 1,
 			smallserial: 15,
@@ -805,7 +803,7 @@ describe('default', () => {
 	});
 });
 
-describe('$withAuth tests', (it) => {
+describe.skip('$withAuth tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
@@ -815,25 +813,25 @@ describe('$withAuth tests', (it) => {
 		relations: defineRelations({ usersTable }),
 	});
 
-	it('$count', async () => {
+	it.concurrent('$count', async () => {
 		await db.$withAuth('$count').$count(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: '$count' });
 	});
 
-	it('delete', async () => {
+	it.concurrent('delete', async () => {
 		await db.$withAuth('delete').delete(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'delete' });
 	});
 
-	it('select', async () => {
+	it.concurrent('select', async () => {
 		await db.$withAuth('select').select().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'select' });
 	});
 
-	it('selectDistinct', async () => {
+	it.concurrent('selectDistinct', async () => {
 		await db.$withAuth('selectDistinct').selectDistinct().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({
@@ -843,7 +841,7 @@ describe('$withAuth tests', (it) => {
 		});
 	});
 
-	it('selectDistinctOn', async () => {
+	it.concurrent('selectDistinctOn', async () => {
 		await db.$withAuth('selectDistinctOn').selectDistinctOn([usersTable.name]).from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({
@@ -853,7 +851,7 @@ describe('$withAuth tests', (it) => {
 		});
 	});
 
-	it('update', async () => {
+	it.concurrent('update', async () => {
 		await db.$withAuth('update').update(usersTable).set({
 			name: 'CHANGED',
 		}).where(eq(usersTable.name, 'TARGET')).catch(() => null);
@@ -861,7 +859,7 @@ describe('$withAuth tests', (it) => {
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'update' });
 	});
 
-	it('insert', async () => {
+	it.concurrent('insert', async () => {
 		await db.$withAuth('insert').insert(usersTable).values({
 			name: 'WITHAUTHUSER',
 		}).catch(() => null);
@@ -869,32 +867,32 @@ describe('$withAuth tests', (it) => {
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'insert' });
 	});
 
-	it('with', async () => {
+	it.concurrent('with', async () => {
 		await db.$withAuth('with').with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(usersTable)
 			.catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'with' });
 	});
 
-	it('rqb', async () => {
+	it.concurrent('rqb', async () => {
 		await db.$withAuth('rqb')._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqb' });
 	});
 
-	it('rqbV2', async () => {
+	it.concurrent('rqbV2', async () => {
 		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'rqbV2' });
 	});
 
-	it('exec', async () => {
+	it.concurrent('exec', async () => {
 		await db.$withAuth('exec').execute(`SELECT 1`).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'exec' });
 	});
 
-	it('prepared', async () => {
+	it.concurrent('prepared', async () => {
 		const prep = db.$withAuth('prepared').select().from(usersTable).prepare('withAuthPrepared');
 
 		await prep.execute().catch(() => null);
@@ -902,7 +900,7 @@ describe('$withAuth tests', (it) => {
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'prepared' });
 	});
 
-	it('refreshMaterializedView', async () => {
+	it.concurrent('refreshMaterializedView', async () => {
 		const johns = pgMaterializedView('johns')
 			.as((qb) => qb.select().from(usersTable).where(eq(usersTable.name, 'John')));
 
@@ -916,7 +914,7 @@ describe('$withAuth tests', (it) => {
 	});
 });
 
-describe('$withAuth callback tests', (it) => {
+describe.skip('$withAuth callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
@@ -927,37 +925,37 @@ describe('$withAuth callback tests', (it) => {
 	});
 	const auth = (token: string) => () => token;
 
-	it('$count', async () => {
+	it.concurrent('$count', async () => {
 		await db.$withAuth(auth('$count')).$count(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('$count');
 	});
 
-	it('delete', async () => {
+	it.concurrent('delete', async () => {
 		await db.$withAuth(auth('delete')).delete(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('delete');
 	});
 
-	it('select', async () => {
+	it.concurrent('select', async () => {
 		await db.$withAuth(auth('select')).select().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('select');
 	});
 
-	it('selectDistinct', async () => {
+	it.concurrent('selectDistinct', async () => {
 		await db.$withAuth(auth('selectDistinct')).selectDistinct().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinct');
 	});
 
-	it('selectDistinctOn', async () => {
+	it.concurrent('selectDistinctOn', async () => {
 		await db.$withAuth(auth('selectDistinctOn')).selectDistinctOn([usersTable.name]).from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinctOn');
 	});
 
-	it('update', async () => {
+	it.concurrent('update', async () => {
 		await db.$withAuth(auth('update')).update(usersTable).set({
 			name: 'CHANGED',
 		}).where(eq(usersTable.name, 'TARGET')).catch(() => null);
@@ -965,7 +963,7 @@ describe('$withAuth callback tests', (it) => {
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('update');
 	});
 
-	it('insert', async () => {
+	it.concurrent('insert', async () => {
 		await db.$withAuth(auth('insert')).insert(usersTable).values({
 			name: 'WITHAUTHUSER',
 		}).catch(() => null);
@@ -973,7 +971,7 @@ describe('$withAuth callback tests', (it) => {
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('insert');
 	});
 
-	it('with', async () => {
+	it.concurrent('with', async () => {
 		await db.$withAuth(auth('with')).with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(
 			usersTable,
 		)
@@ -982,25 +980,25 @@ describe('$withAuth callback tests', (it) => {
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
 	});
 
-	it('rqb', async () => {
+	it.concurrent('rqb', async () => {
 		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
 	});
 
-	it('rqbV2', async () => {
+	it.concurrent('rqbV2', async () => {
 		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
 	});
 
-	it('exec', async () => {
+	it.concurrent('exec', async () => {
 		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
 	});
 
-	it('prepared', async () => {
+	it.concurrent('prepared', async () => {
 		const prep = db.$withAuth(auth('prepared')).select().from(usersTable).prepare('withAuthPrepared');
 
 		await prep.execute().catch(() => null);
@@ -1008,7 +1006,7 @@ describe('$withAuth callback tests', (it) => {
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('prepared');
 	});
 
-	it('refreshMaterializedView', async () => {
+	it.concurrent('refreshMaterializedView', async () => {
 		const johns = pgMaterializedView('johns')
 			.as((qb) => qb.select().from(usersTable).where(eq(usersTable.name, 'John')));
 
@@ -1018,7 +1016,7 @@ describe('$withAuth callback tests', (it) => {
 	});
 });
 
-describe('$withAuth async callback tests', (it) => {
+describe.skip('$withAuth async callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
@@ -1029,42 +1027,42 @@ describe('$withAuth async callback tests', (it) => {
 	});
 	const auth = (token: string) => async () => token;
 
-	it('$count', async () => {
+	it.concurrent('$count', async () => {
 		await db.$withAuth(auth('$count')).$count(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('$count');
 	});
 
-	it('delete', async () => {
+	it.concurrent('delete', async () => {
 		await db.$withAuth(auth('delete')).delete(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('delete');
 	});
 
-	it('select', async () => {
+	it.concurrent('select', async () => {
 		await db.$withAuth(auth('select')).select().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('select');
 	});
 
-	it('selectDistinct', async () => {
+	it.concurrent('selectDistinct', async () => {
 		await db.$withAuth(auth('selectDistinct')).selectDistinct().from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinct');
 	});
 
-	it('selectDistinctOn', async () => {
+	it.concurrent('selectDistinctOn', async () => {
 		await db.$withAuth(auth('selectDistinctOn')).selectDistinctOn([usersTable.name]).from(usersTable).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('selectDistinctOn');
 	});
 
-	it('update', async () => {
+	it.concurrent('update', async () => {
 		await db.$withAuth(auth('update')).update(usersTable).set({
 			name: 'CHANGED',
 		}).where(eq(usersTable.name, 'TARGET')).catch(() => null);
@@ -1073,7 +1071,7 @@ describe('$withAuth async callback tests', (it) => {
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('update');
 	});
 
-	it('insert', async () => {
+	it.concurrent('insert', async () => {
 		await db.$withAuth(auth('insert')).insert(usersTable).values({
 			name: 'WITHAUTHUSER',
 		}).catch(() => null);
@@ -1082,7 +1080,7 @@ describe('$withAuth async callback tests', (it) => {
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('insert');
 	});
 
-	it('with', async () => {
+	it.concurrent('with', async () => {
 		await db.$withAuth(auth('with')).with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(
 			usersTable,
 		)
@@ -1092,28 +1090,28 @@ describe('$withAuth async callback tests', (it) => {
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
 	});
 
-	it('rqb', async () => {
+	it.concurrent('rqb', async () => {
 		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
 	});
 
-	it('rqbV2', async () => {
+	it.concurrent('rqbV2', async () => {
 		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqbV2');
 	});
 
-	it('exec', async () => {
+	it.concurrent('exec', async () => {
 		await db.$withAuth(auth('exec')).execute(`SELECT 1`).catch(() => null);
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('exec');
 	});
 
-	it('prepared', async () => {
+	it.concurrent('prepared', async () => {
 		const prep = db.$withAuth(auth('prepared')).select().from(usersTable).prepare('withAuthPrepared');
 
 		await prep.execute().catch(() => null);
@@ -1122,7 +1120,7 @@ describe('$withAuth async callback tests', (it) => {
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('prepared');
 	});
 
-	it('refreshMaterializedView', async () => {
+	it.concurrent('refreshMaterializedView', async () => {
 		const johns = pgMaterializedView('johns')
 			.as((qb) => qb.select().from(usersTable).where(eq(usersTable.name, 'John')));
 

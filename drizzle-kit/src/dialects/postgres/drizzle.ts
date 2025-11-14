@@ -1,8 +1,16 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
-import {
+import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
+import type {
 	AnyPgColumn,
 	AnyPgTable,
+	PgEnum,
+	PgMaterializedView,
+	PgMaterializedViewWithConfig,
+	PgSequence,
+	UpdateDeleteAction,
+	ViewWithConfig,
+} from 'drizzle-orm/pg-core';
+import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
@@ -13,31 +21,25 @@ import {
 	isPgView,
 	PgArray,
 	PgDialect,
-	PgEnum,
 	PgEnumColumn,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
 	PgLineTuple,
-	PgMaterializedView,
-	PgMaterializedViewWithConfig,
 	PgPointObject,
 	PgPointTuple,
 	PgPolicy,
 	PgRole,
 	PgSchema,
-	PgSequence,
 	PgTable,
-	PgVector,
 	PgView,
 	uniqueKeyName,
-	UpdateDeleteAction,
-	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -239,7 +241,7 @@ export const fromDrizzleSchema = (
 		matViews: PgMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -268,20 +270,18 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((it) => {
+			return !it.isExisting && it.schemaName !== 'public' && filter({ type: 'schema', name: it.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((x) => {
+		return filter({ type: 'table', schema: x.config.schema ?? 'public', name: x.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -335,18 +335,20 @@ export const fromDrizzleSchema = (
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
 			policies: drizzlePolicies,
-			enableRLS,
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
-			continue;
-		}
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
-				const notNull = column.notNull;
+
+				const isPk = column.primary
+					|| config.primaryKeys.find((pk) =>
+							pk.columns.some((col) => col.name ? col.name === column.name : col.keyAsName === column.keyAsName)
+						) !== undefined;
+
+				const notNull = column.notNull || isPk;
 
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
@@ -420,11 +422,6 @@ export const fromDrizzleSchema = (
 
 				const name = pk.name || defaultNameForPK(tableName);
 
-				for (const columnName of columnNames) {
-					const column = res.columns.find((it) => it.name === columnName)!;
-					column.notNull = true;
-				}
-
 				return {
 					entityType: 'pks',
 					schema: schema,
@@ -439,7 +436,7 @@ export const fromDrizzleSchema = (
 		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
 				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-				const name = unq.name || uniqueKeyName(table, columnNames);
+				const name = unq.isNameExplicit ? unq.name! : uniqueKeyName(table, columnNames);
 				return {
 					entityType: 'uniques',
 					schema: schema,
@@ -558,7 +555,7 @@ export const fromDrizzleSchema = (
 					.map((it) => `${it[0]}=${it[1]}`)
 					.join(', ');
 
-				let where = value.config.where ? dialect.sqlToQuery(value.config.where).sql : '';
+				let where = value.config.where ? dialect.sqlToQuery(value.config.where.inlineParams(), 'indexes').sql : '';
 				where = where === 'true' ? '' : where;
 
 				return {
@@ -598,13 +595,15 @@ export const fromDrizzleSchema = (
 
 		res.checks.push(
 			...drizzleChecks.map<CheckConstraint>((check) => {
+				const value = dialect.sqlToQuery(check.value.inlineParams(), 'indexes').sql;
+
 				const checkName = check.name;
 				return {
 					entityType: 'checks',
 					schema,
 					table: tableName,
 					name: checkName,
-					value: dialect.sqlToQuery(check.value).sql,
+					value,
 				};
 			}),
 		);
@@ -668,7 +667,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting) continue;
+		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const {
 			name: viewName,

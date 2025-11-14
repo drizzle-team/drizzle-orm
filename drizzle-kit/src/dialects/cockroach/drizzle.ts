@@ -1,18 +1,21 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import {
+import type {
 	AnyCockroachColumn,
 	AnyCockroachTable,
+	CockroachEnum,
+	CockroachMaterializedView,
+	CockroachSequence,
+	UpdateDeleteAction,
+} from 'drizzle-orm/cockroach-core';
+import {
 	CockroachArray,
 	CockroachDialect,
-	CockroachEnum,
 	CockroachEnumColumn,
 	CockroachGeometry,
 	CockroachGeometryObject,
-	CockroachMaterializedView,
 	CockroachPolicy,
 	CockroachRole,
 	CockroachSchema,
-	CockroachSequence,
 	CockroachTable,
 	CockroachView,
 	getMaterializedViewConfig,
@@ -23,12 +26,12 @@ import {
 	isCockroachMaterializedView,
 	isCockroachSequence,
 	isCockroachView,
-	UpdateDeleteAction,
 } from 'drizzle-orm/cockroach-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, trimChar } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -207,7 +210,7 @@ export const fromDrizzleSchema = (
 		matViews: CockroachMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -234,20 +237,18 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'public' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((it) => {
+		return filter({ type: 'table', schema: it.config.schema ?? 'public', name: it.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -287,7 +288,7 @@ export const fromDrizzleSchema = (
 		} satisfies CockroachEntities['tables'];
 	});
 
-	for (const { table, config } of tableConfigPairs) {
+	for (const { config } of tableConfigPairs) {
 		const {
 			name: tableName,
 			columns: drizzleColumns,
@@ -298,11 +299,10 @@ export const fromDrizzleSchema = (
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
 			policies: drizzlePolicies,
-			enableRLS,
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
+		if (!filter({ type: 'table', schema, name: tableName })) {
 			continue;
 		}
 
@@ -365,7 +365,12 @@ export const fromDrizzleSchema = (
 				const { dimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				const isPartOfPk = drizzlePKs.find((it) => it.columns.map((it) => it.name).includes(column.name));
+
+				const isPk = column.primary
+					|| config.primaryKeys.find((pk) =>
+							pk.columns.some((col) => col.name ? col.name === column.name : col.keyAsName === column.keyAsName)
+						) !== undefined;
+
 				return {
 					entityType: 'columns',
 					schema: schema,
@@ -376,7 +381,7 @@ export const fromDrizzleSchema = (
 					dimensions: dimensions,
 					pk: column.primary,
 					pkName: null,
-					notNull: notNull || Boolean(isPartOfPk),
+					notNull: notNull || isPk,
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
@@ -591,7 +596,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting) continue;
+		if (view.isExisting && !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 

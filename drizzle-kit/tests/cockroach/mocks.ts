@@ -36,7 +36,6 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
-import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
@@ -45,9 +44,12 @@ import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { hash } from 'src/dialects/common';
+import { extractCrdbExisting } from 'src/dialects/drizzle';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { measure, tsc } from 'tests/utils';
-import { test as base } from 'vitest';
+import { expect, test as base } from 'vitest';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -70,7 +72,16 @@ class MockError extends Error {
 	}
 }
 
-export const drizzleToDDL = (schema: CockroachDBSchema, casing?: CasingType | undefined) => {
+export const drizzleToDDL = (
+	schema: CockroachDBSchema,
+	casing: CasingType | undefined,
+	filterConfig: EntitiesFilterConfig = {
+		schemas: undefined,
+		tables: undefined,
+		entities: undefined,
+		extensions: undefined,
+	},
+) => {
 	const tables = Object.values(schema).filter((it) => is(it, CockroachTable)) as CockroachTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, CockroachSchema)) as CockroachSchema[];
 	const enums = Object.values(schema).filter((it) => isCockroachEnum(it)) as CockroachEnum<any>[];
@@ -82,22 +93,28 @@ export const drizzleToDDL = (schema: CockroachDBSchema, casing?: CasingType | un
 		isCockroachMaterializedView(it)
 	) as CockroachMaterializedView[];
 
-	const { schema: res, errors, warnings } = fromDrizzleSchema({
-		schemas,
-		tables,
-		enums,
-		sequences,
-		roles,
-		policies,
-		views,
-		matViews: materializedViews,
-	}, casing);
+	const existing = extractCrdbExisting(schemas, views, materializedViews);
+	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
+	const { schema: res, errors, warnings } = fromDrizzleSchema(
+		{
+			schemas,
+			tables,
+			enums,
+			sequences,
+			roles,
+			policies,
+			views,
+			matViews: materializedViews,
+		},
+		casing,
+		filter,
+	);
 
 	if (errors.length > 0) {
 		throw new Error();
 	}
 
-	return interimToDDL(res);
+	return { ...interimToDDL(res), existing };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -146,7 +163,7 @@ export const pushM = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	entities?: Entities;
+	entities?: EntitiesFilter;
 }) => {
 	return measure(push(config), 'push');
 };
@@ -159,21 +176,30 @@ export const push = async (
 		schemas?: string[];
 		casing?: CasingType;
 		log?: 'statements' | 'none';
-		entities?: Entities;
+		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
 	},
 ) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
+	const filterConfig: EntitiesFilterConfig = {
+		schemas: config.schemas,
+		tables: undefined,
+		entities: config.entities,
+		extensions: [],
+	};
+
+	const { ddl: ddl2, errors: err3, existing } = 'entities' in to && '_' in to
+		? { ddl: to as CockroachDDL, errors: [], existing: [] }
+		: drizzleToDDL(to, casing, filterConfig);
+
+	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
+
+	const { schema } = await introspect(db, filter, new EmptyProgressView());
 
 	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err3 } = 'entities' in to && '_' in to
-		? { ddl: to as CockroachDDL, errors: [] }
-		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
 		throw new MockError(err2);
@@ -213,13 +239,7 @@ export const push = async (
 	// subsequent push
 	if (!config.ignoreSubsequent) {
 		{
-			const { schema } = await introspect(
-				db,
-				[],
-				config.schemas ?? ((_: string) => true),
-				config.entities,
-				new EmptyProgressView(),
-			);
+			const { schema } = await introspect(db, filter, new EmptyProgressView());
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 			const { sqlStatements, statements } = await ddlDiff(
@@ -240,8 +260,7 @@ export const push = async (
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}
@@ -256,16 +275,21 @@ export const diffPush = async (config: {
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
-	entities?: Entities;
+	entities?: EntitiesFilter;
 	before?: string[];
 	after?: string[];
 	apply?: boolean;
 }) => {
 	const { db, from: initSchema, to: destination, casing, before, after, renames: rens, entities } = config;
 
-	const schemas = config.schemas ?? ['public'];
 	const apply = typeof config.apply === 'undefined' ? true : config.apply;
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const filterConfig: EntitiesFilterConfig = {
+		schemas: config.schemas,
+		tables: [],
+		entities: config.entities,
+		extensions: [],
+	};
+	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	const init = [] as string[];
@@ -281,11 +305,13 @@ export const diffPush = async (config: {
 		await db.query(st);
 	}
 
+	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
+
 	// do introspect into CockroachSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
+	const introspectedSchema = await fromDatabaseForDrizzle(db, filter);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
+	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing, filterConfig);
 
 	// TODO: handle errors
 
@@ -316,22 +342,23 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: CockroachDBSchema,
 	testName: string,
-	schemas: string[] = ['public'],
-	entities?: Entities,
+	schemas: string[] = [],
+	entities?: EntitiesFilter,
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const filterConfig: EntitiesFilterConfig = {
+		schemas,
+		entities,
+		tables: [],
+		extensions: [],
+	};
+	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	for (const st of init) await db.query(st);
-
+	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(
-		db,
-		(_) => true,
-		(it) => schemas.indexOf(it) >= 0,
-		entities,
-	);
+	const schema = await fromDatabaseForDrizzle(db, filter);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -340,15 +367,12 @@ export const diffIntrospect = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
+	await tsc(file.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
 
-	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, casing, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
@@ -426,8 +450,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		res.push(`Insert default failed`);
 	}
 
+	const filter = () => true;
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, filter);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
@@ -439,7 +464,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const response = await prepareFromSchemaFiles([path]);
 
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -541,75 +566,65 @@ export async function createDockerDB() {
 }
 
 const prepareClient = async (url: string, n: string, tx: boolean) => {
-	const sleep = 1000;
-	let timeLeft = 20000;
 	const name = `${n}${hash(String(Math.random()), 10)}`;
-	do {
-		try {
-			const client = await new Pool({ connectionString: url, max: 1 }).connect();
 
+	const client = await new Pool({ connectionString: url, max: 1 }).connect();
+
+	await client.query(`DROP DATABASE IF EXISTS ${name};`);
+	await client.query(`CREATE DATABASE IF NOT EXISTS ${name};`);
+	await client.query(`USE ${name}`);
+
+	await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
+	await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
+
+	// await client.query(`SET TIME ZONE '+01';`);
+
+	if (tx) {
+		await client.query('BEGIN');
+	}
+
+	const clear = async () => {
+		if (tx) {
+			await client.query('ROLLBACK');
+			await client.query('BEGIN');
+		} else {
 			await client.query(`DROP DATABASE IF EXISTS ${name};`);
-			await client.query(`CREATE DATABASE IF NOT EXISTS ${name};`);
-			await client.query(`USE ${name}`);
+			await client.query(`CREATE DATABASE ${name};`);
+			await client.query(`USE ${name};`);
+			const roles = await client.query<{ rolname: string }>(
+				`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+			).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
 
-			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
-			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
-
-			// await client.query(`SET TIME ZONE '+01';`);
-
-			if (tx) {
-				await client.query('BEGIN');
+			for (const role of roles) {
+				await client.query(`DROP ROLE "${role.rolname}"`);
 			}
-
-			const clear = async () => {
-				if (tx) {
-					await client.query('ROLLBACK');
-					await client.query('BEGIN');
-				} else {
-					await client.query(`DROP DATABASE IF EXISTS ${name};`);
-					await client.query(`CREATE DATABASE ${name};`);
-					await client.query(`USE ${name};`);
-					const roles = await client.query<{ rolname: string }>(
-						`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
-					).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
-
-					for (const role of roles) {
-						await client.query(`DROP ROLE "${role.rolname}"`);
-					}
-				}
-			};
-
-			const db: TestDatabase = {
-				query: async (sql, params) => {
-					return client
-						.query(sql, params)
-						.then((it) => it.rows as any[])
-						.catch((e: Error) => {
-							const error = new Error(`query error: ${sql}\n\n${e.message}`);
-							throw error;
-						});
-				},
-				batch: async (sqls) => {
-					for (const sql of sqls) {
-						await client.query(sql);
-					}
-				},
-				clear: clear,
-				close: async () => {
-					client.release();
-				},
-			};
-			return db;
-		} catch (e) {
-			console.error(e);
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
 		}
-	} while (timeLeft > 0);
-	throw Error();
+	};
+
+	const db: TestDatabase = {
+		query: async (sql, params) => {
+			return client
+				.query(sql, params)
+				.then((it) => it.rows as any[])
+				.catch((e: Error) => {
+					const error = new Error(`query error: ${sql}\n\n${e.message}`);
+					throw error;
+				});
+		},
+		batch: async (sqls) => {
+			for (const sql of sqls) {
+				await client.query(sql);
+			}
+		},
+		clear: clear,
+		close: async () => {
+			client.release();
+		},
+	};
+	return db;
 };
 
-export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabaseKit> => {
+export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
@@ -619,11 +634,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await prepareClient(url, 'db2', false),
 		await prepareClient(url, 'db3', false),
 		await prepareClient(url, 'db4', false),
-		// await prepareClient(url, 'db5', tx),
-		// await prepareClient(url, 'db6', tx),
-		// await prepareClient(url, 'db7', tx),
-		// await prepareClient(url, 'db8', tx),
-		// await prepareClient(url, 'db9', tx),
 	];
 
 	const clientsTxs = [
@@ -632,52 +642,43 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await prepareClient(url, 'dbc2', true),
 		await prepareClient(url, 'dbc3', true),
 		await prepareClient(url, 'dbc4', true),
-		await prepareClient(url, 'dbc5', true),
-		await prepareClient(url, 'dbc6', true),
-		await prepareClient(url, 'dbc7', true),
-		await prepareClient(url, 'dbc8', true),
-		await prepareClient(url, 'dbc9', true),
 	];
 
-	const closureTxs = () => {
-		return async () => {
-			while (true) {
-				const c = clientsTxs.shift();
-				if (!c) {
-					sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clientsTxs.push(c);
-					},
-				};
+	const closureTxs = async () => {
+		while (true) {
+			const c = clientsTxs.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clientsTxs.push(c);
+				},
+			};
+		}
 	};
 
-	const closure = () => {
-		return async () => {
-			while (true) {
-				const c = clients.shift();
-				if (!c) {
-					sleep(50);
-					continue;
-				}
-				return {
-					db: c,
-					release: () => {
-						clients.push(c);
-					},
-				};
+	const closure = async () => {
+		while (true) {
+			const c = clients.shift();
+			if (!c) {
+				await sleep(50);
+				continue;
 			}
-		};
+			return {
+				db: c,
+				release: () => {
+					clients.push(c);
+				},
+			};
+		}
 	};
 
 	return {
-		acquire: closure(),
-		acquireTx: closureTxs(),
+		acquire: closure,
+		acquireTx: closureTxs,
 		close: async () => {
 			for (const c of clients) {
 				c.close();
@@ -689,7 +690,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 
 export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: TestDatabase }>({
 	kit: [
-		async ({}, use) => {
+		async ({}, use) => { // oxlint-disable-line no-empty-pattern
 			const kit = await prepareTestDatabase();
 			try {
 				await use(kit);
@@ -703,12 +704,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	db: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquire();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],
@@ -717,12 +715,9 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	dbc: [
 		async ({ kit }, use) => {
 			const { db, release } = await kit.acquireTx();
-			try {
-				await use(db);
-			} finally {
-				await db.clear();
-				release();
-			}
+			await use(db);
+			await db.clear();
+			release();
 		},
 		{ scope: 'test' },
 	],

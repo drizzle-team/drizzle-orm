@@ -1,9 +1,11 @@
 import { mssqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MssqlDDL } from './ddl';
+import type { MssqlDDL } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { drySnapshot, MssqlSnapshot, snapshotValidator } from './snapshot';
+import type { MssqlSnapshot } from './snapshot';
+import { drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -18,8 +20,8 @@ export const prepareSnapshot = async (
 		custom: MssqlSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -32,7 +34,8 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema, errors } = fromDrizzleSchema(res, casing);
+	// DO we wanna respect entity filter here?
+	const { schema, errors } = fromDrizzleSchema(res, casing, () => true);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
@@ -47,23 +50,23 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
 		version: '1',
 		dialect: 'mssql',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
 	} satisfies MssqlSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MssqlSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

@@ -6,10 +6,9 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	DiffEntities,
 	Enum,
 	ForeignKey,
@@ -23,12 +22,13 @@ import {
 	Role,
 	Schema,
 	Sequence,
-	tableFromDDL,
 	UniqueConstraint,
 	View,
 } from './ddl';
+import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative } from './grammar';
-import { JsonStatement, prepareStatement } from './statements';
+import type { JsonStatement } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -729,6 +729,7 @@ export const ddlDiff = async (
 		prepareStatement('add_column', {
 			column: it,
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
 
@@ -749,6 +750,16 @@ export const ddlDiff = async (
 
 		if (!it.type && it.default && defaultsCommutative(it.default, it.$right.type, it.$right.dimensions)) {
 			delete it.default;
+		}
+
+		// commutative types
+		if (it.type) {
+			if (
+				it.type.from === it.type.to.replace('numeric', 'decimal')
+				|| it.type.to === it.type.from.replace('numeric', 'decimal')
+			) {
+				delete it.type;
+			}
 		}
 
 		// geometry
@@ -850,8 +861,12 @@ export const ddlDiff = async (
 
 	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 
-	const jsonDropReferences = fksDeletes.filter((fk) => {
-		return !deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
+	const jsonDropFKs = fksDeletes.filter((fk) => {
+		const fromDeletedTable = deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
+		const toDeletedTable = fk.table !== fk.tableTo
+			&& deletedTables.some((x) => x.schema === fk.schemaTo && x.name === fk.tableTo);
+		if (fromDeletedTable && !toDeletedTable) return false;
+		return true;
 	}).map((it) => prepareStatement('drop_fk', { fk: it }));
 
 	const jsonRenameReferences = fksRenames.map((it) =>
@@ -870,7 +885,17 @@ export const ddlDiff = async (
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
 
-	const alteredPolicies = alters.filter((it) => it.entityType === 'policies');
+	const alteredPolicies = alters.filter((it) => it.entityType === 'policies').filter((it) => {
+		if (it.withCheck && it.withCheck.from && it.withCheck.to) {
+			if (it.withCheck.from === `(${it.withCheck.to})` || it.withCheck.to === `(${it.withCheck.from})`) {
+				delete it.withCheck;
+			}
+		}
+		return ddl1.policies.hasDiff(it);
+	});
+
+	// if I drop policy/ies, I should check if table only had this policy/ies and turn off
+	// for non explicit rls =
 
 	// using/withcheck in policy is a SQL expression which can be formatted by database in a different way,
 	// thus triggering recreations/alternations on push
@@ -951,15 +976,6 @@ export const ddlDiff = async (
 			}));
 		}
 	}
-
-	// if I drop policy/ies, I should check if table only had this policy/ies and turn off
-	// for non explicit rls =
-
-	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
-	// TODO:
-	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
-		prepareStatement('alter_policy', { diff: it, policy: it.$right })
-	);
 
 	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_enum', { enum: it }));
 	const jsonDropEnums = deletedEnums.map((it) => prepareStatement('drop_enum', { enum: it }));
@@ -1139,10 +1155,10 @@ export const ddlDiff = async (
 		const fksFrom = ddl2.fks.list({ table: it.table, schema: it.schema, columns: { CONTAINS: it.name } });
 		const fksTo = ddl2.fks.list({ tableTo: it.table, schemaTo: it.schema, columnsTo: { CONTAINS: it.name } });
 		for (const fkFrom of fksFrom) {
-			jsonDropReferences.push({ type: 'drop_fk', fk: fkFrom });
+			jsonDropFKs.push({ type: 'drop_fk', fk: fkFrom });
 		}
 		for (const fkTo of fksTo) {
-			jsonDropReferences.push({ type: 'drop_fk', fk: fkTo });
+			jsonDropFKs.push({ type: 'drop_fk', fk: fkTo });
 			jsonCreateFKs.push({ type: 'create_fk', fk: fkTo });
 		}
 
@@ -1181,16 +1197,17 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
 
-	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
-	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
+	jsonStatements.push(...jsonDropFKs);
+
+	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
-	jsonStatements.push(...jsonDropReferences);
 
 	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
@@ -1209,10 +1226,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonCreateIndexes); // above fks for uniqueness constraint to come first
 
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
-	jsonStatements.push(...jsonCreateIndexes);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);

@@ -1,9 +1,11 @@
 import type { CasingType } from '../../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
-import { CockroachDDL, createDDL, interimToDDL } from './ddl';
+import type { CockroachDDL } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { CockroachSnapshot, drySnapshot, snapshotValidator } from './snapshot';
+import type { CockroachSnapshot } from './snapshot';
+import { drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -18,8 +20,8 @@ export const prepareSnapshot = async (
 		custom: CockroachSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -32,10 +34,8 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		res,
-		casing,
-	);
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema, errors, warnings } = fromDrizzleSchema(res, casing, () => true);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -54,23 +54,23 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
 		version: '1',
 		dialect: 'cockroach',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
 	} satisfies CockroachSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: CockroachSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

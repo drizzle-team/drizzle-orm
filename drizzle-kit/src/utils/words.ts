@@ -1,19 +1,9 @@
-import type { Prefix } from '../cli/validations/common';
+import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
 
 export const prepareMigrationMetadata = (
 	name?: string,
 ) => {
-	const pad = (n: any) => n.toString().padStart(2, '0');
-	const d = new Date();
-
-	const yyyy = d.getFullYear();
-	const MM = pad(d.getMonth() + 1);
-	const dd = pad(d.getDate());
-	const HH = pad(d.getHours());
-	const mm = pad(d.getMinutes());
-	const ss = pad(d.getSeconds());
-	const prefix = `${yyyy}${MM}${dd}${HH}${mm}${ss}`;
-
+	const prefix = prepareSnapshotFolderName();
 	const suffix = name || `${adjectives.random()}_${heroes.random()}`;
 	const tag = `${prefix}_${suffix}`;
 	return { prefix, suffix, tag };

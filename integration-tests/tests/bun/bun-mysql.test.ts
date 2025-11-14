@@ -2191,8 +2191,7 @@ describe('common', () => {
 		await db.execute(sql`drop table ${products}`);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)(
+	test.skip(
 		'transaction with options (set isolationLevel)',
 		async () => {
 			const users = mysqlTable('users_transactions', {
