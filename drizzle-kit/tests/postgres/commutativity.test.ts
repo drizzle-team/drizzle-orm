@@ -1,5 +1,5 @@
-import { check, index, pgTable, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { check, index, pgTable, primaryKey } from 'drizzle-orm/pg-core';
 import { diff } from 'src/dialects/dialect';
 import { createDDL, interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema } from 'src/dialects/postgres/drizzle';
