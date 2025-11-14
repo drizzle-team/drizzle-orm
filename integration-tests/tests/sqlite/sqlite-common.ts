@@ -1768,6 +1768,13 @@ export function tests() {
 				});
 			}).rejects.toThrowError(TransactionRollbackError);
 
+			await expect((async () => {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ balance: 100 }).run();
+					tx.rollback(new Error("my custom error message"));
+				});
+			})()).rejects.toThrowError("my custom error message");
+
 			const result = await db.select().from(users).all();
 
 			expect(result).toEqual([]);
@@ -1827,6 +1834,13 @@ export function tests() {
 						tx.rollback();
 					});
 				}).rejects.toThrowError(TransactionRollbackError);
+
+				await expect((async () => {
+					await db.transaction(async (tx) => {
+						await tx.update(users).set({ balance: 200 }).run();
+						tx.rollback(new Error("my custom error"));
+					});
+				})()).rejects.toThrowError("my custom error");
 			});
 
 			const result = await db.select().from(users).all();
