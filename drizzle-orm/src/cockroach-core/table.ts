@@ -73,6 +73,7 @@ export type CockroachTableWithColumns<T extends TableConfig> =
 	& T['columns']
 	& InferTableColumnsModels<T['columns']>
 	& {
+		/** @deprecated use `cockroachTable.withRLS()` instead*/
 		enableRLS: () => Omit<
 			CockroachTableWithColumns<T>,
 			'enableRLS'
