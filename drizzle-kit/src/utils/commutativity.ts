@@ -520,7 +520,7 @@ function expandFootprintsFromSnapshot(
 		// all indexes in changed tables should make a conflict in this case
 		// maybe we need to make other fields optional
 		// TODO: revise formatFootprint
-		expandedFootprints.push(formatFootprint('create_index', '', '', ''))
+		expandedFootprints.push(formatFootprint('create_index', '', '', ''));
 	}
 
 	return expandedFootprints;
@@ -640,7 +640,7 @@ export const getReasonsFromStatements = async (
 };
 
 export const detectNonCommutative = async (
-	snapshotsPaths: string[],
+	snapshots: PostgresSnapshot[],
 	dialect: Dialect,
 ): Promise<NonCommutativityReport> => {
 	// temp solution for now, should remove it for other dialects
@@ -648,7 +648,7 @@ export const detectNonCommutative = async (
 		return { conflicts: [], leafNodes: [] };
 	}
 
-	const nodes = buildSnapshotGraph<PostgresSnapshot>(snapshotsPaths);
+	const nodes = buildSnapshotGraph<PostgresSnapshot>(snapshots);
 
 	// Build parent -> children mapping (a child can have multiple parents)
 	const prevToChildren: Record<string, string[]> = {};
