@@ -33,7 +33,7 @@ export const handle = async (
 	const { connectToMySQL } = await import('../connections');
 	const { db, database } = await connectToMySQL(credentials);
 
-	const filter = prepareEntityFilter('mysql', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('mysql', filters, []);
 	const progress = new IntrospectProgress();
 	const { schema } = await introspect({
 		db,

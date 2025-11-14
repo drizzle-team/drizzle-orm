@@ -42,7 +42,7 @@ export const handle = async (
 	const { connectToMsSQL } = await import('../connections');
 	const { db } = await connectToMsSQL(credentials);
 
-	const filter = prepareEntityFilter('mssql', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('mssql', filters, []);
 
 	const progress = new IntrospectProgress(true);
 	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {

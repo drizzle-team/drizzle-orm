@@ -271,9 +271,6 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    strategy:
-      matrix:
-        package: [drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -288,8 +285,14 @@ jobs:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
-        working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz
+        run: |
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-typebox/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-valibot/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-arktype/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
 
   attw-orm:
     needs: [prepare]
@@ -334,7 +337,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: '24' }
       
       # nuke, so npm can use OIDC

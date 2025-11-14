@@ -19,7 +19,6 @@ import {
 	pgPolicy,
 	pgSchema,
 	pgSequence,
-	pgTable,
 	primaryKey,
 	serial,
 	smallint,

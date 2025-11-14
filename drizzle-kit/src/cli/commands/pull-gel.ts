@@ -24,7 +24,7 @@ export const handle = async (
 	const db = await prepareGelDB(credentials);
 
 	const progress = new IntrospectProgress(true);
-	const entityFilter = prepareEntityFilter('gel', { ...filters, drizzleSchemas: [] });
+	const entityFilter = prepareEntityFilter('gel', filters, []);
 
 	const task = fromDatabase(db, entityFilter, (stage, count, status) => {
 		progress.update(stage, count, status);

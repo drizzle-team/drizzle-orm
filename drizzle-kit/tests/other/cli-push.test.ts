@@ -24,7 +24,7 @@ test('push #1', async (t) => {
 		force: false,
 		schemaPath: './schema.ts',
 		filters: {
-			schemas: ['public'],
+			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
@@ -47,7 +47,7 @@ test('push #2', async (t) => {
 		force: false,
 		schemaPath: './schema.ts',
 		filters: {
-			schemas: ['public'],
+			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
@@ -72,7 +72,7 @@ test('push #3', async (t) => {
 		force: false,
 		schemaPath: './schema.ts',
 		filters: {
-			schemas: ['public'],
+			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
@@ -97,7 +97,7 @@ test('push #4', async (t) => {
 		},
 		force: false,
 		filters: {
-			schemas: ['public'],
+			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
@@ -127,7 +127,7 @@ test('push #5', async (t) => {
 		},
 		schemaPath: './schema.ts',
 		filters: {
-			schemas: ['public'],
+			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,

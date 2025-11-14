@@ -1,5 +1,11 @@
 import * as V1 from '~/_relations.ts';
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import {
+	aliasedTable,
+	aliasedTableColumn,
+	getOriginalColumnFromAlias,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -215,9 +221,13 @@ export class MsSqlDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(
+							field.isAlias
+								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+								: sql.identifier(this.casing.getColumnCasing(field)),
+						);
 					} else {
-						chunk.push(field);
+						chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
 					}
 				}
 
@@ -261,7 +271,14 @@ export class MsSqlDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					chunk.push(sql.join([sql.raw(`${type}.`), sql.identifier(this.casing.getColumnCasing(field))]));
+					chunk.push(
+						sql.join([
+							sql.raw(`${type}.`),
+							field.isAlias
+								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+								: sql.identifier(this.casing.getColumnCasing(field)),
+						]),
+					);
 				}
 
 				if (i < columnsLen - 1) {

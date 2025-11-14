@@ -360,7 +360,9 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : tableFn;
+		let func = tableSchema ? `${tableSchema}.table` : tableFn;
+		func += table.isRlsEnabled ? '.withRLS' : '';
+
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
@@ -396,7 +398,7 @@ export const ddlToTypeScript = (
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
+		statement += ');';
 		return statement;
 	});
 

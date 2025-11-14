@@ -4,6 +4,7 @@ import type {
 	GeneratedColumnConfig,
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
+import { OriginalColumn } from './column-common.ts';
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
@@ -31,7 +32,10 @@ export interface Column<
 	TRuntimeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+	// `as` runtime implementation is defined in 'alias.ts'
+	as(alias: string): this;
 }
+
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
 	To infer parts of the config, use `AnyColumn` that accepts a partial config.
@@ -65,6 +69,7 @@ export abstract class Column<
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 	readonly length: number | undefined;
 	readonly isLengthExact: boolean | undefined;
+	readonly isAlias: boolean;
 
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
@@ -84,6 +89,7 @@ export abstract class Column<
 		this.table = table;
 
 		this.name = config.name;
+		this.isAlias = false;
 		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
 		this.default = config.default;
@@ -115,6 +121,11 @@ export abstract class Column<
 	// ** @internal */
 	shouldDisableInsert(): boolean {
 		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
+	}
+
+	/** @internal */
+	[OriginalColumn](): this {
+		return this;
 	}
 }
 

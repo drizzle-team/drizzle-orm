@@ -543,7 +543,7 @@ test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
 		db,
 		schema,
 		'introspect-view-in-other-schema',
-		['new_schema'],
+		['new_schema', 'public'],
 	);
 
 	expect(statements.length).toBe(0);
@@ -553,11 +553,11 @@ test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
 test.concurrent('introspect materialized view in other schema', async ({ db }) => {
 	const newSchema = cockroachSchema('new_schema');
 	const users = cockroachTable('users', {
-		id: int4('id').primaryKey().notNull(),
-		name: varchar('users'),
+		id: int4().primaryKey(),
+		name: varchar(),
 	});
 
-	const view = newSchema.materializedView('some_view', { id: int4('asd') }).as(
+	const view = newSchema.materializedView('some_view', { id: int4() }).as(
 		sql`SELECT * FROM ${users}`,
 	);
 	const schema = {
@@ -570,7 +570,7 @@ test.concurrent('introspect materialized view in other schema', async ({ db }) =
 		db,
 		schema,
 		'introspect-mat-view-in-other-schema',
-		['new_schema'],
+		['new_schema', 'public'],
 	);
 
 	expect(statements.length).toBe(0);

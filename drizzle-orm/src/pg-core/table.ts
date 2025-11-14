@@ -67,6 +67,7 @@ export type PgTableWithColumns<
 	& T['columns']
 	& InferTableColumnsModels<T['columns']>
 	& {
+		/** @deprecated use `pgTable.withRLS()` instead*/
 		enableRLS: () => Omit<
 			PgTableWithColumns<T>,
 			'enableRLS'
@@ -142,7 +143,7 @@ export function pgTableWithSchema<
 	}) as any;
 }
 
-export interface PgTableFn<TSchema extends string | undefined = undefined> {
+export interface PgTableFnInternal<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, ColumnBuilderBase>,
@@ -247,12 +248,34 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-export const pgTable: PgTableFn = (name, columns, extraConfig) => {
+export interface PgTableFn<TSchema extends string | undefined = undefined> extends PgTableFnInternal<TSchema> {
+	withRLS: PgTableFnInternal<TSchema>;
+}
+
+const pgTableInternal: PgTableFnInternal = (name, columns, extraConfig) => {
 	return pgTableWithSchema(name, columns, extraConfig, undefined);
 };
 
+const pgTableWithRLS: PgTableFn['withRLS'] = (name, columns, extraConfig) => {
+	const table = pgTableWithSchema(name, columns, extraConfig, undefined);
+	table[EnableRLS] = true;
+
+	return table;
+};
+
+export const pgTable: PgTableFn = Object.assign(pgTableInternal, { withRLS: pgTableWithRLS });
+
 export function pgTableCreator(customizeTableName: (name: string) => string): PgTableFn {
-	return (name, columns, extraConfig) => {
+	const fn: PgTableFnInternal = (name, columns, extraConfig) => {
 		return pgTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
+
+	return Object.assign(fn, {
+		withRLS: ((name, columns, extraConfig) => {
+			const table = pgTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+			table[EnableRLS] = true;
+
+			return table;
+		}) as PgTableFnInternal,
+	});
 }
