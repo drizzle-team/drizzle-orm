@@ -29,7 +29,7 @@ test('ext:1', async () => {
     );`,
 	);
 
-	const res = await introspect(db, [], () => true, undefined, new EmptyProgressView());
+	const res = await introspect(db, () => true, new EmptyProgressView());
 });
 
 test('ext:2', async () => {
@@ -42,5 +42,5 @@ test('ext:2', async () => {
     );`,
 	);
 	await db.query(`alter table "t" drop column c2;`);
-	await introspect(db, [], () => true, undefined, new EmptyProgressView());
+	await introspect(db, () => true, new EmptyProgressView());
 });

@@ -806,6 +806,38 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop tables with fk constraint', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer().primaryKey(),
+	});
+	const table2 = pgTable('table2', {
+		column1: integer().primaryKey(),
+		column2: integer().references(() => table1.column1),
+	});
+	const schema1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"column1" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "table2" (\n\t"column1" integer PRIMARY KEY,\n\t"column2" integer\n);\n',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column2_table1_column1_fkey" FOREIGN KEY ("column2") REFERENCES "table1"("column1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, {}, []);
+	const { sqlStatements: pst2 } = await push({ db, to: {} });
+
+	const expectedSt2 = [
+		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
+		'DROP TABLE "table1";',
+		'DROP TABLE "table2";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('create table with tsvector', async () => {
 	const from = {};
 	const to = {
@@ -1045,9 +1077,9 @@ test('optional db aliases (snake case)', async () => {
 
 	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" ("t1_uni_idx");`;
 
-	const st7 = `CREATE INDEX "t1_idx" ON "t1" ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+	const st7 = `CREATE INDEX "t1_idx" ON "t1" ("t1_idx") WHERE "t1_idx" > 0;`;
 
-	const st0 = [st1, st2, st3, st4, st5, st6, st7];
+	const st0 = [st1, st2, st3, st6, st7, st4, st5];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -1068,7 +1100,6 @@ test('create table (camel case -> snake case)', async () => {
 
 	const casing = 'snake_case';
 	const { sqlStatements: st1 } = await diff({}, to, [], casing);
-	console.log(st1);
 	const { sqlStatements: pst1 } = await push({ db, to, casing });
 
 	const eSt1 = [
@@ -1100,7 +1131,6 @@ test('create table (snake case -> camel case)', async () => {
 
 	const casing = 'camelCase';
 	const { sqlStatements: st1 } = await diff({}, to, [], casing);
-	console.log(st1);
 	const { sqlStatements: pst1 } = await push({ db, to, casing });
 
 	const eSt1 = [
@@ -1189,9 +1219,9 @@ test('optional db aliases (camel case)', async () => {
 	const st5 =
 		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
 	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" ("t1UniIdx");`;
-	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1Idx" > 0;`;
 
-	const st0 = [st1, st2, st3, st4, st5, st6, st7];
+	const st0 = [st1, st2, st3, st6, st7, st4, st5];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -1253,9 +1283,9 @@ test('rename table and enable rls', async () => {
 		}),
 	};
 	const schema2 = {
-		table: pgTable('table2', {
+		table: pgTable.withRLS('table2', {
 			id: text().primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const renames = ['public.table1->public.table2'];

@@ -1,146 +1,40 @@
-import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import type { PgRemoteDatabase } from 'drizzle-orm/pg-proxy';
-import { drizzle as proxyDrizzle } from 'drizzle-orm/pg-proxy';
 import { migrate } from 'drizzle-orm/pg-proxy/migrator';
-import * as pg from 'pg';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { skipTests } from '~/common';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
-import relations from './relations';
+import { expect } from 'vitest';
+import { tests } from './common';
+import { proxyTest as test } from './instrumentation';
+import { usersMigratorTable, usersTable } from './schema';
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-class ServerSimulator {
-	constructor(private db: pg.Client) {
-		const { types } = pg;
+const skips = [
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
+];
+tests(test, skips);
 
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-		types.setTypeParser(1231 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1115 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1185 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1187 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1182 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-	}
-
-	async query(sql: string, params: any[], method: 'all' | 'execute') {
-		if (method === 'all') {
-			try {
-				const result = await this.db.query({
-					text: sql,
-					values: params,
-					rowMode: 'array',
-				});
-
-				return { data: result.rows as any };
-			} catch (e: any) {
-				return { error: e };
-			}
-		} else if (method === 'execute') {
-			try {
-				const result = await this.db.query({
-					text: sql,
-					values: params,
-				});
-
-				return { data: result.rows as any };
-			} catch (e: any) {
-				return { error: e };
-			}
-		} else {
-			return { error: 'Unknown method value' };
-		}
-	}
-
-	async migrations(queries: string[]) {
-		await this.db.query('BEGIN');
-		try {
-			for (const query of queries) {
-				await this.db.query(query);
-			}
-			await this.db.query('COMMIT');
-		} catch (e) {
-			await this.db.query('ROLLBACK');
-			throw e;
-		}
-
-		return {};
-	}
-}
-
-const ENABLE_LOGGING = false;
-
-let db: PgRemoteDatabase<never, typeof relations>;
-let dbGlobalCached: PgRemoteDatabase;
-let cachedDb: PgRemoteDatabase;
-let client: pg.Client;
-let serverSimulator: ServerSimulator;
-
-beforeAll(async () => {
-	let connectionString;
-	if (process.env['PG_CONNECTION_STRING']) {
-		connectionString = process.env['PG_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
-	}
-	client = await retry(async () => {
-		client = new pg.Client(connectionString);
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	serverSimulator = new ServerSimulator(client);
-	const proxyHandler = async (sql: string, params: any[], method: any) => {
-		try {
-			const response = await serverSimulator.query(sql, params, method);
-
-			if (response.error !== undefined) {
-				throw response.error;
-			}
-
-			return { rows: response.data };
-		} catch (e: any) {
-			console.error('Error from pg proxy server:', e.message);
-			throw e;
-		}
-	};
-	db = proxyDrizzle(proxyHandler, {
-		logger: ENABLE_LOGGING,
-		relations,
-	});
-
-	cachedDb = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+test.beforeEach(async ({ db }) => {
+	await db.execute(sql`drop schema if exists public cascade`);
+	await db.execute(sql`create schema public`);
+	await db.execute(
+		sql`
+			create table users (
+				id serial primary key,
+				name text not null,
+				verified boolean not null default false, 
+				jsonb jsonb,
+				created_at timestamptz not null default now()
+			)
+		`,
+	);
 });
 
-afterAll(async () => {
-	await client?.end();
-});
-
-beforeEach((ctx) => {
-	ctx.pg = {
-		db,
-	};
-	ctx.cachedPg = {
-		db: cachedDb,
-		dbGlobalCached,
-	};
-});
-
-test('migrator : default migration strategy', async () => {
+test('migrator : default migration strategy', async ({ db, simulator }) => {
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
@@ -148,7 +42,7 @@ test('migrator : default migration strategy', async () => {
 	// './drizzle2/pg-proxy/first' ??
 	await migrate(db, async (queries) => {
 		try {
-			await serverSimulator.migrations(queries);
+			await simulator.migrations(queries);
 		} catch (e) {
 			console.error(e);
 			throw new Error('Proxy server cannot run migrations');
@@ -166,7 +60,7 @@ test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
-test('all date and time columns without timezone first case mode string', async () => {
+test('all date and time columns without timezone first case mode string', async ({ db }) => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -202,7 +96,7 @@ test('all date and time columns without timezone first case mode string', async 
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('all date and time columns without timezone second case mode string', async () => {
+test('all date and time columns without timezone second case mode string', async ({ db }) => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -233,7 +127,7 @@ test('all date and time columns without timezone second case mode string', async
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('all date and time columns without timezone third case mode date', async () => {
+test('all date and time columns without timezone third case mode date', async ({ db }) => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
@@ -267,7 +161,7 @@ test('all date and time columns without timezone third case mode date', async ()
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('test mode string for timestamp with timezone', async () => {
+test('test mode string for timestamp with timezone', async ({ db }) => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -307,7 +201,7 @@ test('test mode string for timestamp with timezone', async () => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('test mode date for timestamp with timezone', async () => {
+test('test mode date for timestamp with timezone', async ({ db }) => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
@@ -347,7 +241,7 @@ test('test mode date for timestamp with timezone', async () => {
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('test mode string for timestamp with timezone in UTC timezone', async () => {
+test('test mode string for timestamp with timezone in UTC timezone', async ({ db }) => {
 	// get current timezone from db
 	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
@@ -395,7 +289,7 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-test('test mode string for timestamp with timezone in different timezone', async () => {
+test('test mode string for timestamp with timezone in different timezone', async ({ db }) => {
 	// get current timezone from db
 	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
@@ -441,52 +335,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-skipTests([
-	'migrator : default migration strategy',
-	'migrator : migrate with custom schema',
-	'migrator : migrate with custom table',
-	'migrator : migrate with custom table and custom schema',
-	'insert via db.execute + select via db.execute',
-	'insert via db.execute + returning',
-	'insert via db.execute w/ query builder',
-	'all date and time columns without timezone first case mode string',
-	'all date and time columns without timezone third case mode date',
-	'test mode string for timestamp with timezone',
-	'test mode date for timestamp with timezone',
-	'test mode string for timestamp with timezone in UTC timezone',
-	'test mode string for timestamp with timezone in different timezone',
-	'transaction',
-	'transaction rollback',
-	'nested transaction',
-	'nested transaction rollback',
-	'test $onUpdateFn and $onUpdate works updating',
-	'RQB v2 transaction find first - no rows',
-	'RQB v2 transaction find first - multiple rows',
-	'RQB v2 transaction find first - with relation',
-	'RQB v2 transaction find first - placeholders',
-	'RQB v2 transaction find many - no rows',
-	'RQB v2 transaction find many - multiple rows',
-	'RQB v2 transaction find many - with relation',
-	'RQB v2 transaction find many - placeholders',
-]);
-
-beforeEach(async () => {
-	await db.execute(sql`drop schema if exists public cascade`);
-	await db.execute(sql`create schema public`);
-	await db.execute(
-		sql`
-			create table users (
-				id serial primary key,
-				name text not null,
-				verified boolean not null default false, 
-				jsonb jsonb,
-				created_at timestamptz not null default now()
-			)
-		`,
-	);
-});
-
-test('insert via db.execute + select via db.execute', async () => {
+test('insert via db.execute + select via db.execute', async ({ db }) => {
 	await db.execute(
 		sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 	);
@@ -497,7 +346,7 @@ test('insert via db.execute + select via db.execute', async () => {
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert via db.execute + returning', async () => {
+test('insert via db.execute + returning', async ({ db }) => {
 	const inserted = await db.execute<{ id: number; name: string }>(
 		sql`insert into ${usersTable} (${
 			sql.identifier(
@@ -508,7 +357,7 @@ test('insert via db.execute + returning', async () => {
 	expect(inserted).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert via db.execute w/ query builder', async () => {
+test('insert via db.execute w/ query builder', async ({ db }) => {
 	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db
 			.insert(usersTable)
@@ -517,6 +366,3 @@ test('insert via db.execute w/ query builder', async () => {
 	);
 	expect(inserted).toEqual([{ id: 1, name: 'John' }]);
 });
-
-tests();
-cacheTests();

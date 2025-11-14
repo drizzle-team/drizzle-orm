@@ -1,5 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import type { possibleIntervals } from '../../utils';
 import {
 	hasTimeZoneSuffix,
 	isDate,
@@ -7,13 +7,13 @@ import {
 	isTimestamp,
 	parseEWKB,
 	parseIntervalFields,
-	possibleIntervals,
 	stringifyArray,
 	stringifyTuplesArray,
 	trimChar,
 	wrapWith,
 } from '../../utils';
 import { parseArray, parseExpressionArray } from '../../utils/parse-pgarray';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
 import type { Column, DiffEntities, PostgresEntities } from './ddl';
@@ -553,7 +553,7 @@ export const DateType: SqlType = {
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value) => {
 		if (typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
-		if (!(value instanceof Date)) throw new Error('"date" default value must be instance of Date or String');
+		if (!(value instanceof Date)) throw new Error('"date" default value must be instance of Date or String'); // oxlint-disable-line drizzle-internal/no-instanceof
 
 		const mapped = value.toISOString().split('T')[0];
 		return { value: wrapWith(mapped, "'"), type: 'unknown' };
@@ -561,7 +561,7 @@ export const DateType: SqlType = {
 	defaultArrayFromDrizzle: (value) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v === 'string') return v;
-			if (v instanceof Date) {
+			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 				return v.toISOString().split('T')[0];
 			}
 			throw new Error('Unexpected default value for "date", must be String or Date');
@@ -609,17 +609,17 @@ export const Timestamp: SqlType = {
 	// timestamp or timestamp[] or timestamp (3) or timestamp (3)[]
 	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?(?:\[\])*?\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
-	defaultFromDrizzle: (value, type) => {
+	defaultFromDrizzle: (value, _type) => {
 		if (typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
-		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
+		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String'); // oxlint-disable-line drizzle-internal/no-instanceof
 
 		const mapped = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
 		return { value: wrapWith(mapped, "'"), type: 'unknown' };
 	},
-	defaultArrayFromDrizzle: (value, type) => {
+	defaultArrayFromDrizzle: (value, _type) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v === 'string') return wrapWith(v, '"');
-			if (v instanceof Date) {
+			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 				return wrapWith(v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23), '"');
 			}
 			throw new Error('Unexpected default value for Timestamp, must be String or Date');
@@ -680,24 +680,24 @@ export const TimestampTz: SqlType = {
 	// timestamp with time zone or timestamp with time zone[] or timestamp (3) with time zone or timestamp (3) with time zone[]
 	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?\s+with time zone(?:\[\])*?\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
-	defaultFromDrizzle: (value, type) => {
+	defaultFromDrizzle: (value, _type) => {
 		if (typeof value === 'string') {
 			const mapped = hasTimeZoneSuffix(value) ? value : (value + '+00');
 			return { value: wrapWith(mapped, "'"), type: 'unknown' };
 		}
-		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
+		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String'); // oxlint-disable-line drizzle-internal/no-instanceof
 
 		const mapped = value.toISOString().replace('T', ' ').replace('Z', '+00');
 
 		return { value: wrapWith(mapped, "'"), type: 'unknown' };
 	},
-	defaultArrayFromDrizzle: (value, type) => {
+	defaultArrayFromDrizzle: (value, _type) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v === 'string') {
 				const mapped = hasTimeZoneSuffix(v) ? v : (v + '+00');
 				return wrapWith(mapped, '"');
 			}
-			if (v instanceof Date) {
+			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 				return wrapWith(v.toISOString().replace('T', ' ').replace('Z', '+00'), '"');
 			}
 			throw new Error('Unexpected default value for Timestamp, must be String or Date');
@@ -1027,7 +1027,7 @@ export const Vector: SqlType = {
 	defaultFromDrizzle: (value) => {
 		return { value: `'[${String(value).replaceAll(' ', '')}]'`, type: 'unknown' };
 	},
-	defaultArrayFromDrizzle: (value, dimensions) => {
+	defaultArrayFromDrizzle: (value, _dimensions) => {
 		const res = stringifyTuplesArray(
 			value,
 			'sql',
@@ -1145,7 +1145,7 @@ export const Bit: SqlType = {
 	defaultFromDrizzle: (value, _) => {
 		return { type: 'unknown', value: `'${value}'` };
 	},
-	defaultArrayFromDrizzle: (value, type) => {
+	defaultArrayFromDrizzle: (value, _type) => {
 		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
@@ -1218,7 +1218,7 @@ export const Point: SqlType = {
 				return `"${res}"`;
 			});
 		} else if (mode === 'xy') {
-			res = stringifyArray(value, 'sql', (x: { x: number; y: number }, depth: number) => {
+			res = stringifyArray(value, 'sql', (x: { x: number; y: number }, _depth: number) => {
 				const res = Object.values(x).length > 0 ? `(${x.x},${x.y})` : '{}';
 				return `"${res}"`;
 			});
@@ -1290,7 +1290,7 @@ export const Line: SqlType = {
 				return `"${res}"`;
 			});
 		} else if (mode === 'abc') {
-			res = stringifyArray(value, 'sql', (x: { a: number; b: number; c: number }, depth: number) => {
+			res = stringifyArray(value, 'sql', (x: { a: number; b: number; c: number }, _depth: number) => {
 				const res = Object.values(x).length > 0 ? `{${x.a},${x.b},${x.c}}` : '{}';
 				return `"${res}"`;
 			});
@@ -1366,7 +1366,7 @@ export const GeometryPoint: SqlType = {
 				return `'${res}'`;
 			});
 		} else if (mode === 'object') {
-			res = stringifyArray(value, 'geometry-sql', (x: { x: number; y: number }, depth: number) => {
+			res = stringifyArray(value, 'geometry-sql', (x: { x: number; y: number }, _depth: number) => {
 				const res = `${sridPrefix}POINT(${x.x} ${x.y})`;
 				return `'${res}'`;
 			});
@@ -1381,7 +1381,7 @@ export const GeometryPoint: SqlType = {
 			const { srid, point } = parseEWKB(trimChar(value, "'"));
 			let sridPrefix = srid ? `SRID=${srid};` : '';
 			def = `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
-		} catch (e) {
+		} catch {
 			def = value;
 		}
 
@@ -1410,7 +1410,7 @@ export const GeometryPoint: SqlType = {
 						const { srid, point } = parseEWKB(v);
 						let sridPrefix = srid ? `SRID=${srid};` : '';
 						return `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
-					} catch (e) {
+					} catch {
 						return v;
 					}
 				});
@@ -1422,7 +1422,7 @@ export const GeometryPoint: SqlType = {
 						const { srid, point } = parseEWKB(trimChar(v, "'"));
 						let sridPrefix = srid ? `SRID=${srid};` : '';
 						return `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
-					} catch (e) {
+					} catch {
 						return v;
 					}
 				});
@@ -1491,7 +1491,7 @@ export const GeometryPoint: SqlType = {
 };
 
 export const Enum: SqlType = {
-	is: (type: string) => {
+	is: (_type: string) => {
 		throw Error('Mocked');
 	},
 	drizzleImport: () => 'pgEnum',
@@ -1595,7 +1595,7 @@ export const SmallSerial: SqlType = {
 };
 
 export const Custom: SqlType = {
-	is: (type: string) => {
+	is: (_type: string) => {
 		throw Error('Mocked');
 	},
 	drizzleImport: () => 'customType',
@@ -1727,7 +1727,7 @@ export const isSerialExpression = (expr: string, schema: string) => {
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
 	return typeof field === 'string'
 		? (field as string)
-		: typeof field === undefined || field === null
+		: typeof field === 'undefined' || field === null
 		? null
 		: typeof field === 'bigint'
 		? field.toString()
@@ -1758,7 +1758,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				return String(value);
 			}
 
-			if (value instanceof Date) {
+			if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 				if (sqlType === 'date') {
 					return `${value.toISOString().split('T')[0]}`;
 				} else if (sqlType === 'timestamp') {
@@ -2042,6 +2042,8 @@ export const defaultsCommutative = (
 	let to = diffDef.to?.value;
 
 	if (from === to) return true;
+	if (from === `(${to})`) return true;
+	if (to === `(${from})`) return true;
 
 	if (type.startsWith('timestamp') && type.includes('with time zone')) {
 		if (from && to) {

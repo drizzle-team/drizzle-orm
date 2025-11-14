@@ -1,19 +1,10 @@
 import { randomUUID } from 'crypto';
-import {
-	any,
-	array as zodArray,
-	boolean,
-	enum as enumType,
-	literal,
-	number,
-	object,
-	record,
-	string,
-	TypeOf,
-} from 'zod';
+import type { TypeOf } from 'zod';
+import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, PostgresDDL, PostgresEntity } from './ddl';
+import type { PostgresDDL, PostgresEntity } from './ddl';
+import { createDDL } from './ddl';
 
 const indexV2 = object({
 	name: string(),
@@ -354,6 +345,11 @@ const table = object({
 
 const schemaHash = object({
 	id: string(),
+	prevIds: zodArray(string()),
+});
+
+const schemaHashV7 = object({
+	id: string(),
 	prevId: string(),
 });
 
@@ -517,6 +513,7 @@ export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
 export const pgSchemaV4 = pgSchemaInternalV4.merge(schemaHash);
 export const pgSchemaV5 = pgSchemaInternalV5.merge(schemaHash);
 export const pgSchemaV6 = pgSchemaInternalV6.merge(schemaHash);
+export const pgSchemaV7 = pgSchemaInternal.merge(schemaHashV7);
 export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -525,6 +522,7 @@ export type PgSchemaV3 = TypeOf<typeof pgSchemaV3>;
 export type PgSchemaV4 = TypeOf<typeof pgSchemaV4>;
 export type PgSchemaV5 = TypeOf<typeof pgSchemaV5>;
 export type PgSchemaV6 = TypeOf<typeof pgSchemaV6>;
+export type PgSchemaV7 = TypeOf<typeof pgSchemaV7>;
 export type PgSchema = TypeOf<typeof pgSchema>;
 
 export type Index = TypeOf<typeof index>;

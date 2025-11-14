@@ -1,38 +1,38 @@
-import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { createDDL } from 'src/dialects/mysql/ddl';
-import { Binary, Varbinary } from 'src/dialects/mysql/grammar';
-import { trimChar } from 'src/utils';
-import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
-import { Journal } from '../../utils';
+import chalk from 'chalk';
+import { writeFileSync } from 'fs';
+import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
+import { createDDL } from '../../dialects/mysql/ddl';
+import { Binary, Varbinary } from '../../dialects/mysql/grammar';
+import type { MysqlSchemaV6, MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import { trimChar } from '../../utils';
+import { migrateToFoldersV3 } from './utils';
 
 export const upMysqlHandler = (out: string) => {
-	// if there is meta folder - and there is a journal - it's version <8
-	const metaPath = join(out, 'meta');
-	const journalPath = join(metaPath, '_journal.json');
-	if (existsSync(metaPath) && existsSync(journalPath)) {
-		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
-		if (Number(journal.version) < 8) {
-			for (const entry of journal.entries) {
-				const snapshotPrefix = entry.tag.split('_')[0];
-				const oldSnapshot = readFileSync(join(metaPath, `${snapshotPrefix}_snapshot.json`));
-				const oldSql = readFileSync(join(out, `${entry.tag}.sql`));
+	migrateToFoldersV3(out);
 
-				writeFileSync(join(out, `${entry.tag}/snapshot.json`), oldSnapshot);
-				writeFileSync(join(out, `${entry.tag}/migration.sql`), oldSql);
+	const { snapshots } = prepareOutFolder(out);
+	const report = validateWithReport(snapshots, 'mysql');
 
-				unlinkSync(join(out, `${entry.tag}.sql`));
-			}
+	report.nonLatest
+		.map((it) => ({
+			path: it,
+			raw: report.rawMap[it] as Record<string, any>,
+		}))
+		.forEach((it) => {
+			const path = it.path;
 
-			rmSync(metaPath);
-		}
-	}
+			const snapshot = upToV6(it.raw);
+
+			console.log(`[${chalk.green('✓')}] ${path}`);
+
+			writeFileSync(path, JSON.stringify(snapshot, null, 2));
+		});
+
+	console.log("Everything's fine 🐶🔥");
 };
 
 export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
-	const json = it as MysqlSchema;
-
-	const hints = [] as string[];
+	const json = it as MysqlSchemaV6;
 
 	const ddl = createDDL();
 
@@ -183,7 +183,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 	return {
 		version: '6',
 		id: json.id,
-		prevId: json.prevId,
+		prevIds: [json.prevId],
 		dialect: 'mysql',
 		ddl: ddl.entities.list(),
 		renames: [],

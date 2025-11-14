@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
-import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -23,7 +23,6 @@ import type {
 } from './ddl';
 import {
 	defaultForColumn,
-	defaults,
 	isSerialExpression,
 	isSystemNamespace,
 	parseOnType,
@@ -32,48 +31,9 @@ import {
 	wrapRecord,
 } from './grammar';
 
-function prepareRoles(entities?: {
-	roles: boolean | {
-		provider?: string | undefined;
-		include?: string[] | undefined;
-		exclude?: string[] | undefined;
-	};
-}) {
-	if (!entities || !entities.roles) return { useRoles: false, include: [], exclude: [] };
-
-	const roles = entities.roles;
-	const useRoles: boolean = typeof roles === 'boolean' ? roles : false;
-	const include: string[] = typeof roles === 'object' ? roles.include ?? [] : [];
-	const exclude: string[] = typeof roles === 'object' ? roles.exclude ?? [] : [];
-	const provider = typeof roles === 'object' ? roles.provider : undefined;
-
-	if (provider === 'supabase') {
-		exclude.push(...[
-			'anon',
-			'authenticator',
-			'authenticated',
-			'service_role',
-			'supabase_auth_admin',
-			'supabase_storage_admin',
-			'dashboard_user',
-			'supabase_admin',
-		]);
-	}
-
-	if (provider === 'neon') {
-		exclude.push(...['authenticated', 'anonymous']);
-	}
-
-	return { useRoles, include, exclude };
-}
-
-// TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
-// TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -101,11 +61,11 @@ export const fromDatabase = async (
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 
-	type OP = {
-		oid: string;
-		name: string;
-		default: boolean;
-	};
+	// type OP = {
+	// 	oid: string;
+	// 	name: string;
+	// 	default: boolean;
+	// };
 
 	type Namespace = {
 		oid: string;
@@ -180,7 +140,7 @@ export const fromDatabase = async (
 		defaultsQuery,
 	]);
 
-	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -192,7 +152,7 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
+	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -245,7 +205,9 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.schema, it.name))) return false;
+		if (!((it.kind === 'r' || it.kind === 'p') && filter({ type: 'table', schema: it.schema, name: it.name }))) {
+			return false;
+		}
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -710,10 +672,8 @@ export const fromDatabase = async (
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	// TODO: drizzle link
-	const res = prepareRoles(entities);
-	for (const dbRole of rolesList) {
-		if (!(res.useRoles || !(res.exclude.includes(dbRole.rolname) || !res.include.includes(dbRole.rolname)))) continue;
-
+	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.rolname }));
+	for (const dbRole of filteredRoles) {
 		roles.push({
 			entityType: 'roles',
 			name: dbRole.rolname,
@@ -868,13 +828,13 @@ export const fromDatabase = async (
 			identity: column.identityType !== ''
 				? {
 					type: column.identityType === 'a' ? 'always' : 'byDefault',
-					name: sequence?.name!,
+					name: sequence?.name ?? '',
 					increment: parseIdentityProperty(metadata?.increment),
 					minValue: parseIdentityProperty(metadata?.min),
 					maxValue: parseIdentityProperty(metadata?.max),
 					startWith: parseIdentityProperty(metadata?.start),
 					cycle: metadata?.cycle === 'YES',
-					cache: Number(parseIdentityProperty(sequence?.cacheSize)) ?? 1,
+					cache: Number(parseIdentityProperty(sequence?.cacheSize ?? 1)),
 				}
 				: null,
 		});
@@ -885,7 +845,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == unique.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === unique.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -905,7 +865,7 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == pk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -925,12 +885,12 @@ export const fromDatabase = async (
 		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId == fk.tableToId && column.ordinality === it)!;
+			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
 			return column.name;
 		});
 
@@ -1085,7 +1045,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId == String(metadata.tableId) && column.ordinality === ordinal;
+					return column.tableId === String(metadata.tableId) && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
@@ -1161,6 +1121,8 @@ export const fromDatabase = async (
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
 
+		const typeDimensions = it.type.split('[]').length - 1;
+
 		viewColumns.push({
 			schema: view.schema,
 			view: view.name,
@@ -1168,12 +1130,13 @@ export const fromDatabase = async (
 			type: columnTypeMapped,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
+			typeDimensions,
 			typeSchema: enumType ? enumType.schema : null,
 		});
 	}
 
 	for (const view of viewsList) {
-		if (!tablesFilter(view.schema, view.name)) continue;
+		if (!filter({ type: 'table', schema: view.schema, name: view.name })) continue;
 		tableCount += 1;
 
 		const accessMethod = view.accessMethod === '0' ? null : ams.find((it) => it.oid === view.accessMethod);
@@ -1260,16 +1223,14 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
 

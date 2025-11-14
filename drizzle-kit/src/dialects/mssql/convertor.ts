@@ -1,6 +1,6 @@
-import { Simplify } from '../../utils';
-import { DefaultConstraint } from './ddl';
-import { DropColumn, JsonStatement, RenameColumn } from './statements';
+import type { Simplify } from '../../utils';
+import type { DefaultConstraint } from './ddl';
+import type { DropColumn, JsonStatement, RenameColumn } from './statements';
 
 export const convertor = <
 	TType extends JsonStatement['type'],
@@ -105,7 +105,7 @@ const addColumn = convertor('add_column', (st) => {
 		schema,
 	} = column;
 
-	const notNullStatement = `${notNull && !column.generated && !column.identity ? ' NOT NULL' : ''}`;
+	const notNullStatement = notNull && !column.generated && !column.identity ? ' NOT NULL' : '';
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
 	const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
@@ -161,7 +161,7 @@ const alterColumn = convertor('alter_column', (st) => {
 const recreateColumn = convertor('recreate_column', (st) => {
 	return [
 		dropColumn.convert({ column: st.column.$left }) as string,
-		addColumn.convert({ column: st.column.$right, defaults: [] }) as string,
+		addColumn.convert({ column: st.column.$right, defaults: [], isPK: false }) as string,
 	];
 });
 
@@ -189,7 +189,7 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 	);
 
 	const defaultsToCreate: DefaultConstraint[] = constraintsToCreate.filter((it) => it.entityType === 'defaults');
-	statements.push(addColumn.convert({ column: column.$right, defaults: defaultsToCreate }) as string);
+	statements.push(addColumn.convert({ column: column.$right, defaults: defaultsToCreate, isPK: false }) as string);
 
 	if (shouldTransferData) {
 		statements.push(
@@ -386,7 +386,7 @@ const dropSchema = convertor('drop_schema', (st) => {
 	return `DROP SCHEMA [${st.name}];\n`;
 });
 
-const renameSchema = convertor('rename_schema', (st) => {
+const renameSchema = convertor('rename_schema', (_st) => {
 	return `/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
  * and therefore is not supported in Drizzle ORM at this time

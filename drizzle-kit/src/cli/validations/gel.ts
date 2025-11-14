@@ -1,4 +1,5 @@
-import { coerce, literal, object, string, TypeOf, undefined as undefinedType, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { coerce, literal, object, string, undefined as undefinedType, union } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -42,9 +43,7 @@ export const gelCredentials = union([
 	}),
 	object({
 		driver: undefinedType(),
-	}).transform<undefined>((o) => {
-		return undefined;
-	}),
+	}).transform<undefined>((): undefined => {}),
 ]);
 
 export type GelCredentials = TypeOf<typeof gelCredentials>;

@@ -1,9 +1,9 @@
-import { type Simplify } from '../utils';
-import { CockroachDDL } from './cockroach/ddl';
-import { MssqlDDL } from './mssql/ddl';
+import type { Simplify } from '../utils';
+import type { CockroachDDL } from './cockroach/ddl';
+import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
-import { SQLiteDDL } from './sqlite/ddl';
+import type { SQLiteDDL } from './sqlite/ddl';
 
 export type Named = {
 	name: string;
@@ -155,7 +155,7 @@ export const preserveEntityNames = <
 ) => {
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
 	for (const left of items) {
-		const { entityType: _, name, nameExplicit, ...filter } = left;
+		const { entityType: _1, name: _2, nameExplicit: _3, ...filter } = left;
 
 		const match = collection2.list({ ...filter, nameExplicit: false } as any);
 

@@ -2,7 +2,7 @@ import { cockroachTable, int4, primaryKey } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
-test('with composite pks #2', async ({ db }) => {
+test.concurrent('with composite pks #2', async ({ db }) => {
 	const schema1 = {
 		users: cockroachTable('users', {
 			id1: int4('id1'),

@@ -1,31 +1,12 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from 'src/cli/views';
-import {
-	any,
-	array,
-	boolean,
-	enum as enumType,
-	literal,
-	never,
-	object,
-	record,
-	string,
-	TypeOf,
-	union,
-	ZodTypeAny,
-} from 'zod';
+import type { TypeOf, ZodTypeAny } from 'zod';
+import { any, array, boolean, enum as enumType, literal, never, object, record, string, union } from 'zod';
+import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from '../cli/views';
 import { _prepareAddColumns, _prepareDropColumns } from './jsonStatements';
-import { ViewSquashed } from './mysql-v5/mysqlSchema';
-import {
-	mergedViewWithOption,
-	Policy,
-	policySquashed,
-	Role,
-	roleSchema,
-	sequenceSquashed,
-	View,
-} from './postgres-v7/pgSchema';
+import type { ViewSquashed } from './mysql-v5/mysqlSchema';
+import type { Policy, Role, View } from './postgres-v7/pgSchema';
+import { mergedViewWithOption, policySquashed, roleSchema, sequenceSquashed } from './postgres-v7/pgSchema';
 
 export type Named = { name: string };
 export type NamedWithSchema = {

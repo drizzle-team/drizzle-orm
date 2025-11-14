@@ -1,8 +1,6 @@
 import { mapEntries, mapKeys, mapValues } from '../global';
 import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from '../jsonDiffer';
-import {
-	_prepareAddColumns,
-	_prepareDropColumns,
+import type {
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
 	JsonAlterIndPolicyStatement,
@@ -32,6 +30,10 @@ import {
 	JsonRenamePolicyStatement,
 	JsonRenameViewStatement,
 	JsonStatement,
+} from '../jsonStatements';
+import {
+	_prepareAddColumns,
+	_prepareDropColumns,
 	prepareAddCheckConstraint,
 	prepareAddCompositePrimaryKeyPg,
 	prepareAddUniqueConstraintPg,
@@ -86,41 +88,44 @@ import {
 } from '../jsonStatements';
 import { copy } from '../utils';
 
-import {
+import type {
 	Column,
-	columnChangeFor,
-	columnsResolver,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	DiffResult,
-	diffResultScheme,
 	Enum,
-	enumsResolver,
-	indPolicyResolver,
-	nameChangeFor,
 	Named,
-	nameSchemaChangeFor,
-	policyResolver,
 	PolicyResolverInput,
 	PolicyResolverOutput,
 	ResolverInput,
 	ResolverOutput,
 	ResolverOutputWithMoved,
-	roleResolver,
 	RolesResolverInput,
 	RolesResolverOutput,
-	schemaChangeFor,
-	schemasResolver,
 	Sequence,
-	sequencesResolver,
 	Table,
 	TablePolicyResolverInput,
 	TablePolicyResolverOutput,
+} from '../snapshotsDiffer';
+import {
+	columnChangeFor,
+	columnsResolver,
+	diffResultScheme,
+	enumsResolver,
+	indPolicyResolver,
+	nameChangeFor,
+	nameSchemaChangeFor,
+	policyResolver,
+	roleResolver,
+	schemaChangeFor,
+	schemasResolver,
+	sequencesResolver,
 	tablesResolver,
 	viewsResolver,
 } from '../snapshotsDiffer';
 import { fromJson } from '../sqlgenerator';
-import { dryPg, PgSchema, PgSchemaSquashed, PgSquasher, Policy, Role, squashPgScheme, View } from './pgSchema';
+import type { PgSchema, PgSchemaSquashed, Policy, Role, View } from './pgSchema';
+import { dryPg, PgSquasher, squashPgScheme } from './pgSchema';
 
 export const diff = async (opts: {
 	left?: PgSchema;
@@ -944,14 +949,14 @@ export const _diff = async (
 		jsonAlteredUniqueConstraints.push(...alteredUniqueConstraints);
 	}
 
-	const rColumns = jsonRenameColumnsStatements.map((it) => {
-		const tableName = it.tableName;
-		const schema = it.schema;
-		return {
-			from: { schema, table: tableName, column: it.oldColumnName },
-			to: { schema, table: tableName, column: it.newColumnName },
-		};
-	});
+	// const rColumns = jsonRenameColumnsStatements.map((it) => {
+	// 	const tableName = it.tableName;
+	// 	const schema = it.schema;
+	// 	return {
+	// 		from: { schema, table: tableName, column: it.oldColumnName },
+	// 		to: { schema, table: tableName, column: it.newColumnName },
+	// 	};
+	// });
 
 	const jsonTableAlternations = alteredTables
 		.map((it) => {
@@ -1579,19 +1584,22 @@ export const _diff = async (
 	jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
-	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
+	// PATCHED, need to run before fks
+	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreateIndexesForCreatedTables);
+	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
+	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	// ----
+
+	jsonStatements.push(...jsonCreateReferencesForCreatedTables);
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
-	jsonStatements.push(...jsonCreateIndexesFoAlteredTables);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
-	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
-
-	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
 	jsonStatements.push(...createViews);
 
@@ -1700,14 +1708,14 @@ export const _diff = async (
 		}
 	});
 
-	const rSchemas = renamedSchemas.map((it) => ({
-		from: it.from.name,
-		to: it.to.name,
-	}));
+	// const rSchemas = renamedSchemas.map((it) => ({
+	// 	from: it.from.name,
+	// 	to: it.to.name,
+	// }));
 
-	const rTables = renamedTables.map((it) => {
-		return { from: it.from, to: it.to };
-	});
+	// const rTables = renamedTables.map((it) => {
+	// 	return { from: it.from, to: it.to };
+	// });
 
 	return {
 		statements: filteredEnums2JsonStatements,

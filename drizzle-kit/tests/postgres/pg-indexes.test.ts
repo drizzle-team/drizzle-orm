@@ -555,9 +555,9 @@ test('index #5', async (t) => {
 		+ '\t"column5" "enum",\n'
 		+ '\t"column6" text\n'
 		+ ');\n',
-		'CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column1") WHERE "table1"."column4" = true;', // or with $1 param instead of true, but then params must be included in the query
-		`CREATE UNIQUE INDEX "table1_column2_index" ON "table1" ("column2") WHERE "table1"."column5" = 'text';`,
-		`CREATE UNIQUE INDEX "table1_column3_index" ON "table1" ("column3") WHERE "table1"."column6" like 'text';`,
+		'CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column1") WHERE "column4" = true;', // or with $1 param instead of true, but then params must be included in the query
+		`CREATE UNIQUE INDEX "table1_column2_index" ON "table1" ("column2") WHERE "column5" = 'text';`,
+		`CREATE UNIQUE INDEX "table1_column3_index" ON "table1" ("column3") WHERE "column6" like 'text';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -572,24 +572,23 @@ test('index #6', async (t) => {
 			column2: boolean(),
 			column3: enum_(),
 		}, (table) => [
-			uniqueIndex().on(table.column1).where(eq(table.column2, true)),
-			uniqueIndex().on(table.column1).where(eq(table.column3, 'text')),
+			uniqueIndex().on(table.column2).where(eq(table.column2, true)),
+			uniqueIndex().on(table.column3).where(eq(table.column3, 'text')),
 		]),
 	};
 
 	const { sqlStatements: st } = await diff({}, schema1, []);
-	console.log(st);
 	const { sqlStatements: pst } = await push({ db, to: schema1 });
 
 	const st0 = [
-		`CREATE TYPE "enum" AS ENUM('text', 'not_text');`,
+		`CREATE TYPE "enum" AS ENUM('text', 'not_text', 'something_else');`,
 		'CREATE TABLE "table1" (\n'
 		+ '\t"column1" integer,\n'
 		+ '\t"column2" boolean,\n'
 		+ '\t"column3" "enum"\n'
 		+ ');\n',
-		'CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column1") WHERE "table1"."column2" = true;', // or with $1 param instead of true, but then params must be included in the query
-		`CREATE UNIQUE INDEX "table1_column1_index" ON "table1" ("column2") WHERE "table1"."column3" = 'text';`, // in indices names maybe should be some hash
+		'CREATE UNIQUE INDEX "table1_column2_index" ON "table1" ("column2") WHERE "column2" = true;', // or with $1 param instead of true, but then params must be included in the query
+		`CREATE UNIQUE INDEX "table1_column3_index" ON "table1" ("column3") WHERE "column3" = 'text';`, // in indices names maybe should be some hash
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

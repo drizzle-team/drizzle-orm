@@ -3,7 +3,7 @@ import { asc, eq, gt, sql, TransactionRollbackError } from 'drizzle-orm';
 import { datetime, int, mysqlTable, mysqlView, serial, text, union, unionAll } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
 
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { createCitiesTable, createUsers2Table, createUserTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {

@@ -1,5 +1,4 @@
 {
-	"plugins": ["import"],
 	"jsPlugins": ["./eslint/eslint-plugin-drizzle-internal/index.mjs"],
 	"lint-staged": {
 		"!**/eslint/eslint-plugin-drizzle-internal/**": "echo skip"
@@ -8,11 +7,13 @@
 		"typescript/consistent-type-imports": [
 			"error",
 			{
+				"prefer": "type-imports",
 				"disallowTypeAnnotations": true,
 				"fixStyle": "separate-type-imports"
 			}
 		],
 		"typescript/no-import-type-side-effects": "error",
+		"import/consistent-type-specifier-style Style": "error",
 		"import/no-cycle": "error",
 		"import/no-self-import": "error",
 		"import/no-empty-named-blocks": "error",
@@ -32,15 +33,6 @@
 			{
 				"argsIgnorePattern": "^_",
 				"varsIgnorePattern": "^_"
-			}
-		],
-		"ban-types": [
-			"error",
-			{
-				"extendDefaults": true,
-				"types": {
-					"{}": false
-				}
 			}
 		],
 		"typescript/no-this-alias": "off",
@@ -69,6 +61,7 @@
 		"unicorn/no-instanceof-builtins": "error",
 		"unicorn/prefer-string-replace-all": "off",
 		"unicorn/no-process-exit": "off",
+		"unicorn/no-empty-file": "off",
 		"typescript/ban-ts-comment": "off",
 		"typescript/no-empty-interface": "off",
 		"typescript/no-unsafe-declaration-merging": "off",
@@ -85,7 +78,11 @@
 			],
 			"rules": {
 				"import/extensions": "off",
-				"drizzle-internal/no-instanceof": "off"
+				"drizzle-internal/no-instanceof": "off",
+				"no-useless-escape": "off",
+				"consistent-type-imports": "off",
+				"no-unused-vars": "off",
+				"no-unused-expressions": "off"
 			}
 		},
 		{
@@ -99,6 +96,18 @@
 			"rules": {
 				"import/extensions": "off"
 			}
+		},
+		{
+			"files": ["**/*.d.ts"],
+			"rules": {
+				"typescript/consistent-type-imports": "off"
+			}
+		},
+		{
+			"files": ["drizzle-kit/**/*"],
+			"rules": {
+				"drizzle-internal/require-entity-kind": "off"
+			}
 		}
 	],
 	"ignorePatterns": [
@@ -111,7 +120,6 @@
 		"**/*.cjs",
 		"**/playground",
 		"integration-tests/tests/prisma/*/client",
-		"integration-tests/tests/prisma/*/drizzle",
-		"drizzle-kit/*"
+		"integration-tests/tests/prisma/*/drizzle"
 	]
 }

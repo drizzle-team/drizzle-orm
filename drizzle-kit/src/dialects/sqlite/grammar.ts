@@ -1,9 +1,9 @@
-import { trimChar } from 'src/utils';
+import { trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s+["'`\[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
+const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
 const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
@@ -53,7 +53,7 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 			return `'${value.toString()}'`;
 		}
 
-		if (value instanceof Date) {
+		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 			const v = mode === 'timestamp' ? value.getTime() / 1000 : value.getTime();
 			return v.toFixed(0);
 		}
@@ -120,7 +120,7 @@ export const Numeric: SqlType = {
 	drizzleImport: function(): Import {
 		return 'numeric';
 	},
-	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
+	defaultFromDrizzle: function(value: unknown, _mode?: unknown): Column['default'] {
 		if (typeof value === 'string') return `'${value}'`;
 		if (typeof value === 'bigint') return `'${value.toString()}'`;
 		if (typeof value === 'number') return `${value.toString()}`;
@@ -166,7 +166,7 @@ export const Text: SqlType = {
 	drizzleImport: function(): Import {
 		return 'text';
 	},
-	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
+	defaultFromDrizzle: function(value: unknown, _mode?: unknown): Column['default'] {
 		let result: string;
 		if (typeof value === 'string') result = value.replaceAll('\\', '\\\\').replaceAll("'", "''");
 		else if (typeof value === 'object' || Array.isArray(value)) {
@@ -367,7 +367,7 @@ export interface Generated {
 
 export function extractGeneratedColumns(input: string): Record<string, Generated> {
 	const columns: Record<string, Generated> = {};
-	const regex = /["'`\[]?(\w+)["'`\]]?\s+(\w+)\s+GENERATED\s+ALWAYS\s+AS\s*\(/gi;
+	const regex = /["'`[]?(\w+)["'`\]]?\s+(\w+)\s+GENERATED\s+ALWAYS\s+AS\s*\(/gi;
 
 	let match: RegExpExecArray | null;
 	while ((match = regex.exec(input)) !== null) {
@@ -400,7 +400,7 @@ export function extractGeneratedColumns(input: string): Record<string, Generated
 }
 
 export const omitSystemTables = () => {
-	['__drizzle_migrations', `'\\_cf\\_%'`, `'\\_litestream\\_%'`, `'libsql\\_%'`, `'sqlite\\_%'`];
+	// ['__drizzle_migrations', `'\\_cf\\_%'`, `'\\_litestream\\_%'`, `'libsql\\_%'`, `'sqlite\\_%'`];
 	return true;
 };
 
