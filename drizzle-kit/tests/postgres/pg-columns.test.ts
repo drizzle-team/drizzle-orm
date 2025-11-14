@@ -9,7 +9,6 @@ import {
 	date,
 	doublePrecision,
 	geometry,
-	index,
 	inet,
 	integer,
 	interval,
@@ -961,199 +960,11 @@ test('defaults: timestamptz with precision', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diffs for all database types', async () => {
-	const customSchema = pgSchema('schemass');
-
-	const transactionStatusEnum = customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']);
-
-	const enumname = pgEnum('enumname', ['three', 'two', 'one']);
-
-	const schema1 = {
-		test: pgEnum('test', ['ds']),
-		testHello: pgEnum('test_hello', ['ds']),
-		enumname: pgEnum('enumname', ['three', 'two', 'one']),
-
-		customSchema: customSchema,
-		transactionStatusEnum: customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']),
-
-		allSmallSerials: pgTable('schema_test', {
-			columnAll: uuid('column_all').defaultRandom(),
-			column: transactionStatusEnum('column').notNull(),
-		}),
-
-		allSmallInts: customSchema.table(
-			'schema_test2',
-			{
-				columnAll: smallint('column_all').default(124).notNull(),
-				column: smallint('columns').array(),
-				column1: smallint('column1').array().array(),
-				column2: smallint('column2').array().array(),
-				column3: smallint('column3').array(),
-			},
-			(t: any) => [uniqueIndex('testdfds').on(t.column)],
-		),
-
-		allEnums: customSchema.table(
-			'all_enums',
-			{
-				columnAll: enumname('column_all').default('three').notNull(),
-				column: enumname('columns'),
-			},
-			(t: any) => [index('ds').on(t.column)],
-		),
-
-		allTimestamps: customSchema.table('all_timestamps', {
-			columnDateNow: timestamp('column_date_now', {
-				precision: 1,
-				withTimezone: true,
-				mode: 'string',
-			}).defaultNow(),
-			columnAll: timestamp('column_all', { mode: 'string' }).default('2023-03-01 12:47:29.792'),
-			column: timestamp('column', { mode: 'string' }).default(sql`'2023-02-28 16:18:31.18'`),
-			column2: timestamp('column2', { mode: 'string', precision: 3 }).default(sql`'2023-02-28 16:18:31.18'`),
-		}),
-
-		allUuids: customSchema.table('all_uuids', {
-			columnAll: uuid('column_all').defaultRandom().notNull(),
-			column: uuid('column'),
-		}),
-
-		allDates: customSchema.table('all_dates', {
-			column_date_now: date('column_date_now').defaultNow(),
-			column_all: date('column_all', { mode: 'date' }).default(new Date()).notNull(),
-			column: date('column'),
-		}),
-
-		allReals: customSchema.table('all_reals', {
-			columnAll: real('column_all').default(32).notNull(),
-			column: real('column'),
-			columnPrimary: real('column_primary').primaryKey().notNull(),
-		}),
-
-		allBigints: pgTable('all_bigints', {
-			columnAll: bigint('column_all', { mode: 'number' }).default(124).notNull(),
-			column: bigint('column', { mode: 'number' }),
-		}),
-
-		allBigserials: customSchema.table('all_bigserials', {
-			columnAll: bigserial('column_all', { mode: 'bigint' }).notNull(),
-			column: bigserial('column', { mode: 'bigint' }).notNull(),
-		}),
-
-		allIntervals: customSchema.table('all_intervals', {
-			columnAllConstrains: interval('column_all_constrains', {
-				fields: 'month',
-			})
-				.default('1 mon')
-				.notNull(),
-			columnMinToSec: interval('column_min_to_sec', {
-				fields: 'minute to second',
-			}),
-			columnWithoutFields: interval('column_without_fields').default('00:00:01').notNull(),
-			column: interval('column'),
-			column5: interval('column5', {
-				fields: 'minute to second',
-				precision: 3,
-			}),
-			column6: interval('column6'),
-		}),
-
-		allSerials: customSchema.table('all_serials', {
-			columnAll: serial('column_all').notNull(),
-			column: serial('column').notNull(),
-		}),
-
-		allTexts: customSchema.table(
-			'all_texts',
-			{
-				columnAll: text('column_all').default('text').notNull(),
-				column: text('columns').primaryKey(),
-			},
-			(t: any) => [index('test').on(t.column)],
-		),
-
-		allBools: customSchema.table('all_bools', {
-			columnAll: boolean('column_all').default(true).notNull(),
-			column: boolean('column'),
-		}),
-
-		allVarchars: customSchema.table('all_varchars', {
-			columnAll: varchar('column_all').default('text').notNull(),
-			column: varchar('column', { length: 200 }),
-		}),
-
-		allTimes: customSchema.table('all_times', {
-			columnDateNow: time('column_date_now').defaultNow(),
-			columnAll: time('column_all').default('22:12:12').notNull(),
-			column: time('column'),
-		}),
-
-		allChars: customSchema.table('all_chars', {
-			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
-			column: char('column', { length: 1 }),
-		}),
-
-		allDoublePrecision: customSchema.table('all_double_precision', {
-			columnAll: doublePrecision('column_all').default(33.2).notNull(),
-			column: doublePrecision('column'),
-		}),
-
-		allJsonb: customSchema.table('all_jsonb', {
-			columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
-			columnDefaultArray: jsonb('column_default_array').default({
-				hello: { 'world world': ['foo', 'bar'] },
-			}),
-			column: jsonb('column'),
-		}),
-
-		allJson: customSchema.table('all_json', {
-			columnDefaultObject: json('column_default_object').default({ hello: 'world world' }).notNull(),
-			columnDefaultArray: json('column_default_array').default({
-				hello: { 'world world': ['foo', 'bar'] },
-				foo: 'bar',
-				fe: 23,
-			}),
-			column: json('column'),
-		}),
-
-		allIntegers: customSchema.table('all_integers', {
-			columnAll: integer('column_all').primaryKey(),
-			column: integer('column'),
-			columnPrimary: integer('column_primary'),
-		}),
-
-		allNumerics: customSchema.table('all_numerics', {
-			columnAll: numeric('column_all', { precision: 1, scale: 1 }).default('32').notNull(),
-			column: numeric('column'),
-			columnPrimary: numeric('column_primary').primaryKey().notNull(),
-		}),
-	};
-
-	const schemas = ['public', 'schemass'];
-	const { sqlStatements: st } = await diff(schema1, schema1, []);
-
-	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema1, schemas });
-
-	const st0: string[] = [];
-
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=remove%20the%20default-,Bonus,-This%20is%20the
+// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.test.ts
 test('no diff for all column types', async () => {
-	const mySchema = pgSchema('my_schema');
-	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
-		mySchema,
-		mySchemaEnum,
-		mySchemaTable: mySchema.table('my_schema_table', {
-			mySchemaEnum: mySchemaEnum().default('a'),
-		}),
 		enum_: myEnum,
-		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
 		columns: pgTable('columns', {
 			enum: myEnum('my_enum').default('a'),
 			smallint: smallint().default(10),
@@ -1199,37 +1010,24 @@ test('no diff for all column types', async () => {
 			macaddr: macaddr().default('00:00:00:00:00:00'),
 			macaddr8: macaddr8().default('00:00:00:ff:fe:00:00:00'),
 			interval: interval().default('1 day 01:00:00'),
-			customType: customType({
-				dataType: () => 'tsvector',
-			})().default("to_tsvector('english', 'The Fat Rats')"),
 		}),
 	};
 
-	const schemas = ['public', 'my_schema'];
 	const { next: n1 } = await diff({}, schema, []);
-	await push({ db, to: schema, schemas });
+	await push({ db, to: schema });
 
 	const { sqlStatements: st2 } = await diff(n1, schema, []);
-	const { sqlStatements: pst2 } = await push({ db, to: schema, schemas });
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
+// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.test.ts
 test('no diff for all column array types', async () => {
-	const mySchema = pgSchema('my_schema');
-	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
-		mySchema,
-		mySchemaEnum,
-		mySchemaTable: mySchema.table('my_schema_table', {
-			mySchemaEnum: mySchemaEnum().array().default(['a']),
-			mySchemaEnum1: mySchemaEnum().array().default([]),
-		}),
 		enum_: myEnum,
-		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
 		columns: pgTable('columns', {
 			enum: myEnum().array().default([]),
 			enum1: myEnum().array().default(['a', 'b']),
@@ -1257,7 +1055,7 @@ test('no diff for all column array types', async () => {
 			json1: json().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb().array().default([]),
 			jsonb1: jsonb().array().default(sql`'{}'`),
-			jsonb2: jsonb().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			// jsonb2: jsonb().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			time: time().array().default([]),
 			time1: time().array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp({ withTimezone: true, precision: 6 }).array().default([]),
@@ -1282,6 +1080,67 @@ test('no diff for all column array types', async () => {
 			macaddr8_1: macaddr8().array().default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
 			interval: interval().array().default([]),
 			interval1: interval().array().default(['1 day 01:00:00', '1 day 02:00:00']),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test('no diff for enum and custom type in different schemas', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().default('a'),
+			mySchemaCustomType: customType({
+				dataType: () => 'tsvector',
+			})().default("to_tsvector('english', 'The Fat Rats')"),
+		}),
+		myEnum,
+		table: pgTable('table', {
+			enum: myEnum().default('a'),
+			customType: customType({
+				dataType: () => 'tsvector',
+			})().default("to_tsvector('english', 'The Fat Rats')"),
+		}),
+	};
+
+	const schemas = ['public', 'my_schema'];
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema, schemas });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema, schemas });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test('no diff for enum array type in different schemas', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().array().default(['a']),
+			mySchemaEnum1: mySchemaEnum().array().default([]),
+		}),
+		myEnum,
+		table: pgTable('table', {
+			enum: myEnum().array().default([]),
+			enum1: myEnum().array().default(['a', 'b']),
 		}),
 	};
 

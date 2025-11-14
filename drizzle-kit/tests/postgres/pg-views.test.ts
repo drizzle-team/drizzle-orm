@@ -1,5 +1,5 @@
-import { eq, gt, sql } from 'drizzle-orm';
-import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial } from 'drizzle-orm/pg-core';
+import { and, eq, gt, or, sql } from 'drizzle-orm';
+import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2017,4 +2017,83 @@ test('push materialized view with same name', async () => {
 		'CREATE MATERIALIZED VIEW "view" AS (select distinct "id" from "test" where "test"."id" = 1);',
 	]);
 	expect(pst).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4265
+test('.as in view select', async () => {
+	const user = pgTable('user', {
+		id: serial().primaryKey(),
+		email: text(),
+		name: text(),
+	});
+
+	const userSubscription = pgTable('user_subscription', {
+		id: serial().primaryKey(),
+		userId: integer().references(() => user.id),
+		status: text(),
+	});
+	const userSubscriptionView = pgView('user_subscription_view').as(
+		(qb) => {
+			return qb
+				.select({
+					userId: user.id.as('userId'),
+					email: user.email,
+					name: user.name,
+					subscriptionId: userSubscription.id.as('subscriptionId'),
+					status: userSubscription.status,
+				})
+				.from(user)
+				.leftJoin(
+					userSubscription,
+					sql`(${user.id} = ${userSubscription.userId} and (${userSubscription.status} = 'active' or ${userSubscription.status} = 'trialing'))`,
+				);
+		},
+	);
+
+	const userSubscriptionView1 = pgView('user_subscription_view1').as(
+		(qb) => {
+			return qb
+				.select({
+					userId: user.id.as('userId'),
+					email: user.email,
+					name: user.name,
+					subscriptionId: userSubscription.id.as('subscriptionId'),
+					status: userSubscription.status,
+				})
+				.from(user)
+				.leftJoin(
+					userSubscription,
+					and(
+						eq(user.id, userSubscription.userId),
+						or(eq(userSubscription.status, 'active'), eq(userSubscription.status, 'trialing')),
+					),
+				);
+		},
+	);
+
+	const schema = { user, userSubscription, userSubscriptionView, userSubscriptionView1 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1View = (viewName: string) =>
+		`CREATE VIEW "${viewName}" AS `
+		+ `(select "user"."id" as "userId", "user"."email", "user"."name", "user_subscription"."id" as "subscriptionId", "user_subscription"."status" `
+		+ `from "user" left join "user_subscription" on ("user"."id" = "user_subscription"."userId" `
+		+ `and ("user_subscription"."status" = 'active' or "user_subscription"."status" = 'trialing')));`;
+	const expectedSt1 = [
+		'CREATE TABLE "user" (\n\t"id" serial PRIMARY KEY,\n\t"email" text,\n\t"name" text\n);\n',
+		'CREATE TABLE "user_subscription" (\n\t"id" serial PRIMARY KEY,\n\t"userId" integer,\n\t"status" text\n);\n',
+		'ALTER TABLE "user_subscription" ADD CONSTRAINT "user_subscription_userId_user_id_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id");',
+		expectedSt1View('user_subscription_view'),
+		expectedSt1View('user_subscription_view1'),
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });

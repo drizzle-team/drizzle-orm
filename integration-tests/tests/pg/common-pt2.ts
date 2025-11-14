@@ -1060,57 +1060,53 @@ export function tests(test: Test) {
 			});
 		});
 
-		test
-			.concurrent(
-				'mySchema :: select from tables with same name from different schema using alias',
-				async ({ db, push }) => {
-					const mySchema = pgSchema('mySchema');
-					const users = mySchema.table('users_99', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+		test.concurrent('mySchema :: select from tables with same name from different schema using alias', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema');
+			const users = mySchema.table('users_99', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					const usersDefault = pgTable('users_17', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+			const usersDefault = pgTable('users_17', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					await push({ users, usersDefault });
+			await push({ users, usersDefault });
 
-					await db.insert(users).values({ id: 10, name: 'Ivan' });
-					await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
+			await db.insert(users).values({ id: 10, name: 'Ivan' });
+			await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
 
-					const customerAlias = alias(usersDefault, 'customer');
+			const customerAlias = alias(usersDefault, 'customer');
 
-					const result = await db
-						.select().from(users)
-						.leftJoin(customerAlias, eq(customerAlias.id, 11))
-						.where(eq(customerAlias.id, 11));
+			const result = await db
+				.select().from(users)
+				.leftJoin(customerAlias, eq(customerAlias.id, 11))
+				.where(eq(customerAlias.id, 11));
 
-					expect(result).toEqual([{
-						users_99: {
-							id: 10,
-							name: 'Ivan',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.users_99.createdAt,
-						},
-						customer: {
-							id: 11,
-							name: 'Hans',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.customer!.createdAt,
-						},
-					}]);
+			expect(result).toEqual([{
+				users_99: {
+					id: 10,
+					name: 'Ivan',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.users_99.createdAt,
 				},
-			);
+				customer: {
+					id: 11,
+					name: 'Hans',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.customer!.createdAt,
+				},
+			}]);
+		});
 
 		test.concurrent('mySchema :: view', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
