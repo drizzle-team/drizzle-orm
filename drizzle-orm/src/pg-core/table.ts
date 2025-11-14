@@ -65,7 +65,14 @@ export type PgTableWithColumns<
 > =
 	& PgTable<T>
 	& T['columns']
-	& InferTableColumnsModels<T['columns']>;
+	& InferTableColumnsModels<T['columns']>
+	& {
+		/** @deprecated use `pgTable.withRLS()` instead*/
+		enableRLS: () => Omit<
+			PgTableWithColumns<T>,
+			'enableRLS'
+		>;
+	};
 
 /** @internal */
 export function pgTableWithSchema<
@@ -123,7 +130,17 @@ export function pgTableWithSchema<
 		table[PgTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
 	}
 
-	return table as any;
+	return Object.assign(table, {
+		enableRLS: () => {
+			table[PgTable.Symbol.EnableRLS] = true;
+			return table as PgTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+				dialect: 'pg';
+			}>;
+		},
+	}) as any;
 }
 
 export interface PgTableFnInternal<TSchema extends string | undefined = undefined> {
