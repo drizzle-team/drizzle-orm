@@ -170,10 +170,6 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, Column)) {
-										if (c.columnType === 'SQLiteNumericBigInt') {
-											return chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(c))} as text)`);
-										}
-
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
