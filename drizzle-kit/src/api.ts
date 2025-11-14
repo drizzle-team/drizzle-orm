@@ -137,7 +137,7 @@ export const pushSchema = async (
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
 			const res = await drizzleInstance.execute(sql.raw(query));
-			return res.rows;
+			return "rows" in res ? res.rows : res;
 		},
 	};
 
