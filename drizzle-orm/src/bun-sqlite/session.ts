@@ -1,6 +1,8 @@
 /// <reference types="bun-types" />
 
 import type { Database, Statement as BunStatement } from 'bun:sqlite';
+
+export type BunSQLiteRunResult = ReturnType<BunStatement<any>['run']>;
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -27,7 +29,7 @@ type Statement = BunStatement<any>;
 export class SQLiteBunSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteSession<'sync', BunSQLiteRunResult, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
 	private logger: Logger;
@@ -82,7 +84,7 @@ export class SQLiteBunSession<
 export class SQLiteBunTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'sync', BunSQLiteRunResult, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
 	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {
@@ -101,7 +103,7 @@ export class SQLiteBunTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+	{ type: 'sync'; run: BunSQLiteRunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
 
@@ -117,7 +119,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>) {
+	run(placeholderValues?: Record<string, unknown>): BunSQLiteRunResult {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.run(...params);
