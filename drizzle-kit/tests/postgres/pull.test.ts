@@ -408,6 +408,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%201%3A%20jsonb().array().default(%5B%5D)
 // https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -428,7 +429,8 @@ test('introspect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
-			jsonb1: jsonb('jsonb3').array().default(sql`'{}'`),
+			jsonb1: jsonb('jsonb1').array().default(sql`'{}'`),
+			jsonb2: jsonb('jsonb2').array().default([]),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()

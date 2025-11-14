@@ -4,15 +4,19 @@ import {
 	bigserial,
 	boolean,
 	char,
+	cidr,
 	customType,
 	date,
 	doublePrecision,
 	geometry,
 	index,
+	inet,
 	integer,
 	interval,
 	json,
 	jsonb,
+	macaddr,
+	macaddr8,
 	numeric,
 	pgEnum,
 	pgSchema,
@@ -21,6 +25,7 @@ import {
 	real,
 	serial,
 	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -1134,6 +1139,160 @@ test('no diffs for all database types', async () => {
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=remove%20the%20default-,Bonus,-This%20is%20the
+test('no diff for all column types', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().default('a'),
+		}),
+		enum_: myEnum,
+		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
+		columns: pgTable('columns', {
+			enum: myEnum('my_enum').default('a'),
+			smallint: smallint().default(10),
+			integer: integer().default(10),
+			numeric: numeric().default('99.9'),
+			numeric1: numeric({ precision: 3, scale: 1 }).default('99.9'),
+			numeric2: numeric({ precision: 1, scale: 1 }).default('99.9'),
+			numeric3: numeric({ precision: 78 }).default('999'),
+			bigint: bigint({ mode: 'number' }).default(100),
+			bigint1: bigint({ mode: 'bigint' }).default(100n),
+			boolean: boolean().default(true),
+			text: text().default('abc'),
+			text1: text().default(sql`gen_random_uuid()`),
+			text2: text().default('``'),
+			text3: text().default(''),
+			varchar: varchar({ length: 25 }).default('abc'),
+			varchar1: varchar({ length: 25 }).default(''),
+			varchar2: varchar({ length: 25 }).default('``'),
+			char: char({ length: 3 }).default('abc'),
+			char1: char({ length: 3 }).default(''),
+			char2: char({ length: 3 }).default('``'),
+			serial: serial(),
+			bigserial: bigserial({ mode: 'number' }),
+			smallserial: smallserial(),
+			doublePrecision: doublePrecision().default(100.12),
+			real: real().default(100.123),
+			json: json().default({ attr: 'value' }),
+			jsonb: jsonb().default({ attr: 'value' }),
+			jsonb1: jsonb().default(sql`jsonb_build_object()`),
+			jsonb2: jsonb().default({}),
+			time1: time().default('00:00:00'),
+			time2: time().defaultNow(),
+			timestamp1: timestamp({ withTimezone: true, precision: 6 }).default(new Date()),
+			timestamp2: timestamp({ withTimezone: true, precision: 6 }).defaultNow(),
+			timestamp3: timestamp({ withTimezone: true, precision: 6 }).default(sql`timezone('utc'::text, now())`),
+			date1: date().default('2024-01-01'),
+			date2: date().defaultNow(),
+			date3: date().default(sql`CURRENT_TIMESTAMP`),
+			uuid1: uuid().default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
+			uuid2: uuid().defaultRandom(),
+			inet: inet().default('127.0.0.1'),
+			cidr: cidr().default('127.0.0.1/32'),
+			macaddr: macaddr().default('00:00:00:00:00:00'),
+			macaddr8: macaddr8().default('00:00:00:ff:fe:00:00:00'),
+			interval: interval().default('1 day 01:00:00'),
+			customType: customType({
+				dataType: () => 'tsvector',
+			})().default("to_tsvector('english', 'The Fat Rats')"),
+		}),
+	};
+
+	const schemas = ['public', 'my_schema'];
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema, schemas });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema, schemas });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
+test('no diff for all column array types', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().array().default(['a']),
+			mySchemaEnum1: mySchemaEnum().array().default([]),
+		}),
+		enum_: myEnum,
+		// NOTE: Types from extensions aren't tested due to PGlite not supporting at the moment
+		columns: pgTable('columns', {
+			enum: myEnum().array().default([]),
+			enum1: myEnum().array().default(['a', 'b']),
+			smallint: smallint().array().default([]),
+			smallint1: smallint().array().default([10, 20]),
+			integer: integer().array().default([]),
+			integer1: integer().array().default([10, 20]),
+			numeric: numeric({ precision: 3, scale: 1 }).array().default([]),
+			numeric1: numeric({ precision: 3, scale: 1 }).array().default(['99.9', '88.8']),
+			bigint: bigint({ mode: 'number' }).array().default([]),
+			bigint1: bigint({ mode: 'number' }).array().default([100, 200]),
+			boolean: boolean().array().default([]),
+			boolean1: boolean().array().default([true, false]),
+			text: text().array().default([]),
+			text1: text().array().default(['abc', 'def']),
+			varchar: varchar({ length: 25 }).array().default([]),
+			varchar1: varchar({ length: 25 }).array().default(['abc', 'def']),
+			char: char({ length: 3 }).array().default([]),
+			char1: char({ length: 3 }).array().default(['abc', 'def']),
+			doublePrecision: doublePrecision().array().default([]),
+			doublePrecision1: doublePrecision().array().default([100, 200]),
+			real: real().array().default([]),
+			real1: real().array().default([100, 200]),
+			json: json().array().default([]),
+			json1: json().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb: jsonb().array().default([]),
+			jsonb1: jsonb().array().default(sql`'{}'`),
+			jsonb2: jsonb().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			time: time().array().default([]),
+			time1: time().array().default(['00:00:00', '01:00:00']),
+			timestamp: timestamp({ withTimezone: true, precision: 6 }).array().default([]),
+			timestamp1: timestamp({ withTimezone: true, precision: 6 }).array().default([
+				new Date(),
+				new Date(),
+			]),
+			date: date().array().default([]),
+			date1: date().array().default(['2024-01-01', '2024-01-02']),
+			uuid: uuid().array().default([]),
+			uuid1: uuid().array().default([
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+			]),
+			inet: inet().array().default([]),
+			inet1: inet().array().default(['127.0.0.1', '127.0.0.2']),
+			cidr: cidr().array().default([]),
+			cidr1: cidr().array().default(['127.0.0.1/32', '127.0.0.2/32']),
+			macaddr: macaddr().array().default([]),
+			macaddr1: macaddr().array().default(['00:00:00:00:00:00', '00:00:00:00:00:01']),
+			macaddr8: macaddr8().array().default([]),
+			macaddr8_1: macaddr8().array().default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
+			interval: interval().array().default([]),
+			interval1: interval().array().default(['1 day 01:00:00', '1 day 02:00:00']),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
 
 test('column with not null was renamed and dropped not null', async () => {
