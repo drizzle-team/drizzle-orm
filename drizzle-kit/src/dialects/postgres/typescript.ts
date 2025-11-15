@@ -491,8 +491,8 @@ const column = (
 	const grammarType = typeFor(type, isEnum);
 
 	const { options, default: defaultValue, customType } = dimensions > 0
-		? grammarType.toArrayTs(type, def?.value ?? null)
-		: grammarType.toTs(type, def?.value ?? null);
+		? grammarType.toArrayTs(type, def ?? null)
+		: grammarType.toTs(type, def ?? null);
 
 	const dbName = dbColumnName({ name, casing });
 	const opts = inspect(options);
@@ -828,8 +828,8 @@ const createTableColumns = (
 		const grammarType = typeFor(stripped, isEnum);
 
 		const { options, default: defaultValue, customType } = dimensions > 0
-			? grammarType.toArrayTs(type, def?.value ?? null)
-			: grammarType.toTs(type, def?.value ?? null);
+			? grammarType.toArrayTs(type, def ?? null)
+			: grammarType.toTs(type, def ?? null);
 
 		const dbName = dbColumnName({ name, casing });
 		const opts = inspect(options);

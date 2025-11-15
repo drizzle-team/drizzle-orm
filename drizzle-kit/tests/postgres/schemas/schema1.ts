@@ -6,6 +6,7 @@ import {
 	boolean,
 	char,
 	check,
+	decimal,
 	doublePrecision,
 	foreignKey,
 	index,
