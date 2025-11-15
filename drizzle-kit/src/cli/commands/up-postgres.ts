@@ -120,9 +120,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 						cycle: column.identity.cycle ?? null,
 					}
 					: null,
-				default: typeof column.default === 'undefined'
-					? null
-					: { type: 'unknown', value: trimDefaultValueSuffix(String(column.default)) },
+				default: typeof column.default === 'undefined' ? null : trimDefaultValueSuffix(String(column.default)),
 			});
 		}
 

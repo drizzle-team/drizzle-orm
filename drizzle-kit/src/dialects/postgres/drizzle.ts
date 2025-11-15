@@ -178,14 +178,10 @@ export const defaultFromColumn = (
 		sql = trimDefaultValueSuffix(sql);
 
 		// TODO: check if needed
-
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
-		return {
-			value: sql,
-			type: 'unknown',
-		};
+		return sql;
 	}
 
 	const { baseColumn, isEnum } = unwrapColumn(base);
@@ -193,26 +189,26 @@ export const defaultFromColumn = (
 	if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Point.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Point.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Line.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Line.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: GeometryPoint.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode, baseColumn.srid)
 			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 	if (dimensions > 0 && Array.isArray(def)) {
-		if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+		if (def.flat(5).length === 0) return "'{}'";
 
 		return grammarType.defaultArrayFromDrizzle(def, dimensions);
 	}
