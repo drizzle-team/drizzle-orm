@@ -1,5 +1,4 @@
 import { eq, sql } from 'drizzle-orm';
-import { decimal } from 'drizzle-orm/cockroach-core';
 import {
 	AnyPgColumn,
 	bigint,
