@@ -2376,6 +2376,62 @@ export function tests(test: Test, driver?: string) {
 			]);
 		});
 
+		test.concurrent('column.as', async ({ db, push }) => {
+			const users = singlestoreTable('users_column_as', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const cities = singlestoreTable('cities_column_as', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users, cities });
+
+			await db.insert(cities).values([{
+				id: 1,
+				name: 'Firstistan',
+			}, {
+				id: 2,
+				name: 'Secondaria',
+			}]);
+
+			await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+				id: 2,
+				name: 'Second',
+				cityId: 2,
+			}, {
+				id: 3,
+				name: 'Third',
+			}]);
+
+			const joinSelectReturn = await db.select({
+				userId: users.id.as('user_id'),
+				cityId: cities.id.as('city_id'),
+				userName: users.name.as('user_name'),
+				cityName: cities.name.as('city_name'),
+			}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+
+			expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+				userId: 1,
+				userName: 'First',
+				cityId: 1,
+				cityName: 'Firstistan',
+			}, {
+				userId: 2,
+				userName: 'Second',
+				cityId: 2,
+				cityName: 'Secondaria',
+			}, {
+				userId: 3,
+				userName: 'Third',
+				cityId: null,
+				cityName: null,
+			}]));
+		});
+
 		test.concurrent('all types', async ({ db }) => {
 			await db.execute(sql`drop table if exists ${allTypesTable};`);
 			await db.execute(sql`
