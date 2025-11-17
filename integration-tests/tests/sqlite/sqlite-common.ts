@@ -4081,9 +4081,9 @@ export function tests() {
 					cityName: null,
 				}]));
 			} finally {
-				await db.run(sql`DROP TABLE IF EXISTS ${users};`).catch(() => null);
-				await db.run(sql`DROP TABLE IF EXISTS ${cities};`).catch(() => null);
-				await db.run(sql`DROP VIEW IF EXISTS ${ucView};`).catch(() => null);
+				await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+				await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+				await db.run(sql`DROP VIEW IF EXISTS ${ucView};`);
 			}
 		});
 
