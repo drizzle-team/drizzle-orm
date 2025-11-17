@@ -260,7 +260,6 @@ export const providerForSingleStore = async () => {
 		await prepareSingleStoreClient('', '3309'),
 		await prepareSingleStoreClient('', '3310'),
 		await prepareSingleStoreClient('', '3311'),
-		await prepareSingleStoreClient('', '3312'),
 	];
 
 	return providerClosure(clients);
@@ -272,7 +271,6 @@ export const provideForProxy = async () => {
 		await prepareProxy('', '3309'),
 		await prepareProxy('', '3310'),
 		await prepareProxy('', '3311'),
-		await prepareProxy('', '3312'),
 	];
 
 	return providerClosure(clients);

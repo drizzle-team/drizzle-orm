@@ -50,16 +50,3 @@ services:
       interval: 2s
       timeout: 3s
       retries: 60
-
-  singlestore4:
-    image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
-    environment:
-      ROOT_PASSWORD: singlestore
-      TZ: UTC
-    ports:
-      - "3312:3306"
-    healthcheck:
-      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
-      interval: 2s
-      timeout: 3s
-      retries: 60
