@@ -5732,6 +5732,9 @@ describe('some', async () => {
 			name: text('name').notNull(),
 		});
 
+		await db.delete(users);
+		await db.delete(cities);
+
 		const citiesInsRet = await db.insert(cities).values([{
 			id: 1,
 			name: 'Firstistan',
@@ -5797,5 +5800,8 @@ describe('some', async () => {
 			cityId: null,
 			cityName: null,
 		}]));
+
+		await db.delete(users);
+		await db.delete(cities);
 	});
 });
