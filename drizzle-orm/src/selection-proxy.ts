@@ -104,8 +104,9 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 					new ColumnTableAliasProxyHandler(
 						new Proxy(
 							value.table,
-							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
+							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false, true),
 						),
+						true,
 					),
 				);
 			}

@@ -3667,3 +3667,151 @@ test('nvarchar with json mode', async ({ db }) => {
 		],
 	);
 });
+
+test('column.as', async ({ db }) => {
+	const users = mssqlTable('users_column_as', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		cityId: int('city_id').references(() => cities.id),
+	});
+
+	const cities = mssqlTable('cities_column_as', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const ucView = mssqlView('cities_users_column_as_view').as((qb) =>
+		qb.select({
+			userId: users.id.as('user_id'),
+			cityId: cities.id.as('city_id'),
+			userName: users.name.as('user_name'),
+			cityName: cities.name.as('city_name'),
+		}).from(users).leftJoin(cities, eq(cities.id, users.cityId))
+	);
+
+	await db.execute(sql`CREATE TABLE ${cities} (
+				[id] INT PRIMARY KEY,
+				[name] TEXT NOT NULL
+			);`);
+
+	await db.execute(sql`CREATE TABLE ${users} (
+				[id] INT PRIMARY KEY,
+				[name] TEXT NOT NULL,
+				[city_id] INT REFERENCES ${cities}([id]) 
+			);`);
+
+	await db.execute(
+		sql`CREATE VIEW ${ucView} AS SELECT ${users.id} as [user_id], ${cities.id} as [city_id], ${users.name} as [user_name], ${cities.name} as [city_name] FROM ${users} LEFT JOIN ${cities} ON ${
+			eq(cities.id, users.cityId)
+		};`,
+	);
+
+	const citiesInsRet = await db.insert(cities).output({
+		cityId: cities.id.as('city_id'),
+		cityName: cities.name.as('city_name'),
+	}).values([{
+		id: 1,
+		name: 'Firstistan',
+	}, {
+		id: 2,
+		name: 'Secondaria',
+	}]);
+
+	expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
+		cityId: 1,
+		cityName: 'Firstistan',
+	}, {
+		cityId: 2,
+		cityName: 'Secondaria',
+	}]));
+
+	const usersInsRet = await db.insert(users).output({
+		userId: users.id.as('user_id'),
+		userName: users.name.as('users_name'),
+		userCityId: users.cityId,
+	}).values([{ id: 1, name: 'First', cityId: 1 }, {
+		id: 2,
+		name: 'Second',
+		cityId: 2,
+	}, {
+		id: 3,
+		name: 'Third',
+	}]);
+
+	expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
+		userId: 2,
+		userName: 'Second',
+		userCityId: 2,
+	}, {
+		userId: 3,
+		userName: 'Third',
+		userCityId: null,
+	}]));
+
+	const joinSelectReturn = await db.select({
+		userId: users.id.as('user_id'),
+		cityId: cities.id.as('city_id'),
+		userName: users.name.as('user_name'),
+		cityName: cities.name.as('city_name'),
+	}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+
+	expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+		userId: 1,
+		userName: 'First',
+		cityId: 1,
+		cityName: 'Firstistan',
+	}, {
+		userId: 2,
+		userName: 'Second',
+		cityId: 2,
+		cityName: 'Secondaria',
+	}, {
+		userId: 3,
+		userName: 'Third',
+		cityId: null,
+		cityName: null,
+	}]));
+
+	const viewSelectReturn = await db.select().from(ucView);
+
+	expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
+		userId: 1,
+		userName: 'First',
+		cityId: 1,
+		cityName: 'Firstistan',
+	}, {
+		userId: 2,
+		userName: 'Second',
+		cityId: 2,
+		cityName: 'Secondaria',
+	}, {
+		userId: 3,
+		userName: 'Third',
+		cityId: null,
+		cityName: null,
+	}]));
+
+	const viewJoinReturn = await db.select({
+		userId: ucView.userId.as('user_id_ucv'),
+		cityId: cities.id.as('city_id'),
+		userName: ucView.userName.as('user_name_ucv'),
+		cityName: cities.name.as('city_name'),
+	}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
+
+	expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
+		userId: 1,
+		userName: 'First',
+		cityId: 1,
+		cityName: 'Firstistan',
+	}, {
+		userId: 2,
+		userName: 'Second',
+		cityId: 2,
+		cityName: 'Secondaria',
+	}, {
+		userId: 3,
+		userName: 'Third',
+		cityId: null,
+		cityName: null,
+	}]));
+});
