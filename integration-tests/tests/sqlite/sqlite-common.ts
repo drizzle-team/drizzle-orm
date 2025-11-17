@@ -3954,131 +3954,137 @@ export function tests() {
 				}).from(users).leftJoin(cities, eq(cities.id, users.cityId))
 			);
 
-			await db.run(sql`CREATE TABLE ${cities} (
+			try {
+				await db.run(sql`CREATE TABLE IF NOT EXISTS ${cities} (
 				\`id\` INTEGER PRIMARY KEY,
 				\`name\` TEXT NOT NULL
 			);`);
 
-			await db.run(sql`CREATE TABLE ${users} (
+				await db.run(sql`CREATE TABLE IF NOT EXISTS ${users} (
 				\`id\` INTEGER PRIMARY KEY,
 				\`name\` TEXT NOT NULL,
 				\`city_id\`  INTEGER REFERENCES ${cities}(\`id\`) 
 			);`);
 
-			await db.run(
-				sql`CREATE VIEW ${ucView} AS SELECT ${users.id} as \`user_id\`, ${cities.id} as \`city_id\`, ${users.name} as \`user_name\`, ${cities.name} as \`city_name\` FROM ${users} LEFT JOIN ${cities} ON ${
-					eq(cities.id, users.cityId)
-				};`,
-			);
+				await db.run(
+					sql`CREATE VIEW IF NOT EXISTS ${ucView} AS SELECT ${users.id} as \`user_id\`, ${cities.id} as \`city_id\`, ${users.name} as \`user_name\`, ${cities.name} as \`city_name\` FROM ${users} LEFT JOIN ${cities} ON ${
+						eq(cities.id, users.cityId)
+					};`,
+				);
 
-			const citiesInsRet = await db.insert(cities).values([{
-				id: 1,
-				name: 'Firstistan',
-			}, {
-				id: 2,
-				name: 'Secondaria',
-			}]).returning({
-				cityId: cities.id.as('city_id'),
-				cityName: cities.name.as('city_name'),
-			});
+				const citiesInsRet = await db.insert(cities).values([{
+					id: 1,
+					name: 'Firstistan',
+				}, {
+					id: 2,
+					name: 'Secondaria',
+				}]).returning({
+					cityId: cities.id.as('city_id'),
+					cityName: cities.name.as('city_name'),
+				});
 
-			expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				cityId: 2,
-				cityName: 'Secondaria',
-			}]));
+				expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
+					cityId: 1,
+					cityName: 'Firstistan',
+				}, {
+					cityId: 2,
+					cityName: 'Secondaria',
+				}]));
 
-			const usersInsRet = await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
-				id: 2,
-				name: 'Second',
-				cityId: 2,
-			}, {
-				id: 3,
-				name: 'Third',
-			}]).returning({
-				userId: users.id.as('user_id'),
-				userName: users.name.as('users_name'),
-				userCityId: users.cityId,
-			});
+				const usersInsRet = await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+					id: 2,
+					name: 'Second',
+					cityId: 2,
+				}, {
+					id: 3,
+					name: 'Third',
+				}]).returning({
+					userId: users.id.as('user_id'),
+					userName: users.name.as('users_name'),
+					userCityId: users.cityId,
+				});
 
-			expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
-				userId: 2,
-				userName: 'Second',
-				userCityId: 2,
-			}, {
-				userId: 3,
-				userName: 'Third',
-				userCityId: null,
-			}]));
+				expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
+					userId: 2,
+					userName: 'Second',
+					userCityId: 2,
+				}, {
+					userId: 3,
+					userName: 'Third',
+					userCityId: null,
+				}]));
 
-			const joinSelectReturn = await db.select({
-				userId: users.id.as('user_id'),
-				cityId: cities.id.as('city_id'),
-				userName: users.name.as('user_name'),
-				cityName: cities.name.as('city_name'),
-			}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+				const joinSelectReturn = await db.select({
+					userId: users.id.as('user_id'),
+					cityId: cities.id.as('city_id'),
+					userName: users.name.as('user_name'),
+					cityName: cities.name.as('city_name'),
+				}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
 
-			expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+				expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+					userId: 1,
+					userName: 'First',
+					cityId: 1,
+					cityName: 'Firstistan',
+				}, {
+					userId: 2,
+					userName: 'Second',
+					cityId: 2,
+					cityName: 'Secondaria',
+				}, {
+					userId: 3,
+					userName: 'Third',
+					cityId: null,
+					cityName: null,
+				}]));
 
-			const viewSelectReturn = await db.select().from(ucView);
+				const viewSelectReturn = await db.select().from(ucView);
 
-			expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+				expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
+					userId: 1,
+					userName: 'First',
+					cityId: 1,
+					cityName: 'Firstistan',
+				}, {
+					userId: 2,
+					userName: 'Second',
+					cityId: 2,
+					cityName: 'Secondaria',
+				}, {
+					userId: 3,
+					userName: 'Third',
+					cityId: null,
+					cityName: null,
+				}]));
 
-			const viewJoinReturn = await db.select({
-				userId: ucView.userId.as('user_id_ucv'),
-				cityId: cities.id.as('city_id'),
-				userName: ucView.userName.as('user_name_ucv'),
-				cityName: cities.name.as('city_name'),
-			}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
+				const viewJoinReturn = await db.select({
+					userId: ucView.userId.as('user_id_ucv'),
+					cityId: cities.id.as('city_id'),
+					userName: ucView.userName.as('user_name_ucv'),
+					cityName: cities.name.as('city_name'),
+				}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
 
-			expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+				expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
+					userId: 1,
+					userName: 'First',
+					cityId: 1,
+					cityName: 'Firstistan',
+				}, {
+					userId: 2,
+					userName: 'Second',
+					cityId: 2,
+					cityName: 'Secondaria',
+				}, {
+					userId: 3,
+					userName: 'Third',
+					cityId: null,
+					cityName: null,
+				}]));
+			} finally {
+				await db.run(sql`DROP TABLE IF EXISTS ${users};`).catch(() => null);
+				await db.run(sql`DROP TABLE IF EXISTS ${cities};`).catch(() => null);
+				await db.run(sql`DROP VIEW IF EXISTS ${ucView};`).catch(() => null);
+			}
 		});
 
 		test('all types', async (ctx) => {
