@@ -656,7 +656,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const users = mysqlTable('users_column_as', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
-			cityId: int('city_id').references(() => cities.id),
+			cityId: bigint('city_id', { mode: 'number' }).references(() => cities.id),
 		});
 
 		const cities = mysqlTable('cities_column_as', {
