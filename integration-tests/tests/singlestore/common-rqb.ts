@@ -6,16 +6,28 @@ import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
 
 export function tests(test: Test) {
+	const connDict: Record<string, any> = {};
+
 	describe('common', () => {
-		test.beforeEach(async ({ db, push }) => {
-			await Promise.all([
-				db.execute(sql`drop table if exists ${rqbUser};`),
-				db.execute(sql`drop table if exists ${rqbPost};`),
-			]);
+		test.beforeEach(async ({ db, client, push }) => {
+			const connKey = `${client.config.user}:${client.config.password}@${client.config.host}:${client.config.port}`;
+			if (connDict[connKey] === undefined) {
+				connDict[connKey] = false;
+
+				await Promise.all([
+					db.execute(sql`drop table if exists ${rqbUser};`),
+					db.execute(sql`drop table if exists ${rqbPost};`),
+				]);
+
+				await Promise.all([
+					push({ rqbUser }),
+					push({ rqbPost }),
+				]);
+			}
 
 			await Promise.all([
-				push({ rqbUser }),
-				push({ rqbPost }),
+				db.execute(sql`truncate table ${rqbUser};`),
+				db.execute(sql`truncate table ${rqbPost};`),
 			]);
 		});
 

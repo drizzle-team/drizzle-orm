@@ -30,7 +30,7 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import { describe, expect } from 'vitest';
-import { toLocalDate } from '~/utils';
+import { toLocalDate } from '../utils';
 import type { Test } from './instrumentation';
 
 const usersTable = singlestoreTable('userstest', {
@@ -91,30 +91,43 @@ const usersMigratorTable = singlestoreTable('users12', {
 ]);
 
 export function tests(test: Test) {
+	const connDict: Record<string, any> = {};
+
 	describe('common', () => {
-		test.beforeEach(async ({ db }) => {
-			await Promise.all([
-				db.execute(sql`drop table if exists userstest;`),
-				db.execute(sql`drop table if exists users2;`),
-				db.execute(sql`drop table if exists cities;`),
-			]);
-			await Promise.all([
-				db.execute(sql`create table userstest (
+		test.beforeEach(async ({ db, client }) => {
+			const connKey = `${client.config.user}:${client.config.password}@${client.config.host}:${client.config.port}`;
+			if (connDict[connKey] === undefined) {
+				connDict[connKey] = false;
+
+				await Promise.all([
+					db.execute(sql`drop table if exists userstest;`),
+					db.execute(sql`drop table if exists users2;`),
+					db.execute(sql`drop table if exists cities;`),
+				]);
+				await Promise.all([
+					db.execute(sql`create table userstest (
                         id serial primary key,
                         name text not null,
                         verified boolean not null default false,
                         jsonb json,
                         created_at timestamp not null default now()
                     );`),
-				db.execute(sql`create table users2 (
+					db.execute(sql`create table users2 (
                         id serial primary key,
                         name text not null,
                         city_id int
-                );`),
-				db.execute(sql`create table cities (
-                    id serial primary key,
-                    name text not null
-                );`),
+                	);`),
+					db.execute(sql`create table cities (
+                	    id serial primary key,
+                	    name text not null
+                	);`),
+				]);
+			}
+
+			await Promise.all([
+				db.execute(sql`truncate table userstest;`),
+				db.execute(sql`truncate table users2;`),
+				db.execute(sql`truncate table cities;`),
 			]);
 		});
 

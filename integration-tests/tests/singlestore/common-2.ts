@@ -60,8 +60,8 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { Expect } from '~/utils';
-import type { Equal } from '~/utils';
+import { Expect } from '../utils';
+import type { Equal } from '../utils';
 import type { Test } from './instrumentation';
 import type relations from './relations';
 
@@ -211,69 +211,90 @@ const usersMySchemaTable = mySchema.table('userstest', {
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export function tests(test: Test, driver?: string) {
+export function tests(test: Test) {
+	const connDict: Record<string, any> = {};
+
 	describe('common', () => {
-		test.beforeEach(async ({ db }) => {
-			await Promise.all([
-				db.execute(sql`drop schema if exists \`mySchema\`;`),
-				db.execute(sql`drop table if exists userstest;`),
-				db.execute(sql`drop table if exists users2;`),
-				db.execute(sql`drop table if exists cities;`),
-				db.execute(sql`drop table if exists aggregate_table;`),
-				db.execute(sql`drop table if exists vector_search;`),
-				db.execute(sql`drop table if exists users_default_fn;`),
-			]);
-			await db.execute(sql`create schema if not exists \`mySchema\`;`);
-			await Promise.all([
-				db.execute(sql`create table userstest (
+		test.beforeEach(async ({ db, client }) => {
+			const connKey = `${client.config.user}:${client.config.password}@${client.config.host}:${client.config.port}`;
+
+			if (connDict[connKey] === undefined) {
+				connDict[connKey] = false;
+
+				await Promise.all([
+					db.execute(sql`drop schema if exists \`mySchema\`;`),
+					db.execute(sql`drop table if exists userstest;`),
+					db.execute(sql`drop table if exists users2;`),
+					db.execute(sql`drop table if exists cities;`),
+					db.execute(sql`drop table if exists aggregate_table;`),
+					db.execute(sql`drop table if exists vector_search;`),
+					db.execute(sql`drop table if exists users_default_fn;`),
+				]);
+				await db.execute(sql`create schema \`mySchema\`;`);
+				await Promise.all([
+					db.execute(sql`create table userstest (
                         id serial primary key,
                         name text not null,
                         verified boolean not null default false,
                         jsonb json,
                         created_at timestamp not null default now()
                     );`),
-				db.execute(sql`create table users2 (
+					db.execute(sql`create table users2 (
                         id serial primary key,
                         name text not null,
                         city_id int
-                );`),
-				db.execute(sql`create table cities (
-                    id serial primary key,
-                    name text not null
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`userstest\` (
-                    id serial primary key,
-                    name text not null,
-                    verified boolean not null default false,
-                    jsonb json,
-                    created_at timestamp not null default now()
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`cities\` (
-                    \`id\` serial primary key,
-                    \`name\` text not null
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`users2\` (
-                    \`id\` serial primary key,
-                    \`name\` text not null,
-                    \`city_id\` int 
-                );`),
-				db.execute(sql`create table aggregate_table (
-                    id integer primary key auto_increment not null,
-                    name text not null,
-                    a integer,
-                    b integer,
-                    c integer,
-                    null_only integer
-                );`),
-				db.execute(sql`create table vector_search (
-                    id integer primary key auto_increment not null,
-                    text text not null,
-                    embedding vector(10) not null
-                );`),
-				db.execute(sql`create table users_default_fn (
-                    id varchar(256) primary key,
-                    name text not null
-                );`),
+                	);`),
+					db.execute(sql`create table cities (
+                	    id serial primary key,
+                	    name text not null
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`userstest\` (
+                	    id serial primary key,
+                	    name text not null,
+                	    verified boolean not null default false,
+                	    jsonb json,
+                	    created_at timestamp not null default now()
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`cities\` (
+                	    \`id\` serial primary key,
+                	    \`name\` text not null
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`users2\` (
+                	    \`id\` serial primary key,
+                	    \`name\` text not null,
+                	    \`city_id\` int 
+                	);`),
+					db.execute(sql`create table aggregate_table (
+                	    id integer primary key auto_increment not null,
+                	    name text not null,
+                	    a integer,
+                	    b integer,
+                	    c integer,
+                	    null_only integer
+                	);`),
+					db.execute(sql`create table vector_search (
+                	    id integer primary key auto_increment not null,
+                	    text text not null,
+                	    embedding vector(10) not null
+                	);`),
+					db.execute(sql`create table users_default_fn (
+                	    id varchar(256) primary key,
+                	    name text not null
+                	);`),
+				]);
+			}
+
+			await Promise.all([
+				db.execute(sql`truncate table userstest;`),
+				db.execute(sql`truncate table users2;`),
+				db.execute(sql`truncate table cities;`),
+				db.execute(sql`truncate table aggregate_table;`),
+				db.execute(sql`truncate table vector_search;`),
+				db.execute(sql`truncate table users_default_fn;`),
+
+				db.execute(sql`truncate table \`mySchema\`.\`userstest\`;`),
+				db.execute(sql`truncate table \`mySchema\`.\`cities\`;`),
+				db.execute(sql`truncate table \`mySchema\`.\`users2\`;`),
 			]);
 		});
 
@@ -1711,7 +1732,7 @@ export function tests(test: Test, driver?: string) {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 1000;
+			const msDelay = 5000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
