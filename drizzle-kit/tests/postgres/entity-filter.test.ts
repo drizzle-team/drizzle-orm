@@ -332,3 +332,15 @@ test('push schema #10', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 	expect(pst).toStrictEqual([]);
 });
+
+test('huge schema #1', async () => {
+	const schema = await import('./schemas/schema1');
+
+	await push({ db, to: schema });
+
+	const res1 = await push({ db, to: { ...schema, core: pgSchema('core').existing() } });
+	expect(res1.sqlStatements).toStrictEqual([]);
+
+	const res2 = await push({ db, to: schema });
+	expect(res2.sqlStatements).toStrictEqual([]);
+});

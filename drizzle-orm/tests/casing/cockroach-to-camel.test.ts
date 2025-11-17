@@ -1,23 +1,22 @@
-import postgres from 'postgres';
 import { beforeEach, describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
-import { drizzle } from '~/postgres-js';
+import { drizzle } from '~/cockroach';
+import { alias, boolean, cockroachSchema, cockroachTable, int4, text, union } from '~/cockroach-core';
 import { asc, eq, sql } from '~/sql';
 
-const testSchema = pgSchema('test');
-const users = pgTable('users', {
-	id: serial().primaryKey(),
+const testSchema = cockroachSchema('test');
+const users = cockroachTable('users', {
+	id: int4().primaryKey().generatedByDefaultAsIdentity(),
 	first_name: text().notNull(),
 	last_name: text().notNull(),
 	// Test that custom aliases remain
-	age: integer('AGE'),
+	age: int4('AGE'),
 });
 const usersRelations = relations(users, ({ one }) => ({
 	developers: one(developers),
 }));
 const developers = testSchema.table('developers', {
-	user_id: serial().primaryKey().references(() => users.id),
+	user_id: int4().primaryKey().generatedByDefaultAsIdentity().references(() => users.id),
 	uses_drizzle_orm: boolean().notNull(),
 });
 const developersRelations = relations(developers, ({ one }) => ({
@@ -29,7 +28,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: postgres(''), schema, casing: 'camelCase' });
+const db = drizzle.mock({ schema, casing: 'camelCase' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -48,7 +47,7 @@ const cache = {
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
-describe('postgres to camel case', () => {
+describe('cockroach to camel case', () => {
 	beforeEach(() => {
 		db.dialect.casing.clearCache();
 	});

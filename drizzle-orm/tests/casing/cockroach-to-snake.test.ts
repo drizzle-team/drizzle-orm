@@ -1,23 +1,23 @@
-import Database from 'better-sqlite3';
 import { beforeEach, describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { drizzle } from '~/better-sqlite3';
+import { drizzle } from '~/cockroach';
+import { alias, boolean, cockroachSchema, cockroachTable, int4, text, union } from '~/cockroach-core';
 import { asc, eq, sql } from '~/sql';
-import { alias, integer, sqliteTable, text, union } from '~/sqlite-core';
 
-const users = sqliteTable('users', {
-	id: integer().primaryKey({ autoIncrement: true }),
+const testSchema = cockroachSchema('test');
+const users = cockroachTable('users', {
+	id: int4().primaryKey().generatedByDefaultAsIdentity(),
 	firstName: text().notNull(),
 	lastName: text().notNull(),
 	// Test that custom aliases remain
-	age: integer('AGE'),
+	age: int4('AGE'),
 });
 const usersRelations = relations(users, ({ one }) => ({
 	developers: one(developers),
 }));
-const developers = sqliteTable('developers', {
-	userId: integer().primaryKey().references(() => users.id),
-	usesDrizzleORM: integer({ mode: 'boolean' }).notNull(),
+const developers = testSchema.table('developers', {
+	userId: int4().primaryKey().generatedByDefaultAsIdentity().references(() => users.id),
+	usesDrizzleORM: boolean().notNull(),
 });
 const developersRelations = relations(developers, ({ one }) => ({
 	user: one(users, {
@@ -28,7 +28,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new Database(':memory:'), schema, casing: 'snake_case' });
+const db = drizzle.mock({ schema, casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -37,8 +37,8 @@ const usersCache = {
 	'public.users.AGE': 'age',
 };
 const developersCache = {
-	'public.developers.userId': 'user_id',
-	'public.developers.usesDrizzleORM': 'uses_drizzle_orm',
+	'test.developers.userId': 'user_id',
+	'test.developers.usesDrizzleORM': 'uses_drizzle_orm',
 };
 const cache = {
 	...usersCache,
@@ -47,7 +47,7 @@ const cache = {
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
-describe('sqlite to snake case', () => {
+describe('cockroach to snake case', () => {
 	beforeEach(() => {
 		db.dialect.casing.clearCache();
 	});
@@ -61,7 +61,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" from "users" left join "developers" on "users"."id" = "developers"."user_id" order by "users"."first_name" asc',
+				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "test"."developers"."user_id" order by "users"."first_name" asc',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);
@@ -74,7 +74,8 @@ describe('sqlite to snake case', () => {
 			.leftJoin(devs, eq(users.id, devs.userId));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "users"."first_name" from "users" left join "developers" "devs" on "users"."id" = "devs"."user_id"',
+			sql:
+				'select "users"."first_name" from "users" left join "test"."developers" "devs" on "users"."id" = "devs"."user_id"',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);
@@ -111,7 +112,7 @@ describe('sqlite to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "first_name" from "users" union select "first_name" from "users"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -124,7 +125,7 @@ describe('sqlite to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "first_name" from "users" union select "first_name" from "users"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -151,7 +152,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
+				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
 			params: [1, 1, 1],
 			typings: ['none', 'none', 'none'],
 		});
@@ -179,7 +180,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
+				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
 			params: [1, 1],
 			typings: ['none', 'none'],
 		});
@@ -195,7 +196,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("users"."first_name") do nothing returning "first_name", "AGE"',
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do nothing returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -210,7 +211,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("users"."first_name") do update set "AGE" = ? returning "first_name", "AGE"',
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -225,7 +226,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'update "users" set "first_name" = ?, "last_name" = ?, "AGE" = ? where "users"."id" = ? returning "first_name", "AGE"',
+				'update "users" set "first_name" = $1, "last_name" = $2, "AGE" = $3 where "users"."id" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 1],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -235,10 +236,10 @@ describe('sqlite to snake case', () => {
 		const query = db
 			.delete(users)
 			.where(eq(users.id, 1))
-			.returning({ first_name: users.firstName, age: users.age });
+			.returning({ firstName: users.firstName, age: users.age });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'delete from "users" where "users"."id" = ? returning "first_name", "AGE"',
+			sql: 'delete from "users" where "users"."id" = $1 returning "first_name", "AGE"',
 			params: [1],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -265,7 +266,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" as "ageOfUser", "users"."id" as "userId" from "users" left join "developers" on "userId" = "developers"."user_id" order by "users"."first_name" asc',
+				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" as "ageOfUser", "users"."id" as "userId" from "users" left join "test"."developers" on "userId" = "test"."developers"."user_id" order by "users"."first_name" asc',
 			params: [],
 		});
 	});
@@ -279,7 +280,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("userFirstName") do update set "AGE" = ? returning "first_name", "AGE" as "userAge"',
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("userFirstName") do update set "AGE" = $4 returning "first_name", "AGE" as "userAge"',
 			params: ['John', 'Doe', 30, 31],
 		});
 	});
@@ -293,7 +294,7 @@ describe('sqlite to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'update "users" set "first_name" = ?, "last_name" = ?, "AGE" = ? where "users"."id" = ? returning "first_name" as "usersName", "AGE"',
+				'update "users" set "first_name" = $1, "last_name" = $2, "AGE" = $3 where "users"."id" = $4 returning "first_name" as "usersName", "AGE"',
 			params: ['John', 'Doe', 30, 1],
 		});
 	});
@@ -305,7 +306,7 @@ describe('sqlite to snake case', () => {
 			.returning({ firstName: users.firstName, age: users.age.as('usersAge') });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'delete from "users" where "users"."id" = ? returning "first_name", "AGE" as "usersAge"',
+			sql: 'delete from "users" where "users"."id" = $1 returning "first_name", "AGE" as "usersAge"',
 			params: [1],
 		});
 	});

@@ -296,4 +296,30 @@ describe('mysql to snake case', () => {
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
+
+	it('select columns as', ({ expect }) => {
+		const query = db
+			.select({ age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.orderBy(asc(users.id.as('userId')));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
+			params: [],
+		});
+	});
+
+	it('select join columns as', ({ expect }) => {
+		const query = db
+			.select({ name: fullName, age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.leftJoin(developers, eq(users.id.as('userId'), developers.userId))
+			.orderBy(asc(users.firstName));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
+			params: [],
+		});
+	});
 });
