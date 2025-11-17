@@ -237,8 +237,6 @@ export const prepareProxy = async (db: string, port: string = '3306') => {
 };
 
 const providerClosure = async <T>(items: T[]) => {
-	const connCount = items.length;
-
 	return async () => {
 		while (true) {
 			const c = items.shift();
@@ -251,7 +249,6 @@ const providerClosure = async <T>(items: T[]) => {
 				release: () => {
 					items.push(c);
 				},
-				connCount,
 			};
 		}
 	};
@@ -304,9 +301,8 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 			client: any;
 			query: (sql: string, params?: any[]) => Promise<any[]>;
 			batch: (statements: string[]) => Promise<any>;
-			connCount: number;
 		};
-		client: any;
+		client: Connection;
 		db: SingleStoreDatabase<any, any, any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
@@ -338,8 +334,8 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 		],
 		kit: [
 			async ({ provider }, use) => {
-				const { client, batch, query, release, connCount } = await provider();
-				await use({ client: client as any, query, batch, connCount });
+				const { client, batch, query, release } = await provider();
+				await use({ client: client, query, batch });
 				release();
 			},
 			{ scope: 'test' },
