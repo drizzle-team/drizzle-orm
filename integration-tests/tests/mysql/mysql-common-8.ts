@@ -654,13 +654,13 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('column.as', async ({ db, push }) => {
 		const users = mysqlTable('users_column_as', {
-			id: serial('id').primaryKey(),
+			id: int('id').primaryKey(),
 			name: text('name').notNull(),
-			cityId: bigint('city_id', { mode: 'number' }).references(() => cities.id),
+			cityId: int('city_id').references(() => cities.id),
 		});
 
 		const cities = mysqlTable('cities_column_as', {
-			id: serial('id').primaryKey(),
+			id: int('id').primaryKey(),
 			name: text('name').notNull(),
 		});
 
@@ -675,88 +675,94 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		await push({ users, cities, ucView });
 
-		await db.insert(cities).values([{
-			id: 1,
-			name: 'Firstistan',
-		}, {
-			id: 2,
-			name: 'Secondaria',
-		}]);
+		try {
+			await db.insert(cities).values([{
+				id: 1,
+				name: 'Firstistan',
+			}, {
+				id: 2,
+				name: 'Secondaria',
+			}]);
 
-		await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
-			id: 2,
-			name: 'Second',
-			cityId: 2,
-		}, {
-			id: 3,
-			name: 'Third',
-		}]);
+			await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+				id: 2,
+				name: 'Second',
+				cityId: 2,
+			}, {
+				id: 3,
+				name: 'Third',
+			}]);
 
-		const joinSelectReturn = await db.select({
-			userId: users.id.as('user_id'),
-			cityId: cities.id.as('city_id'),
-			userName: users.name.as('user_name'),
-			cityName: cities.name.as('city_name'),
-		}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+			const joinSelectReturn = await db.select({
+				userId: users.id.as('user_id'),
+				cityId: cities.id.as('city_id'),
+				userName: users.name.as('user_name'),
+				cityName: cities.name.as('city_name'),
+			}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
 
-		expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
-			userId: 1,
-			userName: 'First',
-			cityId: 1,
-			cityName: 'Firstistan',
-		}, {
-			userId: 2,
-			userName: 'Second',
-			cityId: 2,
-			cityName: 'Secondaria',
-		}, {
-			userId: 3,
-			userName: 'Third',
-			cityId: null,
-			cityName: null,
-		}]));
+			expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+				userId: 1,
+				userName: 'First',
+				cityId: 1,
+				cityName: 'Firstistan',
+			}, {
+				userId: 2,
+				userName: 'Second',
+				cityId: 2,
+				cityName: 'Secondaria',
+			}, {
+				userId: 3,
+				userName: 'Third',
+				cityId: null,
+				cityName: null,
+			}]));
 
-		const viewSelectReturn = await db.select().from(ucView);
+			const viewSelectReturn = await db.select().from(ucView);
 
-		expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
-			userId: 1,
-			userName: 'First',
-			cityId: 1,
-			cityName: 'Firstistan',
-		}, {
-			userId: 2,
-			userName: 'Second',
-			cityId: 2,
-			cityName: 'Secondaria',
-		}, {
-			userId: 3,
-			userName: 'Third',
-			cityId: null,
-			cityName: null,
-		}]));
+			expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
+				userId: 1,
+				userName: 'First',
+				cityId: 1,
+				cityName: 'Firstistan',
+			}, {
+				userId: 2,
+				userName: 'Second',
+				cityId: 2,
+				cityName: 'Secondaria',
+			}, {
+				userId: 3,
+				userName: 'Third',
+				cityId: null,
+				cityName: null,
+			}]));
 
-		const viewJoinReturn = await db.select({
-			userId: ucView.userId.as('user_id_ucv'),
-			cityId: cities.id.as('city_id'),
-			userName: ucView.userName.as('user_name_ucv'),
-			cityName: cities.name.as('city_name'),
-		}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
+			const viewJoinReturn = await db.select({
+				userId: ucView.userId.as('user_id_ucv'),
+				cityId: cities.id.as('city_id'),
+				userName: ucView.userName.as('user_name_ucv'),
+				cityName: cities.name.as('city_name'),
+			}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
 
-		expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
-			userId: 1,
-			userName: 'First',
-			cityId: 1,
-			cityName: 'Firstistan',
-		}, {
-			userId: 2,
-			userName: 'Second',
-			cityId: 2,
-			cityName: 'Secondaria',
-		}, {
-			userId: 3,
-			userName: 'Third',
-			cityId: null,
-			cityName: null,
-		}]));
+			expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
+				userId: 1,
+				userName: 'First',
+				cityId: 1,
+				cityName: 'Firstistan',
+			}, {
+				userId: 2,
+				userName: 'Second',
+				cityId: 2,
+				cityName: 'Secondaria',
+			}, {
+				userId: 3,
+				userName: 'Third',
+				cityId: null,
+				cityName: null,
+			}]));
+		} finally {
+			await db.execute(sql`DROP TABLE ${users}`).catch(() => null);
+			await db.execute(sql`DROP TABLE ${cities}`).catch(() => null);
+			await db.execute(sql`DROP VIEW ${ucView}`).catch(() => null);
+		}
 	});
 }
