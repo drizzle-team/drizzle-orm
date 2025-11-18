@@ -926,7 +926,7 @@ export const connectToSQLite = async (
 ): Promise<
 	& SQLiteDB
 	& {
-		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3' | '@sqlitecloud/drivers';
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3' | '@sqlitecloud/drivers' | '@tursodatabase/database';
 		migrate: (config: MigrationConfig) => Promise<void>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -1215,6 +1215,54 @@ export const connectToSQLite = async (
 		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
+	if (await checkPackage('@tursodatabase/database')) {
+		const { Database } = await import('@tursodatabase/database');
+		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
+		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+
+		const client = new Database(credentials.url);
+		const drzl = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const db: SQLiteDB = {
+			query: async <T>(sql: string, params?: any[]) => {
+				const stmt = client.prepare(sql).bind(preparePGliteParams(params || []));
+				const res = await stmt.all();
+				return res as T[];
+			},
+			run: async (query: string) => {
+				await client.exec(query);
+			},
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const stmt = client.prepare(params.sql).bind(preparedParams);
+
+			return stmt.raw(params.mode === 'array').all();
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			try {
+				const tx = client.transaction(async () => {
+					for (const query of queries) {
+						const result = await client.prepare(query.sql).all();
+						results.push(result);
+					}
+				});
+				await tx();
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return { ...db, packageName: '@tursodatabase/database', proxy, transactionProxy, migrate: migrateFn };
+	}
+
 	if (await checkPackage('better-sqlite3')) {
 		const { default: Database } = await import('better-sqlite3');
 		const { drizzle } = await import('drizzle-orm/better-sqlite3');
@@ -1285,7 +1333,7 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3', '@libsql/client' or '@sqlitecloud/drivers' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases",
 	);
 	process.exit(1);
 };
