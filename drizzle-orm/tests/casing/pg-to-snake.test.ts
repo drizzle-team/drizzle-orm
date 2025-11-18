@@ -197,7 +197,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do nothing returning "first_name", "AGE"',
+				'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) on conflict ("first_name") do nothing returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -212,7 +212,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
+				'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);

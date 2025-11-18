@@ -193,7 +193,7 @@ describe('sqlite to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "firstName", "lastName", "AGE") values (null, ?, ?, ?) on conflict ("users"."firstName") do nothing returning "firstName", "AGE"',
+				'insert into "users" ("firstName", "lastName", "AGE") values (?, ?, ?) on conflict ("users"."firstName") do nothing returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -208,7 +208,7 @@ describe('sqlite to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "firstName", "lastName", "AGE") values (null, ?, ?, ?) on conflict ("users"."firstName") do update set "AGE" = ? returning "firstName", "AGE"',
+				'insert into "users" ("firstName", "lastName", "AGE") values (?, ?, ?) on conflict ("users"."firstName") do update set "AGE" = ? returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);

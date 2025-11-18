@@ -252,7 +252,7 @@ describe('mysql to snake case', () => {
 			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into `users` (`id`, `firstName`, `lastName`, `AGE`) values (default, ?, ?, ?)',
+			sql: 'insert into `users` (`firstName`, `lastName`, `AGE`) values (?, ?, ?)',
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -266,7 +266,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into `users` (`id`, `firstName`, `lastName`, `AGE`) values (default, ?, ?, ?) on duplicate key update `AGE` = ?',
+				'insert into `users` (`firstName`, `lastName`, `AGE`) values (?, ?, ?) on duplicate key update `AGE` = ?',
 			params: ['John', 'Doe', 30, 31],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
