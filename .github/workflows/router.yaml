@@ -30,7 +30,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.target == 'feature'
     uses: ./.github/workflows/release-feature-branch.yaml
-    with:
+    secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
       NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
       NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
@@ -45,7 +45,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.target == 'latest'
     uses: ./.github/workflows/release-latest.yaml
-    with:
+    secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
       NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
       NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
