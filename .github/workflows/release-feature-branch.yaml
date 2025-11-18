@@ -1,6 +1,26 @@
 name: Release (feature branch)
 
-on: workflow_call
+on:
+  workflow_call:
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
+      SQLITE_CLOUD_CONNECTION_STRING:
+        required: true
 
 jobs:
   test:
