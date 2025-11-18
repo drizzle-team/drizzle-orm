@@ -59,6 +59,7 @@
 		"@neondatabase/serverless": "^0.9.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
+		"@sqlitecloud/drivers": "^1.0.653",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/dockerode": "^3.3.28",
 		"@types/glob": "^8.1.0",

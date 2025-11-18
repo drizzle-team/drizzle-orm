@@ -1,4 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -925,7 +926,7 @@ export const connectToSQLite = async (
 ): Promise<
 	& SQLiteDB
 	& {
-		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3' | '@sqlitecloud/drivers';
 		migrate: (config: MigrationConfig) => Promise<void>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -1062,6 +1063,92 @@ export const connectToSQLite = async (
 				return result.rows;
 			};
 			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+		} else if (driver === 'sqlite-cloud') {
+			assertPackages('@sqlitecloud/drivers');
+			const { Database } = await import('@sqlitecloud/drivers');
+			const { drizzle } = await import('drizzle-orm/sqlite-cloud');
+			const { migrate } = await import('drizzle-orm/sqlite-cloud/migrator');
+
+			const client = new Database(credentials.url);
+			const drzl = drizzle(client);
+			const migrateFn = async (config: MigrationConfig) => {
+				return migrate(drzl, config);
+			};
+
+			const db: SQLiteDB = {
+				query: async <T>(sql: string, params?: any[]) => {
+					const stmt = client.prepare(sql).bind(params || []);
+					return await new Promise<T[]>((resolve, reject) => {
+						stmt.all((e: Error | null, d: SQLiteCloudRowset) => {
+							if (e) return reject(e);
+
+							return resolve(d.map((v) => Object.fromEntries(Object.entries(v))));
+						});
+					});
+				},
+				run: async (query: string) => {
+					return await new Promise((resolve, reject) => {
+						client.exec(query, (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				},
+			};
+
+			const proxy = async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params || []);
+				const stmt = client.prepare(params.sql).bind(preparedParams);
+				return await new Promise<any[]>((resolve, reject) => {
+					stmt.all((e: Error | null, d: SQLiteCloudRowset | undefined) => {
+						if (e) return reject(e);
+
+						if (params.mode === 'array') {
+							return resolve((d || []).map((v) => v.getData()));
+						} else {
+							return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+						}
+					});
+				});
+			};
+
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const results: (any[] | Error)[] = [];
+				try {
+					await new Promise<void>((resolve, reject) => {
+						client.exec('BEGIN', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+					for (const query of queries) {
+						const result = await new Promise<any[]>((resolve, reject) => {
+							client.all(query.sql, (e: Error | null, d: SQLiteCloudRowset | undefined) => {
+								if (e) return reject(e);
+								return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+							});
+						});
+						results.push(result);
+					}
+					await new Promise<void>((resolve, reject) => {
+						client.exec('COMMIT', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				} catch (error) {
+					results.push(error as Error);
+					await new Promise<void>((resolve, reject) => {
+						client.exec('ROLLBACK', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				}
+				return results;
+			};
+
+			return { ...db, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1198,7 +1285,7 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', '@libsql/client' or '@sqlitecloud/drivers' for Drizzle Kit to connect to SQLite databases",
 	);
 	process.exit(1);
 };

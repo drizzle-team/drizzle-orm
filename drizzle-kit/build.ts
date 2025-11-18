@@ -18,6 +18,7 @@ const driversPackages = [
 	'@libsql/client',
 	'better-sqlite3',
 	'bun:sqlite',
+	'@sqlitecloud/drivers',
 ];
 
 esbuild.buildSync({

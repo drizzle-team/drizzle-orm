@@ -65,8 +65,9 @@ export type Setup = {
 		| '@planetscale/database'
 		| 'd1-http'
 		| '@libsql/client'
-		| 'better-sqlite3';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
+		| 'better-sqlite3'
+		| '@sqlitecloud/drivers';
+	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -378,6 +379,8 @@ export const drizzleForSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			dbUrl = `d1-http://${credentials.accountId}/${credentials.databaseId}/${credentials.token}`;
+		} else if (driver === 'sqlite-cloud') {
+			dbUrl = credentials.url;
 		} else {
 			assertUnreachable(driver);
 		}
