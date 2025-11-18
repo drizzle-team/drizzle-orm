@@ -81,7 +81,6 @@ export class PgDialect {
 		migrations: MigrationMeta[],
 		session: PgSession,
 		config: string | MigrationConfig,
-		init?: boolean,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
@@ -103,7 +102,7 @@ export class PgDialect {
 			} order by created_at desc limit 1`,
 		);
 
-		if (init) {
+		if (typeof config === 'object' && config.init) {
 			if (dbMigrations.length) {
 				return { exitCode: 'manyMigrationsExist' };
 			}

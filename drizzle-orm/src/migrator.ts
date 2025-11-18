@@ -10,6 +10,7 @@ export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
 	migrationsSchema?: string;
+	init?: boolean;
 }
 
 export interface MigrationMeta {
