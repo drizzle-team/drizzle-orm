@@ -1,6 +1,6 @@
 name: Release (latest)
 
-on: workflow_dispatch
+on: workflow_call
 
 jobs:
   test:
