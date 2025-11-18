@@ -57,7 +57,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, type MigratorInitFailResponse, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -77,7 +77,12 @@ export class PgDialect {
 		this.casing = new CasingCache(config?.casing);
 	}
 
-	async migrate(migrations: MigrationMeta[], session: PgSession, config: string | MigrationConfig): Promise<void> {
+	async migrate(
+		migrations: MigrationMeta[],
+		session: PgSession,
+		config: string | MigrationConfig,
+		init?: boolean,
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
@@ -97,6 +102,16 @@ export class PgDialect {
 				sql.identifier(migrationsTable)
 			} order by created_at desc limit 1`,
 		);
+
+		if (init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'manyMigrationsExist' };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'manyMigrationsExist' };
+			}
+		}
 
 		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {

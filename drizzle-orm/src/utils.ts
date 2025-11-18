@@ -336,3 +336,5 @@ export function isConfig(data: any): boolean {
 export type NeonAuthToken = string | (() => string | Promise<string>);
 
 export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
+
+export type MigratorInitFailResponse = { exitCode: 'migrationsTableExists' | 'manyMigrationsExist' };

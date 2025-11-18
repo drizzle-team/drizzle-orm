@@ -6,7 +6,8 @@ import type { PostgresJsDatabase } from './driver.ts';
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: PostgresJsDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
+	init?: boolean,
 ) {
 	const migrations = readMigrationFiles(config);
-	await db.dialect.migrate(migrations, db.session, config);
+	return await db.dialect.migrate(migrations, db.session, config, init);
 }
