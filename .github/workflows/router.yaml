@@ -29,9 +29,9 @@ jobs:
   run-feature:
     needs: detect
     if: needs.detect.outputs.target == 'feature'
-    uses: ./.github/workflows/release-feature-branch.yml
+    uses: ./.github/workflows/release-feature-branch.yaml
 
   run-latest:
     needs: detect
     if: needs.detect.outputs.target == 'latest'
-    uses: ./.github/workflows/release-latest.yml
+    uses: ./.github/workflows/release-latest.yaml
