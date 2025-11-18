@@ -44,6 +44,18 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		if (migrations.length > 1) {
 			return { exitCode: 'manyMigrationsExist' };
 		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await db.session.execute(
+			sql`insert into ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+		);
+
+		return;
 	}
 
 	const lastDbMigration = dbMigrations[0];
