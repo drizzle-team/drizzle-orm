@@ -451,8 +451,31 @@ export class SingleStoreDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, SingleStoreColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
+
+		// Build set of columns to include: provided columns + columns with defaults
+		const columnsToInclude = new Set<string>();
+
+		// Add all provided columns from all value entries
+		for (const entry of values) {
+			for (const key of Object.keys(entry)) {
+				columnsToInclude.add(key);
+			}
+		}
+
+		// Add columns with defaults (defaultFn or onUpdateFn)
+		for (const [fieldName, col] of Object.entries(columns)) {
+			if (col.shouldDisableInsert()) continue;
+
+			const hasDefaultFn = col.defaultFn !== undefined;
+			const hasOnUpdateFn = col.onUpdateFn !== undefined;
+
+			if (hasDefaultFn || hasOnUpdateFn) {
+				columnsToInclude.add(fieldName);
+			}
+		}
+
+		const colEntries: [string, SingleStoreColumn][] = Object.entries(columns).filter(([fieldName, col]) =>
+			!col.shouldDisableInsert() && columnsToInclude.has(fieldName)
 		);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));

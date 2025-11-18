@@ -195,7 +195,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do nothing returning "firstName", "AGE"',
+				'insert into "users" ("firstName", "lastName", "AGE") values ($1, $2, $3) on conflict ("firstName") do nothing returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -210,7 +210,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do update set "AGE" = $4 returning "firstName", "AGE"',
+				'insert into "users" ("firstName", "lastName", "AGE") values ($1, $2, $3) on conflict ("firstName") do update set "AGE" = $4 returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
