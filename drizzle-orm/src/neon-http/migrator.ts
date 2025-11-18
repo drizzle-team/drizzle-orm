@@ -16,7 +16,6 @@ import type { NeonHttpDatabase } from './driver.ts';
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: NeonHttpDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
-	init?: boolean,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -37,7 +36,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		} order by created_at desc limit 1`,
 	);
 
-	if (init) {
+	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {
 			return { exitCode: 'manyMigrationsExist' };
 		}
