@@ -82,4 +82,6 @@ export async function migrate<
 	}
 
 	await callback(queriesToRun);
+
+	return;
 }
