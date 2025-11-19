@@ -235,6 +235,12 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -269,6 +275,14 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
+
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
 
       - name: Check preconditions
         id: checks
