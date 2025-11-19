@@ -1,20 +1,16 @@
 import { is } from 'orm044';
+import type { PgEnum, PgEnumObject, PgMaterializedView, PgSequence, PgView } from 'orm044/pg-core';
 import {
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
-	PgEnum,
-	PgEnumObject,
-	PgMaterializedView,
 	PgPolicy,
 	PgRole,
 	PgSchema,
-	PgSequence,
 	PgTable,
-	PgView,
 } from 'orm044/pg-core';
-import { CasingType } from '../common';
+import type { CasingType } from '../common';
 import type { PgSchema as SCHEMA } from './pgSchema';
 import { generatePgSnapshot } from './pgSerializer';
 

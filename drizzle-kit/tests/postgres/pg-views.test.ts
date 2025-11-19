@@ -1131,9 +1131,8 @@ test('add with options to materialized view with existing flag #2', async () => 
 		to: schema2,
 	});
 
-	const st0: string[] = ['DROP MATERIALIZED VIEW "view";'];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual(['DROP MATERIALIZED VIEW "view";']);
+	expect(pst).toStrictEqual([]);
 });
 
 test('drop with option from view #1', async () => {
@@ -1833,7 +1832,7 @@ test('alter using - materialize', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,

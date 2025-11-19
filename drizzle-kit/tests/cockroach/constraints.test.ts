@@ -1100,7 +1100,7 @@ test.concurrent('pk multistep #2', async ({ dbc: db }) => {
 	]);
 });
 
-test.concurrent('pk multistep #3', async ({ db: db }) => {
+test.concurrent('pk multistep #3', async ({ db }) => {
 	const sch1 = {
 		users: cockroachTable('users', {
 			name: text().primaryKey(),
@@ -1109,7 +1109,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: sch1, log: 'statements' });
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
 	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY,\n\t"id" int4\n);\n']);
@@ -1126,7 +1126,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 		'public.users2.name->public.users2.name2',
 	];
 	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
-	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
 
 	const e2 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
@@ -1136,7 +1136,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	expect(pst2).toStrictEqual(e2);
 
 	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
-	const { sqlStatements: pst3 } = await push({ db, to: sch2, log: 'statements' });
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
@@ -1149,7 +1149,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, []);
-	const { sqlStatements: pst4 } = await push({ db, to: sch3, log: 'statements' });
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
 	const e4 = [
 		'ALTER TABLE "users2" DROP CONSTRAINT "users_pkey", ADD CONSTRAINT "users2_pk" PRIMARY KEY("name2");',
@@ -1165,7 +1165,7 @@ test.concurrent('pk multistep #3', async ({ db: db }) => {
 	};
 
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
-	const { sqlStatements: pst5 } = await push({ db, to: sch4, log: 'statements' });
+	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
 
 	const st05 = [
 		'ALTER TABLE "users2" ALTER COLUMN "id" SET NOT NULL;',
@@ -1622,6 +1622,45 @@ test.concurrent('fk multistep #2', async ({ dbc: db }) => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4456#issuecomment-3076042688
+test('fk multistep #4', async ({ dbc: db }) => {
+	const foo = cockroachTable('foo', {
+		id: int4().primaryKey(),
+	});
+
+	const bar = cockroachTable('bar', {
+		id: int4().primaryKey(),
+		fooId: int4().references(() => foo.id),
+	});
+
+	const schema1 = { foo, bar };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "foo" (\n\t"id" int4 PRIMARY KEY\n);\n',
+		'CREATE TABLE "bar" (\n\t"id" int4 PRIMARY KEY,\n\t"fooId" int4\n);\n',
+		'ALTER TABLE "bar" ADD CONSTRAINT "bar_fooId_foo_id_fkey" FOREIGN KEY ("fooId") REFERENCES "foo"("id");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		bar: cockroachTable('bar', {
+			id: int4().primaryKey(),
+			fooId: int4(),
+		}),
+	};
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE "bar" DROP CONSTRAINT "bar_fooId_foo_id_fkey";',
+		'DROP TABLE "foo";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test.concurrent('unique duplicate name', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
@@ -1820,4 +1859,46 @@ test.concurrent('alter pk test #3', async ({ dbc: db }) => {
 	];
 	expect(sqlStatements).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4456
+test('drop column with pk and add pk to another column #1', async ({ dbc: db }) => {
+	const schema1 = {
+		authors: cockroachTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "authors" (\n\t"publication_id" varchar(64),\n\t"author_id" varchar(10),'
+		+ '\n\tCONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id")\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		authors: cockroachTable('authors', {
+			publicationId: varchar('publication_id', { length: 64 }),
+			authorID: varchar('author_id', { length: 10 }),
+			orcidId: varchar('orcid_id', { length: 64 }),
+		}, (table) => [
+			primaryKey({ columns: [table.publicationId, table.authorID, table.orcidId] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE "authors" ADD COLUMN "orcid_id" varchar(64) NOT NULL;',
+		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey", ADD CONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id","orcid_id");',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

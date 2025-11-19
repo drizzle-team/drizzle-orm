@@ -2,7 +2,9 @@ import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
-import { AnyColumn, AnyTable, is } from 'drizzle-orm';
+import type { AnyColumn, AnyTable } from 'drizzle-orm';
+import { is } from 'drizzle-orm';
+import type { TablesRelationalConfig } from 'drizzle-orm/_relations';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -10,27 +12,28 @@ import {
 	normalizeRelation,
 	One,
 	Relations,
-	TablesRelationalConfig,
 } from 'drizzle-orm/_relations';
-import { AnyMsSqlTable, getTableConfig as mssqlTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
-import {
-	AnySingleStoreTable,
-	getTableConfig as singlestoreTableConfig,
-	SingleStoreTable,
-} from 'drizzle-orm/singlestore-core';
-import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { AnyMsSqlTable } from 'drizzle-orm/mssql-core';
+import { getTableConfig as mssqlTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
+import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import { getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { getTableConfig as singlestoreTableConfig, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
-import { CasingType } from 'src/cli/validations/common';
-import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import type { CasingType } from 'src/cli/validations/common';
+import type { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { z } from 'zod';
 import { getColumnCasing } from '../../dialects/drizzle';
-import { assertUnreachable, Proxy, TransactionProxy } from '../../utils';
+import type { Proxy, TransactionProxy } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
 import { prepareFilenames } from '../../utils/utils-node';
 import { JSONB } from '../../utils/when-json-met-bigint';
@@ -611,7 +614,7 @@ export const extractRelations = (
 						refSchema: refSchema || 'public',
 						refColumns: refColumns,
 					};
-				} catch (error) {
+				} catch {
 					throw new Error(
 						`Invalid relation "${relation.fieldName}" for table "${
 							it.schema ? `${it.schema}.${it.dbName}` : it.dbName
@@ -686,7 +689,7 @@ const schema = z.union([
 const jsonStringify = (data: any) => {
 	return JSONB.stringify(data, (_key, value) => {
 		// Convert Error to object
-		if (value instanceof Error) {
+		if (value instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
 			return {
 				error: value.message,
 			};
@@ -699,8 +702,8 @@ const jsonStringify = (data: any) => {
 				&& 'type' in value
 				&& 'data' in value
 				&& value.type === 'Buffer')
-			|| value instanceof ArrayBuffer
-			|| value instanceof Buffer
+			|| value instanceof ArrayBuffer // oxlint-disable-line drizzle-internal/no-instanceof
+			|| value instanceof Buffer // oxlint-disable-line drizzle-internal/no-instanceof
 		) {
 			return Buffer.from(value).toString('base64');
 		}

@@ -5,7 +5,7 @@ import { tests as tests4 } from './common-cache';
 import { tests as tests1 } from './common-pt1';
 import { tests as tests2 } from './common-pt2';
 import { tests as tests3 } from './common-rqb';
-import { type Test } from './instrumentation';
+import type { Test } from './instrumentation';
 
 export function tests(test: Test, exclude: string[]) {
 	test.beforeEach(async ({ task, skip }) => {

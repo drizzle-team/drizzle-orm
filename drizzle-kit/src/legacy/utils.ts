@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { SQL } from 'orm044';
+import type { SQL } from 'orm044';
 import { CasingCache, toCamelCase, toSnakeCase } from 'orm044/casing';
 import { join } from 'path';
 import { parse } from 'url';
-import { CasingType } from './common';
+import type { CasingType } from './common';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
 
@@ -135,7 +135,7 @@ export const normaliseSQLiteUrl = (
 				return `file:${it}`;
 			}
 			return it;
-		} catch (e) {
+		} catch {
 			return `file:${it}`;
 		}
 	}

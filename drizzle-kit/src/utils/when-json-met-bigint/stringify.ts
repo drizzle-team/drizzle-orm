@@ -5,8 +5,8 @@ const isNonNullObjectWithToJSOnImplemented = <T>(
 ): o is T & { toJSON: (key?: string) => unknown } => isNonNullObject(o) && typeof (o as any).toJSON === `function`;
 
 // Number -> number & String -> string
-const toPrimitive = <T>(o: Number | String | T) =>
-	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o;
+const toPrimitive = <T>(o: number | string | T) =>
+	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o; // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
 
 const quote = (() => {
 	const ESCAPABLE =
@@ -54,8 +54,8 @@ type Stringified<V> = V extends symbol | Function ? undefined
 	: ReturnType<typeof JSON.stringify>;
 type Stringify = <V>(
 	value: V,
-	replacer?: (number | Number | string | String)[] | ReplacerFn | null,
-	space?: Parameters<typeof JSON.stringify>[2] | Number | String,
+	replacer?: (number | number | string | string)[] | ReplacerFn | null,
+	space?: Parameters<typeof JSON.stringify>[2] | number | string,
 	n?: boolean,
 ) => Stringified<V>;
 // Closure for internal state variables.
@@ -185,7 +185,7 @@ export const stringify = ((): Stringify => {
 		// If the space parameter is a string, it will be used as the indent string.
 		const primitive_space = toPrimitive(space);
 		gap = typeof primitive_space === `number` && primitive_space > 0
-			? new Array(primitive_space + 1).join(` `)
+			? Array.from({ length: primitive_space + 1 }).join(` `)
 			: typeof primitive_space !== `string`
 			? ``
 			: primitive_space.length > 10

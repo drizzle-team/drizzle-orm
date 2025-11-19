@@ -1,11 +1,14 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
-import { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
-import { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
-import { SchemaError as PostgresSchemaError, SchemaWarning as PostgresSchemaWarning } from 'src/dialects/postgres/ddl';
+import type { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
+import type { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
+import type {
+	SchemaError as PostgresSchemaError,
+	SchemaWarning as PostgresSchemaWarning,
+} from 'src/dialects/postgres/ddl';
 import { vectorOps } from '../dialects/postgres/grammar';
-import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
-import { Named, NamedWithSchema } from '../dialects/utils';
+import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
+import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
 import { withStyle } from './validations/outputs';
 
@@ -119,7 +122,7 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
 
 		return withStyle.errorWarning(
-			`We\'ve found duplicated policy name across ${tableName} table. Please rename one of the policies with ${
+			`We've found duplicated policy name across ${tableName} table. Please rename one of the policies with ${
 				chalk.underline.blue(
 					policy,
 				)
@@ -164,7 +167,7 @@ export const mysqlSchemaError = (error: MysqlSchemaError): string => {
 	if (error.type === 'column_unsupported_unique') {
 		const { table, columns } = error;
 		const tableName = chalk.underline.blue(`\`${table}\``);
-		const columnsName = chalk.underline.blue(`\`${columns.join('\`, \`')}\``);
+		const columnsName = chalk.underline.blue(`\`${columns.join('`, `')}\``);
 
 		const warningText = `You tried to add${columns.length > 1 ? ` COMPOSITE` : ''} UNIQUE on ${columnsName} ${
 			columns.length > 1 ? 'columns' : 'column'
@@ -174,7 +177,7 @@ To enforce uniqueness, create a UNIQUE INDEX instead, specifying a prefix length
 Ex. 
 const users = mysqlTable('users', {
 	username: text()
-}, (t) => [${chalk.underline.green('uniqueIndex("name").on(sql\`username(10)\`)')}]`;
+}, (t) => [${chalk.underline.green('uniqueIndex("name").on(sql`username(10)`)')}]`;
 
 		return withStyle.errorWarning(warningText);
 	}
@@ -196,7 +199,7 @@ const users = mysqlTable('users', {
 
 export const mssqlSchemaError = (error: MssqlSchemaError): string => {
 	if (error.type === 'constraint_duplicate') {
-		const { name, schema, table } = error;
+		const { name, schema } = error;
 		const constraintName = chalk.underline.blue(`'${name}'`);
 		const schemaName = chalk.underline.blue(`'${schema}'`);
 
@@ -333,7 +336,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray('create column')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.data.items.length - 1 ? '\n' : '';
+			text += idx !== this.data.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -363,7 +366,6 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
 		this.state.bind(this);
-		this.base = base;
 	}
 
 	render(status: 'idle' | 'submitted' | 'aborted'): string {
@@ -410,7 +412,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -458,7 +460,6 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
 		this.state.bind(this);
-		this.base = base;
 	}
 
 	render(status: 'idle' | 'submitted' | 'aborted'): string {
@@ -505,7 +506,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -525,7 +526,6 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
 		this.state.bind(this);
-		this.base = base;
 	}
 
 	render(status: 'idle' | 'submitted' | 'aborted'): string {
@@ -568,7 +568,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray('create schema')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -598,16 +598,16 @@ class Spinner {
 	};
 }
 
-const frames = function(values: string[]): () => string {
-	let index = 0;
-	const iterator = () => {
-		const frame = values[index];
-		index += 1;
-		index %= values.length;
-		return frame!;
-	};
-	return iterator;
-};
+// const frames = function(values: string[]): () => string {
+// 	let index = 0;
+// 	const iterator = () => {
+// 		const frame = values[index];
+// 		index += 1;
+// 		index %= values.length;
+// 		return frame!;
+// 	};
+// 	return iterator;
+// };
 
 type ValueOf<T> = T[keyof T];
 export type IntrospectStatus = 'fetching' | 'done';
@@ -827,7 +827,7 @@ export class DropMigrationView<T extends { tag: string }> extends Prompt<T> {
 			title = isSelected ? chalk.yellow(title) : title;
 
 			text += isSelected ? `${selectedPrefix}${title}` : `  ${title}`;
-			text += idx != this.data.items.length - 1 ? '\n' : '';
+			text += idx !== this.data.items.length - 1 ? '\n' : '';
 		});
 
 		text += data.endTrimmed ? '  ...\n' : '';

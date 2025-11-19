@@ -331,7 +331,7 @@ export const interimToDDL = (
 	}
 
 	for (const column of schema.columns) {
-		const { pk, pkName, unique, uniqueName, ...rest } = column;
+		const { pk: _1, pkName: _2, unique: _3, uniqueName: _4, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
@@ -344,7 +344,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.indexes) {
-		const { forPK, ...rest } = it;
+		const { forPK: _, ...rest } = it;
 		const isConflictNamePerSchema = ddl.indexes.one({ schema: it.schema, name: it.name });
 
 		if (isConflictNamePerSchema) {

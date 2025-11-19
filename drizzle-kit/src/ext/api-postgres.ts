@@ -2,20 +2,20 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
 import { upToV8 } from 'src/cli/commands/up-postgres';
+import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
 import type { CasingType } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../cli/views';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -26,20 +26,33 @@ import {
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
-import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
-import type { Config } from '../index';
-import { getTablesFilterByExtensions, originUUID } from '../utils';
+import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { toJsonSnapshot } from '../dialects/postgres/snapshot';
+import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
-export const generateDrizzleJson = (
+export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
 	casing?: CasingType,
-): PostgresSnapshot => {
+): Promise<PostgresSnapshot> => {
 	const prepared = fromExports(imports);
-	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
+	const { extractPostgresExisting } = await import('../dialects/drizzle');
+
+	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
+
+	const filter = prepareEntityFilter('postgresql', {
+		schemas: schemaFilters ?? [],
+		tables: [],
+		entities: undefined,
+		extensions: [],
+	}, existing);
+
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, filter);
 
 	const { ddl, errors: err2 } = interimToDDL(interim);
 	if (warnings.length > 0) {
@@ -56,7 +69,7 @@ export const generateDrizzleJson = (
 		process.exit(1);
 	}
 
-	return toJsonSnapshot(ddl, prevId ?? originUUID, []);
+	return toJsonSnapshot(ddl, prevId ? [prevId] : [originUUID], []);
 };
 
 export const generateMigration = async (
@@ -101,31 +114,38 @@ export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
 	casing?: CasingType,
-	schemaFilters?: string[],
-	tablesFilter?: string[],
-	extensionsFilters?: Config['extensionsFilters'],
+	entitiesConfig?: EntitiesFilterConfig,
 ) => {
+	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
-	const filters = (tablesFilter ?? []).concat(
-		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
-	);
 
 	const db: DB = {
-		query: async (query: string, params?: any[]) => {
+		query: async (query: string, _params?: any[]) => {
 			const res = await drizzleInstance.execute(sql.raw(query));
 			return res.rows;
 		},
 	};
+	const prepared = fromExports(imports);
+
+	const filterConfig = entitiesConfig ?? {
+		tables: [],
+		schemas: [],
+		extensions: [],
+		entities: undefined,
+	} satisfies EntitiesFilterConfig;
+	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
+	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: prev } = await introspect(db, filters, schemaFilters ?? ['public'], undefined, progress);
+	const { schema: prev } = await introspect(db, filter, progress);
 
-	const prepared = fromExports(imports);
-	const { schema: cur, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
+	// TODO: filter?
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema: cur } = fromDrizzleSchema(prepared, casing, filter);
 
-	const { ddl: from, errors: err1 } = interimToDDL(prev);
-	const { ddl: to, errors: err2 } = interimToDDL(cur);
+	const { ddl: from, errors: _err1 } = interimToDDL(prev);
+	const { ddl: to, errors: _err2 } = interimToDDL(cur);
 
 	// TODO: handle errors, for now don't throw
 

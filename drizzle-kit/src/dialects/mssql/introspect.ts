@@ -1,5 +1,6 @@
-import { type IntrospectStage, type IntrospectStatus, warning } from '../../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	DefaultConstraint,
@@ -18,8 +19,7 @@ import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from
 
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (schema: string, table: string) => boolean = () => true,
-	schemaFilter: (schema: string) => boolean = () => true,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -59,7 +59,7 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const filteredSchemas = introspectedSchemas.filter((it) => schemaFilter(it.schema_name));
+	const filteredSchemas = introspectedSchemas.filter((it) => filter({ type: 'schema', name: it.schema_name }));
 
 	schemas.push(
 		...filteredSchemas.filter((it) => it.schema_name !== 'dbo').map<Schema>((it) => ({
@@ -124,7 +124,7 @@ ORDER BY lower(views.name);
 	const filteredTables = tablesList.filter((it) => {
 		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
 
-		if (!tablesFilter(schema.schema_name, it.name)) return false;
+		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
 		return true;
 	}).map((it) => {
 		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
@@ -441,7 +441,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 			const key = `${row.table_id}_${row.index_id}`;
 			if (!acc[key]) {
-				const { column_id, ...rest } = row;
+				const { column_id: _, ...rest } = row;
 				acc[key] = { ...rest, column_ids: [] };
 			}
 			acc[key].column_ids.push(row.column_id);
@@ -469,7 +469,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		const columns = unique.column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == unique.table_id && column.column_id === it
+				column.table_object_id === unique.table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
@@ -491,7 +491,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = pk.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id == pk.table_id && column.column_id === it)!;
+			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
 			return column.name;
 		});
 
@@ -512,7 +512,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = index.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id == index.table_id && column.column_id === it)!;
+			const column = columnsList.find((column) =>
+				column.table_object_id === index.table_id && column.column_id === it
+			)!;
 			return column.name;
 		});
 
@@ -566,14 +568,14 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == fk.parent_table_id && column.column_id === it
+				column.table_object_id === fk.parent_table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columns.reference_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id == fk.reference_table_id && column.column_id === it
+				column.table_object_id === fk.reference_table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
@@ -640,7 +642,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
 		if (!viewSchema) continue;
 
-		if (!tablesFilter(viewSchema.schema_name, viewName)) continue;
+		if (!filter({ type: 'table', schema: viewSchema.schema_name, name: viewName })) continue;
 		tableCount += 1;
 
 		const encryption = view.definition === null;
@@ -699,13 +701,12 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (schema: string, it: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	return await fromDatabase(db, tableFilter, schemaFilters, progressCallback);
+	return await fromDatabase(db, filter, progressCallback);
 };

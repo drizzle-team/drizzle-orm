@@ -1,9 +1,9 @@
-import { Column, createDDL, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
+import type { Column, Table, View } from 'src/dialects/mysql/ddl';
+import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
-import { prepareFilenames } from 'src/utils/utils-node';
-import { assertV1OutFolder, prepareMigrationFolder } from 'src/utils/utils-node';
+import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -13,23 +13,20 @@ export const handle = async (config: GenerateConfig) => {
 	const schemaPath = config.schema;
 	const casing = config.casing;
 
-	// TODO: remove
-	assertV1OutFolder(outFolder);
-
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mysql');
+	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
 			sqlStatements: [],
-			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
 			prefixMode: config.prefix,
 			renames: [],
+			snapshots,
 		});
 		return;
 	}
@@ -46,12 +43,12 @@ export const handle = async (config: GenerateConfig) => {
 	writeResult({
 		snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		prefixMode: config.prefix,
 		renames,
+		snapshots,
 	});
 };
 

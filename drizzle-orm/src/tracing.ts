@@ -2,7 +2,7 @@ import type { Span, Tracer } from '@opentelemetry/api';
 import { iife } from '~/tracing-utils.ts';
 import { npmVersion } from '~/version.ts';
 
-let otel: typeof import('@opentelemetry/api') | undefined; // oxlint-disable-line no-unassigned-vars
+let otel: typeof import('@opentelemetry/api') | undefined; // oxlint-disable-line
 let rawTracer: Tracer | undefined;
 // try {
 // 	otel = await import('@opentelemetry/api');

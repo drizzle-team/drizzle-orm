@@ -1,7 +1,7 @@
 import { fromDatabase as afd } from 'src/dialects/postgres/aws-introspect';
 import { fromDatabase as dfd } from 'src/dialects/postgres/duckdb-introspect';
 import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	Enum,
@@ -9,7 +9,6 @@ import {
 	InterimColumn,
 	InterimIndex,
 	InterimSchema,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -21,6 +20,7 @@ import {
 	View,
 	ViewColumn,
 } from '../dialects/postgres/ddl';
+import { interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
 import { mockResolver } from '../utils/mocks';
 
@@ -121,7 +121,7 @@ const fromInterims = ({
 		})
 		.flat(1);
 
-	const vws: View[] = views.map(({ columns, ...it }) => {
+	const vws: View[] = views.map(({ columns: _, ...it }) => {
 		return {
 			entityType: 'views',
 			tablespace: it.schema,

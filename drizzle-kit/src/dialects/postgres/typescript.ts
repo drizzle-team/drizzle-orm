@@ -1,19 +1,13 @@
 import { getTableName, is } from 'drizzle-orm';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	Many,
-	One,
-	Relation,
-	Relations,
-} from 'drizzle-orm/_relations';
-import { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { Relation, Relations } from 'drizzle-orm/_relations';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, Many, One } from 'drizzle-orm/_relations';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { Casing } from '../../cli/validations/common';
+import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
 import { escapeForTsLiteral, inspect } from '../utils';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	ForeignKey,
@@ -21,11 +15,11 @@ import {
 	Policy,
 	PostgresDDL,
 	PrimaryKey,
-	tableFromDDL,
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
-import { defaultNameForIdentitySequence, defaults, Enum, typeFor } from './grammar';
+import { tableFromDDL } from './ddl';
+import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -366,7 +360,9 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : tableFn;
+		let func = tableSchema ? `${tableSchema}.table` : tableFn;
+		func += table.isRlsEnabled ? '.withRLS' : '';
+
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
@@ -402,7 +398,7 @@ export const ddlToTypeScript = (
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
+		statement += ');';
 		return statement;
 	});
 
@@ -495,8 +491,8 @@ const column = (
 	const grammarType = typeFor(type, isEnum);
 
 	const { options, default: defaultValue, customType } = dimensions > 0
-		? grammarType.toArrayTs(type, def?.value ?? null)
-		: grammarType.toTs(type, def?.value ?? null);
+		? grammarType.toArrayTs(type, def ?? null)
+		: grammarType.toTs(type, def ?? null);
 
 	const dbName = dbColumnName({ name, casing });
 	const opts = inspect(options);
@@ -832,8 +828,8 @@ const createTableColumns = (
 		const grammarType = typeFor(stripped, isEnum);
 
 		const { options, default: defaultValue, customType } = dimensions > 0
-			? grammarType.toArrayTs(type, def?.value ?? null)
-			: grammarType.toTs(type, def?.value ?? null);
+			? grammarType.toArrayTs(type, def ?? null)
+			: grammarType.toTs(type, def ?? null);
 
 		const dbName = dbColumnName({ name, casing });
 		const opts = inspect(options);
@@ -1007,7 +1003,7 @@ const createTableUniques = (
 
 const createTableChecks = (
 	checkConstraints: CheckConstraint[],
-	casing: Casing,
+	_casing: Casing,
 ) => {
 	let statement = '';
 

@@ -1,17 +1,13 @@
-import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { boolean, intersection, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { casing, casingType, prefix } from './common';
 
-export const pushParams = object({
-	dialect: dialect,
-	casing: casingType.optional(),
-	schema: union([string(), string().array()]),
+export const entitiesParams = {
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
 		.optional(),
 	extensionsFilters: literal('postgis').array().optional(),
-	verbose: boolean().optional(),
-	strict: boolean().optional(),
 	entities: object({
 		roles: boolean().or(object({
 			provider: string().optional(),
@@ -19,6 +15,15 @@ export const pushParams = object({
 			exclude: string().array().optional(),
 		})).optional().default(false),
 	}).optional(),
+};
+
+export const pushParams = object({
+	dialect: dialect,
+	casing: casingType.optional(),
+	schema: union([string(), string().array()]),
+	verbose: boolean().optional(),
+	strict: boolean().optional(),
+	...entitiesParams,
 }).passthrough();
 
 export type PushParams = TypeOf<typeof pushParams>;
@@ -27,25 +32,25 @@ export const pullParams = object({
 	config: string().optional(),
 	dialect: dialect,
 	out: string().optional().default('drizzle'),
-	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()])
-		.optional(),
-	extensionsFilters: literal('postgis').array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
 	migrations: object({
 		prefix: prefix.optional().default('index'),
 	}).optional(),
-	entities: object({
-		roles: boolean().or(object({
-			provider: string().optional(),
-			include: string().array().optional(),
-			exclude: string().array().optional(),
-		})).optional().default(false),
-	}).optional(),
+	...entitiesParams,
 }).passthrough();
 
-export type Entities = TypeOf<typeof pullParams>['entities'];
+export type EntitiesFilter = TypeOf<typeof entitiesParams['entities']>;
+export type TablesFilter = TypeOf<typeof entitiesParams['tablesFilter']>;
+export type SchemasFilter = TypeOf<typeof entitiesParams['schemaFilter']>;
+export type ExtensionsFilter = TypeOf<typeof entitiesParams['extensionsFilters']>;
+
+export type EntitiesFilterConfig = {
+	schemas: SchemasFilter;
+	tables: TablesFilter;
+	entities: EntitiesFilter;
+	extensions: ExtensionsFilter;
+};
 
 export const configCheck = object({
 	dialect: dialect.optional(),

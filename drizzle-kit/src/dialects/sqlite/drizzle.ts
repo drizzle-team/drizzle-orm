@@ -1,20 +1,17 @@
-import { Value } from '@aws-sdk/client-rds-data';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
+import type { AnySQLiteColumn, AnySQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
-	AnySQLiteColumn,
-	AnySQLiteTable,
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
-	SQLiteInteger,
 	SQLiteSyncDialect,
 	SQLiteTable,
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
 import { safeRegister } from 'src/utils/utils-node';
-import { CasingType } from '../../cli/validations/common';
+import type { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -154,7 +151,7 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(it, casing), isExpression: false };
 			});
 
-			let where: string | undefined = undefined;
+			let where: string | undefined;
 			if (index.config.where !== undefined) {
 				if (is(index.config.where, SQL)) {
 					where = dialect.sqlToQuery(index.config.where).sql;
@@ -200,7 +197,7 @@ export const fromDrizzleSchema = (
 	}).flat();
 
 	const views = dViews.map((it) => {
-		const { name: viewName, isExisting, selectedFields, query } = getViewConfig(it);
+		const { name: viewName, isExisting, query } = getViewConfig(it);
 
 		return {
 			entityType: 'views',

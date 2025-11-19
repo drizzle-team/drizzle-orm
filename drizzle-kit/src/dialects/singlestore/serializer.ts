@@ -1,8 +1,7 @@
 import type { CasingType } from '../../cli/validations/common';
-import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MysqlDDL } from '../mysql/ddl';
-import { drySnapshot, MysqlSnapshot, snapshotValidator } from '../mysql/snapshot';
+import { createDDL, interimToDDL, type MysqlDDL } from '../mysql/ddl';
+import { drySnapshot, type SingleStoreSnapshot, snapshotValidator } from '../singlestore/snapshot';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 
 export const prepareSnapshot = async (
@@ -13,13 +12,13 @@ export const prepareSnapshot = async (
 	{
 		ddlPrev: MysqlDDL;
 		ddlCur: MysqlDDL;
-		snapshot: MysqlSnapshot;
-		snapshotPrev: MysqlSnapshot;
-		custom: MysqlSnapshot;
+		snapshot: SingleStoreSnapshot;
+		snapshotPrev: SingleStoreSnapshot;
+		custom: SingleStoreSnapshot;
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -46,7 +45,7 @@ export const prepareSnapshot = async (
 	// 	process.exit(1);
 	// }
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
+	const { ddl: ddlCur, errors: _errors2 } = interimToDDL(interim);
 
 	// TODO: handle errors
 	// if (errors2.length > 0) {
@@ -55,23 +54,23 @@ export const prepareSnapshot = async (
 	// }
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
-		version: '6',
-		dialect: 'mysql',
+		version: '2',
+		dialect: 'singlestore',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
-	} satisfies MysqlSnapshot;
+	} satisfies SingleStoreSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: MysqlSnapshot = {
+	const custom: SingleStoreSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

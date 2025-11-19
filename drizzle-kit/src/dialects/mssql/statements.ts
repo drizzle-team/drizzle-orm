@@ -1,5 +1,5 @@
-import { Simplify } from '../../utils';
-import {
+import type { Simplify } from '../../utils';
+import type {
 	CheckConstraint,
 	Column,
 	DefaultConstraint,
@@ -49,6 +49,7 @@ export interface AddColumn {
 	type: 'add_column';
 	column: Column;
 	defaults: DefaultConstraint[];
+	isPK: boolean;
 }
 
 export interface DropColumn {

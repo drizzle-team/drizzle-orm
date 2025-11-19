@@ -1,44 +1,41 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroach/drizzle';
-import { prepareFilenames } from 'src/utils/utils-node';
-import {
+import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import type {
 	CheckConstraint,
 	CockroachEntities,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PrimaryKey,
 	Schema,
 	Sequence,
 	View,
 } from '../../dialects/cockroach/ddl';
+import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
-import { ExportConfig, GenerateConfig } from './utils';
+import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
-	assertV1OutFolder(outFolder);
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'cockroach');
+	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
 			sqlStatements: [],
-			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
 			prefixMode: config.prefix,
 			renames: [],
+			snapshots,
 		});
 		return;
 	}
@@ -63,19 +60,22 @@ export const handle = async (config: GenerateConfig) => {
 	writeResult({
 		snapshot: snapshot,
 		sqlStatements,
-		journal,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		prefixMode: config.prefix,
 		renames,
+		snapshots,
 	});
 };
 
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const { schema } = fromDrizzleSchema(res, config.casing);
+
+	// TODO: do we wanna respect entity filter while exporting to sql?
+	// cc: @AleksandrSherman
+	const { schema } = fromDrizzleSchema(res, config.casing, () => true);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));

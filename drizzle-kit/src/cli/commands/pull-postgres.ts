@@ -1,16 +1,17 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import {
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -21,6 +22,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
@@ -28,41 +30,33 @@ import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
-import type { Entities } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { error, IntrospectProgress } from '../views';
+import type { IntrospectStage, IntrospectStatus } from '../views';
+import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
 	credentials: PostgresCredentials,
-	tablesFilter: string[],
-	schemasFilters: string[],
+	filtersConfig: EntitiesFilterConfig,
 	prefix: Prefix,
-	entities: Entities,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
 
-	const filter = prepareTablesFilter(tablesFilter);
-	const schemaFilter = (it: string) => schemasFilters.some((x) => x === it);
-
 	const progress = new IntrospectProgress(true);
-	const res = await renderWithTask(
+	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
+
+	const { schema: res } = await renderWithTask(
 		progress,
-		fromDatabaseForDrizzle(
-			db,
-			filter,
-			schemaFilter,
-			entities,
-			(stage, count, status) => {
-				progress.update(stage, count, status);
-			},
-		),
+		introspect(db, entityFilter, progress, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}),
 	);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -82,9 +76,9 @@ export const handle = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
-		const blanks = new Set<string>();
+		// const blanks = new Set<string>();
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
@@ -106,14 +100,14 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
-			journal,
 			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(
@@ -148,16 +142,10 @@ export const handle = async (
 
 export const introspect = async (
 	db: DB,
-	filters: string[],
-	schemaFilters: string[] | ((x: string) => boolean),
-	entities: Entities,
+	filter: EntityFilter,
 	progress: TaskView,
+	callback?: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void,
 ) => {
-	const filter = prepareTablesFilter(filters);
-
-	const schemaFilter = typeof schemaFilters === 'function'
-		? schemaFilters
-		: (it: string) => schemaFilters.some((x) => x === it);
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, schemaFilter, entities));
+	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, callback));
 	return { schema };
 };
