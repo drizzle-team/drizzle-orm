@@ -263,8 +263,9 @@ export abstract class PgTransaction<
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
+		parseRqbJson?: boolean,
 	) {
-		super(dialect, session, relations, schema);
+		super(dialect, session, relations, schema, parseRqbJson);
 	}
 
 	rollback(): never {
