@@ -391,7 +391,7 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 const recreateIndexConvertor = convertor('recreate_index', (st) => {
 	const { diff } = st;
 	const drop = dropIndexConvertor.convert({ index: diff.$right }) as string;
-	const create = createIndexConvertor.convert({ index: diff.$right }) as string;
+	const create = createIndexConvertor.convert({ index: diff.$right, newTable: false }) as string;
 	return [drop, create];
 });
 
