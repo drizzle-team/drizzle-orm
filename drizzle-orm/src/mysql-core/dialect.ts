@@ -82,11 +82,11 @@ export class MySqlDialect {
 
 		if (typeof config === 'object' && config.init) {
 			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' };
+				return { exitCode: 'databaseMigrations' as const };
 			}
 
 			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' };
+				return { exitCode: 'localMigrations' as const };
 			}
 
 			const [migration] = migrations;
