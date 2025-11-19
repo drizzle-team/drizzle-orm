@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
@@ -7,7 +7,7 @@ import type { SQLiteCloudDatabase } from './driver.ts';
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: SQLiteCloudDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 	const { session } = db;
 
@@ -30,8 +30,29 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 	);
 
-	const lastDbMigration = dbMigrations[0] ?? undefined;
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' };
+		}
 
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await session.run(
+			sql`insert into ${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+		);
+
+		return;
+	}
+
+	const lastDbMigration = dbMigrations[0] ?? undefined;
 	await session.run(sql`BEGIN TRANSACTION`);
 	try {
 		const stmts = sql.join(

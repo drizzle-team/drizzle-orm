@@ -1,8 +1,7 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { MigratorInitFailResponse } from '~/utils.ts';
 import type { NeonHttpDatabase } from './driver.ts';
 
 /**
@@ -38,11 +37,11 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 
 	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {
-			return { exitCode: 'manyMigrationsExist' };
+			return { exitCode: 'databaseMigrations' };
 		}
 
 		if (migrations.length > 1) {
-			return { exitCode: 'manyMigrationsExist' };
+			return { exitCode: 'localMigrations' };
 		}
 
 		const [migration] = migrations;

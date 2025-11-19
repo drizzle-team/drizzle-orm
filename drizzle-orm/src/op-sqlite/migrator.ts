@@ -44,7 +44,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return db.dialect.migrate(migrations, db.session);
+	return await db.dialect.migrate(migrations, db.session);
 }
 
 interface State {
