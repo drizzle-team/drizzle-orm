@@ -50,7 +50,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
@@ -194,6 +194,7 @@ export const push = async (config: {
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
+	explain?: true;
 }) => {
 	const { db, to } = config;
 
@@ -233,7 +234,7 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -254,6 +255,12 @@ export const push = async (config: {
 	);
 
 	const { hints, losses } = await suggestions(db, statements);
+
+	if (config.explain) {
+		const text = groupedStatements.map((x) => explain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
+		console.log(text);
+		return { sqlStatements, statements, hints, losses };
+	}
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);

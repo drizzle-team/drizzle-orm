@@ -100,7 +100,7 @@ export const fromDatabase = async (
 		namespacesQuery,
 	]);
 
-	const { system: _, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
+	const { system: _, other: filteredNamespaces } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
 			if (isSystemNamespace(it.name)) {
 				acc.system.push(it);
@@ -112,7 +112,6 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespaces = other.filter((it) => filter({ type: 'schema', name: it.name }));
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
@@ -163,12 +162,15 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const viewsList = tablesList.filter((it) =>
-		(it.kind === 'v' || it.kind === 'm') && filter({ type: 'table', schema: it.schema, name: it.name })
-	);
-
+	const viewsList = tablesList.filter((it) => (it.kind === 'v' || it.kind === 'm'))
+		.map((it) => {
+			return {
+				...it,
+				schema: trimChar(it.schema, '"'),
+			};
+		});
 	const filteredTables = tablesList
-		.filter((it) => it.kind === 'r' && filter({ type: 'table', schema: it.schema, name: it.name }))
+		.filter((it) => it.kind === 'r')
 		.map((it) => {
 			return {
 				...it,
@@ -645,10 +647,7 @@ export const fromDatabase = async (
 
 	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
-	// TODO: drizzle link
-	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.username }));
-
-	for (const dbRole of filteredRoles) {
+	for (const dbRole of rolesList) {
 		const createDb = dbRole.options.includes('CREATEDB');
 		const createRole = dbRole.options.includes('CREATEROLE');
 		roles.push({
@@ -830,7 +829,7 @@ export const fromDatabase = async (
 			nameExplicit: true,
 			columns,
 			tableTo: tableTo.name,
-			schemaTo: schema.name,
+			schemaTo: tableTo.schema,
 			columnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
@@ -1087,20 +1086,36 @@ export const fromDatabase = async (
 	progressCallback('checks', checksCount, 'done');
 	progressCallback('views', viewsCount, 'done');
 
+	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
+	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultEnums = enums.filter((x) => resultSchemas.some((s) => s.name === x.schema));
+	const resultColumns = columns.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultIndexes = indexes.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultPKs = pks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultFKs = fks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultChecks = checks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultSequences = sequences.filter((x) => resultSchemas.some((t) => t.name === x.schema));
+	// TODO: drizzle link
+	const resultRoles = roles.filter((x) => filter({ type: 'role', name: x.name }));
+	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultViewColumns = viewColumns.filter((x) =>
+		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
+	);
+
 	return {
-		schemas,
-		tables,
-		enums,
-		columns,
-		indexes,
-		pks,
-		fks,
-		checks,
-		sequences,
-		roles,
+		schemas: resultSchemas,
+		tables: resultTables,
+		enums: resultEnums,
+		columns: resultColumns,
+		indexes: resultIndexes,
+		pks: resultPKs,
+		fks: resultFKs,
+		checks: resultChecks,
+		sequences: resultSequences,
+		roles: resultRoles,
 		policies,
-		views,
-		viewColumns,
+		views: resultViews,
+		viewColumns: resultViewColumns,
 	} satisfies InterimSchema;
 };
 

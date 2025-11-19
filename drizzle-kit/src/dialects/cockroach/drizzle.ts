@@ -160,10 +160,7 @@ export const defaultFromColumn = (
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
-		return {
-			value: sql,
-			type: 'unknown',
-		};
+		return sql;
 	}
 	const { baseColumn, isEnum } = unwrapColumn(base);
 	const grammarType = typeFor(base.getSQLType(), isEnum);
@@ -171,14 +168,14 @@ export const defaultFromColumn = (
 	if (is(baseColumn, CockroachGeometry) || is(baseColumn, CockroachGeometryObject)) {
 		return (dimensions > 0 && Array.isArray(def))
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: GeometryPoint.defaultArrayFromDrizzle(def, baseColumn.mode, baseColumn.srid)
 			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 
 	if (grammarType) {
 		if (dimensions > 0 && Array.isArray(def)) {
-			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+			if (def.flat(5).length === 0) return "'{}'";
 
 			return grammarType.defaultArrayFromDrizzle(def);
 		}
@@ -302,9 +299,6 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (!filter({ type: 'table', schema, name: tableName })) {
-			continue;
-		}
 
 		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
@@ -596,7 +590,8 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting && !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
+		if (view.isExisting) continue;
+		if (!filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 
