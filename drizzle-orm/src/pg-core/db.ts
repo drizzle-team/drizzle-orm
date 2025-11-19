@@ -73,6 +73,7 @@ export class PgDatabase<
 		readonly session: PgSession<any, any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		parseRqbJson: boolean = false,
 	) {
 		this._ = schema
 			? {
@@ -117,6 +118,7 @@ export class PgDatabase<
 				relation,
 				dialect,
 				session,
+				parseRqbJson,
 			);
 		}
 

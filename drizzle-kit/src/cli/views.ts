@@ -6,7 +6,9 @@ import type {
 	SchemaError as PostgresSchemaError,
 	SchemaWarning as PostgresSchemaWarning,
 } from 'src/dialects/postgres/ddl';
+import type { JsonStatement as StatementCrdb } from '../dialects/cockroach/statements';
 import { vectorOps } from '../dialects/postgres/grammar';
+import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
@@ -59,6 +61,58 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 
 	// assertUnreachable(error.type)
 	return '';
+};
+
+export const explain = (
+	st: StatementPostgres | StatementCrdb,
+	sqls: string[],
+) => {
+	let msg = '';
+	if (st.type === 'alter_column') {
+		const r = st.to;
+		const d = st.diff;
+
+		const key = `${r.schema}.${r.table}.${r.name}`;
+		msg += `┌─── ${key} column changed:\n`;
+		if (d.default) msg += `│ default: ${d.default.from} -> ${d.default.to}\n`;
+		if (d.type) msg += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) msg += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.generated) {
+			const from = d.generated.from ? `${d.generated.from.as} ${d.generated.from.type}` : 'null';
+			const to = d.generated.to ? `${d.generated.to.as} ${d.generated.to.type}` : 'null';
+			msg += `│ generated: ${from} -> ${to}\n`;
+		}
+	}
+
+	if (st.type === 'recreate_index') {
+		const diff = st.diff;
+		const idx = diff.$right;
+		const key = `${idx.schema}.${idx.table}.${idx.name}`;
+		msg += `┌─── ${key} index changed:\n`;
+		if (diff.isUnique) msg += `│ unique: ${diff.isUnique.from} -> ${diff.isUnique.to}\n`;
+		if (diff.where) msg += `│ where: ${diff.where.from} -> ${diff.where.to}\n`;
+		if (diff.method) msg += `│ where: ${diff.method.from} -> ${diff.method.to}\n`;
+	}
+	if (st.type === 'recreate_fk') {
+		const { fk, diff } = st;
+		const key = `${fk.schema}.${fk.table}.${fk.name}`;
+		msg += `┌─── ${key} index changed:\n`;
+		if (diff.onUpdate) msg += `│ where: ${diff.onUpdate.from} -> ${diff.onUpdate.to}\n`;
+		if (diff.onDelete) msg += `│ onDelete: ${diff.onDelete.from} -> ${diff.onDelete.to}\n`;
+
+		console.log(diff);
+	}
+
+	if (msg) {
+		msg += `├───\n`;
+		for (const sql of sqls) {
+			msg += `│ ${sql}\n`;
+		}
+		msg += `└───\n`;
+		return msg;
+	}
+
+	return null;
 };
 
 export const postgresSchemaError = (error: PostgresSchemaError): string => {

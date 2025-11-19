@@ -71,7 +71,9 @@ const recreateViewConvertor = convertor('recreate_view', (st) => {
 const createTableConvertor = convertor('create_table', (st) => {
 	const { schema, name, columns, pk, checks, policies, isRlsEnabled, indexes } = st.table;
 
-	const uniqueIndexes = indexes.filter((it) => it.isUnique);
+	const uniqueIndexes = indexes.filter((it) =>
+		it.isUnique && (!it.method || it.method === defaults.index.method) && !it.where
+	);
 
 	const statements = [] as string[];
 	let statement = '';
@@ -384,6 +386,13 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 
 	const cascade = index.isUnique ? ' CASCADE' : '';
 	return `DROP INDEX "${st.index.name}"${cascade};`;
+});
+
+const recreateIndexConvertor = convertor('recreate_index', (st) => {
+	const { diff } = st;
+	const drop = dropIndexConvertor.convert({ index: diff.$right }) as string;
+	const create = createIndexConvertor.convert({ index: diff.$right, newTable: false }) as string;
+	return [drop, create];
 });
 
 const renameIndexConvertor = convertor('rename_index', (st) => {
@@ -715,6 +724,7 @@ const convertors = [
 	alterColumnConvertor,
 	createIndexConvertor,
 	dropIndexConvertor,
+	recreateIndexConvertor,
 	renameIndexConvertor,
 	addPrimaryKeyConvertor,
 	dropPrimaryKeyConvertor,

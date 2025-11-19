@@ -259,7 +259,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			continue;
 		}
 
-		if (statement.type === 'create_index' && statement.index.isUnique) {
+		if (statement.type === 'create_index' && statement.index.isUnique && !statement.newTable) {
 			const unique = statement.index;
 			const id = identifier({ schema: unique.schema, name: unique.table });
 
