@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -29,7 +30,10 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 ): Promise<
 	DB & {
 		packageName:
@@ -129,7 +133,7 @@ export const preparePostgresDB = async (
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
 
-			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
+			const pglite = 'client' in credentials ? credentials.client : new PGlite(normalisePGliteUrl(credentials.url));
 			await pglite.waitReady;
 			const drzl = drizzle({ client: pglite });
 			const migrateFn = async (config: MigrationConfig) => {

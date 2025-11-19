@@ -1,12 +1,10 @@
-import type { PgDatabase } from 'drizzle-orm/pg-core';
-import { upToV8 } from 'src/cli/commands/up-postgres';
+import type { PGlite } from '@electric-sql/pglite';
+import type { Relations } from 'drizzle-orm/_relations';
+import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
 import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { introspect } from '../cli/commands/pull-postgres';
-import { suggestions } from '../cli/commands/push-postgres';
-import { resolver } from '../cli/prompts';
+import { upToV8 } from 'src/dialects/postgres/versions';
 import type { CasingType } from '../cli/validations/common';
-import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../cli/views';
+import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
 	Column,
@@ -24,9 +22,7 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
-import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
 import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
-import { toJsonSnapshot } from '../dialects/postgres/snapshot';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -36,8 +32,12 @@ export const generateDrizzleJson = async (
 	schemaFilters?: string[],
 	casing?: CasingType,
 ): Promise<PostgresSnapshot> => {
-	const prepared = fromExports(imports);
+	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
+	const { postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
+	const { toJsonSnapshot } = await import('../dialects/postgres/snapshot');
+	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
+	const prepared = fromExports(imports);
 
 	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
 
@@ -73,6 +73,7 @@ export const generateMigration = async (
 	prev: PostgresSnapshot,
 	cur: PostgresSnapshot,
 ) => {
+	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const from = createDDL();
 	const to = createDDL();
@@ -113,6 +114,11 @@ export const pushSchema = async (
 	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
 ) => {
+	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
+	const { resolver } = await import('../cli/prompts');
+	const { fromDatabaseForDrizzle } = await import('src/dialects/postgres/introspect');
+	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
+	const { suggestions } = await import('../cli/commands/push-postgres');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
@@ -134,8 +140,7 @@ export const pushSchema = async (
 	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: prev } = await introspect(db, filter, progress);
+	const prev = await fromDatabaseForDrizzle(db, filter);
 
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
@@ -181,6 +186,60 @@ export const pushSchema = async (
 			}
 		},
 	};
+};
+
+export const startStudioServer = async (
+	imports: Record<string, unknown>,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
+	options?: {
+		host?: string;
+		port?: number;
+		casing?: CasingType;
+		key?: string;
+		cert?: string;
+	},
+) => {
+	const { is } = await import('drizzle-orm');
+	const { PgTable, getTableConfig } = await import('drizzle-orm/pg-core');
+	const { Relations } = await import('drizzle-orm/_relations');
+	const { drizzleForPostgres, prepareServer } = await import('../cli/commands/studio');
+
+	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
+	const relations: Record<string, Relations> = {};
+
+	Object.entries(imports).forEach(([k, t]) => {
+		if (is(t, PgTable)) {
+			const schema = getTableConfig(t).schema || 'public';
+			pgSchema[schema] = pgSchema[schema] || {};
+			pgSchema[schema][k] = t;
+		}
+
+		if (is(t, Relations)) {
+			relations[k] = t;
+		}
+	});
+
+	const setup = await drizzleForPostgres(credentials, pgSchema, relations, [], options?.casing);
+	const server = await prepareServer(setup);
+
+	const host = options?.host || '127.0.0.1';
+	const port = options?.port || 4983;
+	server.start({
+		host,
+		port,
+		key: options?.key,
+		cert: options?.cert,
+		cb: (err) => {
+			if (err) {
+				console.error(err);
+			} else {
+				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+			}
+		},
+	});
 };
 
 export const up = upToV8;
