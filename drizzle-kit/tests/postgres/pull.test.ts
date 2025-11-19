@@ -25,6 +25,7 @@ import {
 	pgPolicy,
 	pgRole,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgView,
 	real,
@@ -40,7 +41,7 @@ import {
 import fs from 'fs';
 import { fromDatabase } from 'src/dialects/postgres/introspect';
 import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
+import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -1134,3 +1135,102 @@ test('introspect partitioned tables', async () => {
 // 		} satisfies typeof tables[number],
 // 	]);
 // });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4170
+test('introspect view with table filter', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const view1 = pgView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const table2 = pgTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const view2 = pgView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const schema1 = { table1, view1, table2, view2 };
+	await push({ db, to: schema1 });
+
+	let tables, views;
+	({ tables, views } = await fromDatabase(
+		db,
+		(it: { name: string }) => it.name === 'table1',
+	));
+	const expectedTables = [
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual([]);
+
+	({ tables, views } = await fromDatabase(
+		db,
+		(it: { name: string }) => it.name === 'table1' || it.name === 'view1',
+	));
+	const expectedViews = [
+		{
+			entityType: 'views',
+			schema: 'public',
+			name: 'view1',
+			definition: 'SELECT column1 FROM table1',
+			with: null,
+			materialized: false,
+			tablespace: null,
+			using: null,
+			withNoData: null,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual(expectedViews);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4144
+test('introspect sequences with table filter', async () => {
+	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
+	// const seq1 = pgSequence('seq1');
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq1.seqName!)}')`).primaryKey(), // TODO: revise: cannot push this column (fails in subsequent push)
+	});
+	const table2 = pgTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const schema1 = { table1, table2 };
+	await push({ db, to: schema1 });
+
+	const { tables, sequences } = await fromDatabase(
+		db,
+		(it: { name: string }) => it.name === 'table1',
+	);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(sequences).toBe([
+		{
+			entityType: 'sequences',
+			schema: 'public',
+			name: 'table1_column1_seq',
+			startWith: '1',
+			minValue: '1',
+			maxValue: '2147483647',
+			incrementBy: '1',
+			cycle: false,
+			cacheSize: 1,
+		},
+	]);
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
+	// 	console.log(
+	// 		await db.query(`SELECT *
+	// FROM pg_sequences
+	// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
+	// 	);
+});

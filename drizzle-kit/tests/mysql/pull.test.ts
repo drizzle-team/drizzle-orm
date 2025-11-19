@@ -35,9 +35,10 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
+import { fromDatabase } from 'src/dialects/mysql/introspect';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from './mocks';
+import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -558,4 +559,46 @@ test('introspect bit(1); custom type', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4170
+test('introspect view with table filter', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const view1 = mysqlView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const table2 = mysqlTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const view2 = mysqlView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const schema1 = { table1, view1, table2, view2 };
+	await push({ db, to: schema1 });
+
+	let tables, views;
+	({ tables, views } = await fromDatabase(
+		db,
+		'drizzle',
+		(it: { name: string }) => it.name === 'table1',
+	));
+	const expectedTables = [{ entityType: 'tables', name: 'table1' }];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual([]);
+
+	({ tables, views } = await fromDatabase(
+		db,
+		'drizzle',
+		(it: { name: string }) => it.name === 'table1' || it.name === 'view1',
+	));
+	const expectedViews = [
+		{
+			entityType: 'views',
+			name: 'view1',
+			definition: 'select `drizzle`.`table1`.`column1` AS `column1` from `drizzle`.`table1`',
+			algorithm: 'undefined',
+			sqlSecurity: 'definer',
+			withCheckOption: null,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual(expectedViews);
 });

@@ -1,4 +1,13 @@
-import { AnySQLiteColumn, foreignKey, int, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import {
+	AnySQLiteColumn,
+	foreignKey,
+	index,
+	int,
+	primaryKey,
+	sqliteTable,
+	text,
+	unique,
+} from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -50,6 +59,29 @@ test('unique #1. add unique. inline param without name', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4152
+test('unique #2. create table with unique. inline param without name', async () => {
+	const to = {
+		users: sqliteTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE \`users\` (\n\t\`name\` text UNIQUE\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	await db.run(`insert into users values ('name1') on conflict (name) do update set name = 'name2';`);
 });
 
 test('unique #1_0. drop table with unique', async () => {

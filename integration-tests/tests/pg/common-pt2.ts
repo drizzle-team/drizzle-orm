@@ -2072,6 +2072,52 @@ export function tests(test: Test) {
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4160
+		test.concurrent('delete; composition of `not` and `or`/`and`', async ({ db, push }) => {
+			const users = pgTable('users_1070', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const sessions = pgTable('sessions_0', {
+				id: serial('id').primaryKey(),
+				userId: integer('userId').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+				name: text('name').notNull().default(''),
+			});
+
+			await push({ users, sessions });
+
+			const DEFAULT_SESSION_NAME = 'Default Session';
+			const BASE_SESSION_NAME = 'Base Scramble';
+			const sessionId = 1;
+			const userId = 1;
+
+			await db.insert(users).values([
+				{ id: userId, name: 'John' },
+			]);
+
+			await db.insert(sessions).values([
+				{ id: sessionId, userId: 1, name: 'some session' },
+			]);
+
+			const query = db.delete(sessions).where(
+				and(
+					eq(sessions.id, sessionId),
+					eq(sessions.userId, userId),
+					not(
+						or(
+							eq(sessions.name, DEFAULT_SESSION_NAME),
+							eq(sessions.name, BASE_SESSION_NAME),
+						),
+					),
+				),
+			);
+
+			await query;
+			const result = await db.select().from(sessions);
+			expect(result).toStrictEqual([]);
+		});
+
 		test.concurrent('sql operator as cte', async ({ db, push }) => {
 			const users = pgTable('users_109', {
 				id: serial('id').primaryKey(),

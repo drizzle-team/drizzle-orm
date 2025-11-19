@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -858,6 +858,64 @@ export function tests(test: Test) {
 				expect(order.user!.id).toBeDefined();
 				expect(order.user!.test).toBeDefined();
 			}
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4169
+		test.concurrent('RQB v2 find many - $count', async ({ push, createDB }) => {
+			const users = pgTable('rqb_users_18', {
+				id: serial('id').primaryKey(),
+			});
+
+			const statusEnum = pgEnum('status', [
+				'IN_PROGRESS',
+				'CANCELED',
+				'CLOSED',
+			]);
+
+			const orders = pgTable('rqb_orders_18', {
+				id: serial('id').primaryKey(),
+				userId: integer('user_id').references(() => users.id).notNull(),
+				status: statusEnum('status'),
+			});
+
+			await push({ users, orders, statusEnum });
+			const db = createDB({ users, orders }, (r) => ({
+				orders: {
+					user: r.one.users({
+						from: [r.orders.userId],
+						to: [r.users.id],
+					}),
+				},
+			}));
+
+			await db.insert(users).values([{ id: 1 }, { id: 2 }]);
+			await db.insert(orders).values([{ userId: 1, status: 'CANCELED' }, { userId: 2, status: 'IN_PROGRESS' }]);
+
+			const recordsQuery = db.query.users.findMany({
+				extras: {
+					activeOrders: db
+						.$count(
+							orders,
+							and(
+								eq(orders.userId, users.id),
+								not(
+									inArray(orders.status, ['CANCELED', 'CLOSED']),
+								),
+							),
+						)
+						.as('activeOrders'),
+				},
+			});
+
+			const expectedResult = [{ id: 1, activeOrders: 0 }, { id: 2, activeOrders: 1 }];
+			const result = await recordsQuery;
+			expect(result).toStrictEqual(expectedResult);
+			expect(recordsQuery.toSQL()).toStrictEqual({
+				sql:
+					'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where ("rqb_orders_18"."user_id" = "d0"."id" and not "rqb_orders_18"."status" in ($1, $2)))) as "activeOrders" from "rqb_users_18" as "d0"',
+				params: ['CANCELED', 'CLOSED'],
+				typings: ['none', 'none'],
+			});
 		});
 	});
 }
