@@ -1,4 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type {
 	AnyCockroachColumn,
 	AnyCockroachTable,
@@ -632,6 +633,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const policies: CockroachPolicy[] = [];
 	const views: CockroachView[] = [];
 	const matViews: CockroachMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -666,6 +668,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		if (is(t, CockroachPolicy)) {
 			policies.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
@@ -677,6 +683,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };
 
@@ -689,6 +696,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const roles: CockroachRole[] = [];
 	const policies: CockroachPolicy[] = [];
 	const matViews: CockroachMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -705,6 +713,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			matViews.push(...prepared.matViews);
 			roles.push(...prepared.roles);
 			policies.push(...prepared.policies);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -717,5 +726,6 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };
