@@ -1,10 +1,26 @@
 name: Release (feature branch)
 
 on:
-  push:
-    branches-ignore:
-      - main
-  pull_request: {}
+  workflow_call:
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
+      SQLITE_CLOUD_CONNECTION_STRING:
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -198,6 +214,7 @@ jobs:
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
+          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         shell: bash
         run: |
@@ -334,7 +351,16 @@ jobs:
       matrix:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
 
       # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v6

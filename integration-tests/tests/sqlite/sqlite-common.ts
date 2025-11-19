@@ -2941,7 +2941,7 @@ export function tests() {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
+			const msDelay = 1000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -2986,7 +2986,7 @@ export function tests() {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
+			const msDelay = 1000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);

@@ -51,6 +51,7 @@
 		"@miniflare/shared": "^2.14.4",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
+		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
 		"@tursodatabase/database": "0.2.1",
 		"@tursodatabase/database-wasm": "^0.2.1",
