@@ -195,6 +195,12 @@ export interface JsonRecreatePolicy {
 export interface JsonCreateIndex {
 	type: 'create_index';
 	index: Index;
+	newTable: boolean;
+}
+
+export interface JsonRecreateIndex {
+	type: 'recreate_index';
+	diff: DiffEntities['indexes'];
 }
 
 export interface JsonCreateFK {
@@ -210,6 +216,7 @@ export interface JsonDropFK {
 export interface JsonRecreateFK {
 	type: 'recreate_fk';
 	fk: ForeignKey;
+	diff: DiffEntities['fks'];
 }
 
 export interface JsonAddCheck {
@@ -410,6 +417,7 @@ export type JsonStatement =
 	| JsonAddColumn
 	| JsonCreateIndex
 	| JsonDropIndex
+	| JsonRecreateIndex
 	| JsonRenameIndex
 	| JsonAddPrimaryKey
 	| JsonDropPrimaryKey

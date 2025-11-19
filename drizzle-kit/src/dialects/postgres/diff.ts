@@ -857,7 +857,7 @@ export const ddlDiff = async (
 		}
 
 		return ddl2.fks.hasDiff(x);
-	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right }));
+	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right, diff: it }));
 
 	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 

@@ -22,11 +22,6 @@ export interface JsonCreateTable {
 	table: Table;
 }
 
-export interface JsonRecreateTable {
-	type: 'recreate_table';
-	table: Table;
-}
-
 export interface JsonDropTable {
 	type: 'drop_table';
 	table: Table;
@@ -213,6 +208,7 @@ export interface JsonDropFK {
 export interface JsonRecreateFK {
 	type: 'recreate_fk';
 	fk: ForeignKey;
+	diff: DiffEntities['fks'];
 }
 
 export interface JsonCreateUnique {
@@ -404,7 +400,6 @@ export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
 	| JsonRenameTable
-	| JsonRecreateTable
 	| JsonRenameColumn
 	| JsonAlterColumn
 	| JsonRecreateColumn
