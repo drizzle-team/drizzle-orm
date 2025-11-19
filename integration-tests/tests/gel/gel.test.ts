@@ -254,7 +254,7 @@ describe('some', async () => {
 		    create constraint exclusive;
 		};
 		create required property name: str;
-		create required property cityId: int32;
+		create property cityId: int32;
 		};
 		CREATE TYPE default::users_with_undefined {
 		    create property id1: int16 {
@@ -5716,5 +5716,92 @@ describe('some', async () => {
 
 		// @ts-expect-error
 		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
+	});
+
+	test('column.as', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const users = gelTable('users_with_cities', {
+			id: integer('id1').primaryKey(),
+			name: text('name').notNull(),
+			cityId: integer('cityId').references(() => cities.id),
+		});
+
+		const cities = gelTable('cities', {
+			id: integer('id1').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.delete(users);
+		await db.delete(cities);
+
+		const citiesInsRet = await db.insert(cities).values([{
+			id: 1,
+			name: 'Firstistan',
+		}, {
+			id: 2,
+			name: 'Secondaria',
+		}]).returning({
+			cityId: cities.id.as('city_id'),
+			cityName: cities.name.as('city_name'),
+		});
+
+		expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
+			cityId: 1,
+			cityName: 'Firstistan',
+		}, {
+			cityId: 2,
+			cityName: 'Secondaria',
+		}]));
+
+		const usersInsRet = await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+			id: 2,
+			name: 'Second',
+			cityId: 2,
+		}, {
+			id: 3,
+			name: 'Third',
+		}]).returning({
+			userId: users.id.as('user_id'),
+			userName: users.name.as('users_name'),
+			userCityId: users.cityId,
+		});
+
+		expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
+			userId: 2,
+			userName: 'Second',
+			userCityId: 2,
+		}, {
+			userId: 3,
+			userName: 'Third',
+			userCityId: null,
+		}]));
+
+		const joinSelectReturn = await db.select({
+			userId: users.id.as('user_id'),
+			cityId: cities.id.as('city_id'),
+			userName: users.name.as('user_name'),
+			cityName: cities.name.as('city_name'),
+		}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+
+		expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+			userId: 1,
+			userName: 'First',
+			cityId: 1,
+			cityName: 'Firstistan',
+		}, {
+			userId: 2,
+			userName: 'Second',
+			cityId: 2,
+			cityName: 'Secondaria',
+		}, {
+			userId: 3,
+			userName: 'Third',
+			cityId: null,
+			cityName: null,
+		}]));
+
+		await db.delete(users);
+		await db.delete(cities);
 	});
 });
