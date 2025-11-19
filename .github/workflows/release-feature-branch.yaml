@@ -352,15 +352,6 @@ jobs:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
-      - run: pnpm install --frozen-lockfile --prefer-offline
-    
-      # >= 11.5.1 for trusted publishing
-      - name: Update NPM
-        run: npm install -g npm@latest
 
       # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v6
