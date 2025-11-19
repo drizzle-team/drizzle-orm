@@ -28,6 +28,7 @@ import {
 	applySqliteSnapshotsDiff,
 } from '../../snapshotsDiffer';
 import { prepareOutFolder } from '../../utils';
+import { connectToMySQL, connectToSQLite } from '../connections';
 import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import { GelCredentials } from '../validations/gel';
@@ -80,9 +81,12 @@ export const introspectPostgres = async (
 	schemasFilter: string[],
 	prefix: Prefix,
 	entities: Entities,
+	db?: Awaited<ReturnType<typeof import('../connections')['preparePostgresDB']>>,
 ) => {
-	const { preparePostgresDB } = await import('../connections');
-	const db = await preparePostgresDB(credentials);
+	if (!db) {
+		const { preparePostgresDB } = await import('../connections');
+		db = await preparePostgresDB(credentials);
+	}
 
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
@@ -195,7 +199,6 @@ export const introspectPostgres = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 function gelToRelationsPull(schema: GelSchema): SchemaForPull {
@@ -226,9 +229,12 @@ export const introspectGel = async (
 	schemasFilter: string[],
 	prefix: Prefix,
 	entities: Entities,
+	db?: Awaited<ReturnType<typeof import('../connections')['prepareGelDB']>>,
 ) => {
-	const { prepareGelDB } = await import('../connections');
-	const db = await prepareGelDB(credentials);
+	if (!db) {
+		const { prepareGelDB } = await import('../connections');
+		db = await prepareGelDB(credentials);
+	}
 
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
@@ -341,7 +347,6 @@ export const introspectGel = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 function mysqlToRelationsPull(schema: MySqlSchema): SchemaForPull {
@@ -366,9 +371,12 @@ export const introspectMysql = async (
 	credentials: MysqlCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	connection?: Awaited<ReturnType<typeof import('../connections')['connectToMySQL']>>,
 ) => {
-	const { connectToMySQL } = await import('../connections');
-	const { db, database } = await connectToMySQL(credentials);
+	if (!connection) {
+		const { connectToMySQL } = await import('../connections');
+		connection = await connectToMySQL(credentials);
+	}
 
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
@@ -400,7 +408,7 @@ export const introspectMysql = async (
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromMysqlDatabase(db, database, filter, (stage, count, status) => {
+		fromMysqlDatabase(connection.db, connection.database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);
@@ -468,7 +476,6 @@ export const introspectMysql = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspectSingleStore = async (
@@ -478,9 +485,12 @@ export const introspectSingleStore = async (
 	credentials: SingleStoreCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	connection?: Awaited<ReturnType<typeof import('../connections')['connectToSingleStore']>>,
 ) => {
-	const { connectToSingleStore } = await import('../connections');
-	const { db, database } = await connectToSingleStore(credentials);
+	if (!connection) {
+		const { connectToSingleStore } = await import('../connections');
+		connection = await connectToSingleStore(credentials);
+	}
 
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
@@ -512,7 +522,7 @@ export const introspectSingleStore = async (
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromSingleStoreDatabase(db, database, filter, (stage, count, status) => {
+		fromSingleStoreDatabase(connection.db, connection.database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);
@@ -565,7 +575,6 @@ export const introspectSingleStore = async (
 			)
 		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
-	process.exit(0);
 };
 
 function sqliteToRelationsPull(schema: SQLiteSchema): SchemaForPull {
@@ -590,10 +599,12 @@ export const introspectSqlite = async (
 	credentials: SqliteCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof import('../connections')['connectToSQLite']>>,
 ) => {
-	const { connectToSQLite } = await import('../connections');
-	const db = await connectToSQLite(credentials);
-
+	if (!db) {
+		const { connectToSQLite } = await import('../connections');
+		db = await connectToSQLite(credentials);
+	}
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
 	});
@@ -693,7 +704,6 @@ export const introspectSqlite = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspectLibSQL = async (
@@ -703,9 +713,12 @@ export const introspectLibSQL = async (
 	credentials: LibSQLCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof import('../connections')['connectToLibSQL']>>,
 ) => {
-	const { connectToLibSQL } = await import('../connections');
-	const db = await connectToLibSQL(credentials);
+	if (!db) {
+		const { connectToLibSQL } = await import('../connections');
+		db = await connectToLibSQL(credentials);
+	}
 
 	const matchers = tablesFilter.map((it) => {
 		return new Minimatch(it);
@@ -806,7 +819,6 @@ export const introspectLibSQL = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 const withCasing = (value: string, casing: Casing) => {

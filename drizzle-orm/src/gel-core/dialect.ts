@@ -63,7 +63,7 @@ export class GelDialect {
 	}
 
 	// TODO can not migrate gel with drizzle
-	// async migrate(migrations: MigrationMeta[], session: GelSession, config: string | MigrationConfig): Promise<void> {
+	// async migrate(migrations: MigrationMeta[], session: GelSession, config: string | MigrationConfig): Promise<void | MigratorInitFailResponse> {
 	// 	const migrationsTable = typeof config === 'string'
 	// 		? '__drizzle_migrations'
 	// 		: config.migrationsTable ?? '__drizzle_migrations';
@@ -83,6 +83,28 @@ export class GelDialect {
 	// 			sql.identifier(migrationsTable)
 	// 		} order by created_at desc limit 1`,
 	// 	);
+
+	// if (typeof config === 'object' && config.init) {
+	// 	if (dbMigrations.length) {
+	// 		return { exitCode: 'databaseMigrations' };
+	// 	}
+
+	// 	if (migrations.length > 1) {
+	// 		return { exitCode: 'localMigrations' };
+	// 	}
+
+	// 	const [migration] = migrations;
+
+	// 	if (!migration) return;
+
+	// 	await session.execute(
+	// 		sql`insert into ${sql.identifier(migrationsSchema)}.${
+	// 			sql.identifier(migrationsTable)
+	// 		} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+	// 	);
+
+	// 	return;
+	// }
 
 	// 	const lastDbMigration = dbMigrations[0];
 	// 	await session.transaction(async (tx) => {

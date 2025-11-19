@@ -493,35 +493,30 @@ export const prepareMySQLPush = async (
 	snapshot: MySqlSchema,
 	casing: CasingType | undefined,
 ) => {
-	try {
-		const { prev, cur } = await prepareMySqlDbPushSnapshot(
-			snapshot,
-			schemaPath,
-			casing,
-		);
+	const { prev, cur } = await prepareMySqlDbPushSnapshot(
+		snapshot,
+		schemaPath,
+		casing,
+	);
 
-		const validatedPrev = mysqlSchema.parse(prev);
-		const validatedCur = mysqlSchema.parse(cur);
+	const validatedPrev = mysqlSchema.parse(prev);
+	const validatedCur = mysqlSchema.parse(cur);
 
-		const squashedPrev = squashMysqlScheme(validatedPrev);
-		const squashedCur = squashMysqlScheme(validatedCur);
+	const squashedPrev = squashMysqlScheme(validatedPrev);
+	const squashedCur = squashMysqlScheme(validatedCur);
 
-		const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			validatedPrev,
-			validatedCur,
-			'push',
-		);
+	const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		mySqlViewsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
 
-		return { sqlStatements, statements, validatedCur, validatedPrev };
-	} catch (e) {
-		console.error(e);
-		process.exit(1);
-	}
+	return { sqlStatements, statements, validatedCur, validatedPrev };
 };
 
 export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
@@ -643,35 +638,30 @@ export const prepareSingleStorePush = async (
 	snapshot: SingleStoreSchema,
 	casing: CasingType | undefined,
 ) => {
-	try {
-		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
-			snapshot,
-			schemaPath,
-			casing,
-		);
+	const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
+		snapshot,
+		schemaPath,
+		casing,
+	);
 
-		const validatedPrev = singlestoreSchema.parse(prev);
-		const validatedCur = singlestoreSchema.parse(cur);
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
 
-		const squashedPrev = squashSingleStoreScheme(validatedPrev);
-		const squashedCur = squashSingleStoreScheme(validatedCur);
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
 
-		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			/* singleStoreViewsResolver, */
-			validatedPrev,
-			validatedCur,
-			'push',
-		);
+	const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		/* singleStoreViewsResolver, */
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
 
-		return { sqlStatements, statements, validatedCur, validatedPrev };
-	} catch (e) {
-		console.error(e);
-		process.exit(1);
-	}
+	return { sqlStatements, statements, validatedCur, validatedPrev };
 };
 
 export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {

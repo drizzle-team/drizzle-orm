@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
@@ -10,7 +10,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	db: MySqlRemoteDatabase<TSchema, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -31,10 +31,32 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		sql.raw('created_at desc'),
 	).limit(1);
 
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' };
+		}
+
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await callback([
+			db.dialect.sqlToQuery(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		]);
+
+		return;
+	}
+
 	const lastDbMigration = dbMigrations[0];
-
 	const queriesToRun: string[] = [];
-
 	for (const migration of migrations) {
 		if (
 			!lastDbMigration
@@ -42,9 +64,11 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`insert into ${
-					sql.identifier(migrationsTable).value
-				} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
+				db.dialect.sqlToQuery(
+					sql`insert into ${
+						sql.identifier(migrationsTable)
+					} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				).sql,
 			);
 		}
 	}

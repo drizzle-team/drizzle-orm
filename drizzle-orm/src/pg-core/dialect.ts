@@ -4,7 +4,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import {
 	PgArray,
 	PgColumn,
@@ -57,7 +57,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { type Casing, type MigratorInitFailResponse, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -104,11 +104,11 @@ export class PgDialect {
 
 		if (typeof config === 'object' && config.init) {
 			if (dbMigrations.length) {
-				return { exitCode: 'manyMigrationsExist' };
+				return { exitCode: 'databaseMigrations' };
 			}
 
 			if (migrations.length > 1) {
-				return { exitCode: 'manyMigrationsExist' };
+				return { exitCode: 'localMigrations' };
 			}
 
 			const [migration] = migrations;

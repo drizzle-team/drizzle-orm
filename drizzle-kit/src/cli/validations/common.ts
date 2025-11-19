@@ -39,7 +39,7 @@ export const assertCollisions = <
 	whitelist: Exclude<TKeys, 'config'>,
 	remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 ): IsUnion<LastTupleElement<UNIQ>> extends false ? 'cli' | 'config' : TKeys => {
-	const { config, ...rest } = options;
+	const { config, init, ...rest } = options;
 
 	let atLeastOneParam = false;
 	for (const key of Object.keys(rest)) {
