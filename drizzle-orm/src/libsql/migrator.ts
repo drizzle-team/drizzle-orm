@@ -65,4 +65,6 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	}
 
 	await db.session.migrate(statementToBatch);
+
+	return;
 }
