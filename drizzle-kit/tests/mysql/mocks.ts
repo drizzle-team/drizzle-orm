@@ -30,6 +30,7 @@ import { DB } from '../../src/utils';
 import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
 import 'zx/globals';
+import { expect } from 'vitest';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
 
@@ -155,7 +156,12 @@ export const push = async (config: {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
-	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
+	const { schema } = await introspect({
+		db,
+		database: 'drizzle',
+		filter: () => true,
+		progress: new EmptyProgressView(),
+	});
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as MysqlDDL, errors: [] }
@@ -198,7 +204,7 @@ export const push = async (config: {
 			const { schema } = await introspect({
 				db,
 				database: 'drizzle',
-				tablesFilter: [],
+				filter: () => true,
 				progress: new EmptyProgressView(),
 			});
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -212,8 +218,7 @@ export const push = async (config: {
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}

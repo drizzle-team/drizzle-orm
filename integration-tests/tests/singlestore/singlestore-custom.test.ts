@@ -24,6 +24,15 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
 import relations from './relations';
 
+type TestSingleStoreDB = SingleStoreDriverDatabase<any, typeof relations>;
+declare module 'vitest' {
+	interface TestContext {
+		singlestore: {
+			db: TestSingleStoreDB;
+		};
+	}
+}
+
 let db: SingleStoreDriverDatabase<never, typeof relations>;
 let client: mysql2.Connection;
 

@@ -609,9 +609,9 @@ test('create table with rls enabled', async ({ db }) => {
 	const schema1 = {};
 
 	const schema2 = {
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -638,9 +638,9 @@ test('enable rls force', async ({ db }) => {
 	};
 
 	const schema2 = {
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -660,9 +660,9 @@ test('enable rls force', async ({ db }) => {
 
 test('disable rls force', async ({ db }) => {
 	const schema1 = {
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const schema2 = {
@@ -698,9 +698,9 @@ test('drop policy with enabled rls', async ({ db }) => {
 
 	const schema2 = {
 		role,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -723,16 +723,16 @@ test('drop policy with enabled rls #2', async ({ db }) => {
 
 	const schema1 = {
 		role,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachPolicy('test', { to: [role] })]).enableRLS(),
+		}, () => [cockroachPolicy('test', { to: [role] })]),
 	};
 
 	const schema2 = {
 		role,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -753,18 +753,18 @@ test('drop policy with enabled rls #2', async ({ db }) => {
 
 test('add policy with enabled rls', async ({ db }) => {
 	const schema1 = {
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const role = cockroachRole('manager');
 
 	const schema2 = {
 		role,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachPolicy('test', { to: ['current_user', role] })]).enableRLS(),
+		}, () => [cockroachPolicy('test', { to: ['current_user', role] })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -789,9 +789,9 @@ test('add policy with enabled rls #2', async ({ db }) => {
 	const role2 = cockroachRole('owner');
 	const schema1 = {
 		role2,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const role = cockroachRole('manager');
@@ -799,9 +799,9 @@ test('add policy with enabled rls #2', async ({ db }) => {
 	const schema2 = {
 		role2,
 		role,
-		users: cockroachTable('users', {
+		users: cockroachTable.withRLS('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachPolicy('test', { to: [role2, role] })]).enableRLS(),
+		}, () => [cockroachPolicy('test', { to: [role2, role] })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1079,9 +1079,9 @@ test('unlink non-schema table', async ({ db }) => {
 });
 
 test('add policy + link non-schema table', async ({ db }) => {
-	const cities = cockroachTable('cities', {
+	const cities = cockroachTable.withRLS('cities', {
 		id: int4('id').primaryKey(),
-	}).enableRLS();
+	});
 
 	const schema1 = {
 		cities,

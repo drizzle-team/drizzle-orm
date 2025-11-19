@@ -124,7 +124,7 @@ export const push = async (config: {
 	const { db, to, expectError, force, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
-	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, [], new EmptyProgressView());
+	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as SQLiteDDL, errors: [] }
 		: drizzleToDDL(to, casing);
@@ -175,7 +175,7 @@ export const push = async (config: {
 
 	// subsequent push
 	{
-		const { ddl: ddl1, errors, viewColumns } = await introspect(db, [], new EmptyProgressView());
+		const { ddl: ddl1, errors, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
 
 		const { sqlStatements, statements } = await ddlDiff(
 			ddl1,

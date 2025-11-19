@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { assert, expect, test } from 'vitest';
-import { wrapParam } from '../src/cli/validations/common';
+import { wrapParam } from '../../src/cli/validations/common';
 
 test('wrapParam', () => {
 	expect(wrapParam('password', 'password123', false, 'secret')).toBe(`    [${chalk.green('✓')}] password: '*****'`);

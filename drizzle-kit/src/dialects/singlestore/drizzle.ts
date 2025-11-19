@@ -1,18 +1,13 @@
-import { Casing, is, SQL } from 'drizzle-orm';
+import type { Casing } from 'drizzle-orm';
+import { is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import {
-	AnySingleStoreColumn,
-	AnySingleStoreTable,
-	getTableConfig,
-	SingleStoreDialect,
-	SingleStoreTable,
-	uniqueKeyName,
-} from 'drizzle-orm/singlestore-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { AnySingleStoreColumn, AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { getTableConfig, SingleStoreDialect, SingleStoreTable, uniqueKeyName } from 'drizzle-orm/singlestore-core';
+import type { CasingType } from 'src/cli/validations/common';
 import { escapeSingleQuotes } from 'src/utils';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
-import { Column, InterimSchema } from '../mysql/ddl';
+import type { Column, InterimSchema } from '../mysql/ddl';
 import { typeFor } from '../mysql/grammar';
 
 const handleEnumType = (type: string) => {

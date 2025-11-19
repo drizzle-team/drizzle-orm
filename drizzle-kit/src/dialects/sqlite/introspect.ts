@@ -1,20 +1,21 @@
-import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { areStringArraysEqual, type DB } from '../../utils';
-import {
-	type CheckConstraint,
-	type Column,
-	type ForeignKey,
-	type Index,
+import type { EntityFilter } from '../pull-utils';
+import type {
+	CheckConstraint,
+	Column,
+	ForeignKey,
+	Index,
 	InterimColumn,
-	type PrimaryKey,
-	type SqliteEntities,
-	type UniqueConstraint,
-	type View,
-	type ViewColumn,
+	PrimaryKey,
+	SqliteEntities,
+	UniqueConstraint,
+	View,
+	ViewColumn,
 } from './ddl';
+import type { Generated } from './grammar';
 import {
 	extractGeneratedColumns,
-	Generated,
 	nameForForeignKey,
 	nameForPk,
 	nameForUnique,
@@ -28,14 +29,14 @@ import {
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	filter: EntityFilter = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tablesFilter, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback);
 	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
 
 	return res;
@@ -43,7 +44,7 @@ export const fromDatabaseForDrizzle = async (
 
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	filter: EntityFilter,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -92,7 +93,7 @@ export const fromDatabase = async (
     `,
 	).then((columns) => {
 		queryCallback('columns', columns, null);
-		return columns.filter((it) => tablesFilter(it.table));
+		return columns.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
 	}).catch((error) => {
 		queryCallback('columns', [], error);
 		throw error;
@@ -118,7 +119,7 @@ export const fromDatabase = async (
 		;`,
 	).then((views) => {
 		queryCallback('views', views, null);
-		return views.filter((it) => tablesFilter(it.name)).map((it): View => {
+		return views.filter((it) => filter({ type: 'table', schema: false, name: it.name })).map((it): View => {
 			const definition = parseViewSQL(it.sql);
 
 			if (!definition) {
@@ -184,12 +185,12 @@ export const fromDatabase = async (
 		`,
 		).then((columns) => {
 			queryCallback('viewColumns', columns, null);
-			return columns.filter((it) => tablesFilter(it.table));
+			return columns.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
 		}).catch((error) => {
 			queryCallback('viewColumns', [], error);
 			throw error;
 		});
-	} catch (_) {
+	} catch {
 		for (const view of views) {
 			try {
 				const viewColumns = await db.query<{
@@ -243,7 +244,7 @@ export const fromDatabase = async (
     and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
 	).then((tables) => {
 		queryCallback('tablesWithSequences', tables, null);
-		return tables.filter((it) => tablesFilter(it.name));
+		return tables.filter((it) => filter({ type: 'table', schema: false, name: it.name }));
 	}).catch((error) => {
 		queryCallback('tablesWithSequences', [], error);
 		throw error;
@@ -277,7 +278,7 @@ export const fromDatabase = async (
 		ORDER BY m.name COLLATE NOCASE;
 	`).then((indexes) => {
 		queryCallback('indexes', indexes, null);
-		return indexes.filter((it) => tablesFilter(it.table));
+		return indexes.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
 	}).catch((error) => {
 		queryCallback('indexes', [], error);
 		throw error;
@@ -433,7 +434,7 @@ export const fromDatabase = async (
 					&& idx.column === column.name;
 			}).map((it) => {
 				const parsed = parseSqliteDdl(it.index.sql);
-				if (parsed.pk.columns.length > 1) return undefined;
+				if (parsed.pk.columns.length > 1) return;
 
 				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
 				if (!constraint) return { name: null };
@@ -485,7 +486,7 @@ export const fromDatabase = async (
 		WHERE m.tbl_name != '_cf_KV';`,
 	).then((fks) => {
 		queryCallback('fks', fks, null);
-		return fks.filter((it) => tablesFilter(it.tableFrom));
+		return fks.filter((it) => filter({ type: 'table', schema: false, name: it.tableFrom }));
 	}).catch((error) => {
 		queryCallback('fks', [], error);
 		throw error;

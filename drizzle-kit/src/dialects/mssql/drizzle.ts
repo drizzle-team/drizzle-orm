@@ -1,8 +1,8 @@
-import { Casing, getTableName, is, SQL } from 'drizzle-orm';
+import type { Casing } from 'drizzle-orm';
+import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
+import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
-	AnyMsSqlColumn,
-	AnyMsSqlTable,
 	getTableConfig,
 	getViewConfig,
 	MsSqlColumn,
@@ -11,10 +11,11 @@ import {
 	MsSqlTable,
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
-import { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
+import type { EntityFilter } from '../pull-utils';
+import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
@@ -52,23 +53,19 @@ export const fromDrizzleSchema = (
 		views: MsSqlView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): { schema: InterimSchema; errors: SchemaError[] } => {
 	const dialect = new MsSqlDialect({ casing });
 	const errors: SchemaError[] = [];
 
 	const schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'dbo' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'dbo';
-			} else {
-				return it.name !== 'dbo';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
@@ -98,7 +95,7 @@ export const fromDrizzleSchema = (
 		defaults: [],
 	};
 
-	for (const { table, config } of tableConfigPairs) {
+	for (const { config } of tableConfigPairs) {
 		const {
 			name: tableName,
 			columns,
@@ -111,7 +108,7 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'dbo';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
+		if (!filter({ type: 'table', schema, name: tableName })) {
 			continue;
 		}
 
@@ -314,6 +311,7 @@ export const fromDrizzleSchema = (
 		} = cfg;
 
 		if (isExisting) continue;
+		if (!filter({ type: 'table', schema: drizzleSchema ?? 'dbo', name })) continue;
 
 		const schema = drizzleSchema ?? 'dbo';
 

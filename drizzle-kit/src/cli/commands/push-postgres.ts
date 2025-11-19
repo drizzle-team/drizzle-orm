@@ -1,12 +1,13 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import {
+import { extractPostgresExisting } from 'src/dialects/drizzle';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	Column,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
@@ -17,16 +18,16 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
+import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
-import { mockResolver } from '../../utils/mocks';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { Entities } from '../validations/cli';
-import { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
 import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
@@ -36,20 +37,21 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: PostgresCredentials,
-	tablesFilter: string[],
-	schemasFilter: string[],
-	entities: Entities,
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
-	const { introspect: pgPushIntrospect } = await import('./pull-postgres');
+	const { introspect } = await import('./pull-postgres');
 
 	const db = await preparePostgresDB(credentials);
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
+	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
+	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
+
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, entityFilter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -61,18 +63,19 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
+
+	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
-	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
-	// todo: handle errors?
+	const { ddl: ddl2 } = interimToDDL(schemaTo);
+	// TODO: handle errors?
 
 	if (errors1.length > 0) {
 		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
-	const blanks = new Set<string>();
+	// const blanks = new Set<string>();
 	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -109,7 +112,7 @@ export const handle = async (
 	}
 
 	if (!force && strict && hints.length === 0) {
-		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -129,14 +132,18 @@ export const handle = async (
 
 		console.log(chalk.white('Do you still want to push changes?'));
 
-		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);
 		}
 	}
+	console.log(losses);
+	console.log(sqlStatements);
 
 	for (const statement of [...losses, ...sqlStatements]) {
+		if (verbose) console.log(statement);
+
 		await db.query(statement);
 	}
 

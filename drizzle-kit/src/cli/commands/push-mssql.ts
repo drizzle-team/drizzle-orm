@@ -1,13 +1,14 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractMssqlExisting } from 'src/dialects/drizzle';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
-import {
+import type {
 	CheckConstraint,
 	Column,
 	DefaultConstraint,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	MssqlDDL,
 	MssqlEntities,
 	PrimaryKey,
@@ -15,13 +16,15 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { interimToDDL } from '../../dialects/mssql/ddl';
 import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { withStyle } from '../validations/outputs';
 import { mssqlSchemaError, ProgressView } from '../views';
@@ -31,8 +34,7 @@ export const handle = async (
 	verbose: boolean,
 	strict: boolean,
 	credentials: MssqlCredentials,
-	tablesFilter: string[],
-	schemasFilter: string[],
+	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -43,7 +45,10 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing);
+	const existing = extractMssqlExisting(res.schemas, res.views);
+	const filter = prepareEntityFilter('mssql', filters, existing);
+
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing, filter);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
@@ -51,7 +56,7 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
+	const { schema: schemaFrom } = await introspect(db, filter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
@@ -99,7 +104,7 @@ export const handle = async (
 	}
 
 	if (!force && strict && hints.length === 0) {
-		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -119,7 +124,7 @@ export const handle = async (
 
 		console.log(chalk.white('Do you still want to push changes?'));
 
-		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);

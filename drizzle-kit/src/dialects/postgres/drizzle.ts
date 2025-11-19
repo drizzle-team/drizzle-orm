@@ -1,9 +1,17 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
-import {
+import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
+import type {
 	AnyPgColumn,
 	AnyPgTable,
+	PgEnum,
+	PgMaterializedView,
+	PgMaterializedViewWithConfig,
+	PgSequence,
+	UpdateDeleteAction,
+	ViewWithConfig,
+} from 'drizzle-orm/pg-core';
+import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
@@ -14,31 +22,25 @@ import {
 	isPgView,
 	PgArray,
 	PgDialect,
-	PgEnum,
 	PgEnumColumn,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
 	PgLineTuple,
-	PgMaterializedView,
-	PgMaterializedViewWithConfig,
 	PgPointObject,
 	PgPointTuple,
 	PgPolicy,
 	PgRole,
 	PgSchema,
-	PgSequence,
 	PgTable,
-	PgVector,
 	PgView,
 	uniqueKeyName,
-	UpdateDeleteAction,
-	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
-import { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
+import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -177,14 +179,10 @@ export const defaultFromColumn = (
 		sql = trimDefaultValueSuffix(sql);
 
 		// TODO: check if needed
-
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
-		return {
-			value: sql,
-			type: 'unknown',
-		};
+		return sql;
 	}
 
 	const { baseColumn, isEnum } = unwrapColumn(base);
@@ -192,26 +190,26 @@ export const defaultFromColumn = (
 	if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Point.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Point.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Line.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Line.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: GeometryPoint.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode, baseColumn.srid)
 			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 	if (dimensions > 0 && Array.isArray(def)) {
-		if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+		if (def.flat(5).length === 0) return "'{}'";
 
 		return grammarType.defaultArrayFromDrizzle(def, dimensions);
 	}
@@ -240,7 +238,7 @@ export const fromDrizzleSchema = (
 		matViews: PgMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -269,20 +267,18 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((it) => {
+			return !it.isExisting && it.schemaName !== 'public' && filter({ type: 'schema', name: it.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((x) => {
+		return filter({ type: 'table', schema: x.config.schema ?? 'public', name: x.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -336,13 +332,9 @@ export const fromDrizzleSchema = (
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
 			policies: drizzlePolicies,
-			enableRLS,
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
-			continue;
-		}
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
@@ -672,7 +664,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting) continue;
+		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const {
 			name: viewName,

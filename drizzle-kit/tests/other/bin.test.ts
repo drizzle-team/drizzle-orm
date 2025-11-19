@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { assert, test } from 'vitest';
-import { analyzeImports, ChainLink } from '../imports-checker/checker';
+import { analyzeImports, ChainLink } from '../../imports-checker/checker';
 
 const chainToString = (chains: ChainLink[]) => {
 	if (chains.length === 0) throw new Error();

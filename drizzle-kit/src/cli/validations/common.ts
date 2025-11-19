@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import type { UnionToIntersection } from 'hono/utils/types';
-import { any, boolean, enum as enum_, literal, object, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { any, boolean, enum as enum_, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { outputs } from './outputs';
 
@@ -13,7 +14,7 @@ export type Commands =
 	| 'push'
 	| 'export';
 
-type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
+// type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
 type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
 type LastTupleElement<TArr extends any[]> = TArr extends [
 	...start: infer _,
@@ -37,7 +38,7 @@ export const assertCollisions = <
 	command: Commands,
 	options: T,
 	whitelist: Exclude<TKeys, 'config'>,
-	remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
+	_remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 ): IsUnion<LastTupleElement<UNIQ>> extends false ? 'cli' | 'config' : TKeys => {
 	const { config, ...rest } = options;
 

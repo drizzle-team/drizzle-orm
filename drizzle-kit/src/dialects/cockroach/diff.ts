@@ -5,32 +5,30 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	CockroachDDL,
 	CockroachEntities,
 	Column,
-	createDDL,
 	DiffEntities,
 	Enum,
 	ForeignKey,
 	Index,
 	Policy,
 	PrimaryKey,
-	Role,
 	Schema,
 	Sequence,
-	tableFromDDL,
 	View,
 } from './ddl';
+import { createDDL, tableFromDDL } from './ddl';
 import { defaultsCommutative, typesCommutative } from './grammar';
-import {
+import type {
 	JsonAlterColumn,
 	JsonAlterColumnAddNotNull,
 	JsonAlterColumnDropNotNull,
 	JsonStatement,
-	prepareStatement,
 } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -631,6 +629,7 @@ export const ddlDiff = async (
 		prepareStatement('add_column', {
 			column: it,
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
 
@@ -665,6 +664,7 @@ export const ddlDiff = async (
 		prepareStatement('recreate_column', {
 			column: it.$right,
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
 
@@ -744,13 +744,17 @@ export const ddlDiff = async (
 
 	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 
-	const jsonDropReferences = fksDeletes
-		.filter((fk) => {
-			return !deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
-		})
+	const jsonDropFks = fksDeletes.filter((fk) => {
+		const fromDeletedTable = deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
+		const sameTable = fk.schema === fk.schemaTo && fk.table === fk.tableTo;
+		const toDeletedTable = !sameTable && deletedTables.some((x) => x.schema === fk.schemaTo && x.name === fk.tableTo);
+
+		if (fromDeletedTable && !toDeletedTable) return false;
+		return true;
+	})
 		.map((it) => prepareStatement('drop_fk', { fk: it }));
 
-	const jsonRenameReferences = fksRenames.map((it) =>
+	const jsonRenameFks = fksRenames.map((it) =>
 		prepareStatement('rename_constraint', {
 			schema: it.to.schema,
 			table: it.to.table,
@@ -862,7 +866,7 @@ export const ddlDiff = async (
 
 	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
 	// TODO:
-	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
+	const _jsonPloiciesAlterStatements = policiesAlters.map((it) =>
 		prepareStatement('alter_policy', { diff: it, policy: it.$right })
 	);
 
@@ -1049,14 +1053,15 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonMoveViews);
 	jsonStatements.push(...jsonRecreateViews);
 
+	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonDropFks);
+
 	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
 	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropCheckConstraints);
-	jsonStatements.push(...jsonDropReferences);
 
 	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
@@ -1065,7 +1070,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropPrimaryKeys);
 
 	jsonStatements.push(...jsonRenamePrimaryKey);
-	jsonStatements.push(...jsonRenameReferences);
+	jsonStatements.push(...jsonRenameFks);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 	jsonStatements.push(...jsonRecreateColumns);
 

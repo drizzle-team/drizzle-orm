@@ -1,8 +1,8 @@
 import { mockResolver } from '../../utils/mocks';
-import { Resolver } from '../common';
-import { Column, MysqlDDL, Table, View } from '../mysql/ddl';
+import type { Resolver } from '../common';
+import type { Column, MysqlDDL, Table, View } from '../mysql/ddl';
 import { ddlDiff as mysqlDdlDiff } from '../mysql/diff';
-import { JsonStatement } from '../mysql/statements';
+import type { JsonStatement } from '../mysql/statements';
 
 export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL) => {
 	const s = new Set<string>();

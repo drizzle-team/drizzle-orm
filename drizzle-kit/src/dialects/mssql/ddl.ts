@@ -205,7 +205,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const column of interim.columns) {
-		const { isPK, isUnique, pkName, uniqueName, ...rest } = column;
+		const { isPK: _1, isUnique: _2, pkName: _3, uniqueName: _4, ...rest } = column;
 
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {

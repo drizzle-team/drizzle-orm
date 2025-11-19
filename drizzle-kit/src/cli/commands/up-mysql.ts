@@ -1,14 +1,38 @@
+import chalk from 'chalk';
+import { writeFileSync } from 'fs';
+import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
-import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import type { MysqlSchemaV6, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import { trimChar } from '../../utils';
+import { migrateToFoldersV3 } from './utils';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMysqlHandler = (out: string) => {
+	migrateToFoldersV3(out);
+
+	const { snapshots } = prepareOutFolder(out);
+	const report = validateWithReport(snapshots, 'mysql');
+
+	report.nonLatest
+		.map((it) => ({
+			path: it,
+			raw: report.rawMap[it] as Record<string, any>,
+		}))
+		.forEach((it) => {
+			const path = it.path;
+
+			const snapshot = upToV6(it.raw);
+
+			console.log(`[${chalk.green('✓')}] ${path}`);
+
+			writeFileSync(path, JSON.stringify(snapshot, null, 2));
+		});
+
+	console.log("Everything's fine 🐶🔥");
+};
 
 export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
-	const json = it as MysqlSchema;
-
-	const hints = [] as string[];
+	const json = it as MysqlSchemaV6;
 
 	const ddl = createDDL();
 
@@ -159,7 +183,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 	return {
 		version: '6',
 		id: json.id,
-		prevId: json.prevId,
+		prevIds: [json.prevId],
 		dialect: 'mysql',
 		ddl: ddl.entities.list(),
 		renames: [],

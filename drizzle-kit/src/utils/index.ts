@@ -1,17 +1,15 @@
-import type { RunResult } from 'better-sqlite3';
 import type { ProxyParams } from '../cli/commands/studio';
-import type { Config } from '../index';
 import type { Dialect } from './schemaValidator';
 
 export const originUUID = '00000000-0000-0000-0000-000000000000';
 export const BREAKPOINT = '--> statement-breakpoint\n';
 
-export function assertUnreachable(x: never | undefined): never {
+export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
 }
 
 // don't fail in runtime, types only
-export function softAssertUnreachable(x: never) {
+export function softAssertUnreachable(_x: never) {
 	return null as never;
 }
 
@@ -80,21 +78,6 @@ export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolea
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
-
-export const getTablesFilterByExtensions = ({
-	extensionsFilters,
-	dialect,
-}: Pick<Config, 'extensionsFilters' | 'dialect'>): string[] => {
-	if (!extensionsFilters) return [];
-
-	if (
-		extensionsFilters.includes('postgis')
-		&& dialect === 'postgresql'
-	) {
-		return ['!geography_columns', '!geometry_columns', '!spatial_ref_sys'];
-	}
-	return [];
-};
 
 export const prepareMigrationRenames = (
 	renames: {

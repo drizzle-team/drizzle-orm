@@ -1,5 +1,6 @@
 import chalk from 'chalk';
-import { analyzeImports, ChainLink } from './checker';
+import type { ChainLink } from './checker';
+import { analyzeImports } from './checker';
 
 const issues = analyzeImports({
 	basePath: './drizzle-kit',

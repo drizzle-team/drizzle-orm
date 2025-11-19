@@ -1,12 +1,9 @@
 import { applyJsonDiff, diffColumns, diffSchemasOrTables } from '../jsonDiffer';
 import { fromJson } from '../sqlgenerator2';
 
-import {
-	_prepareAddColumns,
-	_prepareDropColumns,
+import type {
 	JsonAddColumnStatement,
 	JsonAlterCompositePK,
-	JsonAlterMySqlViewStatement,
 	JsonAlterUniqueConstraint,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
@@ -22,6 +19,10 @@ import {
 	JsonRenameColumnStatement,
 	JsonRenameViewStatement,
 	JsonStatement,
+} from '../jsonStatements';
+import {
+	_prepareAddColumns,
+	_prepareDropColumns,
 	prepareAddCheckConstraint,
 	prepareAddCompositePrimaryKeyMySql,
 	prepareAddUniqueConstraintPg as prepareAddUniqueConstraint,
@@ -44,32 +45,27 @@ import {
 } from '../jsonStatements';
 
 import { mapEntries, mapKeys } from '../global';
-import {
+import type {
 	Column,
-	columnChangeFor,
-	columnsResolver,
 	ColumnsResolverInput,
 	ColumnsResolverOutput,
 	DiffResultMysql,
-	diffResultSchemeMysql,
-	mySqlViewsResolver,
-	nameChangeFor,
 	Named,
 	ResolverInput,
 	ResolverOutputWithMoved,
 	Table,
+} from '../snapshotsDiffer';
+import {
+	columnChangeFor,
+	columnsResolver,
+	diffResultSchemeMysql,
+	mySqlViewsResolver,
+	nameChangeFor,
 	tablesResolver,
-	viewsResolver,
 } from '../snapshotsDiffer';
 import { copy } from '../utils';
-import {
-	dryMySql,
-	MySqlSchema,
-	MySqlSchemaSquashed,
-	MySqlSquasher,
-	squashMysqlScheme,
-	ViewSquashed,
-} from './mysqlSchema';
+import type { MySqlSchema, MySqlSchemaSquashed, ViewSquashed } from './mysqlSchema';
+import { dryMySql, MySqlSquasher, squashMysqlScheme } from './mysqlSchema';
 
 export const diff = async (opts: {
 	left?: MySqlSchema;
@@ -334,22 +330,22 @@ export const _diff = async (
 		// This part is needed to make sure that same columns in a table are not triggered for change
 		// there is a case where orm and kit are responsible for pk name generation and one of them is not sorting name
 		// We double-check that pk with same set of columns are both in added and deleted diffs
-		let addedColumns: string[] = [];
-		for (const addedPkName of Object.keys(it.addedCompositePKs)) {
-			const addedPkColumns = it.addedCompositePKs[addedPkName];
-			addedColumns = MySqlSquasher.unsquashPK(addedPkColumns).columns;
-		}
+		// let addedColumns: string[] = [];
+		// for (const addedPkName of Object.keys(it.addedCompositePKs)) {
+		// 	const addedPkColumns = it.addedCompositePKs[addedPkName];
+		// 	addedColumns = MySqlSquasher.unsquashPK(addedPkColumns).columns;
+		// }
 
-		let deletedColumns: string[] = [];
-		for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
-			const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
-			deletedColumns = MySqlSquasher.unsquashPK(deletedPkColumns).columns;
-		}
+		// let deletedColumns: string[] = [];
+		// for (const deletedPkName of Object.keys(it.deletedCompositePKs)) {
+		// 	const deletedPkColumns = it.deletedCompositePKs[deletedPkName];
+		// 	deletedColumns = MySqlSquasher.unsquashPK(deletedPkColumns).columns;
+		// }
 
 		// Don't need to sort, but need to add tests for it
 		// addedColumns.sort();
 		// deletedColumns.sort();
-		const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
+		// const doPerformDeleteAndCreate = JSON.stringify(addedColumns) !== JSON.stringify(deletedColumns);
 
 		let addedCompositePKs: JsonCreateCompositePK[] = [];
 		let deletedCompositePKs: JsonDeleteCompositePK[] = [];
@@ -438,17 +434,17 @@ export const _diff = async (
 		jsonDeletedCheckConstraints.push(...deletedCheckConstraints);
 	});
 
-	const rColumns = jsonRenameColumnsStatements.map((it) => {
-		const tableName = it.tableName;
-		const schema = it.schema;
-		return {
-			from: { schema, table: tableName, column: it.oldColumnName },
-			to: { schema, table: tableName, column: it.newColumnName },
-		};
-	});
+	// const rColumns = jsonRenameColumnsStatements.map((it) => {
+	// 	const tableName = it.tableName;
+	// 	const schema = it.schema;
+	// 	return {
+	// 		from: { schema, table: tableName, column: it.oldColumnName },
+	// 		to: { schema, table: tableName, column: it.newColumnName },
+	// 	};
+	// });
 
 	const jsonTableAlternations = alteredTables
-		.map((it) => {
+		.map(() => {
 			throw new Error('unexpected');
 		})
 		.flat();
@@ -648,9 +644,9 @@ export const _diff = async (
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
 
-	const rTables = renamedTables.map((it) => {
-		return { from: it.from, to: it.to };
-	});
+	// const rTables = renamedTables.map((it) => {
+	// 	return { from: it.from, to: it.to };
+	// });
 
 	return {
 		statements: jsonStatements,

@@ -1,6 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { assert, expect, test } from 'vitest';
-import { exportRaw } from '../src/cli/schema';
+import { exportRaw } from '../../src/cli/schema';
 
 // good:
 // #1 drizzle-kit export --dialect=postgresql --schema=schema.ts

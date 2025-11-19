@@ -1,16 +1,17 @@
 import chalk from 'chalk';
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
+import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse } from 'url';
 import { error, info } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
-import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
-import { Journal } from '.';
+import type { Journal } from '.';
 import type { Dialect } from './schemaValidator';
 
 export const prepareFilenames = (path: string | string[]) => {
@@ -40,16 +41,16 @@ export const prepareFilenames = (path: string | string[]) => {
 	const res = [...result];
 
 	// TODO: properly handle and test
-	const errors = res.filter((it) => {
-		return !(
-			it.endsWith('.ts')
-			|| it.endsWith('.js')
-			|| it.endsWith('.cjs')
-			|| it.endsWith('.mjs')
-			|| it.endsWith('.mts')
-			|| it.endsWith('.cts')
-		);
-	});
+	// const errors = res.filter((it) => {
+	// 	return !(
+	// 		it.endsWith('.ts')
+	// 		|| it.endsWith('.js')
+	// 		|| it.endsWith('.cjs')
+	// 		|| it.endsWith('.mjs')
+	// 		|| it.endsWith('.mts')
+	// 		|| it.endsWith('.cts')
+	// 	);
+	// });
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
@@ -92,6 +93,21 @@ export const assertV1OutFolder = (out: string) => {
 	}
 };
 
+export const assertV3OutFolder = (out: string) => {
+	if (!existsSync(out)) return;
+
+	if (existsSync(join(out, 'meta/_journal.json'))) {
+		console.log(
+			`Your migrations folder format is outdated, please run ${
+				chalk.green.bold(
+					`drizzle-kit up`,
+				)
+			}`,
+		);
+		process.exit(1);
+	}
+};
+
 export const dryJournal = (dialect: Dialect): Journal => {
 	return {
 		version: '7',
@@ -100,28 +116,23 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
-export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const meta = join(out, 'meta');
-	const journalPath = join(meta, '_journal.json');
-
-	if (!existsSync(join(out, 'meta'))) {
-		mkdirSync(meta, { recursive: true });
-		writeFileSync(journalPath, JSON.stringify(dryJournal(dialect)));
+export const prepareOutFolder = (out: string) => {
+	if (!existsSync(out)) {
+		mkdirSync(out, { recursive: true });
 	}
 
-	const journal = JSON.parse(readFileSync(journalPath).toString());
-
-	const snapshots = readdirSync(meta)
-		.filter((it) => !it.startsWith('_'))
-		.map((it) => join(meta, it));
+	const snapshots = readdirSync(out)
+		.map((subdir) => join(out, subdir, 'snapshot.json'))
+		.filter((filePath) => existsSync(filePath));
 
 	snapshots.sort();
-	return { meta, snapshots, journal };
+
+	return { snapshots };
 };
 
 type ValidationResult = { status: 'valid' | 'unsupported' | 'nonLatest' } | { status: 'malformed'; errors: string[] };
 
-const assertVersion = (obj: Object, current: number): 'unsupported' | 'nonLatest' | null => {
+const assertVersion = (obj: object, current: number): 'unsupported' | 'nonLatest' | null => {
 	const version = 'version' in obj ? Number(obj['version']) : undefined;
 	if (!version) return 'unsupported';
 	if (version > current) return 'unsupported';
@@ -130,7 +141,7 @@ const assertVersion = (obj: Object, current: number): 'unsupported' | 'nonLatest
 	return null;
 };
 
-const postgresValidator = (snapshot: Object): ValidationResult => {
+const postgresValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 8);
 	if (versionError) return { status: versionError };
 
@@ -142,7 +153,7 @@ const postgresValidator = (snapshot: Object): ValidationResult => {
 	return { status: 'valid' };
 };
 
-const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
+const cockroachSnapshotValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
 
@@ -155,19 +166,19 @@ const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
 };
 
 const mysqlValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 6);
 	if (versionError) return { status: versionError };
 
-	const { success } = mysqlSchemaV5.safeParse(snapshot);
+	const { success } = mysqlSnapshotValidator.parse(snapshot);
 	if (!success) return { status: 'malformed', errors: [] };
 
 	return { status: 'valid' };
 };
 
 const mssqlSnapshotValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
@@ -179,7 +190,7 @@ const mssqlSnapshotValidator = (
 };
 
 const sqliteValidator = (
-	snapshot: Object,
+	snapshot: object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 7);
 	if (versionError) return { status: versionError };
@@ -192,21 +203,20 @@ const sqliteValidator = (
 	return { status: 'valid' };
 };
 
-const singlestoreSnapshotValidator = (
-	snapshot: Object,
+const singlestoreValidator = (
+	snapshot: object,
 ): ValidationResult => {
-	const versionError = assertVersion(snapshot, 1);
+	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
-	// TODO uncomment this. @AlexSherman left this cause of error using pnpm run test (pnpm tsc was used)
-	// const { success } = singlestoreSchema.safeParse(snapshot);
-	// if (!success)
-	return { status: 'malformed', errors: [] };
-
+	const { success } = singlestoreSnapshotValidator.parse(snapshot);
+	if (!success) {
+		return { status: 'malformed', errors: [] };
+	}
 	return { status: 'valid' };
 };
 
-export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => ValidationResult => {
+export const validatorForDialect = (dialect: Dialect): (snapshot: object) => ValidationResult => {
 	switch (dialect) {
 		case 'postgresql':
 			return postgresValidator;
@@ -217,7 +227,7 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Val
 		case 'mysql':
 			return mysqlValidator;
 		case 'singlestore':
-			return singlestoreSnapshotValidator;
+			return singlestoreValidator;
 		case 'mssql':
 			return mssqlSnapshotValidator;
 		case 'cockroach':
@@ -288,61 +298,6 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 	return result;
 };
 
-export const prepareMigrationFolder = (
-	outFolder: string = 'drizzle',
-	dialect: Dialect,
-) => {
-	const { snapshots, journal } = prepareOutFolder(outFolder, dialect);
-	const report = validateWithReport(snapshots, dialect);
-	if (report.nonLatest.length > 0) {
-		console.log(
-			report.nonLatest
-				.map((it) => {
-					return `${it}/snapshot.json is not of the latest version`;
-				})
-				.concat(`Run ${chalk.green.bold(`drizzle-kit up`)}`)
-				.join('\n'),
-		);
-		process.exit(0);
-	}
-
-	if (report.malformed.length) {
-		const message = report.malformed
-			.map((it) => {
-				return `${it} data is malformed`;
-			})
-			.join('\n');
-		console.log(message);
-	}
-
-	const collisionEntries = Object.entries(report.idsMap).filter(
-		(it) => it[1].snapshots.length > 1,
-	);
-
-	const message = collisionEntries
-		.map((it) => {
-			const data = it[1];
-			return `[${
-				data.snapshots.join(
-					', ',
-				)
-			}] are pointing to a parent snapshot: ${data.parent}/snapshot.json which is a collision.`;
-		})
-		.join('\n')
-		.trim();
-	if (message) {
-		console.log(chalk.red.bold('Error:'), message);
-	}
-
-	const abort = report.malformed.length!! || collisionEntries.length > 0;
-
-	if (abort) {
-		process.exit(0);
-	}
-
-	return { snapshots, journal };
-};
-
 export const normaliseSQLiteUrl = (
 	it: string,
 	type: 'libsql' | 'better-sqlite',
@@ -357,7 +312,7 @@ export const normaliseSQLiteUrl = (
 				return `file:${it}`;
 			}
 			return it;
-		} catch (e) {
+		} catch {
 			return `file:${it}`;
 		}
 	}

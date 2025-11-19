@@ -1,23 +1,23 @@
-import { neon, neonConfig, NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
+import { neon, neonConfig, type NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
 
 import { PGlite } from '@electric-sql/pglite';
 import {
-	AnyRelationsBuilderConfig,
+	type AnyRelationsBuilderConfig,
 	defineRelations,
-	ExtractTablesFromSchema,
-	ExtractTablesWithRelations,
+	type ExtractTablesFromSchema,
+	type ExtractTablesWithRelations,
 	getTableName,
 	is,
-	RelationsBuilder,
-	RelationsBuilderConfig,
+	type RelationsBuilder,
+	type RelationsBuilderConfig,
 	Table,
 } from 'drizzle-orm';
-import { Cache, MutationOption } from 'drizzle-orm/cache/core';
+import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import { drizzle as drizzleNeonHttp, NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
-import {
+import type {
 	PgDatabase,
 	PgEnum,
 	PgEnumObject,
@@ -214,9 +214,7 @@ export const prepareNeonHttpClient = async (db: string) => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -238,9 +236,7 @@ export const prepareNeonWsClient = async (db: string) => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -256,9 +252,7 @@ export const preparePglite = async () => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -282,9 +276,7 @@ export const prepareNodePostgres = async (db: string) => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -306,9 +298,7 @@ export const preparePostgresjs = async (db: string) => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client.unsafe(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client.unsafe(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };
@@ -332,9 +322,7 @@ export const prepareProxy = async (db: string) => {
 	};
 
 	const batch = async (statements: string[]) => {
-		return Promise.all([
-			statements.map((x) => client.query(x)),
-		]).then((x) => x as any);
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch };

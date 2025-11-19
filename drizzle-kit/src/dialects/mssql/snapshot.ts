@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto';
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
+import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { createDDL, MssqlDDL, MssqlEntity } from './ddl';
+import type { MssqlDDL, MssqlEntity } from './ddl';
+import { createDDL } from './ddl';
 
 const index = object({
 	name: string(),
@@ -97,7 +98,7 @@ const dialect = literal('mssql');
 
 const schemaHash = object({
 	id: string(),
-	prevId: string(),
+	prevIds: zArray(string()),
 });
 
 export const schemaInternal = object({
@@ -122,15 +123,15 @@ export const snapshotValidator = validator({
 	version: ['1'],
 	dialect: ['mssql'],
 	id: 'string',
-	prevId: 'string',
+	prevIds: array<string>((_) => true),
 	ddl: array<MssqlEntity>((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 
 export type MssqlSnapshot = typeof snapshotValidator.shape;
 
-export const toJsonSnapshot = (ddl: MssqlDDL, prevId: string, renames: string[]): MssqlSnapshot => {
-	return { dialect: 'mssql', id: randomUUID(), prevId, version: '1', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: MssqlDDL, prevIds: string[], renames: string[]): MssqlSnapshot => {
+	return { dialect: 'mssql', id: randomUUID(), prevIds, version: '1', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
@@ -138,7 +139,7 @@ export const drySnapshot = snapshotValidator.strict(
 		version: '1',
 		dialect: 'mssql',
 		id: originUUID,
-		prevId: '',
+		prevIds: [],
 		ddl: [],
 		renames: [],
 	} satisfies MssqlSnapshot,

@@ -4,14 +4,12 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	DefaultConstraint,
 	DiffEntities,
 	ForeignKey,
-	fullTableFromDDL,
 	Index,
 	MssqlDDL,
 	MssqlEntities,
@@ -20,8 +18,10 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
+import { createDDL, fullTableFromDDL } from './ddl';
 import { typesCommutative } from './grammar';
-import { JsonStatement, prepareStatement } from './statements';
+import type { JsonStatement } from './statements';
+import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -509,7 +509,7 @@ export const ddlDiff = async (
 		};
 	};
 
-	const columnsFilter = (type: 'added') => {
+	const columnsFilter = (_type: 'added') => {
 		return (it: { schema: string; table: string; column: string }) => {
 			return !columnsToCreate.some((t) => t.schema === it.schema && t.table === it.table && t.name === it.column);
 		};
@@ -534,12 +534,14 @@ export const ddlDiff = async (
 	const jsonDropColumnsStatemets = columnsToDelete.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_column', { column: it })
 	);
-	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
-		prepareStatement('add_column', {
+	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) => {
+		const isPK = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null;
+		return prepareStatement('add_column', {
 			column: it,
 			defaults: ddl2.defaults.list(),
-		})
-	);
+			isPK,
+		});
+	});
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated).filter((it) => {
@@ -564,13 +566,13 @@ export const ddlDiff = async (
 			delete it.type;
 		}
 
-		const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+		// const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
 		// When adding primary key to column it is needed to add not null first
 		// if (it.notNull && pkIn2) {
 		// 	delete it.notNull;
 		// }
 
-		const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+		// const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
 		// if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
 		// 	delete it.notNull;
 		// }
@@ -897,9 +899,15 @@ export const ddlDiff = async (
 	const jsonCreateReferences = fksCreates.filter(fksIdentityFilter('created')).map((
 		it,
 	) => prepareStatement('create_fk', { fk: it }));
-	const jsonDropReferences = fksDeletes.filter(tablesFilter('deleted')).filter(fksIdentityFilter('deleted')).map((it) =>
-		prepareStatement('drop_fk', { fk: it })
-	);
+
+	const jsonDropReferences = fksDeletes.filter((x) => {
+		const fromDeletedTable = ddl2.tables.one({ schema: x.schema, name: x.table }) === null;
+		const toDeletedTable = (x.schema !== x.schemaTo
+			|| x.tableTo !== x.table) && ddl2.tables.one({ schema: x.schemaTo, name: x.tableTo }) === null;
+		if (fromDeletedTable && !toDeletedTable) return false;
+		return true;
+	}).filter(fksIdentityFilter('deleted')).map((it) => prepareStatement('drop_fk', { fk: it }));
+
 	const jsonRenameReferences = fksRenames.map((it) =>
 		prepareStatement('rename_fk', {
 			from: it.from,
@@ -998,15 +1006,16 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterViews);
 	jsonStatements.push(...jsonRecreatedDefaults);
 
-	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonDropReferences);
+
+	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonSetTableSchemas);
 
 	jsonStatements.push(...jsonDeletedCheckConstraints); // should be before renaming column
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDropReferences);
 	jsonStatements.push(...jsonDropDefaults);
 
 	// Will need to drop indexes before changing any columns in table

@@ -44,7 +44,13 @@
 		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
-		"publish": "npm publish package.tgz"
+		"publish": "npm publish package.tgz",
+		"test:postgres": "vitest run ./postgres/",
+		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
+		"test:cockroach": "vitest run ./cockroach",
+		"test:mssql": "vitest run ./mssql",
+		"test:gel": "vitest run ./gel",
+		"test:singlestore": "vitest run ./singlestore"
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
@@ -85,6 +91,7 @@
 		"commander": "^12.1.0",
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.0.3",
+		"drizzle-kit": "^0.31.6",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",

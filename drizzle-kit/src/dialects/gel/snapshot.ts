@@ -1,4 +1,5 @@
-import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
+import type { TypeOf } from 'zod';
+import { any, array, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 
 const enumSchema = object({
@@ -192,7 +193,7 @@ const table = object({
 
 const schemaHash = object({
 	id: string(),
-	prevId: string(),
+	prevIds: array(string()),
 });
 
 export const kitInternals = object({
@@ -298,7 +299,7 @@ export const dryGel = gelSchema.parse({
 	version: '1',
 	dialect: 'gel',
 	id: originUUID,
-	prevId: '',
+	prevIds: [],
 	tables: {},
 	enums: {},
 	schemas: {},

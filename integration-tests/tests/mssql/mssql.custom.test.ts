@@ -14,7 +14,7 @@ import {
 import { drizzle } from 'drizzle-orm/node-mssql';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
-import { type ConnectionPool } from 'mssql';
+import type { ConnectionPool } from 'mssql';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createClient } from './instrumentation';

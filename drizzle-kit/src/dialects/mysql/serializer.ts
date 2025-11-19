@@ -1,9 +1,11 @@
 import { mysqlSchemaError as schemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
-import { createDDL, interimToDDL, MysqlDDL, SchemaError } from './ddl';
+import type { MysqlDDL, SchemaError } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { drySnapshot, MysqlSnapshot, snapshotValidator } from './snapshot';
+import type { MysqlSnapshot } from './snapshot';
+import { drySnapshot, snapshotValidator } from './snapshot';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
@@ -18,8 +20,8 @@ export const prepareSnapshot = async (
 		errors2: SchemaError[];
 	}
 > => {
-	const { readFileSync } = await import('fs') as typeof import('fs');
-	const { randomUUID } = await import('crypto') as typeof import('crypto');
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
@@ -56,23 +58,23 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevId = prevSnapshot.id;
+	const prevIds = [prevSnapshot.id];
 
 	const snapshot = {
 		version: '6',
 		dialect: 'mysql',
 		id,
-		prevId,
+		prevIds,
 		ddl: ddlCur.entities.list(),
 		renames: [],
 	} satisfies MysqlSnapshot;
 
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MysqlSnapshot = {
 		id,
-		prevId,
+		prevIds,
 		...prevRest,
 	};
 

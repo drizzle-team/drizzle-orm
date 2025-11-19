@@ -155,7 +155,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns) {
-		const { isPK, isUnique, uniqueName, ...rest } = column;
+		const { isPK: _1, isUnique: _2, uniqueName: _3, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });

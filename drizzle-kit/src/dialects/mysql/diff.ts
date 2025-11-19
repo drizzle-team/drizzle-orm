@@ -1,13 +1,14 @@
 import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
-import { Resolver } from '../common';
+import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
+import type { Column, DiffEntities, Index, MysqlDDL, Table, View } from './ddl';
+import { fullTableFromDDL } from './ddl';
 import { charSetAndCollationCommutative, commutative, defaultNameForFK } from './grammar';
 import { prepareStatement } from './statements';
-import { JsonStatement } from './statements';
+import type { JsonStatement } from './statements';
 
 export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
 	const s = new Set<string>();
@@ -278,15 +279,23 @@ export const ddlDiff = async (
 
 	const dropCheckStatements = checksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table }));
+		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table, dropAutoIndex: false }));
 
 	const dropIndexeStatements = indexesDiff.filter((it) => it.$diffType === 'drop').filter((it) =>
 		!deletedTables.some((x) => x.name === it.table)
 	).map((it) => prepareStatement('drop_index', { index: it }));
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
-		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		.map((it) => prepareStatement('drop_constraint', { table: it.table, constraint: it.name }));
+		.filter((it) => {
+			const tableDeteled = deletedTables.some((x) => x.name === it.table);
+			const tableToDeleted = deletedTables.some((x) => x.name === it.tableTo);
+			return !(tableDeteled && !tableToDeleted);
+		})
+		.map((it) => {
+			let dropAutoIndex = ddl2.indexes.one({ table: it.table, name: it.name }) === null;
+			dropAutoIndex &&= !deletedTables.some((x) => x.name === it.table);
+			return prepareStatement('drop_constraint', { table: it.table, constraint: it.name, dropAutoIndex });
+		});
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
@@ -408,7 +417,7 @@ export const ddlDiff = async (
 
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
-			const { $diffType, $left, $right, entityType, table, ...rest } = it;
+			// const { $diffType: _1, $left: _2, $right: _3, entityType: _4, table: _5, ...rest } = it;
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const isPK = !!ddl2.pks.one({ table: it.table, columns: [it.name] });
 			const wasPK = !!ddl1.pks.one({ table: it.table, columns: [it.name] });
@@ -433,13 +442,15 @@ export const ddlDiff = async (
 
 	for (const fk of alters.filter((x) => x.entityType === 'fks')) {
 		if (fk.onDelete || fk.onUpdate) {
-			dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name });
+			const dropAutoIndex = false;
+			dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name, dropAutoIndex });
 			createFKsStatements.push({ type: 'create_fk', fk: fk.$right });
 		}
 	}
 
 	const statements = [
 		...createTableStatements,
+		...dropFKStatements,
 		...dropTableStatements,
 		...renameTableStatements,
 
@@ -450,16 +461,16 @@ export const ddlDiff = async (
 		...alterViewStatements,
 
 		...dropCheckStatements,
-		...dropFKStatements,
+
 		...dropIndexeStatements,
 		...dropPKStatements,
 
 		...columnAlterStatements,
 		...columnRecreateStatatements,
 
+		...addColumnsStatemets,
 		...createPKStatements,
 
-		...addColumnsStatemets,
 		...createIndexesStatements,
 		...createFKsStatements,
 		...createCheckStatements,

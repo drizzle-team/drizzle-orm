@@ -163,14 +163,14 @@ function findCompositeKeys(dataSource: (CommonEntity)[], target: CommonEntity) {
 	return match;
 }
 
-function replaceValue(arr: Array<any>, target: any, update: any) {
-	for (var i = 0; i < arr.length; i++) {
-		if (arr[i] === target) {
-			arr[i] = update;
-		}
-	}
-	return arr;
-}
+// function replaceValue(arr: Array<any>, target: any, update: any) {
+// 	for (var i = 0; i < arr.length; i++) {
+// 		if (arr[i] === target) {
+// 			arr[i] = update;
+// 		}
+// 	}
+// 	return arr;
+// }
 
 export type InferInsert<TShape extends Record<string, any>, TCommon extends boolean = false> = TShape extends
 	infer Shape ? Simplify<
@@ -320,7 +320,7 @@ const generateUpdate: (store: CollectionStore, type?: string) => UpdateFn<any> =
 	return ({ set, where }) => {
 		const filter = type
 			? {
-				...(where ?? {}),
+				...where,
 				entityType: type,
 			}
 			: where;
@@ -390,7 +390,7 @@ const generateDelete: (store: CollectionStore, type?: string) => DeleteFn<any> =
 
 		const filter = type
 			? {
-				...(where ?? {}),
+				...where,
 				entityType: type,
 			}
 			: where;
@@ -514,7 +514,7 @@ function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon ex
 		}),
 	);
 
-	return Object.fromEntries(entries.map(([k, v]) => {
+	return Object.fromEntries(entries.map(([k, _v]) => {
 		return [k, {
 			push: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
 			list: generateList(store, common ? undefined : k),
@@ -706,7 +706,7 @@ function isEqual(a: any, b: any): boolean {
 
 function sanitizeRow(row: Record<string, any>) {
 	return Object.fromEntries(
-		Object.entries(row).filter(([k, v]) => !ignoreChanges[k as keyof typeof ignoreChanges]),
+		Object.entries(row).filter(([k, _v]) => !ignoreChanges[k as keyof typeof ignoreChanges]),
 	);
 }
 
@@ -779,7 +779,7 @@ function _diff<
 			const changes: Record<string, any> = {};
 			let isChanged = false;
 
-			for (const [k, v] of Object.entries(oldRow)) {
+			for (const [k, _v] of Object.entries(oldRow)) {
 				if (ignoreChanges[k as keyof typeof ignoreChanges]) continue;
 
 				if (!isEqual(oldRow[k], newRow[k])) {
@@ -904,7 +904,7 @@ class SimpleDb<TDefinition extends Definition = Record<string, any>> {
 						'required'
 					>;
 				} else {
-					if (fieldName in commonConfig || fieldName in commonConfig) {
+					if (fieldName in commonConfig) {
 						throw new Error(`Used forbidden key "${fieldName}" in entity "${type}"`);
 					}
 				}

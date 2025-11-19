@@ -1,24 +1,25 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask, TaskView } from 'hanji';
-import { Minimatch } from 'minimatch';
+import type { TaskView } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/cockroach/snapshot';
-import {
+import type { EntityFilter } from 'src/dialects/pull-utils';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type {
 	CheckConstraint,
 	CockroachEntities,
 	Column,
-	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
-	interimToDDL,
 	Policy,
 	PrimaryKey,
 	Schema,
 	Sequence,
 	View,
 } from '../../dialects/cockroach/ddl';
+import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
@@ -26,42 +27,31 @@ import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
-import type { Entities } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { Casing, Prefix } from '../validations/common';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
 	credentials: CockroachCredentials,
-	tablesFilter: string[],
-	schemasFilters: string[],
+	filters: EntitiesFilterConfig,
 	prefix: Prefix,
-	entities: Entities,
 ) => {
 	const { prepareCockroach } = await import('../connections');
 	const db = await prepareCockroach(credentials);
 
-	const filter = prepareTablesFilter(tablesFilter);
-	const schemaFilter = (it: string) => schemasFilters.some((x) => x === it);
+	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const res = await renderWithTask(
-		progress,
-		fromDatabaseForDrizzle(
-			db,
-			filter,
-			schemaFilter,
-			entities,
-			(stage, count, status) => {
-				progress.update(stage, count, status);
-			},
-		),
-	);
+	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
+		progress.update(stage, count, status);
+	});
+	const res = await renderWithTask(progress, task);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
@@ -80,7 +70,7 @@ export const handle = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'cockroach');
+	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
@@ -100,14 +90,14 @@ export const handle = async (
 		);
 
 		writeResult({
-			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
-			journal,
 			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			prefixMode: prefix,
+			snapshots,
 		});
 	} else {
 		render(
@@ -142,41 +132,9 @@ export const handle = async (
 
 export const introspect = async (
 	db: DB,
-	filters: string[],
-	schemaFilters: string[] | ((x: string) => boolean),
-	entities: Entities,
+	filter: EntityFilter,
 	progress: TaskView,
 ) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const schemaFilter = typeof schemaFilters === 'function'
-		? schemaFilters
-		: (it: string) => schemaFilters.some((x) => x === it);
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, schemaFilter, entities));
+	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter));
 	return { schema };
 };

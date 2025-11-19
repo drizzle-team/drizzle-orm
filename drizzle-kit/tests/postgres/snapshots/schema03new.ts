@@ -1074,7 +1074,7 @@ export const documentsInRls = rls.table('documents', {
 	pgPolicy('documents_select_own', { as: 'permissive', for: 'select', to: ['public'] }),
 ]);
 
-export const messagesInRls = rls.table('messages', {
+export const messagesInRls = rls.table.withRLS('messages', {
 	msgId: uuid('msg_id').defaultRandom().primaryKey().notNull(),
 	senderId: uuid('sender_id').notNull(),
 	recipientId: uuid('recipient_id').notNull(),
@@ -1088,7 +1088,7 @@ export const messagesInRls = rls.table('messages', {
 		using: sql`(sender_id = (CURRENT_USER)::uuid)`,
 	}),
 	pgPolicy('messages_visibility', { as: 'permissive', for: 'select', to: ['public'] }),
-]).enableRLS();
+]);
 
 export const projectsInRls = rls.table('projects', {
 	projectId: uuid('project_id').defaultRandom().primaryKey().notNull(),
@@ -1107,7 +1107,7 @@ export const projectsInRls = rls.table('projects', {
 	}),
 ]);
 
-export const projectMembersInRls = rls.table('project_members', {
+export const projectMembersInRls = rls.table.withRLS('project_members', {
 	projectId: uuid('project_id').notNull(),
 	userId: uuid('user_id').notNull(),
 	role: text().notNull(),
@@ -1128,7 +1128,7 @@ export const projectMembersInRls = rls.table('project_members', {
 	}),
 	pgPolicy('project_members_visibility', { as: 'permissive', for: 'select', to: ['public'] }),
 	check('project_members_role_check', sql`role = ANY (ARRAY['member'::text, 'admin'::text])`),
-]).enableRLS();
+]);
 
 export const policy = pgPolicy('new_policy', {
 	as: 'restrictive',

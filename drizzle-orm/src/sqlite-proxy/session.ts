@@ -201,7 +201,6 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
-		this.customResultMapper = customResultMapper;
 		this.method = executeMethod;
 	}
 
