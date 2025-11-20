@@ -16,6 +16,10 @@ export const sqliteCredentials = union([
 		token: string().min(1),
 	}),
 	object({
+		driver: literal('sqlite-cloud'),
+		url: string().min(1),
+	}),
+	object({
 		driver: undefined(),
 		url: string().min(1),
 	}).transform<{ url: string }>((o) => {
@@ -24,16 +28,17 @@ export const sqliteCredentials = union([
 	}),
 ]);
 
-export type SqliteCredentials =
-	| {
-		driver: 'd1-http';
-		accountId: string;
-		databaseId: string;
-		token: string;
-	}
-	| {
-		url: string;
-	};
+export type SqliteCredentials = {
+	driver: 'd1-http';
+	accountId: string;
+	databaseId: string;
+	token: string;
+} | {
+	driver: 'sqlite-cloud';
+	url: string;
+} | {
+	url: string;
+};
 
 const _: SqliteCredentials = {} as TypeOf<typeof sqliteCredentials>;
 
@@ -92,6 +97,11 @@ export const printConfigConnectionIssues = (
 		} else {
 			console.log(error('Unexpected error with SQLite Durable Object driver 🤔'));
 		}
+		process.exit(1);
+	} else if (driver === 'sqlite-cloud') {
+		let text = `Please provide required params for SQLite Cloud driver:\n`;
+		console.log(error(text));
+		console.log(wrapParam('url', options.url));
 		process.exit(1);
 	} else {
 		softAssertUnreachable(driver);

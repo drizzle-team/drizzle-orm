@@ -97,7 +97,7 @@ jobs:
         ports:
           - 33306:3306
       singlestore:
-        image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+        image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
         env:
           ROOT_PASSWORD: singlestore
         ports:
