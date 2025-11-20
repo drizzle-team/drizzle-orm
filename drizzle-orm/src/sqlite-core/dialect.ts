@@ -185,7 +185,7 @@ export abstract class SQLiteDialect {
 					}
 				} else if (is(field, Column)) {
 					const tableName = field.table[Table.Symbol.Name];
-					if (field.columnType === 'SQLiteNumericBigInt') {
+					if (field.columnType === 'SQLiteNumericBigInt' || field.columnType === 'SQLiteIntegerBigInt') {
 						if (isSingleTable) {
 							chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`);
 						} else {

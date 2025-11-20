@@ -70,6 +70,9 @@ const allTypesTable = sqliteTable('all_types', {
 	timeMs: integer('time_ms', {
 		mode: 'timestamp_ms',
 	}),
+	integerBig: integer('integer_big', {
+		mode: 'bigint',
+	}),
 	bigint: blob('bigint', {
 		mode: 'bigint',
 	}),
@@ -3283,6 +3286,7 @@ export function tests() {
 					\`bool\` integer,
 					\`time\` integer,
 					\`time_ms\` integer,
+					\`integer_big\` integer,
 					\`bigint\` blob,
 					\`buffer\` blob,
 					\`json\` blob,
@@ -3336,6 +3340,7 @@ export function tests() {
 				text: 'TEXT STRING',
 				time: new Date(1741743161623),
 				timeMs: new Date(1741743161623),
+				integerBig: 5044565289845416380n,
 			});
 
 			const rawRes = await db.select().from(allTypesTable);
@@ -3347,6 +3352,7 @@ export function tests() {
 				bool: boolean | null;
 				time: Date | null;
 				timeMs: Date | null;
+				integerBig: bigint | null;
 				bigint: bigint | null;
 				buffer: Buffer | null;
 				json: unknown;
@@ -3364,6 +3370,7 @@ export function tests() {
 					bool: true,
 					time: new Date('2025-03-12T01:32:41.000Z'),
 					timeMs: new Date('2025-03-12T01:32:41.623Z'),
+					integerBig: 5044565289845416380n,
 					bigint: 5044565289845416380n,
 					buffer: Buffer.from([
 						0x44,
