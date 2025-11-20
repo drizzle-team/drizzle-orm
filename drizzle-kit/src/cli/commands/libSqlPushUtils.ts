@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 import { JsonStatement } from 'src/jsonStatements';
-import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
+import { type DB, findAddedAndRemoved } from 'src/utils';
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
 	CreateSqliteIndexConvertor,
@@ -111,7 +111,7 @@ export const _moveDataStatements = (
 };
 
 export const libSqlLogSuggestionsAndReturn = async (
-	connection: SQLiteDB,
+	connection: DB,
 	statements: JsonStatement[],
 	json1: SQLiteSchemaSquashed,
 	json2: SQLiteSchemaSquashed,

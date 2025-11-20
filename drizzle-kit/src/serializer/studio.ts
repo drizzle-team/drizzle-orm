@@ -22,7 +22,8 @@ import {
 import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
-import { compress } from 'hono/compress';
+// TODO: replace with '@hono/compress' when Bun supports CompressionStream
+import { compress } from '@hono/bun-compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { CasingType } from 'src/cli/validations/common';
@@ -66,7 +67,9 @@ export type Setup = {
 		| 'd1-http'
 		| '@libsql/client'
 		| 'better-sqlite3'
-		| '@sqlitecloud/drivers';
+		| '@sqlitecloud/drivers'
+		| '@tursodatabase/database'
+		| 'bun';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;

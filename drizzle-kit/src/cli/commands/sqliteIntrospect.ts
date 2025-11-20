@@ -1,10 +1,10 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
+import type { DB } from 'src/utils';
 import { originUUID } from '../../global';
 import { schemaToTypeScript } from '../../introspect-sqlite';
 import type { SQLiteSchema } from '../../serializer/sqliteSchema';
 import { fromDatabase } from '../../serializer/sqliteSerializer';
-import type { SQLiteDB } from '../../utils';
 import { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, ProgressView } from '../views';
@@ -57,7 +57,7 @@ export const sqliteIntrospect = async (
 	return { schema, ts };
 };
 
-export const sqlitePushIntrospect = async (db: SQLiteDB, filters: string[]) => {
+export const sqlitePushIntrospect = async (db: DB, filters: string[]) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
 	});

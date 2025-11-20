@@ -25,7 +25,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/sqliteSchema';
-import { escapeSingleQuotes, type SQLiteDB } from '../utils';
+import { type DB, escapeSingleQuotes } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const generateSqliteSnapshot = (
@@ -508,7 +508,7 @@ function filterIgnoredTablesByField(fieldName: string) {
 }
 
 export const fromDatabase = async (
-	db: SQLiteDB,
+	db: DB,
 	tablesFilter: (table: string) => boolean = (table) => true,
 	progressCallback?: (
 		stage: IntrospectStage,
