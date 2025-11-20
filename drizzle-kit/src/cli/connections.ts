@@ -640,7 +640,7 @@ export const prepareGelDB = async (
 			try {
 				await client.querySQL(`select 1;`);
 			} catch (error: any) {
-				if (error instanceof gel.ClientConnectionError) { // oxlint-disable-line drizzle-internal/no-instanceof
+				if (error instanceof gel.ClientConnectionError) {
 					console.error(
 						`It looks like you forgot to link the Gel project or provide the database credentials.
 To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
