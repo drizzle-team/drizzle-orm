@@ -485,6 +485,9 @@ export const preparePullConfig = async (
 		schemasFilter: string[];
 		prefix: Prefix;
 		entities: Entities;
+		init: boolean;
+		migrationsSchema: string | undefined;
+		migrationsTable: string | undefined;
 	}
 > => {
 	const raw = flattenPull(
@@ -502,6 +505,7 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
+	const { schema, table } = parsed.data.migrations || {};
 
 	const tablesFilterConfig = config.tablesFilter;
 	const tablesFilter = tablesFilterConfig
@@ -545,6 +549,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -564,6 +571,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -584,6 +594,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -603,6 +616,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -622,6 +638,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -641,6 +660,9 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
