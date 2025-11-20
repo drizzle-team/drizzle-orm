@@ -10,7 +10,7 @@ import {
 } from '../../sqlgenerator';
 
 import type { JsonStatement } from '../../jsonStatements';
-import { findAddedAndRemoved, type DB } from '../../utils';
+import { type DB, findAddedAndRemoved } from '../../utils';
 
 export const _moveDataStatements = (
 	tableName: string,
