@@ -1,6 +1,6 @@
 import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
-import { casing, casingType, prefix } from './common';
+import { casing, casingType, configMigrations, prefix } from './common';
 
 export const cliConfigGenerate = object({
 	dialect: dialect.optional(),
@@ -48,9 +48,7 @@ export const pullParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
-	migrations: object({
-		prefix: prefix.optional().default('index'),
-	}).optional(),
+	migrations: configMigrations,
 	entities: object({
 		roles: boolean().or(object({
 			provider: string().optional(),

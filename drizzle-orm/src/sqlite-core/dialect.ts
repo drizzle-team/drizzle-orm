@@ -5,7 +5,7 @@ import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -1111,7 +1111,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,
-	): void {
+	): void | MigratorInitFailResponse {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
@@ -1130,6 +1130,28 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		const dbMigrations = session.values<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
+
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			session.run(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
 		session.run(sql`BEGIN`);
@@ -1169,7 +1191,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
@@ -1189,8 +1211,29 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
 
-		const lastDbMigration = dbMigrations[0] ?? undefined;
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.run(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
+
+		const lastDbMigration = dbMigrations[0] ?? undefined;
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {

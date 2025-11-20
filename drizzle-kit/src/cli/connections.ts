@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
-import type { MigrationConfig } from 'drizzle-orm/migrator';
+import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
@@ -34,7 +34,7 @@ export const preparePostgresDB = async (
 			| 'bun';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
-		migrate: (config: string | MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 	}
 > => {
 	if ('driver' in credentials) {
@@ -697,7 +697,7 @@ export const connectToSingleStore = async (
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
-	migrate: (config: MigrationConfig) => Promise<void>;
+	migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 }> => {
 	const result = parseSingleStoreCredentials(it);
 
@@ -796,7 +796,7 @@ export const connectToMySQL = async (
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
-	migrate: (config: MigrationConfig) => Promise<void>;
+	migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 }> => {
 	const result = parseMysqlCredentials(it);
 
@@ -1048,7 +1048,7 @@ export const connectToSQLite = async (
 			| '@sqlitecloud/drivers'
 			| '@tursodatabase/database'
 			| 'bun';
-		migrate: (config: MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
@@ -1489,7 +1489,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 	& LibSQLDB
 	& {
 		packageName: '@libsql/client';
-		migrate: (config: MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
