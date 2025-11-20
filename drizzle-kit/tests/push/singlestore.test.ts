@@ -33,7 +33,7 @@ import { DialectSuite, run } from './common';
 async function createDockerDB(context: any): Promise<string> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
+	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>

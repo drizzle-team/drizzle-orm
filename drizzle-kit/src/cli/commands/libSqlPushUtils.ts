@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 
 import { JsonStatement } from 'src/jsonStatements';
-import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
+import { findAddedAndRemoved, type SQLiteDB } from 'src/utils';
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
 	CreateSqliteIndexConvertor,

@@ -309,7 +309,7 @@ export const kloudMeta = () => {
 
 export const normaliseSQLiteUrl = (
 	it: string,
-	type: 'libsql' | 'better-sqlite',
+	type: 'libsql' | 'better-sqlite' | '@tursodatabase/database' | 'bun',
 ) => {
 	if (type === 'libsql') {
 		if (it.startsWith('file:')) {
@@ -326,7 +326,7 @@ export const normaliseSQLiteUrl = (
 		}
 	}
 
-	if (type === 'better-sqlite') {
+	if (type === 'better-sqlite' || type === '@tursodatabase/database' || type === 'bun') {
 		if (it.startsWith('file:')) {
 			return it.substring(5);
 		}

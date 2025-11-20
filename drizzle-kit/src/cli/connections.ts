@@ -1,4 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -37,7 +38,8 @@ export const preparePostgresDB = async (
 			| 'pg'
 			| 'postgres'
 			| '@vercel/postgres'
-			| '@neondatabase/serverless';
+			| '@neondatabase/serverless'
+			| 'bun';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
@@ -527,8 +529,64 @@ export const preparePostgresDB = async (
 		return { packageName: '@neondatabase/serverless', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
+	if (await checkPackage('bun')) {
+		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		const { SQL } = await import('bun');
+		const { drizzle } = await import('drizzle-orm/bun-sql');
+		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+
+		const ssl = 'ssl' in credentials
+			? credentials.ssl === 'prefer'
+					|| credentials.ssl === 'require'
+					|| credentials.ssl === 'allow'
+				? true
+				: false
+			: undefined;
+
+		const client = new SQL({
+			adapter: 'postgres',
+			...credentials,
+			ssl,
+			max: 1,
+		});
+		const db = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.unsafe(sql, params ?? []);
+			return result;
+		};
+
+		const proxy: Proxy = async (params) => {
+			const query = client.unsafe(params.sql, params.params);
+			if (params.mode === 'array') {
+				return await query.values();
+			}
+			return await query;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const result = await tx.unsafe(query.sql);
+						results.push(result);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
+	}
+
 	console.error(
-		"To connect to Postgres database - please install either of 'pg', 'postgres', '@neondatabase/serverless' or '@vercel/postgres' drivers",
+		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers",
 	);
 	process.exit(1);
 };
@@ -742,7 +800,7 @@ export const connectToMySQL = async (
 	it: MysqlCredentials,
 ): Promise<{
 	db: DB;
-	packageName: 'mysql2' | '@planetscale/database';
+	packageName: 'mysql2' | '@planetscale/database' | 'bun';
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
@@ -751,6 +809,7 @@ export const connectToMySQL = async (
 	const result = parseMysqlCredentials(it);
 
 	if (await checkPackage('mysql2')) {
+		console.log(withStyle.info(`Using 'mysql2' driver for database querying`));
 		const { createConnection } = await import('mysql2/promise');
 		const { drizzle } = await import('drizzle-orm/mysql2');
 		const { migrate } = await import('drizzle-orm/mysql2/migrator');
@@ -821,6 +880,7 @@ export const connectToMySQL = async (
 	}
 
 	if (await checkPackage('@planetscale/database')) {
+		console.log(withStyle.info(`Using '@planetscale/database' driver for database querying`));
 		const { Client } = await import('@planetscale/database');
 		const { drizzle } = await import('drizzle-orm/planetscale-serverless');
 		const { migrate } = await import(
@@ -872,8 +932,73 @@ export const connectToMySQL = async (
 		};
 	}
 
+	if (await checkPackage('bun')) {
+		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		const { SQL } = await import('bun');
+		const { drizzle } = await import('drizzle-orm/bun-sql');
+		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+
+		const ssl = result.credentials && 'ssl' in result.credentials
+			? result.credentials.ssl === 'prefer'
+					|| result.credentials.ssl === 'require'
+					|| result.credentials.ssl === 'allow'
+				? true
+				: false
+			: undefined;
+
+		const client = result.url
+			? new SQL(result.url)
+			: new SQL({
+				adapter: 'mysql',
+				...result.credentials,
+				ssl,
+			});
+
+		const db = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.unsafe(sql, params ?? []);
+			return result;
+		};
+
+		const proxy: Proxy = async (params) => {
+			const query = client.unsafe(params.sql, params.params);
+			if (params.mode === 'array') {
+				return await query.values();
+			}
+			return await query;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const result = await tx.unsafe(query.sql);
+						results.push(result);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			packageName: 'bun',
+			db: { query },
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+			database: result.database,
+		};
+	}
+
 	console.error(
-		"To connect to MySQL database - please install either of 'mysql2' or '@planetscale/database' drivers",
+		"To connect to MySQL database - please install either of 'mysql2', 'bun' or '@planetscale/database' drivers",
 	);
 	process.exit(1);
 };
@@ -923,9 +1048,14 @@ const preparePGliteParams = (params: any[]) => {
 export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
-	& SQLiteDB
-	& {
-		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+	SQLiteDB & {
+		packageName:
+			| 'd1-http'
+			| '@libsql/client'
+			| 'better-sqlite3'
+			| '@sqlitecloud/drivers'
+			| '@tursodatabase/database'
+			| 'bun';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -1038,15 +1168,14 @@ export const connectToSQLite = async (
 				);
 			};
 
-			const db: SQLiteDB = {
-				query: async <T>(sql: string, params?: any[]) => {
-					const res = await remoteCallback(sql, params || [], 'all');
-					return res.rows as T[];
-				},
-				run: async (query: string) => {
-					await remoteCallback(query, [], 'run');
-				},
+			const query = async <T>(sql: string, params?: any[]) => {
+				const res = await remoteCallback(sql, params || [], 'all');
+				return res.rows as T[];
 			};
+			const run = async (query: string) => {
+				await remoteCallback(query, [], 'run');
+			};
+
 			const proxy: Proxy = async (params) => {
 				const preparedParams = prepareSqliteParams(params.params || [], 'd1-http');
 				const result = await remoteCallback(
@@ -1061,13 +1190,98 @@ export const connectToSQLite = async (
 				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
-			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+			return { query, run, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+		} else if (driver === 'sqlite-cloud') {
+			assertPackages('@sqlitecloud/drivers');
+			const { Database } = await import('@sqlitecloud/drivers');
+			const { drizzle } = await import('drizzle-orm/sqlite-cloud');
+			const { migrate } = await import('drizzle-orm/sqlite-cloud/migrator');
+
+			const client = new Database(credentials.url);
+			const drzl = drizzle(client);
+			const migrateFn = async (config: MigrationConfig) => {
+				return migrate(drzl, config);
+			};
+
+			const query = async <T>(sql: string, params?: any[]) => {
+				const stmt = client.prepare(sql).bind(params || []);
+				return await new Promise<T[]>((resolve, reject) => {
+					stmt.all((e: Error | null, d: SQLiteCloudRowset) => {
+						if (e) return reject(e);
+
+						return resolve(d.map((v) => Object.fromEntries(Object.entries(v))));
+					});
+				});
+			};
+			const run = async (query: string) => {
+				return await new Promise<void>((resolve, reject) => {
+					client.exec(query, (e: Error | null) => {
+						if (e) return reject(e);
+						return resolve();
+					});
+				});
+			};
+
+			const proxy = async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params || []);
+				const stmt = client.prepare(params.sql).bind(preparedParams);
+				return await new Promise<any[]>((resolve, reject) => {
+					stmt.all((e: Error | null, d: SQLiteCloudRowset | undefined) => {
+						if (e) return reject(e);
+
+						if (params.mode === 'array') {
+							return resolve((d || []).map((v) => v.getData()));
+						} else {
+							return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+						}
+					});
+				});
+			};
+
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const results: (any[] | Error)[] = [];
+				try {
+					await new Promise<void>((resolve, reject) => {
+						client.exec('BEGIN', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+					for (const query of queries) {
+						const result = await new Promise<any[]>((resolve, reject) => {
+							client.all(query.sql, (e: Error | null, d: SQLiteCloudRowset | undefined) => {
+								if (e) return reject(e);
+								return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+							});
+						});
+						results.push(result);
+					}
+					await new Promise<void>((resolve, reject) => {
+						client.exec('COMMIT', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				} catch (error) {
+					results.push(error as Error);
+					await new Promise<void>((resolve, reject) => {
+						client.exec('ROLLBACK', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				}
+				return results;
+			};
+
+			return { query, run, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
 	}
 
 	if (await checkPackage('@libsql/client')) {
+		console.log(withStyle.info(`Using '@libsql/client' driver for database querying`));
 		const { createClient } = await import('@libsql/client');
 		const { drizzle } = await import('drizzle-orm/libsql');
 		const { migrate } = await import('drizzle-orm/libsql/migrator');
@@ -1080,14 +1294,12 @@ export const connectToSQLite = async (
 			return migrate(drzl, config);
 		};
 
-		const db: SQLiteDB = {
-			query: async <T>(sql: string, params?: any[]) => {
-				const res = await client.execute({ sql, args: params || [] });
-				return res.rows as T[];
-			},
-			run: async (query: string) => {
-				await client.execute(query);
-			},
+		const query = async <T>(sql: string, params?: any[]) => {
+			const res = await client.execute({ sql, args: params || [] });
+			return res.rows as T[];
+		};
+		const run = async (query: string) => {
+			await client.execute(query);
 		};
 
 		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
@@ -1125,10 +1337,55 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+		return { query, run, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
+	// if (await checkPackage('@tursodatabase/database')) {
+	// 	console.log(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
+	// 	const { Database } = await import('@tursodatabase/database');
+	// 	const { drizzle } = await import('drizzle-orm/tursodatabase/database');
+	// 	const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+
+	// 	const client = new Database(normaliseSQLiteUrl(credentials.url, '@tursodatabase/database'));
+	// 	const drzl = drizzle(client);
+	// 	const migrateFn = async (config: MigrationConfig) => {
+	// 		return migrate(drzl, config);
+	// 	};
+
+	// 	const query = async <T>(sql: string, params?: any[]) => {
+	// 		const stmt = client.prepare(sql).bind(preparePGliteParams(params || []));
+	// 		const res = await stmt.all();
+	// 		return res as T[];
+	// 	};
+
+	// 	const proxy = async (params: ProxyParams) => {
+	// 		const preparedParams = prepareSqliteParams(params.params || []);
+	// 		const stmt = client.prepare(params.sql).bind(preparedParams);
+
+	// 		return stmt.raw(params.mode === 'array').all();
+	// 	};
+
+	// 	const transactionProxy: TransactionProxy = async (queries) => {
+	// 		const results: (any[] | Error)[] = [];
+	// 		try {
+	// 			const tx = client.transaction(async () => {
+	// 				for (const query of queries) {
+	// 					const result = await client.prepare(query.sql).all();
+	// 					results.push(result);
+	// 				}
+	// 			});
+	// 			await tx();
+	// 		} catch (error) {
+	// 			results.push(error as Error);
+	// 		}
+	// 		return results;
+	// 	};
+
+	// 	return { query, packageName: '@tursodatabase/database', proxy, transactionProxy, migrate: migrateFn };
+	// }
+
 	if (await checkPackage('better-sqlite3')) {
+		console.log(withStyle.info(`Using 'better-sqlite3' driver for database querying`));
 		const { default: Database } = await import('better-sqlite3');
 		const { drizzle } = await import('drizzle-orm/better-sqlite3');
 		const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
@@ -1141,13 +1398,11 @@ export const connectToSQLite = async (
 			return migrate(drzl, config);
 		};
 
-		const db: SQLiteDB = {
-			query: async <T>(sql: string, params: any[] = []) => {
-				return sqlite.prepare(sql).bind(params).all() as T[];
-			},
-			run: async (query: string) => {
-				sqlite.prepare(query).run();
-			},
+		const query = async <T>(sql: string, params: any[] = []) => {
+			return sqlite.prepare(sql).bind(params).all() as T[];
+		};
+		const run = async (query: string) => {
+			sqlite.prepare(query).run();
 		};
 
 		const proxy: Proxy = async (params) => {
@@ -1194,11 +1449,68 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
+		return { query, run, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
+	}
+
+	if (await checkPackage('bun')) {
+		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		const { SQL } = await import('bun');
+		const { drizzle } = await import('drizzle-orm/bun-sql');
+		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+
+		const client = new SQL({
+			adapter: 'sqlite',
+			filename: normaliseSQLiteUrl(credentials.url, 'bun'),
+		});
+
+		const db = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.unsafe(sql, params ?? []);
+			return result;
+		};
+		const run = async (sql: string) => {
+			await client.unsafe(sql);
+		};
+
+		const proxy: Proxy = async (params) => {
+			const query = client.unsafe(params.sql, params.params);
+			if (params.mode === 'array') {
+				return await query.values();
+			}
+			return await query;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const result = await tx.unsafe(query.sql);
+						results.push(result);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			packageName: 'bun',
+			query,
+			run,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3' or '@libsql/client' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', '@libsql/client' or 'bun' for Drizzle Kit to connect to SQLite databases",
 	);
 	process.exit(1);
 };
