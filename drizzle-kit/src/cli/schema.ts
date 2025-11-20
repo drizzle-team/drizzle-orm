@@ -5,7 +5,7 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
-import { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
+import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../global';
 import { type Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils';
@@ -631,6 +631,8 @@ export const pull = command({
 		}
 
 		if (init) {
+			if (!migrate) throw new Error(`--init can't be used with ${dialect}`);
+
 			console.log();
 			console.log(grey('Applying migration metadata to the database'));
 
@@ -642,7 +644,7 @@ export const pull = command({
 				init,
 			};
 
-			const error = await migrate!(migrateInput);
+			const error = await migrate(migrateInput);
 
 			if (error) {
 				if (error.exitCode === 'localMigrations') {
