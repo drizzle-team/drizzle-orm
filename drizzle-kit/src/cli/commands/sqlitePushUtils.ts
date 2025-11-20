@@ -10,7 +10,7 @@ import {
 } from '../../sqlgenerator';
 
 import type { JsonStatement } from '../../jsonStatements';
-import { type DB, findAddedAndRemoved } from '../../utils';
+import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
 
 export const _moveDataStatements = (
 	tableName: string,
@@ -125,7 +125,7 @@ export const getNewTableName = (
 };
 
 export const logSuggestionsAndReturn = async (
-	connection: DB,
+	connection: SQLiteDB,
 	statements: JsonStatement[],
 	json1: SQLiteSchemaSquashed,
 	json2: SQLiteSchemaSquashed,

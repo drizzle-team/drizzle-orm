@@ -1,6 +1,6 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
-import type { DB } from 'src/utils';
+import type { SQLiteDB } from 'src/utils';
 import { originUUID } from '../../global';
 import { schemaToTypeScript } from '../../introspect-sqlite';
 import type { SQLiteSchema } from '../../serializer/sqliteSchema';
@@ -57,7 +57,7 @@ export const sqliteIntrospect = async (
 	return { schema, ts };
 };
 
-export const sqlitePushIntrospect = async (db: DB, filters: string[]) => {
+export const sqlitePushIntrospect = async (db: SQLiteDB, filters: string[]) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
 	});

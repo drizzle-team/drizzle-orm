@@ -22,6 +22,11 @@ export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
 };
 
+export type SQLiteDB = {
+	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
+	run(query: string): Promise<void>;
+};
+
 export type LibSQLDB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
 	run(query: string): Promise<void>;

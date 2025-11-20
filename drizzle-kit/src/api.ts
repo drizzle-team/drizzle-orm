@@ -53,7 +53,7 @@ import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer'
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { Setup } from './serializer/studio';
-import type { DB } from './utils';
+import type { DB, SQLiteDB } from './utils';
 import { certs } from './utils/certs';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
@@ -273,10 +273,15 @@ export const pushSQLiteSchema = async (
 	const { applySqliteSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
 
-	const db: DB = {
+	const db: SQLiteDB = {
 		query: async (query: string, params?: any[]) => {
 			const res = drizzleInstance.all<any>(sql.raw(query));
 			return res;
+		},
+		run: async (query: string) => {
+			return Promise.resolve(drizzleInstance.run(sql.raw(query))).then(
+				() => {},
+			);
 		},
 	};
 

@@ -7,7 +7,15 @@ import fetch from 'node-fetch';
 import ws from 'ws';
 import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
-import { type DB, LibSQLDB, normalisePGliteUrl, normaliseSQLiteUrl, type Proxy, type TransactionProxy } from '../utils';
+import {
+	type DB,
+	LibSQLDB,
+	normalisePGliteUrl,
+	normaliseSQLiteUrl,
+	type Proxy,
+	type SQLiteDB,
+	type TransactionProxy,
+} from '../utils';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
@@ -1040,7 +1048,7 @@ const preparePGliteParams = (params: any[]) => {
 export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
-	DB & {
+	SQLiteDB & {
 		packageName:
 			| 'd1-http'
 			| '@libsql/client'
@@ -1164,6 +1172,10 @@ export const connectToSQLite = async (
 				const res = await remoteCallback(sql, params || [], 'all');
 				return res.rows as T[];
 			};
+			const run = async (query: string) => {
+				await remoteCallback(query, [], 'run');
+			};
+
 			const proxy: Proxy = async (params) => {
 				const preparedParams = prepareSqliteParams(params.params || [], 'd1-http');
 				const result = await remoteCallback(
@@ -1178,7 +1190,7 @@ export const connectToSQLite = async (
 				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
-			return { query, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+			return { query, run, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
 		} else if (driver === 'sqlite-cloud') {
 			assertPackages('@sqlitecloud/drivers');
 			const { Database } = await import('@sqlitecloud/drivers');
@@ -1198,6 +1210,14 @@ export const connectToSQLite = async (
 						if (e) return reject(e);
 
 						return resolve(d.map((v) => Object.fromEntries(Object.entries(v))));
+					});
+				});
+			};
+			const run = async (query: string) => {
+				return await new Promise<void>((resolve, reject) => {
+					client.exec(query, (e: Error | null) => {
+						if (e) return reject(e);
+						return resolve();
 					});
 				});
 			};
@@ -1254,7 +1274,7 @@ export const connectToSQLite = async (
 				return results;
 			};
 
-			return { query, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
+			return { query, run, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1277,6 +1297,9 @@ export const connectToSQLite = async (
 		const query = async <T>(sql: string, params?: any[]) => {
 			const res = await client.execute({ sql, args: params || [] });
 			return res.rows as T[];
+		};
+		const run = async (query: string) => {
+			await client.execute(query);
 		};
 
 		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
@@ -1314,7 +1337,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { query, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+		return { query, run, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	// if (await checkPackage('@tursodatabase/database')) {
@@ -1378,6 +1401,9 @@ export const connectToSQLite = async (
 		const query = async <T>(sql: string, params: any[] = []) => {
 			return sqlite.prepare(sql).bind(params).all() as T[];
 		};
+		const run = async (query: string) => {
+			sqlite.prepare(query).run();
+		};
 
 		const proxy: Proxy = async (params) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
@@ -1423,7 +1449,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { query, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
+		return { query, run, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('bun')) {
@@ -1445,6 +1471,9 @@ export const connectToSQLite = async (
 		const query = async (sql: string, params?: any[]) => {
 			const result = await client.unsafe(sql, params ?? []);
 			return result;
+		};
+		const run = async (sql: string) => {
+			await client.unsafe(sql);
 		};
 
 		const proxy: Proxy = async (params) => {
@@ -1473,6 +1502,7 @@ export const connectToSQLite = async (
 		return {
 			packageName: 'bun',
 			query,
+			run,
 			proxy,
 			transactionProxy,
 			migrate: migrateFn,
