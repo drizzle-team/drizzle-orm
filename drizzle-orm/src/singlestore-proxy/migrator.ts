@@ -31,10 +31,32 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		sql.raw('created_at desc'),
 	).limit(1);
 
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' as const };
+		}
+
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' as const };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await callback([
+			db.dialect.sqlToQuery(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		]);
+
+		return;
+	}
+
 	const lastDbMigration = dbMigrations[0];
-
 	const queriesToRun: string[] = [];
-
 	for (const migration of migrations) {
 		if (
 			!lastDbMigration
@@ -42,12 +64,16 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		) {
 			queriesToRun.push(
 				...migration.sql,
-				`insert into ${
-					sql.identifier(migrationsTable).value
-				} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
+				db.dialect.sqlToQuery(
+					sql`insert into ${
+						sql.identifier(migrationsTable)
+					} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				).sql,
 			);
 		}
 	}
 
 	await callback(queriesToRun);
+
+	return;
 }
