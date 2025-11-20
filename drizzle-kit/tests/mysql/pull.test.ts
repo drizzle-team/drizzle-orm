@@ -35,7 +35,8 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
-import { fromDatabase } from 'src/dialects/mysql/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -574,20 +575,32 @@ test('introspect view with table filter', async () => {
 	const schema1 = { table1, view1, table2, view2 };
 	await push({ db, to: schema1 });
 
+	let filter = prepareEntityFilter('mysql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 	let tables, views;
-	({ tables, views } = await fromDatabase(
+	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
 		'drizzle',
-		(it: { name: string }) => it.name === 'table1',
+		filter,
 	));
 	const expectedTables = [{ entityType: 'tables', name: 'table1' }];
 	expect(tables).toStrictEqual(expectedTables);
 	expect(views).toStrictEqual([]);
 
-	({ tables, views } = await fromDatabase(
+	filter = prepareEntityFilter('mysql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
 		'drizzle',
-		(it: { name: string }) => it.name === 'table1' || it.name === 'view1',
+		filter,
 	));
 	const expectedViews = [
 		{

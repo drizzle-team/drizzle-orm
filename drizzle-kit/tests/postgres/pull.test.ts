@@ -39,7 +39,8 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { fromDatabase } from 'src/dialects/postgres/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -1150,9 +1151,15 @@ test('introspect view with table filter', async () => {
 	await push({ db, to: schema1 });
 
 	let tables, views;
-	({ tables, views } = await fromDatabase(
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
-		(it: { name: string }) => it.name === 'table1',
+		filter,
 	));
 	const expectedTables = [
 		{
@@ -1165,9 +1172,15 @@ test('introspect view with table filter', async () => {
 	expect(tables).toStrictEqual(expectedTables);
 	expect(views).toStrictEqual([]);
 
-	({ tables, views } = await fromDatabase(
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
-		(it: { name: string }) => it.name === 'table1' || it.name === 'view1',
+		filter,
 	));
 	const expectedViews = [
 		{
@@ -1200,9 +1213,15 @@ test('introspect sequences with table filter', async () => {
 	const schema1 = { table1, table2 };
 	await push({ db, to: schema1 });
 
-	const { tables, sequences } = await fromDatabase(
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { tables, sequences } = await fromDatabaseForDrizzle(
 		db,
-		(it: { name: string }) => it.name === 'table1',
+		filter,
 	);
 
 	expect(tables).toStrictEqual([
