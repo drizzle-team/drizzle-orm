@@ -66,10 +66,15 @@
 		"typescript/no-empty-interface": "off",
 		"typescript/no-unsafe-declaration-merging": "off",
 		"no-inner-declarations": "off",
-		"drizzle-internal/no-instanceof": "error",
 		"drizzle-internal/require-entity-kind": "error"
 	},
 	"overrides": [
+		{
+			"files": ["drizzle-orm/**/*"],
+			"rules": {
+				"drizzle-internal/no-instanceof": "error"
+			}
+		},
 		{
 			"files": [
 				"**/tests/**/*.ts",
@@ -78,7 +83,6 @@
 			],
 			"rules": {
 				"import/extensions": "off",
-				"drizzle-internal/no-instanceof": "off",
 				"no-useless-escape": "off",
 				"consistent-type-imports": "off",
 				"no-unused-vars": "off",

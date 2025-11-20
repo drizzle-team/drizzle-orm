@@ -958,7 +958,7 @@ export const Timestamp: SqlType = {
 	is: (type) => /^\s*timestamp(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `'${value.toISOString().replace('T', ' ').replace('Z', '')}'`;
 		}
 
@@ -967,7 +967,7 @@ export const Timestamp: SqlType = {
 	defaultArrayFromDrizzle(value) {
 		return `'${
 			stringifyArray(value, 'sql', (v) => {
-				if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+				if (v instanceof Date) {
 					return `"${v.toISOString().replace('T', ' ').replace('Z', '')}"`;
 				}
 
@@ -1025,7 +1025,7 @@ export const TimestampTZ: SqlType = {
 	is: (type) => /^\s*timestamptz(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `'${value.toISOString().replace('T', ' ').replace('Z', '+00')}'`;
 		}
 
@@ -1034,7 +1034,7 @@ export const TimestampTZ: SqlType = {
 	defaultArrayFromDrizzle(value) {
 		return `'${
 			stringifyArray(value, 'sql', (v) => {
-				if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+				if (v instanceof Date) {
 					return `"${v.toISOString().replace('T', ' ').replace('Z', '+00')}"`;
 				}
 
@@ -1202,7 +1202,7 @@ export const DateType: SqlType = {
 	is: (type) => /^\s*date(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `'${value.toISOString().split('T')[0]}'`;
 		}
 
@@ -1211,7 +1211,7 @@ export const DateType: SqlType = {
 	defaultArrayFromDrizzle(value) {
 		return `'${
 			stringifyArray(value, 'sql', (v) => {
-				if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+				if (v instanceof Date) {
 					return v.toISOString().split('T')[0];
 				}
 
