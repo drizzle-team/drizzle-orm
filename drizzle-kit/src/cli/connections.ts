@@ -588,6 +588,7 @@ export const preparePostgresDB = async (
 	console.error(
 		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers",
 	);
+	console.warn("For the 'bun' driver, run your script using: bun --bun");
 	process.exit(1);
 };
 
@@ -1000,6 +1001,7 @@ export const connectToMySQL = async (
 	console.error(
 		"To connect to MySQL database - please install either of 'mysql2', 'bun' or '@planetscale/database' drivers",
 	);
+	console.warn("For the 'bun' driver, run your script using: bun --bun");
 	process.exit(1);
 };
 
@@ -1512,6 +1514,7 @@ export const connectToSQLite = async (
 	console.log(
 		"Please install either 'better-sqlite3', '@libsql/client' or 'bun' for Drizzle Kit to connect to SQLite databases",
 	);
+	console.warn("For the 'bun' driver, run your script using: bun --bun");
 	process.exit(1);
 };
 
