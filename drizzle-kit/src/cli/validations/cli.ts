@@ -1,7 +1,7 @@
 import type { TypeOf } from 'zod';
 import { boolean, intersection, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
-import { casing, casingType, prefix } from './common';
+import { casing, casingType, configMigrations } from './common';
 
 export const entitiesParams = {
 	tablesFilter: union([string(), string().array()]).optional(),
@@ -35,9 +35,7 @@ export const pullParams = object({
 	out: string().optional().default('drizzle'),
 	casing,
 	breakpoints: boolean().optional().default(true),
-	migrations: object({
-		prefix: prefix.optional().default('index'),
-	}).optional(),
+	migrations: configMigrations,
 	...entitiesParams,
 }).passthrough();
 

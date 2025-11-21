@@ -29,6 +29,7 @@ import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/po
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { preparePostgresDB } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
@@ -45,9 +46,12 @@ export const handle = async (
 	credentials: PostgresCredentials,
 	filtersConfig: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
-	const { preparePostgresDB } = await import('../connections');
-	const db = await preparePostgresDB(credentials);
+	if (!db) {
+		const { preparePostgresDB } = await import('../connections');
+		db = await preparePostgresDB(credentials);
+	}
 
 	const progress = new IntrospectProgress(true);
 	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
@@ -137,7 +141,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (
