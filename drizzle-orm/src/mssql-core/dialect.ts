@@ -9,7 +9,7 @@ import {
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
@@ -41,7 +41,7 @@ export class MsSqlDialect {
 		migrations: MigrationMeta[],
 		session: MsSqlSession,
 		config: MigrationConfig,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
@@ -68,14 +68,35 @@ export class MsSqlDialect {
 		await session.execute(migrationSchemaCreate);
 		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.execute<any>(
+		const { recordset: dbMigrations } = await session.execute<any>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} order by created_at desc offset 0 rows fetch next 1 rows only`,
 		);
 
-		const lastDbMigration = dbMigrations.recordset[0];
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
+
+		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (
