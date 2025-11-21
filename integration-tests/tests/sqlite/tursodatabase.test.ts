@@ -1,42 +1,11 @@
-import { Database } from '@tursodatabase/database';
 import { sql } from 'drizzle-orm';
-import { type BaseSQLiteDatabase, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
-import { drizzle } from 'drizzle-orm/tursodatabase/database';
 import { migrate } from 'drizzle-orm/tursodatabase/migrator';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { skipTests } from '~/common';
+import { expect } from 'vitest';
+import { tursoDatabaseTest as test } from './instrumentation';
 import relations from './relations';
 import { tests } from './sqlite-common';
-
-declare module 'vitest' {
-	interface TestContext {
-		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
-		};
-	}
-}
-
-const ENABLE_LOGGING = false;
-
-let db: TursoDatabaseDatabase<never, typeof relations>;
-let client: Database | undefined; // oxlint-disable-line no-unassigned-vars
-
-beforeAll(async () => {
-	const dbPath = ':memory:';
-	client = new Database(dbPath);
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-});
-
-afterAll(async () => {
-	client?.close();
-});
-
-beforeEach((ctx) => {
-	ctx.sqlite = {
-		db,
-	};
-});
 
 export const usersMigratorTable = sqliteTable('users12', {
 	id: integer('id').primaryKey(),
@@ -50,12 +19,12 @@ export const anotherUsersMigratorTable = sqliteTable('another_users', {
 	email: text('email').notNull(),
 });
 
-test('migrator', async () => {
+test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists another_users`);
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = await db.select().from(usersMigratorTable).all();
@@ -70,20 +39,7 @@ test('migrator', async () => {
 	await db.run(sql`drop table __drizzle_migrations`);
 });
 
-beforeEach((ctx) => {
-	// FROM clause is not supported in UPDATE
-	const skip = [
-		'update ... from',
-		'update ... from with alias',
-		'update ... from with join',
-	];
-
-	if (skip.includes(ctx.task.name)) {
-		ctx.skip();
-	}
-});
-
-skipTests([
+const skip = [
 	// Subquery in WHERE clause is not supported
 	'RQB v2 simple find many - with relation',
 	'RQB v2 transaction find many - with relation',
@@ -130,5 +86,5 @@ skipTests([
 	// TBD
 	'join on aliased sql from with clause',
 	'join view as subquery',
-]);
-tests();
+];
+tests(test, skip);
