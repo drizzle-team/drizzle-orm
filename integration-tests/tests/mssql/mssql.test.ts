@@ -844,6 +844,134 @@ test('migrator', async ({ db }) => {
 	await db.execute(sql`drop table [drizzle].[__drizzle_migrations]`);
 });
 
+test('migrator : --init', async ({ db }) => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop table if exists ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)};`);
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)};`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('cities_migration')}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('users_migration')}`);
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/mssql',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT 
+	CASE
+		WHEN EXISTS (
+			SELECT 1
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_SCHEMA = ${getTableConfig(usersMigratorTable).schema ?? 'dbo'} AND TABLE_NAME = ${
+		getTableConfig(usersMigratorTable).name
+	}) 
+		THEN 1 
+		ELSE 0
+	END AS ${sql.identifier('tableExists')};`);
+
+	expect(migratorRes).toStrictEqual(undefined);
+	expect(meta.length).toStrictEqual(1);
+	expect(!!res.recordset[0]?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - local migrations error', async ({ db }) => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop table if exists ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)};`);
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)};`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('cities_migration')}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('users_migration')}`);
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/mssql-init',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT 
+	CASE
+		WHEN EXISTS (
+			SELECT 1
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_SCHEMA = ${getTableConfig(usersMigratorTable).schema ?? 'dbo'} AND TABLE_NAME = ${
+		getTableConfig(usersMigratorTable).name
+	}) 
+		THEN 1 
+		ELSE 0
+	END AS ${sql.identifier('tableExists')};`);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+	expect(meta.length).toStrictEqual(0);
+	expect(!!res.recordset[0]?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - db migrations error', async ({ db }) => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop table if exists ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)};`);
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)};`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('cities_migration')}`);
+	await db.execute(sql`drop table if exists ${sql.identifier('users_migration')}`);
+
+	await migrate(db, {
+		migrationsFolder: './drizzle2/mssql-init',
+		migrationsSchema,
+		migrationsTable,
+	});
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/mssql',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT 
+	CASE
+		WHEN EXISTS (
+			SELECT 1
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_SCHEMA = ${getTableConfig(usersMigratorTable).schema ?? 'dbo'} AND TABLE_NAME = ${
+		getTableConfig(usersMigratorTable).name
+	}) 
+		THEN 1 
+		ELSE 0
+	END AS ${sql.identifier('tableExists')};`);
+
+	console.log(res);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+	expect(meta.length).toStrictEqual(2);
+	expect(!!res.recordset[0]?.tableExists).toStrictEqual(true);
+});
+
 test('insert via db.execute + select via db.execute', async ({ db }) => {
 	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 

@@ -423,5 +423,13 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 export const mysqlTest = prepareTest('mysql');
 export const planetscaleTest = prepareTest('planetscale');
 export const tidbTest = prepareTest('tidb');
-export const proxyTest = prepareTest('mysql-proxy');
+export const proxyTest = prepareTest('mysql-proxy').extend<{ simulator: ServerSimulator }>({
+	simulator: [
+		async ({ client: { client } }, use) => {
+			const simulator = new ServerSimulator(client as mysql.Connection);
+			await use(simulator);
+		},
+		{ scope: 'test' },
+	],
+});
 export type Test = ReturnType<typeof prepareTest>;

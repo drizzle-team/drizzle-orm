@@ -430,7 +430,7 @@ export const ddlDiff = async (
 		const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 		const pk = ddl2.pks.one({ table: it.table });
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
-		return prepareStatement('recreate_column', { column, isPK: isPK ?? false });
+		return prepareStatement('recreate_column', { column, isPK: isPK ?? false, diff: it });
 	});
 
 	for (const pk of alters.filter((x) => x.entityType === 'pks')) {

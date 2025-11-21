@@ -913,11 +913,11 @@ export const libSQLTursoV1Test = testFor('libsql-turso-v1').extend<{ db: LibSQLD
 		{ scope: 'test' },
 	],
 });
-export const proxyTest = testFor('proxy').extend<{ simulator: ServerSimulator }>({
-	simulator: [
+export const proxyTest = testFor('proxy').extend<{ serverSimulator: ServerSimulator }>({
+	serverSimulator: [
 		async ({ client }, use) => {
-			const simulator = new ServerSimulator(client as BetterSqlite3.Database);
-			await use(simulator);
+			const serverSimulator = new ServerSimulator(client as BetterSqlite3.Database);
+			await use(serverSimulator);
 		},
 		{ scope: 'test' },
 	],

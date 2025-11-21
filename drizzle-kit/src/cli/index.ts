@@ -1,7 +1,8 @@
-import { command, run } from '@drizzle-team/brocli';
+import { command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions } from './utils';
+import { error } from './views';
 
 const version = async () => {
 	const { npmVersion } = await ormCoreVersions();
@@ -56,4 +57,22 @@ const legacy = [
 run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
+	hook: (event, command) => {
+		if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
+	},
+	theme: (event) => {
+		if (event.type === 'error') {
+			if (event.violation !== 'unknown_error') return false;
+
+			const reason = event.error;
+			if (
+				!(typeof reason === 'object' && reason !== null && 'message' in reason && typeof reason.message === 'string')
+			) return false;
+
+			console.log(error(reason.message));
+			return true;
+		}
+
+		return false;
+	},
 });

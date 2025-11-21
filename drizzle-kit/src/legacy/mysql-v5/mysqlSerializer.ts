@@ -150,7 +150,7 @@ export const generateMySqlSnapshot = (
 					} else {
 						if (sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
-						} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+						} else if (column.default instanceof Date) {
 							if (sqlTypeLowered === 'date') {
 								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 							} else if (
@@ -485,7 +485,7 @@ export const generateMySqlSnapshot = (
 						} else {
 							if (sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'`;
-							} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+							} else if (column.default instanceof Date) {
 								if (sqlTypeLowered === 'date') {
 									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 								} else if (

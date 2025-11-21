@@ -53,7 +53,7 @@
 		"test:singlestore": "vitest run ./singlestore"
 	},
 	"dependencies": {
-		"@drizzle-team/brocli": "^0.10.2",
+		"@drizzle-team/brocli": "^0.11.0",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.10",
 		"esbuild-register": "^3.6.0"
