@@ -2069,7 +2069,7 @@ class MySqlModifyColumn extends Convertor {
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
-		columnDefault = columnDefault instanceof Date // oxlint-disable-line drizzle-internal/no-instanceof
+		columnDefault = columnDefault instanceof Date
 			? columnDefault.toISOString()
 			: columnDefault;
 
@@ -2404,7 +2404,7 @@ class SingleStoreModifyColumn extends Convertor {
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
-		columnDefault = columnDefault instanceof Date // oxlint-disable-line drizzle-internal/no-instanceof
+		columnDefault = columnDefault instanceof Date
 			? columnDefault.toISOString()
 			: columnDefault;
 

@@ -23,6 +23,7 @@ export const pushParams = object({
 	schema: union([string(), string().array()]),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
+	explain: boolean().optional(),
 	...entitiesParams,
 }).passthrough();
 

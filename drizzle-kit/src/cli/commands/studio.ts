@@ -689,7 +689,7 @@ const schema = z.union([
 const jsonStringify = (data: any) => {
 	return JSONB.stringify(data, (_key, value) => {
 		// Convert Error to object
-		if (value instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Error) {
 			return {
 				error: value.message,
 			};
@@ -702,8 +702,8 @@ const jsonStringify = (data: any) => {
 				&& 'type' in value
 				&& 'data' in value
 				&& value.type === 'Buffer')
-			|| value instanceof ArrayBuffer // oxlint-disable-line drizzle-internal/no-instanceof
-			|| value instanceof Buffer // oxlint-disable-line drizzle-internal/no-instanceof
+			|| value instanceof ArrayBuffer
+			|| value instanceof Buffer
 		) {
 			return Buffer.from(value).toString('base64');
 		}

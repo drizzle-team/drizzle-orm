@@ -336,8 +336,9 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
-	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK, isCompositePK: false }) as string;
+	const r = st.diff.$right;
+	const drop = dropColumnConvertor.convert({ column: r }) as string;
+	const add = addColumnConvertor.convert({ column: r, isPK: st.isPK, isCompositePK: false }) as string;
 
 	return [drop, add];
 });
@@ -622,7 +623,9 @@ const dropCheckConvertor = convertor('drop_check', (st) => {
 });
 
 const recreateCheckConvertor = convertor('alter_check', (st) => {
-	const { check } = st;
+	const { diff } = st;
+
+	const check = diff.$right;
 
 	const key = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -682,7 +685,7 @@ const moveEnumConvertor = convertor('move_enum', (st) => {
 });
 
 const alterEnumConvertor = convertor('alter_enum', (st) => {
-	const { diff, enum: e } = st;
+	const { diff, to: e } = st;
 	const key = e.schema !== 'public' ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
 
 	const statements = [] as string[];
