@@ -30,7 +30,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
+import { postgresSchemaError, postgresSchemaWarning, ProgressView, psqlExplain } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -40,6 +40,7 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
+	explain: boolean,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -76,7 +77,7 @@ export const handle = async (
 	}
 
 	// const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
@@ -99,6 +100,17 @@ export const handle = async (
 	if (sqlStatements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
 		return;
+	}
+
+	if (explain) {
+		const messages: string[] = [`\n\nThe following migration was generated:\n`];
+		for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
+			const msg = psqlExplain(jsonStatement, sql);
+			if (msg) messages.push(msg);
+			else messages.push(...sql);
+		}
+		console.log(withStyle.info(messages.join('\n')));
+		process.exit(0);
 	}
 
 	const { losses, hints } = await suggestions(db, jsonStatements);

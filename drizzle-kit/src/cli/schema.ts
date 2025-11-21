@@ -292,12 +292,15 @@ export const push = command({
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
 			)
 			.default(false),
+		explain: boolean()
+			.desc('Print the planned SQL changes (dry run)')
+			.default(false),
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'push',
 			opts,
-			['force', 'verbose', 'strict'],
+			['force', 'verbose', 'strict', 'explain'],
 			[
 				'schema',
 				'dialect',
@@ -333,6 +336,7 @@ export const push = command({
 			force,
 			casing,
 			filters,
+			explain,
 		} = config;
 
 		try {
@@ -373,6 +377,7 @@ export const push = command({
 					filters,
 					force,
 					casing,
+					explain,
 				);
 			} else if (dialect === 'sqlite') {
 				const { handle: sqlitePush } = await import('./commands/push-sqlite');

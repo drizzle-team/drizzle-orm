@@ -250,6 +250,7 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		strict: boolean;
 		force: boolean;
+		explain: boolean;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
 	}
@@ -297,6 +298,7 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'postgresql',
 			schemaPath: config.schema,
+			explain: (options.explain as boolean) ?? false,
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
@@ -321,6 +323,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -339,6 +342,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -357,6 +361,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -375,6 +380,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -402,6 +408,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -421,6 +428,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
