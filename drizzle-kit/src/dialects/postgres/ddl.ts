@@ -177,6 +177,7 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
+
 export type ViewColumn = {
 	schema: string;
 	view: string;

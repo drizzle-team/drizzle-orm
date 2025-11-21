@@ -20,6 +20,8 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { resolver } from '../prompts';
+import { withStyle } from '../validations/outputs';
+import { psqlExplain } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -44,7 +46,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema'),
@@ -63,6 +65,14 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
+
+	const messages: string[] = [`\n\nThe following migration was generated:\n`];
+	for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
+		const msg = psqlExplain(jsonStatement, sql);
+		if (msg) messages.push(msg);
+		else messages.push(...sql);
+	}
+	console.log(withStyle.info(messages.join('\n')));
 
 	writeResult({
 		snapshot: snapshot,

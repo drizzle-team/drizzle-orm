@@ -1,7 +1,8 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
-import type { MigrationConfig } from 'drizzle-orm/migrator';
+import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
+import type { config } from 'mssql';
 import fetch from 'node-fetch';
 import ws from 'ws';
 import type { TransactionProxy } from '../utils';
@@ -45,7 +46,7 @@ export const preparePostgresDB = async (
 			| '@neondatabase/serverless';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
-		migrate: (config: string | MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 	}
 > => {
 	if ('driver' in credentials) {
@@ -546,7 +547,7 @@ export const prepareCockroach = async (
 ): Promise<
 	DB & {
 		proxy: Proxy;
-		migrate: (config: string | MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 	}
 > => {
 	if (await checkPackage('pg')) {
@@ -640,7 +641,7 @@ export const prepareGelDB = async (
 			try {
 				await client.querySQL(`select 1;`);
 			} catch (error: any) {
-				if (error instanceof gel.ClientConnectionError) { // oxlint-disable-line drizzle-internal/no-instanceof
+				if (error instanceof gel.ClientConnectionError) {
 					console.error(
 						`It looks like you forgot to link the Gel project or provide the database credentials.
 To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
@@ -736,7 +737,7 @@ export const connectToSingleStore = async (
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
-	migrate: (config: MigrationConfig) => Promise<void>;
+	migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 }> => {
 	const result = parseSingleStoreCredentials(it);
 
@@ -835,7 +836,7 @@ export const connectToMySQL = async (
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
-	migrate: (config: MigrationConfig) => Promise<void>;
+	migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 }> => {
 	const result = parseMysqlCredentials(it);
 
@@ -970,10 +971,32 @@ export const connectToMySQL = async (
 	process.exit(1);
 };
 
+function parseMssqlUrl(url: URL): config {
+	return {
+		user: url.username,
+		password: url.password,
+		server: url.hostname,
+		port: Number.parseInt(url.port, 10),
+		database: url.pathname.replace(/^\//, ''),
+		options: {
+			encrypt: url.searchParams.get('encrypt') === 'true',
+			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
+		},
+	};
+}
+
 const parseMssqlCredentials = (credentials: MssqlCredentials) => {
 	if ('url' in credentials) {
-		const url = credentials.url;
-		return { url };
+		try {
+			const url = new URL(credentials.url);
+			const parsedCredentials = parseMssqlUrl(url);
+			return {
+				database: parsedCredentials.database,
+				credentials: parsedCredentials,
+			};
+		} catch {
+			return { url: credentials.url };
+		}
 	} else {
 		return {
 			database: credentials.database,
@@ -986,7 +1009,7 @@ export const connectToMsSQL = async (
 	it: MssqlCredentials,
 ): Promise<{
 	db: DB;
-	migrate: (config: MigrationConfig) => Promise<void>;
+	migrate: (config: MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 }> => {
 	const result = parseMssqlCredentials(it);
 
@@ -1070,7 +1093,7 @@ export const connectToSQLite = async (
 	& SQLiteDB
 	& {
 		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
-		migrate: (config: MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
@@ -1351,7 +1374,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 	& LibSQLDB
 	& {
 		packageName: '@libsql/client';
-		migrate: (config: MigrationConfig) => Promise<void>;
+		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
