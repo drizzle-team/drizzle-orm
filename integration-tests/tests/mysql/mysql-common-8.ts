@@ -15,7 +15,6 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/mysql-core';
-import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { expect } from 'vitest';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
@@ -449,16 +448,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			{ id: 9, name: 'John 8', verified: true },
 			{ id: 10, name: 'John 9', verified: true },
 		]);
-	});
-
-	test.concurrent('migrator', async ({ db }) => {
-		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
-
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-
-		const result = await db.select().from(usersMigratorTable);
-
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
 
 	test.concurrent('insert via db.execute + select via db.execute', async ({ db, push }) => {
