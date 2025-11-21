@@ -18,7 +18,7 @@
 	"private": true,
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20241004.0",
-		"@libsql/client": "^0.15.15",
+		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.10.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@paralleldrive/cuid2": "^2.2.2",
