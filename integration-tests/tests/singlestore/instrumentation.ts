@@ -162,12 +162,9 @@ export const _push = async (
 	}
 };
 
-export const prepareSingleStoreClient = async (db: string, port: string = '3306') => {
-	const url = new URL(process.env['SINGLESTORE_CONNECTION_STRING']!);
-	url.pathname = `/${db}`;
-	url.port = port;
+export const prepareSingleStoreClient = async (uri: string) => {
 	const client = await createConnection({
-		uri: url.toString(),
+		uri,
 		supportBigNumbers: true,
 		multipleStatements: true,
 	});
@@ -199,12 +196,9 @@ export const prepareSingleStoreClient = async (db: string, port: string = '3306'
 	return { client, query, batch };
 };
 
-export const prepareProxy = async (db: string, port: string = '3306') => {
-	const url = new URL(process.env['SINGLESTORE_CONNECTION_STRING']!);
-	url.pathname = `/${db}`;
-	url.port = port;
+export const prepareProxy = async (uri: string) => {
 	const client = await createConnection({
-		uri: url.toString(),
+		uri,
 		supportBigNumbers: true,
 		multipleStatements: true,
 	});
@@ -255,23 +249,19 @@ const providerClosure = async <T>(items: T[]) => {
 };
 
 export const providerForSingleStore = async () => {
-	const clients = [
-		await prepareSingleStoreClient('', '3308'),
-		await prepareSingleStoreClient('', '3309'),
-		await prepareSingleStoreClient('', '3310'),
-		await prepareSingleStoreClient('', '3311'),
-	];
+	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
+	if (url === undefined) throw new Error('SINGLESTORE_CONNECTION_STRING is not set.');
+	const uris = url.split(';').filter((val) => val !== '');
+	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
 	return providerClosure(clients);
 };
 
 export const provideForProxy = async () => {
-	const clients = [
-		await prepareProxy('', '3308'),
-		await prepareProxy('', '3309'),
-		await prepareProxy('', '3310'),
-		await prepareProxy('', '3311'),
-	];
+	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
+	if (url === undefined) throw new Error('SINGLESTORE_CONNECTION_STRING is not set.');
+	const uris = url.split(';').filter((val) => val !== '');
+	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
 	return providerClosure(clients);
 };
@@ -408,7 +398,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 
 								return { rows: response.data };
 							} catch (e: any) {
-								console.error('Error from pg proxy server:', e.message);
+								console.error('Error from singlestore proxy server:', e.message);
 								throw e;
 							}
 						};
