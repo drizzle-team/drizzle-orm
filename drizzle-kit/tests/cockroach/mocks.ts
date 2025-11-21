@@ -36,7 +36,7 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
-import { EmptyProgressView, explain } from 'src/cli/views';
+import { EmptyProgressView, psqlExplain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
@@ -233,8 +233,8 @@ export const push = async (
 	const { hints, losses } = await suggestions(db, statements);
 
 	if (config.explain) {
-		const text = groupedStatements.map((x) => explain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
-		console.log(text);
+		// const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
+		// console.log(text);
 		return { sqlStatements, statements, hints, losses };
 	}
 
@@ -266,9 +266,9 @@ export const push = async (
 				'push',
 			);
 			if (sqlStatements.length > 0) {
-				const msg = groupedStatements.map((x) => explain(x.jsonStatement, x.sqlStatements)).join('\n');
+				// const msg = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).join('\n');
 				console.error('---- subsequent push is not empty ----');
-				console.error(msg);
+				// console.error(msg);
 				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
