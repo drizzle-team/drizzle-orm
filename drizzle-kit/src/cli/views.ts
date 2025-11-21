@@ -105,11 +105,11 @@ export const psqlExplain = (
 		const d = st.diff;
 
 		const key = `${r.schema}.${r.table}.${r.name}`;
-		msg += `┌─── ${key} column changed:\n`;
-		if (d.default) msg += `│ default: ${d.default.from} -> ${d.default.to}\n`;
-		if (d.type) msg += `│ type: ${d.type.from} -> ${d.type.to}\n`;
-		if (d.notNull) msg += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
-		if (d.dimensions) msg += `│ dimensions: ${d.dimensions.from} -> ${d.dimensions.to}\n`;
+		title += `┌─── ${key} column changed:\n`;
+		if (d.default) cause += `│ default: ${d.default.from} -> ${d.default.to}\n`;
+		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.dimensions) cause += `│ dimensions: ${d.dimensions.from} -> ${d.dimensions.to}\n`;
 
 		// TODO
 		// if (d.identity) msg += `│ identity: ${formatOptionChanges(d.identity.from)} -> ${d.notNull.to}\n`;
@@ -119,7 +119,7 @@ export const psqlExplain = (
 		const { diff: d } = st;
 
 		const key = `${d.$right.schema}.${d.$right.table}.${d.$right.name}`;
-		msg += `┌─── ${key} column recreated:\n`;
+		title += `┌─── ${key} column recreated:\n`;
 		if (d.generated) {
 			const from = d.generated.from ? `${d.generated.from.as} ${d.generated.from.type}` : 'null';
 			const to = d.generated.to ? `${d.generated.to.as} ${d.generated.to.type}` : 'null';
@@ -249,10 +249,10 @@ export const psqlExplain = (
 		// TODO alter materialized? Should't it be recreate?
 		if (d.materialized) cause += `│ materialized: ${d.materialized.from} -> ${d.materialized.to}\n`;
 
-		if (d.tablespace) msg += `│ tablespace: ${d.tablespace.from} -> ${d.tablespace.to}\n`;
-		if (d.using) msg += `│ using: ${d.using.from} -> ${d.using.to}\n`;
-		if (d.withNoData) msg += `│ withNoData: ${d.withNoData.from} -> ${d.withNoData.to}\n`;
-		if (d.with) msg += `| with: ${formatOptionChanges(d.with.from, d.with.to)}`;
+		if (d.tablespace) cause += `│ tablespace: ${d.tablespace.from} -> ${d.tablespace.to}\n`;
+		if (d.using) cause += `│ using: ${d.using.from} -> ${d.using.to}\n`;
+		if (d.withNoData) cause += `│ withNoData: ${d.withNoData.from} -> ${d.withNoData.to}\n`;
+		if (d.with) cause += `| with: ${formatOptionChanges(d.with.from, d.with.to)}`;
 	}
 
 	if (st.type === 'recreate_view') {
@@ -292,32 +292,34 @@ export const mysqlExplain = (
 	st: StatementMysql,
 	sqls: string[],
 ) => {
-	let msg = '';
+	let title = '';
+	let cause = '';
+
 	if (st.type === 'alter_column') {
 		const r = st.diff.$right;
 		const d = st.diff;
 
 		const key = `${r.table}.${r.name}`;
-		msg += `┌─── ${key} column changed:\n`;
-		if (d.default) msg += `│ default: ${d.default.from} -> ${d.default.to}\n`;
-		if (d.type) msg += `│ type: ${d.type.from} -> ${d.type.to}\n`;
-		if (d.notNull) msg += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
-		if (d.autoIncrement) msg += `│ autoIncrement: ${d.autoIncrement.from} -> ${d.autoIncrement.to}\n`;
-		if (d.charSet) msg += `│ charSet: ${d.charSet.from} -> ${d.charSet.to}\n`;
-		if (d.collation) msg += `│ collation: ${d.collation.from} -> ${d.collation.to}\n`;
-		if (d.onUpdateNow) msg += `│ onUpdateNow: ${d.onUpdateNow.from} -> ${d.onUpdateNow.to}\n`;
-		if (d.onUpdateNowFsp) msg += `│ onUpdateNowFsp: ${d.onUpdateNowFsp.from} -> ${d.onUpdateNowFsp.to}\n`;
+		title += `${key} column changed:\n`;
+		if (d.default) cause += `│ default: ${d.default.from} -> ${d.default.to}\n`;
+		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.autoIncrement) cause += `│ autoIncrement: ${d.autoIncrement.from} -> ${d.autoIncrement.to}\n`;
+		if (d.charSet) cause += `│ charSet: ${d.charSet.from} -> ${d.charSet.to}\n`;
+		if (d.collation) cause += `│ collation: ${d.collation.from} -> ${d.collation.to}\n`;
+		if (d.onUpdateNow) cause += `│ onUpdateNow: ${d.onUpdateNow.from} -> ${d.onUpdateNow.to}\n`;
+		if (d.onUpdateNowFsp) cause += `│ onUpdateNowFsp: ${d.onUpdateNowFsp.from} -> ${d.onUpdateNowFsp.to}\n`;
 	}
 
 	if (st.type === 'recreate_column') {
 		const { column, diff } = st;
 
 		const key = `${column.table}.${column.name}`;
-		msg += `┌─── ${key} column recreated:\n`;
+		title += `${key} column recreated:\n`;
 		if (diff.generated) {
 			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
 			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
-			msg += `│ generated: ${from} -> ${to}\n`;
+			cause += `│ generated: ${from} -> ${to}\n`;
 		}
 	}
 
@@ -325,17 +327,21 @@ export const mysqlExplain = (
 		const { diff, view } = st;
 
 		const key = `${view.name}`;
-		msg += `┌─── ${key} view changed:\n`;
-		if (diff.algorithm) msg += `│ algorithm: ${diff.algorithm.from} -> ${diff.algorithm.to}\n`;
-		if (diff.definition) msg += `│ definition: ${diff.definition.from} -> ${diff.definition.to}\n`;
-		if (diff.sqlSecurity) msg += `│ sqlSecurity: ${diff.sqlSecurity.from} -> ${diff.sqlSecurity.to}\n`;
-		if (diff.withCheckOption) msg += `│ withCheckOption: ${diff.withCheckOption.from} -> ${diff.withCheckOption.to}\n`;
+		title += `${key} view changed:\n`;
+		if (diff.algorithm) cause += `│ algorithm: ${diff.algorithm.from} -> ${diff.algorithm.to}\n`;
+		if (diff.definition) cause += `│ definition: ${diff.definition.from} -> ${diff.definition.to}\n`;
+		if (diff.sqlSecurity) cause += `│ sqlSecurity: ${diff.sqlSecurity.from} -> ${diff.sqlSecurity.to}\n`;
+		if (diff.withCheckOption) {
+			cause += `│ withCheckOption: ${diff.withCheckOption.from} -> ${diff.withCheckOption.to}\n`;
+		}
 	}
 
-	if (msg) {
+	if (title) {
+		let msg = `┌─── ${title}\n`;
+		msg += cause;
 		msg += `├───\n`;
 		for (const sql of sqls) {
-			msg += `│ ${sql}\n`;
+			msg += `│ ${highlightSQL(sql)}\n`;
 		}
 		msg += `└───\n`;
 		return msg;
