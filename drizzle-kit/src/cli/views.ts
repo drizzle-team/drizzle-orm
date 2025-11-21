@@ -5,8 +5,8 @@ import type { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
 import type {
 	SchemaError as PostgresSchemaError,
 	SchemaWarning as PostgresSchemaWarning,
+	View,
 } from 'src/dialects/postgres/ddl';
-import type { JsonStatement as StatementCrdb } from '../dialects/cockroach/statements';
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
@@ -63,8 +63,36 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	return '';
 };
 
-export const explain = (
-	st: StatementPostgres | StatementCrdb,
+function formatViewOptionChanges(
+	oldState: View['with'],
+	newState: View['with'],
+): string {
+	if (oldState === null && newState) {
+		const keys = Object.keys(newState) as Array<keyof View['with']>;
+		return keys
+			.map((key) => `${key}: null -> ${key}: ${String(newState[key])}`)
+			.join('\n');
+	}
+
+	if (newState === null && oldState) {
+		const keys = Object.keys(oldState) as Array<keyof View['with']>;
+		return keys
+			.map((key) => `${key}: ${String(oldState[key])} -> ${key}: null`)
+			.join('\n');
+	}
+
+	if (oldState && newState) {
+		const keys = Object.keys(newState) as Array<keyof View['with']>;
+		return keys
+			.filter((key) => oldState[key] !== newState[key])
+			.map((key) => `${key}: ${String(oldState[key])} -> ${key}: ${String(newState[key])}`)
+			.join('\n');
+	}
+
+	return '';
+}
+export const psqlExplain = (
+	st: StatementPostgres,
 	sqls: string[],
 ) => {
 	let msg = '';
@@ -84,6 +112,14 @@ export const explain = (
 		}
 	}
 
+	if (st.type === 'recreate_column') {
+		const { diff } = st;
+
+		const key = `${diff.$right.schema}.${diff.$right.table}.${diff.$right.name}`;
+		msg += `┌─── ${key} column recreated:\n`;
+		if (diff.generated) msg += `│ generated: ${diff.generated.from} -> ${diff.generated.to}\n`;
+	}
+
 	if (st.type === 'recreate_index') {
 		const diff = st.diff;
 		const idx = diff.$right;
@@ -91,16 +127,146 @@ export const explain = (
 		msg += `┌─── ${key} index changed:\n`;
 		if (diff.isUnique) msg += `│ unique: ${diff.isUnique.from} -> ${diff.isUnique.to}\n`;
 		if (diff.where) msg += `│ where: ${diff.where.from} -> ${diff.where.to}\n`;
-		if (diff.method) msg += `│ where: ${diff.method.from} -> ${diff.method.to}\n`;
+		if (diff.method) msg += `│ method: ${diff.method.from} -> ${diff.method.to}\n`;
 	}
+
 	if (st.type === 'recreate_fk') {
 		const { fk, diff } = st;
 		const key = `${fk.schema}.${fk.table}.${fk.name}`;
 		msg += `┌─── ${key} index changed:\n`;
 		if (diff.onUpdate) msg += `│ where: ${diff.onUpdate.from} -> ${diff.onUpdate.to}\n`;
 		if (diff.onDelete) msg += `│ onDelete: ${diff.onDelete.from} -> ${diff.onDelete.to}\n`;
+	}
 
-		console.log(diff);
+	if (st.type === 'recreate_enum') {
+		const { to, from } = st;
+		const key = `${to.schema}.${to.name}`;
+		msg += `┌─── ${key} enum changed:\n`;
+		msg += `│ values shuffled/removed: [${from.values.join(',')}] -> [${to.values.join(',')}]\n`;
+	}
+
+	if (st.type === 'alter_enum') {
+		const r = st.to;
+		const l = st.from;
+		const d = st.diff;
+
+		const key = `${r.schema}.${r.name}`;
+		msg += `┌─── ${key} enum changed:\n`;
+		msg += `│ changes: [${r.values.join(',')}] -> [${l.values.join(',')}]\n`;
+		msg += `│ values added: ${d.filter((it) => it.type === 'added').map((it) => it.value).join(',')}\n`;
+	}
+
+	if (st.type === 'alter_role') {
+		const d = st.diff;
+		const to = st.role;
+
+		const key = `${to.name}`;
+		msg += `┌─── ${key} role changed:\n`;
+		if (d.bypassRls) msg += `│ bypassRls: ${d.bypassRls.from} -> ${d.bypassRls.to}\n`;
+		if (d.canLogin) msg += `│ canLogin: ${d.canLogin.from} -> ${d.canLogin.to}\n`;
+		if (d.connLimit) msg += `│ connLimit: ${d.connLimit.from} -> ${d.connLimit.to}\n`;
+		if (d.createDb) msg += `│ createDb: ${d.createDb.from} -> ${d.createDb.to}\n`;
+		if (d.createRole) msg += `│ createRole: ${d.createRole.from} -> ${d.createRole.to}\n`;
+		if (d.inherit) msg += `│ inherit: ${d.inherit.from} -> ${d.inherit.to}\n`;
+		if (d.password) msg += `│ password: ${d.password.from} -> ${d.password.to}\n`;
+		if (d.replication) msg += `│ replication: ${d.replication.from} -> ${d.replication.to}\n`;
+		if (d.superuser) msg += `│ superuser: ${d.superuser.from} -> ${d.superuser.to}\n`;
+		if (d.validUntil) msg += `│ validUntil: ${d.validUntil.from} -> ${d.validUntil.to}\n`;
+	}
+
+	if (st.type === 'alter_sequence') {
+		const d = st.diff;
+		const to = st.sequence;
+
+		const key = `${to.schema}.${to.name}`;
+		msg += `┌─── ${key} sequence changed:\n`;
+		if (d.cacheSize) msg += `│ cacheSize: ${d.cacheSize.from} -> ${d.cacheSize.to}\n`;
+		if (d.cycle) msg += `│ cycle: ${d.cycle.from} -> ${d.cycle.to}\n`;
+		if (d.incrementBy) msg += `│ incrementBy: ${d.incrementBy.from} -> ${d.incrementBy.to}\n`;
+		if (d.maxValue) msg += `│ maxValue: ${d.maxValue.from} -> ${d.maxValue.to}\n`;
+		if (d.minValue) msg += `│ minValue: ${d.minValue.from} -> ${d.minValue.to}\n`;
+		if (d.startWith) msg += `│ startWith: ${d.startWith.from} -> ${d.startWith.to}\n`;
+	}
+
+	if (st.type === 'alter_rls') {
+		const key = `${st.schema}.${st.name}`;
+		msg += `┌─── ${key} rls changed:\n`;
+		msg += `│ rlsEnabled: ${!st.isRlsEnabled} -> ${st.isRlsEnabled}\n`;
+	}
+
+	if (st.type === 'alter_policy' || st.type === 'recreate_policy') {
+		const d = st.diff;
+		const to = st.policy;
+
+		const key = `${to.schema}.${to.table}.${to.name}`;
+		msg += `┌─── ${key} policy changed:\n`;
+		if (d.as) msg += `│ as: ${d.as.from} -> ${d.as.to}\n`;
+		if (d.for) msg += `│ for: ${d.for.from} -> ${d.for.to}\n`;
+		if (d.roles) msg += `│ roles: [${d.roles.from.join(',')}] -> [${d.roles.to.join(',')}]\n`;
+		if (d.using) msg += `│ using: ${d.using.from} -> ${d.using.to}\n`;
+		if (d.withCheck) msg += `│ withCheck: ${d.withCheck.from} -> ${d.withCheck.to}\n`;
+	}
+
+	if (st.type === 'alter_unique') {
+		const d = st.diff;
+		const to = d.$right;
+
+		const key = `${to.schema}.${to.table}.${to.name}`;
+		msg += `┌─── ${key} unique changed:\n`;
+		if (d.nullsNotDistinct) msg += `│ nullsNotDistinct: ${d.nullsNotDistinct.from} -> ${d.nullsNotDistinct.to}\n`;
+		if (d.columns) msg += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
+	}
+
+	if (st.type === 'alter_check') {
+		const d = st.diff;
+
+		const key = `${d.schema}.${d.table}.${d.name}`;
+		msg += `┌─── ${key} check changed:\n`;
+		if (d.value) msg += `│ definition: ${d.value.from} -> ${d.value.to}\n`;
+	}
+
+	if (st.type === 'alter_pk') {
+		const d = st.diff;
+
+		const key = `${d.schema}.${d.table}.${d.name}`;
+		msg += `┌─── ${key} pk changed:\n`;
+		if (d.columns) msg += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
+	}
+
+	if (st.type === 'alter_view') {
+		const d = st.diff;
+
+		const key = `${d.schema}.${d.name}`;
+		msg += `┌─── ${key} view changed:\n`;
+		// This should trigger recreate_view
+		// if (d.definition) msg += `│ definition: ${d.definition.from} -> ${d.definition.to}\n`;
+
+		// TODO alter materialized? Should't it be recreate?
+		if (d.materialized) msg += `│ materialized: ${d.materialized.from} -> ${d.materialized.to}\n`;
+
+		if (d.tablespace) msg += `│ tablespace: ${d.tablespace.from} -> ${d.tablespace.to}\n`;
+		if (d.using) msg += `│ using: ${d.using.from} -> ${d.using.to}\n`;
+		if (d.withNoData) msg += `│ withNoData: ${d.withNoData.from} -> ${d.withNoData.to}\n`;
+		if (d.with) msg += `| with: ${formatViewOptionChanges(d.with.from, d.with.to)}`;
+	}
+
+	if (st.type === 'recreate_view') {
+		const { from, to } = st;
+
+		const key = `${to.schema}.${to.name}`;
+		msg += `┌─── ${key} view changed:\n`;
+		msg += `│ definition: [${from.definition}] -> [${to.definition}]\n`;
+	}
+
+	if (st.type === 'regrant_privilege') {
+		const { privilege, diff } = st;
+
+		const key = `${privilege.name}`;
+		msg += `┌─── ${key} privilege changed:\n`;
+		if (diff.grantee) msg += `│ grantee: [${diff.grantee.from}] -> [${diff.grantee.to}]\n`;
+		if (diff.grantor) msg += `│ grantor: [${diff.grantor.from}] -> [${diff.grantor.to}]\n`;
+		if (diff.isGrantable) msg += `│ isGrantable: [${diff.isGrantable.from}] -> [${diff.isGrantable.to}]\n`;
+		if (diff.type) msg += `│ type: [${diff.type.from}] -> [${diff.type.to}]\n`;
 	}
 
 	if (msg) {
