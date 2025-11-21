@@ -50,6 +50,14 @@ export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgCo
 	}
 
 	override mapFromDriverValue = (value: string): Date | null => {
+		// Enhanced timezone validation with regex to detect timezone indicators
+		const hasTimezone = /[+-]\d{2}:?\d{2}$|Z$/.test(value);
+		
+		if (this.withTimezone && !hasTimezone) {
+			// Assume UTC if no timezone specified (fixes AWS Data API case)
+			return new Date(value + 'Z');
+		}
+		
 		return new Date(this.withTimezone ? value : value + '+0000');
 	};
 
