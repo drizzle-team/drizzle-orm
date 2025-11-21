@@ -442,3 +442,13 @@ test('introspect primary key with unqiue', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect empty db', async () => {
+	const { introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'introspect-empty-db',
+	);
+
+	expect(introspectDDL.entities.list().length).toBe(0);
+});
