@@ -56,15 +56,6 @@ export const defaults = {
 	},
 	max_int_value: 2147483647,
 	min_int_value: -2147483648,
-	// this is system "master" db tables
-	system_tables: new Set([
-		'MSreplication_options',
-		'spt_fallback_db',
-		'spt_fallback_dev',
-		'spt_fallback_usg',
-		'spt_monitor',
-		'spt_values',
-	]),
 } as const;
 
 export const defaultNameForPK = (table: string) => {

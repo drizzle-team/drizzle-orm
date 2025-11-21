@@ -16,7 +16,6 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from './grammar';
-import { defaults as mssqlDefaults } from './grammar';
 
 export const fromDatabase = async (
 	db: DB,
@@ -84,7 +83,8 @@ export const fromDatabase = async (
 FROM 
     sys.tables
 WHERE 
-    schema_id IN (${filteredSchemaIds.join(', ')})
+	schema_id IN (${filteredSchemaIds.join(', ')})
+	AND sys.tables.is_ms_shipped = 0
 ORDER BY lower(name);
 `).then((rows) => {
 			queryCallback('tables', rows, null);
@@ -113,6 +113,7 @@ FROM
 sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
 WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
+	  AND views.is_ms_shipped = 0
 ORDER BY lower(views.name);
 `).then((rows) => {
 			queryCallback('views', rows, null);
@@ -128,7 +129,6 @@ ORDER BY lower(views.name);
 		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
 		return true;
 	})
-		.filter((it) => !mssqlDefaults.system_tables.has(it.name))
 		.map((it) => {
 			const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
 
@@ -138,10 +138,8 @@ ORDER BY lower(views.name);
 			};
 		});
 
-	const filteredViews = viewsList.filter((it) => !mssqlDefaults.system_tables.has(it.name));
-
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
-	const viewsIds = filteredViews.map((it) => it.object_id);
+	const viewsIds = viewsList.map((it) => it.object_id);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
 
 	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
@@ -357,10 +355,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			columnsQuery,
 		]);
 
-	const filteredColumnsByTable = columnsList.filter((column) =>
-		filteredTables.find((table) => column.table_object_id === table.object_id)
-	);
-	columnsCount = filteredColumnsByTable.length;
+	columnsCount = columnsList.length;
 	tableCount = filteredTables.length;
 
 	for (const column of columnsList.filter((it) => it.rel_kind.trim() === 'U')) {
@@ -476,7 +471,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = unique.column_ids.map((it) => {
-			const column = filteredColumnsByTable.find((column) =>
+			const column = columnsList.find((column) =>
 				column.table_object_id === unique.table_id && column.column_id === it
 			)!;
 			return column.name;
@@ -499,9 +494,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = pk.column_ids.map((it) => {
-			const column = filteredColumnsByTable.find((column) =>
-				column.table_object_id === pk.table_id && column.column_id === it
-			)!;
+			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
 			return column.name;
 		});
 
@@ -522,7 +515,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = index.column_ids.map((it) => {
-			const column = filteredColumnsByTable.find((column) =>
+			const column = columnsList.find((column) =>
 				column.table_object_id === index.table_id && column.column_id === it
 			)!;
 			return column.name;
@@ -577,14 +570,14 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const schemaTo = filteredSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
-			const column = filteredColumnsByTable.find((column) =>
+			const column = columnsList.find((column) =>
 				column.table_object_id === fk.parent_table_id && column.column_id === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columns.reference_column_ids.map((it) => {
-			const column = filteredColumnsByTable.find((column) =>
+			const column = columnsList.find((column) =>
 				column.table_object_id === fk.reference_table_id && column.column_id === it
 			)!;
 			return column.name;
@@ -626,7 +619,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === defaultConstraint.schema_id)!;
-		const column = filteredColumnsByTable.find((it) =>
+		const column = columnsList.find((it) =>
 			it.column_id === defaultConstraint.parent_column_id && it.table_object_id === defaultConstraint.parent_table_id
 		)!;
 
@@ -646,8 +639,8 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
 
-	viewsCount = filteredViews.length;
-	for (const view of filteredViews) {
+	viewsCount = viewsList.length;
+	for (const view of viewsList) {
 		const viewName = view.name;
 		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
 		if (!viewSchema) continue;
