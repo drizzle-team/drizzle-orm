@@ -327,17 +327,7 @@ export const push = command({
 		await assertPackages('drizzle-orm');
 		await assertOrmCoreVersion();
 
-		const {
-			dialect,
-			schemaPath,
-			strict,
-			verbose,
-			credentials,
-			force,
-			casing,
-			filters,
-			explain,
-		} = config;
+		const { dialect, schemaPath, verbose, credentials, force, casing, filters, explain } = config;
 
 		try {
 			if (dialect === 'mysql') {
@@ -356,91 +346,34 @@ export const push = command({
 				if ('driver' in credentials) {
 					const { driver } = credentials;
 					if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-						console.log(
-							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-						);
+						console.log("To use 'aws-data-api' driver - please update drizzle-orm to the latest version");
 						process.exit(1);
 					}
 					if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-						console.log(
-							"To use 'pglite' driver - please update drizzle-orm to the latest version",
-						);
+						console.log("To use 'pglite' driver - please update drizzle-orm to the latest version");
 						process.exit(1);
 					}
 				}
 
 				const { handle } = await import('./commands/push-postgres');
-				await handle(
-					schemaPath,
-					verbose,
-					strict,
-					credentials,
-					filters,
-					force,
-					casing,
-					explain,
-				);
+				await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 			} else if (dialect === 'sqlite') {
 				const { handle: sqlitePush } = await import('./commands/push-sqlite');
-				await sqlitePush(
-					schemaPath,
-					verbose,
-					strict,
-					credentials,
-					filters,
-					force,
-					casing,
-				);
+				await sqlitePush(schemaPath, verbose, strict, credentials, filters, force, casing);
 			} else if (dialect === 'turso') {
 				const { handle: libSQLPush } = await import('./commands/push-libsql');
-				await libSQLPush(
-					schemaPath,
-					verbose,
-					strict,
-					credentials,
-					filters,
-					force,
-					casing,
-				);
+				await libSQLPush(schemaPath, verbose, strict, credentials, filters, force, casing);
 			} else if (dialect === 'singlestore') {
 				const { handle } = await import('./commands/push-singlestore');
-				await handle(
-					schemaPath,
-					credentials,
-					filters,
-					strict,
-					verbose,
-					force,
-					casing,
-				);
+				await handle(schemaPath, credentials, filters, strict, verbose, force, casing);
 			} else if (dialect === 'cockroach') {
 				const { handle } = await import('./commands/push-cockroach');
-				await handle(
-					schemaPath,
-					verbose,
-					strict,
-					credentials,
-					filters,
-					force,
-					casing,
-				);
+				await handle(schemaPath, verbose, strict, credentials, filters, force, casing);
 			} else if (dialect === 'mssql') {
 				const { handle } = await import('./commands/push-mssql');
-				await handle(
-					schemaPath,
-					verbose,
-					strict,
-					credentials,
-					filters,
-					force,
-					casing,
-				);
+				await handle(schemaPath, verbose, strict, credentials, filters, force, casing);
 			} else if (dialect === 'gel') {
-				console.log(
-					error(
-						`You can't use 'push' command with Gel dialect`,
-					),
-				);
+				console.log(error(`You can't use 'push' command with Gel dialect`));
 			} else {
 				assertUnreachable(dialect);
 			}

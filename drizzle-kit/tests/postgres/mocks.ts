@@ -254,7 +254,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements);
+	const { hints, stmnts: losses } = await suggestions(db, statements);
 
 	if (config.explain) {
 		const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');

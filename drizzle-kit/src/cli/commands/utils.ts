@@ -248,7 +248,6 @@ export const preparePushConfig = async (
 	& {
 		schemaPath: string | string[];
 		verbose: boolean;
-		strict: boolean;
 		force: boolean;
 		explain: boolean;
 		casing?: CasingType;
@@ -299,7 +298,6 @@ export const preparePushConfig = async (
 			dialect: 'postgresql',
 			schemaPath: config.schema,
 			explain: (options.explain as boolean) ?? false,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -317,7 +315,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'mysql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -337,7 +334,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'singlestore',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -355,7 +351,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'sqlite',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -374,7 +369,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'turso',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -402,7 +396,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'mssql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -422,7 +415,6 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'cockroach',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
