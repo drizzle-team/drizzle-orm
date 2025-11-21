@@ -27,7 +27,7 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative } from './grammar';
-import type { JsonStatement } from './statements';
+import type { JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
@@ -697,14 +697,14 @@ export const ddlDiff = async (
 		return ddl2.indexes.hasDiff(it);
 	});
 
+	const jsonRecreateIndex: JsonRecreateIndex[] = [];
 	for (const idx of indexesAlters) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
-			jsonDropIndexes.push(prepareStatement('drop_index', { index }));
-			jsonCreateIndexes.push(prepareStatement('create_index', { index }));
+			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx }));
 		}
 	}
 
@@ -826,7 +826,7 @@ export const ddlDiff = async (
 
 	const jsonSetTableSchemas = movedTables.map((it) =>
 		prepareStatement('move_table', {
-			name: it.to.name, // raname of table comes first
+			name: it.to.name, // rename of table comes first
 			from: it.from.schema,
 			to: it.to.schema,
 		})
@@ -879,7 +879,7 @@ export const ddlDiff = async (
 	);
 
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', { check: it.$right })
+		prepareStatement('alter_check', { diff: it })
 	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -910,6 +910,7 @@ export const ddlDiff = async (
 			})!;
 			if (it.for || it.as) {
 				return prepareStatement('recreate_policy', {
+					diff: it,
 					policy: to,
 				});
 			} else {
@@ -1007,9 +1008,9 @@ export const ddlDiff = async (
 					return it;
 				})
 				.filter((x) => x !== null);
-			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
+			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns, from: alter.$left }));
 		} else {
-			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
+			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, to: e, from: alter.$left }));
 		}
 	}
 
@@ -1066,7 +1067,7 @@ export const ddlDiff = async (
 	const jsonGrantPrivileges = createdPrivileges.map((it) => prepareStatement('grant_privilege', { privilege: it }));
 	const jsonRevokePrivileges = deletedPrivileges.map((it) => prepareStatement('revoke_privilege', { privilege: it }));
 	const jsonAlterPrivileges = alters.filter((it) => it.entityType === 'privileges').map((it) =>
-		prepareStatement('regrant_privilege', { privilege: it.$right })
+		prepareStatement('regrant_privilege', { privilege: it.$right, diff: it })
 	);
 
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
@@ -1163,7 +1164,7 @@ export const ddlDiff = async (
 		}
 
 		return prepareStatement('recreate_column', {
-			column: it.$right,
+			diff: it,
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		});
 	});
@@ -1222,6 +1223,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
+	jsonStatements.push(...jsonRecreateIndex);
 
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);

@@ -276,12 +276,15 @@ export const push = command({
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
 			)
 			.default(false),
+		explain: boolean()
+			.desc('Print the planned SQL changes (dry run)')
+			.default(false),
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'push',
 			opts,
-			['force', 'verbose', 'strict'],
+			['force', 'verbose', 'strict', 'explain'],
 			[
 				'schema',
 				'dialect',
@@ -308,16 +311,7 @@ export const push = command({
 		await assertPackages('drizzle-orm');
 		await assertOrmCoreVersion();
 
-		const {
-			dialect,
-			schemaPath,
-			strict,
-			verbose,
-			credentials,
-			force,
-			casing,
-			filters,
-		} = config;
+		const { dialect, schemaPath, verbose, credentials, force, casing, filters, explain } = config;
 
 		if (dialect === 'mysql') {
 			const { handle } = await import('./commands/push-mysql');
@@ -351,11 +345,11 @@ export const push = command({
 			await handle(
 				schemaPath,
 				verbose,
-				strict,
 				credentials,
 				filters,
 				force,
 				casing,
+				explain,
 			);
 		} else if (dialect === 'sqlite') {
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
