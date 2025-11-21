@@ -171,13 +171,13 @@ export const pushSchema = async (
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
 
 	return {
 		sqlStatements,
 		hints,
-		losses,
 		apply: async () => {
+			const losses = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 			for (const st of losses) {
 				await db.query(st);
 			}
