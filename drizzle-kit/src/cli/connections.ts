@@ -302,7 +302,7 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.unsafe(sql, params ?? []);
+			const result = await client.unsafe(sql, params);
 			return result as any[];
 		};
 
@@ -555,7 +555,7 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.unsafe(sql, params ?? []);
+			const result = await client.unsafe(sql, params);
 			return result;
 		};
 
@@ -960,7 +960,7 @@ export const connectToMySQL = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.unsafe(sql, params ?? []);
+			const result = await client.unsafe(sql, params);
 			return result;
 		};
 
@@ -1469,7 +1469,7 @@ export const connectToSQLite = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.unsafe(sql, params ?? []);
+			const result = await client.unsafe(sql, params);
 			return result;
 		};
 		const run = async (sql: string) => {
