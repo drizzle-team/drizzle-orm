@@ -350,6 +350,7 @@ export const push = command({
 					force,
 					casing,
 					filters,
+					explain,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {

@@ -7,6 +7,7 @@ import type {
 	SchemaWarning as PostgresSchemaWarning,
 	View,
 } from 'src/dialects/postgres/ddl';
+import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
@@ -63,7 +64,7 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	return '';
 };
 
-function formatViewOptionChanges(
+function formatOptionChanges(
 	oldState: View['with'],
 	newState: View['with'],
 ): string {
@@ -105,19 +106,22 @@ export const psqlExplain = (
 		if (d.default) msg += `│ default: ${d.default.from} -> ${d.default.to}\n`;
 		if (d.type) msg += `│ type: ${d.type.from} -> ${d.type.to}\n`;
 		if (d.notNull) msg += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.dimensions) msg += `│ dimensions: ${d.dimensions.from} -> ${d.dimensions.to}\n`;
+
+		// TODO
+		// if (d.identity) msg += `│ identity: ${formatOptionChanges(d.identity.from)} -> ${d.notNull.to}\n`;
+	}
+
+	if (st.type === 'recreate_column') {
+		const { diff: d } = st;
+
+		const key = `${d.$right.schema}.${d.$right.table}.${d.$right.name}`;
+		msg += `┌─── ${key} column recreated:\n`;
 		if (d.generated) {
 			const from = d.generated.from ? `${d.generated.from.as} ${d.generated.from.type}` : 'null';
 			const to = d.generated.to ? `${d.generated.to.as} ${d.generated.to.type}` : 'null';
 			msg += `│ generated: ${from} -> ${to}\n`;
 		}
-	}
-
-	if (st.type === 'recreate_column') {
-		const { diff } = st;
-
-		const key = `${diff.$right.schema}.${diff.$right.table}.${diff.$right.name}`;
-		msg += `┌─── ${key} column recreated:\n`;
-		if (diff.generated) msg += `│ generated: ${diff.generated.from} -> ${diff.generated.to}\n`;
 	}
 
 	if (st.type === 'recreate_index') {
@@ -247,7 +251,7 @@ export const psqlExplain = (
 		if (d.tablespace) msg += `│ tablespace: ${d.tablespace.from} -> ${d.tablespace.to}\n`;
 		if (d.using) msg += `│ using: ${d.using.from} -> ${d.using.to}\n`;
 		if (d.withNoData) msg += `│ withNoData: ${d.withNoData.from} -> ${d.withNoData.to}\n`;
-		if (d.with) msg += `| with: ${formatViewOptionChanges(d.with.from, d.with.to)}`;
+		if (d.with) msg += `| with: ${formatOptionChanges(d.with.from, d.with.to)}`;
 	}
 
 	if (st.type === 'recreate_view') {
@@ -267,6 +271,62 @@ export const psqlExplain = (
 		if (diff.grantor) msg += `│ grantor: [${diff.grantor.from}] -> [${diff.grantor.to}]\n`;
 		if (diff.isGrantable) msg += `│ isGrantable: [${diff.isGrantable.from}] -> [${diff.isGrantable.to}]\n`;
 		if (diff.type) msg += `│ type: [${diff.type.from}] -> [${diff.type.to}]\n`;
+	}
+
+	if (msg) {
+		msg += `├───\n`;
+		for (const sql of sqls) {
+			msg += `│ ${sql}\n`;
+		}
+		msg += `└───\n`;
+		return msg;
+	}
+
+	return null;
+};
+
+export const mysqlExplain = (
+	st: StatementMysql,
+	sqls: string[],
+) => {
+	let msg = '';
+	if (st.type === 'alter_column') {
+		const r = st.diff.$right;
+		const d = st.diff;
+
+		const key = `${r.table}.${r.name}`;
+		msg += `┌─── ${key} column changed:\n`;
+		if (d.default) msg += `│ default: ${d.default.from} -> ${d.default.to}\n`;
+		if (d.type) msg += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) msg += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.autoIncrement) msg += `│ autoIncrement: ${d.autoIncrement.from} -> ${d.autoIncrement.to}\n`;
+		if (d.charSet) msg += `│ charSet: ${d.charSet.from} -> ${d.charSet.to}\n`;
+		if (d.collation) msg += `│ collation: ${d.collation.from} -> ${d.collation.to}\n`;
+		if (d.onUpdateNow) msg += `│ onUpdateNow: ${d.onUpdateNow.from} -> ${d.onUpdateNow.to}\n`;
+		if (d.onUpdateNowFsp) msg += `│ onUpdateNowFsp: ${d.onUpdateNowFsp.from} -> ${d.onUpdateNowFsp.to}\n`;
+	}
+
+	if (st.type === 'recreate_column') {
+		const { column, diff } = st;
+
+		const key = `${column.table}.${column.name}`;
+		msg += `┌─── ${key} column recreated:\n`;
+		if (diff.generated) {
+			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
+			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
+			msg += `│ generated: ${from} -> ${to}\n`;
+		}
+	}
+
+	if (st.type === 'alter_view') {
+		const { diff, view } = st;
+
+		const key = `${view.name}`;
+		msg += `┌─── ${key} view changed:\n`;
+		if (diff.algorithm) msg += `│ algorithm: ${diff.algorithm.from} -> ${diff.algorithm.to}\n`;
+		if (diff.definition) msg += `│ definition: ${diff.definition.from} -> ${diff.definition.to}\n`;
+		if (diff.sqlSecurity) msg += `│ sqlSecurity: ${diff.sqlSecurity.from} -> ${diff.sqlSecurity.to}\n`;
+		if (diff.withCheckOption) msg += `│ withCheckOption: ${diff.withCheckOption.from} -> ${diff.withCheckOption.to}\n`;
 	}
 
 	if (msg) {
