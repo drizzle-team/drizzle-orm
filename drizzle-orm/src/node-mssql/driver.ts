@@ -1,11 +1,11 @@
 import type mssql from 'mssql';
 import * as V1 from '~/_relations.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleConfig, Equal } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
 import { NodeMsSqlSession } from './session.ts';
@@ -48,7 +48,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
 ): NodeMsSqlDatabase<TSchema> & {
-	$client: TClient;
+	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
 	const dialect = new MsSqlDialect({ casing: config.casing });
 	let logger;
@@ -77,18 +77,33 @@ function construct<
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, { logger });
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
-	if (is(client, AutoPool)) {
-		(<any> db).$client = client.$instance();
-	} else {
-		(<any> db).$client = client;
-	}
+	(<any> db).$client = client;
 
 	return db as any;
 }
 
+export function getMsSqlConnectionParams(connectionString: string): mssql.config | string {
+	try {
+		const url = new URL(connectionString);
+		return {
+			user: url.username,
+			password: url.password,
+			server: url.hostname,
+			port: Number.parseInt(url.port, 10),
+			database: url.pathname.replace(/^\//, ''),
+			options: {
+				encrypt: url.searchParams.get('encrypt') === 'true',
+				trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
+			},
+		};
+	} catch {
+		return connectionString;
+	}
+}
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TClient extends NodeMsSqlClient = mssql.ConnectionPool,
+	TClient extends NodeMsSqlClient = AutoPool,
 >(
 	...params:
 		| [
@@ -102,17 +117,17 @@ export function drizzle<
 			(
 				& DrizzleConfig<TSchema>
 				& ({
-					connection: string | mssql.ConnectionPool;
+					connection: string;
 				} | {
 					client: TClient;
 				})
 			),
 		]
 ): NodeMsSqlDatabase<TSchema> & {
-	$client: TClient;
+	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
-		const instance = new AutoPool(params[0]);
+		const instance = new AutoPool(getMsSqlConnectionParams(params[0]));
 
 		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
@@ -125,7 +140,7 @@ export function drizzle<
 	if (client) return construct(client, drizzleConfig);
 
 	const instance = typeof connection === 'string'
-		? new AutoPool(connection)
+		? new AutoPool(getMsSqlConnectionParams(connection))
 		: new AutoPool(connection!);
 
 	return construct(instance, drizzleConfig) as any;

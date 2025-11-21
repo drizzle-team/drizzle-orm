@@ -24,6 +24,7 @@
 		"bun-types": "^1.2.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
+		"drizzle-kit": "workspace:./drizzle-kit/dist",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
 		"eslint-plugin-drizzle-internal": "link:eslint/eslint-plugin-drizzle-internal",

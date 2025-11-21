@@ -10,7 +10,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,
@@ -72,7 +72,7 @@ export class SingleStoreDialect {
 		migrations: MigrationMeta[],
 		session: SingleStoreSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
@@ -87,8 +87,29 @@ export class SingleStoreDialect {
 			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 		);
 
-		const lastDbMigration = dbMigrations[0];
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
+
+		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (
