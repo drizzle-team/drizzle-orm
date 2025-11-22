@@ -11,6 +11,8 @@ export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
 	migrationsSchema?: string;
+	/** @internal */
+	init?: boolean;
 }
 
 export interface MigrationMeta {
@@ -18,6 +20,16 @@ export interface MigrationMeta {
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
+}
+
+/** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
+export interface MigratorInitFailResponse {
+	exitCode: 'databaseMigrations' | 'localMigrations';
+}
+
+/** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
+export interface MigratorInitFailResponse {
+	exitCode: 'databaseMigrations' | 'localMigrations';
 }
 
 export function formatToMillis(dateStr: string): number {

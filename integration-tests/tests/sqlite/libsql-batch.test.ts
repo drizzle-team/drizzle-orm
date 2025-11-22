@@ -510,6 +510,32 @@ test('insert + findManyWith + db.all', async () => {
 	]);
 });
 
+test('reproduce "insert + update + select + select partial" test bug', async () => {
+	await client.execute('drop table if exists "users";');
+	await client.execute(`
+			CREATE TABLE "users" (
+			    "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+			    "name" text NOT NULL,
+			    "verified" integer DEFAULT 0 NOT NULL,
+			    "invited_by" integer
+			);
+		`);
+
+	// const query1 = db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }).toSQL();
+	// console.log(query1);
+	const sql1 = 'insert into "users" ("id", "name", "verified", "invited_by") values (?, ?, ?, null) returning "id"';
+	const params1 = [1, 'John', 0];
+	const res1 = await client.execute({ sql: sql1 as string, args: params1 as any[] });
+	console.log(res1);
+
+	// const query2 = db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)).toSQL();
+	// console.log(query2);
+	const sql2 = 'update "users" set "name" = ? where "users"."id" = ?';
+	const params2 = ['Dan', 1];
+	const res2 = await client.execute({ sql: sql2 as string, args: params2 as any[] });
+	console.log(res2);
+});
+
 // batch api for insert + update + select
 test('insert + update + select + select partial', async () => {
 	const batchResponse = await db.batch([

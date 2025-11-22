@@ -30,7 +30,7 @@ import { CockroachTable } from '~/cockroach-core/table.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
@@ -68,7 +68,7 @@ export class CockroachDialect {
 		migrations: MigrationMeta[],
 		session: CockroachSession,
 		config: string | MigrationConfig,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
@@ -88,6 +88,28 @@ export class CockroachDialect {
 				sql.identifier(migrationsTable)
 			} order by created_at desc limit 1`,
 		);
+
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
 
 		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
