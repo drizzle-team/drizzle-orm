@@ -670,6 +670,8 @@ export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
 
 export type { DB, SQLiteDB, PgSchemaInternal, MySqlSchemaInternal, SQLiteSchemaInternal, SingleStoreSchemaInternal };
 
+export { originUUID } from './global';
+
 export const introspectPostgres = pgFromDatabase;
 export const introspectMySQL = mysqlFromDatabase;
 export const introspectSQLite = sqliteFromDatabase;
