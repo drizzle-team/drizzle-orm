@@ -254,12 +254,12 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, stmnts: losses } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
 
 	if (config.explain) {
 		const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
 		console.log(text);
-		return { sqlStatements, statements, hints, losses };
+		return { sqlStatements, statements, hints };
 	}
 
 	for (const sql of sqlStatements) {
@@ -303,7 +303,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses };
+	return { sqlStatements, statements, hints };
 };
 
 // init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file

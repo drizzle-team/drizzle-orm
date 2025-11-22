@@ -11,7 +11,7 @@ import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
-import { assertPackages, checkPackage } from './utils';
+import { assertPackages, checkPackage, QueryError } from './utils';
 import type { GelCredentials } from './validations/gel';
 import type { LibSQLCredentials } from './validations/libsql';
 import type { MssqlCredentials } from './validations/mssql';
@@ -150,6 +150,8 @@ export const preparePostgresDB = async (
 			const query = async <T>(sql: string, params: any[] = []) => {
 				const result = await pglite.query(sql, params, {
 					parsers,
+				}).catch((e) => {
+					throw new QueryError(e, sql, params);
 				});
 				return result.rows as T[];
 			};
@@ -159,6 +161,8 @@ export const preparePostgresDB = async (
 				const result = await pglite.query(params.sql, preparedParams, {
 					rowMode: params.mode,
 					parsers,
+				}).catch((e) => {
+					throw new QueryError(e, params.sql, params.params || []);
 				});
 				return result.rows;
 			};
@@ -240,6 +244,8 @@ export const preparePostgresDB = async (
 				text: sql,
 				values: params ?? [],
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, sql, params || []);
 			});
 			return result.rows;
 		};
@@ -250,6 +256,8 @@ export const preparePostgresDB = async (
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 			return result.rows;
 		};
@@ -308,15 +316,21 @@ export const preparePostgresDB = async (
 		};
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = await client.unsafe(sql, params ?? []);
+			const result = await client.unsafe(sql, params ?? []).catch((e) => {
+				throw new QueryError(e, sql, params || []);
+			});
 			return result as any[];
 		};
 
 		const proxy: Proxy = async (params) => {
 			if (params.mode === 'array') {
-				return await client.unsafe(params.sql, params.params).values();
+				return client.unsafe(params.sql, params.params).values().catch((e) => {
+					throw new QueryError(e, params.sql, params.params || []);
+				});
 			}
-			return await client.unsafe(params.sql, params.params);
+			return client.unsafe(params.sql, params.params).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
+			});
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -396,6 +410,8 @@ export const preparePostgresDB = async (
 				text: sql,
 				values: params ?? [],
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, sql, params || []);
 			});
 			return result.rows;
 		};
@@ -406,6 +422,8 @@ export const preparePostgresDB = async (
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 			return result.rows;
 		};
@@ -496,6 +514,8 @@ export const preparePostgresDB = async (
 				text: sql,
 				values: params ?? [],
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, sql, params || []);
 			});
 			return result.rows;
 		};
@@ -506,6 +526,8 @@ export const preparePostgresDB = async (
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 			return result.rows;
 		};
@@ -599,6 +621,8 @@ export const prepareCockroach = async (
 				text: sql,
 				values: params ?? [],
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, sql, params || []);
 			});
 			return result.rows;
 		};
@@ -609,6 +633,8 @@ export const prepareCockroach = async (
 				values: params.params,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 			return result.rows;
 		};
@@ -869,6 +895,8 @@ export const connectToMySQL = async (
 				sql,
 				values: params,
 				typeCast,
+			}).catch((e) => {
+				throw new QueryError(e, sql, params || []);
 			});
 			return res[0] as any;
 		};
@@ -879,6 +907,8 @@ export const connectToMySQL = async (
 				values: params.params,
 				rowsAsArray: params.mode === 'array',
 				typeCast,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 			return result[0] as any[];
 		};
@@ -927,7 +957,9 @@ export const connectToMySQL = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]): Promise<T[]> => {
-			const res = await connection.execute(sql, params);
+			const res = await connection.execute(sql, params).catch((e) => {
+				throw new QueryError(e, sql, params || []);
+			});
 			return res.rows as T[];
 		};
 		const proxy: Proxy = async (params: ProxyParams) => {
@@ -935,7 +967,9 @@ export const connectToMySQL = async (
 				params.sql,
 				params.params,
 				params.mode === 'array' ? { as: 'array' } : undefined,
-			);
+			).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
+			});
 			return result.rows;
 		};
 
@@ -1006,7 +1040,9 @@ export const connectToMsSQL = async (
 		const query: DB['query'] = async <T>(
 			sql: string,
 		): Promise<T[]> => {
-			const res = await connection.query(sql);
+			const res = await connection.query(sql).catch((e) => {
+				throw new QueryError(e, sql, []);
+			});
 			return res.recordset as any;
 		};
 
@@ -1115,13 +1151,17 @@ export const connectToSQLite = async (
 							Authorization: `Bearer ${credentials.token}`,
 						},
 					},
-				);
+				).catch((e) => {
+					throw new QueryError(e, sql, params || []);
+				});
 
 				const data = (await res.json()) as D1Response;
 
 				if (!data.success) {
-					throw new Error(
-						data.errors.map((it) => `${it.code}: ${it.message}`).join('\n'),
+					throw new QueryError(
+						new Error(data.errors.map((it) => `${it.code}: ${it.message}`).join('\n')),
+						sql,
+						params || [],
 					);
 				}
 
@@ -1226,11 +1266,15 @@ export const connectToSQLite = async (
 
 		const db: SQLiteDB = {
 			query: async <T>(sql: string, params?: any[]) => {
-				const res = await client.execute({ sql, args: params || [] });
+				const res = await client.execute({ sql, args: params || [] }).catch((e) => {
+					throw new QueryError(e, sql, params || []);
+				});
 				return res.rows as T[];
 			},
 			run: async (query: string) => {
-				await client.execute(query);
+				await client.execute(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
 			},
 		};
 
@@ -1241,6 +1285,8 @@ export const connectToSQLite = async (
 			const result = await client.execute({
 				sql: params.sql,
 				args: preparedParams,
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
 			});
 
 			if (params.mode === 'array') {
@@ -1372,11 +1418,15 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 
 		const db: LibSQLDB = {
 			query: async <T>(sql: string, params?: any[]) => {
-				const res = await client.execute({ sql, args: params || [] });
+				const res = await client.execute({ sql, args: params || [] }).catch((e) => {
+					throw new QueryError(e, sql, params || []);
+				});
 				return res.rows as T[];
 			},
 			run: async (query: string) => {
-				await client.execute(query);
+				await client.execute(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
 			},
 			batchWithPragma: async (queries: string[]) => {
 				await client.migrate(queries);
