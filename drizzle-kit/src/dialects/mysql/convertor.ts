@@ -207,10 +207,6 @@ const dropPK = convertor('drop_pk', (st) => {
 	return `ALTER TABLE \`${st.pk.table}\` DROP PRIMARY KEY;`;
 });
 
-const recreatePK = convertor('recreate_pk', (st) => {
-	return `ALTER TABLE \`${st.pk.table}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${st.pk.columns.join('`,`')}\`);`;
-});
-
 const createCheck = convertor('create_check', (st) => {
 	return `ALTER TABLE \`${st.check.table}\` ADD CONSTRAINT \`${st.check.name}\` CHECK (${st.check.value});`;
 });
@@ -271,7 +267,6 @@ const convertors = [
 	createFK,
 	createPK,
 	dropPK,
-	recreatePK,
 	createCheck,
 	dropConstraint,
 	createView,

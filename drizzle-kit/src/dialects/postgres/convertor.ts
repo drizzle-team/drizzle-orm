@@ -343,6 +343,16 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	return [drop, add];
 });
 
+const recreateIndexConvertor = convertor('recreate_index', (st) => {
+	// AlterTableAlterColumnSetExpressionConvertor
+	// AlterTableAlterColumnAlterGeneratedConvertor
+
+	const drop = dropIndexConvertor.convert({ index: st.index }) as string;
+	const add = createIndexConvertor.convert({ index: st.index }) as string;
+
+	return [drop, add];
+});
+
 const alterColumnConvertor = convertor('alter_column', (st) => {
 	const { diff, to: column, isEnum, wasEnum } = st;
 	const statements = [] as string[];
@@ -1004,6 +1014,7 @@ const convertors = [
 	alterColumnConvertor,
 	createIndexConvertor,
 	dropIndexConvertor,
+	recreateIndexConvertor,
 	renameIndexConvertor,
 	addPrimaryKeyConvertor,
 	dropPrimaryKeyConvertor,
