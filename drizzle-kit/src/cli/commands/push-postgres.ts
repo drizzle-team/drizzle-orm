@@ -108,7 +108,8 @@ export const handle = async (
 		for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
 			const msg = psqlExplain(jsonStatement, sql);
 			if (msg) messages.push(msg);
-			else messages.push(...sql);
+			// Logic below should show all statements depending on flags like 'verbose' etc.
+			// else messages.push(...sql);
 		}
 		console.log(withStyle.info(messages.join('\n')));
 		process.exit(0);

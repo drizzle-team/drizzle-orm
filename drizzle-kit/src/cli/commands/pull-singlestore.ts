@@ -10,6 +10,7 @@ import { ddlDiff } from 'src/dialects/singlestore/diff';
 import { toJsonSnapshot } from 'src/dialects/singlestore/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { connectToSingleStore } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
@@ -24,14 +25,17 @@ export const handle = async (
 	credentials: SingleStoreCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof connectToSingleStore>>,
 ) => {
-	const { connectToSingleStore } = await import('../connections');
-	const { db, database } = await connectToSingleStore(credentials);
+	if (!db) {
+		const { connectToSingleStore } = await import('../connections');
+		db = await connectToSingleStore(credentials);
+	}
 
 	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const progress = new IntrospectProgress();
-	const task = fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
+	const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
 	const res = await renderWithTask(progress, task);
@@ -98,5 +102,4 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
