@@ -405,7 +405,7 @@ test('migrator : --init', async ({ db, simulator }) => {
 
 	expect(migratorRes).toStrictEqual(undefined);
 	expect(meta.length).toStrictEqual(1);
-	expect(res.rows[0]?.tableExists).toStrictEqual(false);
+	expect(res[0]?.tableExists).toStrictEqual(false);
 });
 
 test('migrator : --init - local migrations error', async ({ db, simulator }) => {
@@ -446,7 +446,7 @@ test('migrator : --init - local migrations error', async ({ db, simulator }) => 
 
 	expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
 	expect(meta.length).toStrictEqual(0);
-	expect(res.rows[0]?.tableExists).toStrictEqual(false);
+	expect(res[0]?.tableExists).toStrictEqual(false);
 });
 
 test('migrator : --init - db migrations error', async ({ db, simulator }) => {
@@ -500,5 +500,5 @@ test('migrator : --init - db migrations error', async ({ db, simulator }) => {
 
 	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 	expect(meta.length).toStrictEqual(1);
-	expect(res.rows[0]?.tableExists).toStrictEqual(true);
+	expect(res[0]?.tableExists).toStrictEqual(true);
 });
