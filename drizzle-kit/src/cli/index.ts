@@ -1,7 +1,8 @@
 import { command, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
+import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
-import { ormCoreVersions } from './utils';
+import { ormCoreVersions, QueryError } from './utils';
 
 const version = async () => {
 	const { npmVersion } = await ormCoreVersions();
@@ -56,4 +57,27 @@ const legacy = [
 run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
+
+	theme: (event) => {
+		if (event.type === 'error') {
+			if (event.violation !== 'unknown_error') return false;
+			const e = event.error;
+
+			if (e instanceof QueryError) {
+				let msg = `┌── ${chalk.bgRed.bold('query error:')} ${chalk.red(e.message)}\n\n`;
+				msg += `${highlightSQL(e.sql)}\n`;
+				if (e.params.length > 0) msg += '| ' + chalk.gray(`--- params: ${e.params || '[]'}\n\n`);
+				msg += '└──';
+				console.log();
+				console.log(msg);
+				return true;
+			}
+
+			console.log('errorg:');
+			console.error(e);
+			return true;
+		}
+
+		return false;
+	},
 });
