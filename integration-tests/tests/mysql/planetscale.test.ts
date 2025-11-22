@@ -103,7 +103,7 @@ describe('migrator', () => {
 			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
 		}).from(sql`${sql.identifier(migrationsTable)}`);
 
-		const res = await db.execute<{ tableExists: boolean | number }>(sql`SELECT EXISTS (
+		const res = await db.execute<{ tableExists: 'string' }>(sql`SELECT EXISTS (
 				SELECT 1
 				FROM INFORMATION_SCHEMA.TABLES
 				WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
@@ -111,7 +111,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual(undefined);
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!(Number(res.rows[0]?.tableExists ?? 0))).toStrictEqual(false);
 	});
 
 	test('migrator : --init - local migrations error', async ({ db }) => {
@@ -134,7 +134,7 @@ describe('migrator', () => {
 			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
 		}).from(sql`${sql.identifier(migrationsTable)}`);
 
-		const res = await db.execute<{ tableExists: boolean | number }>(sql`SELECT EXISTS (
+		const res = await db.execute<{ tableExists: 'string' }>(sql`SELECT EXISTS (
 				SELECT 1
 				FROM INFORMATION_SCHEMA.TABLES
 				WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
@@ -142,7 +142,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
 		expect(meta.length).toStrictEqual(0);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!(Number(res.rows[0]?.tableExists ?? 0))).toStrictEqual(false);
 	});
 
 	test('migrator : --init - db migrations error', async ({ db }) => {
@@ -170,7 +170,7 @@ describe('migrator', () => {
 			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
 		}).from(sql`${sql.identifier(migrationsTable)}`);
 
-		const res = await db.execute<{ tableExists: boolean | number }>(sql`SELECT EXISTS (
+		const res = await db.execute<{ tableExists: 'string' }>(sql`SELECT EXISTS (
 				SELECT 1
 				FROM INFORMATION_SCHEMA.TABLES
 				WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
@@ -178,6 +178,6 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(true);
+		expect(!!(Number(res.rows[0]?.tableExists ?? 0))).toStrictEqual(true);
 	});
 });
