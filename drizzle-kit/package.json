@@ -1,6 +1,6 @@
 {
-	"name": "drizzle-kit",
-	"version": "0.31.7",
+	"name": "@weweb/drizzle-kit",
+	"version": "0.31.7-weweb.0",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -24,9 +24,9 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+		"url": "git+https://github.com/weweb-team/drizzle-orm.git"
 	},
-	"author": "Drizzle Team",
+	"author": "WeWeb Team (forked from Drizzle Team)",
 	"license": "MIT",
 	"bin": {
 		"drizzle-kit": "./bin.cjs"

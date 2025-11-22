@@ -43,15 +43,20 @@ import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from '.
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
 import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
-import { generatePgSnapshot } from './serializer/pgSerializer';
+import type { PgSchemaInternal } from './serializer/pgSchema';
+import { generatePgSnapshot, fromDatabase as pgFromDatabase } from './serializer/pgSerializer';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit,
 	singlestoreSchema,
 	squashSingleStoreScheme,
 } from './serializer/singlestoreSchema';
-import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
+import type { SingleStoreSchemaInternal } from './serializer/singlestoreSchema';
+import { generateSingleStoreSnapshot, fromDatabase as singlestoreFromDatabase } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
-import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
+import type { SQLiteSchemaInternal } from './serializer/sqliteSchema';
+import { generateSqliteSnapshot, fromDatabase as sqliteFromDatabase } from './serializer/sqliteSerializer';
+import type { MySqlSchemaInternal } from './serializer/mysqlSchema';
+import { fromDatabase as mysqlFromDatabase } from './serializer/mysqlSerializer';
 import type { Setup } from './serializer/studio';
 import type { DB, SQLiteDB } from './utils';
 import { certs } from './utils/certs';
@@ -662,3 +667,10 @@ export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
 	}
 	return snapshot;
 };
+
+export type { DB, SQLiteDB, PgSchemaInternal, MySqlSchemaInternal, SQLiteSchemaInternal, SingleStoreSchemaInternal };
+
+export const introspectPostgres = pgFromDatabase;
+export const introspectMySQL = mysqlFromDatabase;
+export const introspectSQLite = sqliteFromDatabase;
+export const introspectSingleStore = singlestoreFromDatabase;
