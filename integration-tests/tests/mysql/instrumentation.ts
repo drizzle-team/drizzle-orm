@@ -212,17 +212,17 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			drizzle: {
 				withCacheAll: {
 					db: MySqlDatabase<any, any>;
-					put: Mock<() => never>;
-					get: Mock<() => never>;
-					onMutate: Mock<() => never>;
-					invalidate: Mock<() => never>;
+					put: Mock<any>;
+					get: Mock<any>;
+					onMutate: Mock<any>;
+					invalidate: Mock<any>;
 				};
 				withCacheExplicit: {
 					db: MySqlDatabase<any, any>;
-					put: Mock<() => never>;
-					get: Mock<() => never>;
-					onMutate: Mock<() => never>;
-					invalidate: Mock<() => never>;
+					put: Mock<any>;
+					get: Mock<any>;
+					onMutate: Mock<any>;
+					invalidate: Mock<any>;
 				};
 			};
 		}
@@ -402,7 +402,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					},
 				};
 
-				await use(drz);
+				await use(drz as any);
 
 				await withCacheAll.$cache.invalidate({});
 				await withCacheExplicit.$cache.invalidate({});
