@@ -21,6 +21,8 @@ on:
         required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
+      SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
