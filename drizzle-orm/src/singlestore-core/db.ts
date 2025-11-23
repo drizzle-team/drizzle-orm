@@ -1,4 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -79,6 +80,7 @@ export class SingleStoreDatabase<
 		// 			);
 		// 	}
 		// }
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -475,6 +477,8 @@ export class SingleStoreDatabase<
 		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
+	$cache: { invalidate: Cache['onMutate'] };
+
 	transaction<T>(
 		transaction: (
 			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
@@ -486,7 +490,7 @@ export class SingleStoreDatabase<
 	}
 }
 
-export type SingleStoreWithReplicas<Q> = Q & { $primary: Q };
+export type SingleStoreWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	Q extends SingleStoreDriverDatabase,
@@ -514,6 +518,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,

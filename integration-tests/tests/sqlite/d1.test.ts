@@ -8,20 +8,29 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: DrizzleD1Database;
+let dbGlobalCached: DrizzleD1Database;
+let cachedDb: DrizzleD1Database;
 
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
 	db = drizzle(d1db, { logger: ENABLE_LOGGING });
+	cachedDb = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+	};
+	ctx.cachedSqlite = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -85,5 +94,7 @@ skipTests([
 	'full join with alias',
 	'select from alias',
 	'join view as subquery',
+	'cross join',
 ]);
+cacheTests();
 tests();

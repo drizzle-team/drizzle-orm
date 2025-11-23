@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { GelColumn } from '~/gel-core/columns/index.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
@@ -34,11 +35,13 @@ import {
 } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyGelSelect,
 	CreateGelSelectFromBuilderMode,
 	GelCreateSetOperatorFn,
 	GelSelectConfig,
+	GelSelectCrossJoinFn,
 	GelSelectDynamic,
 	GelSelectHKT,
 	GelSelectHKTBase,
@@ -166,6 +169,7 @@ export abstract class GelSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: GelSelectConfig;
 	};
 
 	protected config: GelSelectConfig;
@@ -174,6 +178,8 @@ export abstract class GelSelectQueryBuilderBase<
 	private isPartialSelect: boolean;
 	protected session: GelSession | undefined;
 	protected dialect: GelDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -201,17 +207,30 @@ export abstract class GelSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
+	}
+
+	private createJoin<
+		TJoinType extends JoinType,
+		TIsLateral extends (TJoinType extends 'full' | 'right' ? false : boolean),
+	>(
 		joinType: TJoinType,
-	): GelSelectJoinFn<this, TDynamic, TJoinType> {
-		return (
+		lateral: TIsLateral,
+	): 'cross' extends TJoinType ? GelSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: GelSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
+		return ((
 			table: GelTable | Subquery | GelViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -219,6 +238,9 @@ export abstract class GelSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -250,7 +272,7 @@ export abstract class GelSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			this.config.joins.push({ on, table, joinType, alias: tableName, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -265,6 +287,7 @@ export abstract class GelSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -280,7 +303,7 @@ export abstract class GelSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		};
+		}) as any;
 	}
 
 	/**
@@ -297,12 +320,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -310,7 +333,21 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * Executes a `left join lateral` operation by adding subquery to the current query.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	leftJoinLateral = this.createJoin('left', true);
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
@@ -326,12 +363,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -339,7 +376,7 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
@@ -355,12 +392,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -368,7 +405,21 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
+
+	/**
+	 * Executes an `inner join lateral` operation, creating a new table by combining rows from two queries that have matching values.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	innerJoinLateral = this.createJoin('inner', true);
 
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
@@ -384,12 +435,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -397,7 +448,48 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	fullJoin = this.createJoin('full');
+	fullJoin = this.createJoin('full', false);
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross', false);
+
+	/**
+	 * Executes a `cross join lateral` operation by combining rows from two queries into a new table.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves all rows from both main and joined queries, merging all rows from each query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
+	 *
+	 * @param table the query to join.
+	 */
+	crossJoinLateral = this.createJoin('cross', true);
 
 	private createSetOperator(
 		type: SetOperator,
@@ -895,8 +987,12 @@ export abstract class GelSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -965,7 +1061,7 @@ export class GelSelectBase<
 
 	/** @internal */
 	_prepare(name?: string): GelSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -973,11 +1069,23 @@ export class GelSelectBase<
 			const fieldsList = orderSelectedFields<GelColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
+				type: 'select',
+				tables: [...usedTables],
+			}, cacheConfig);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
 			return query;
 		});
+	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enable: true, autoInvalidate: true }
+			: config === false
+			? { enable: false }
+			: { enable: true, autoInvalidate: true, ...config };
+		return this;
 	}
 
 	/**
