@@ -37,7 +37,7 @@ import {
 import type { BunSQLDatabase } from 'drizzle-orm/bun-sql';
 import { drizzle } from 'drizzle-orm/bun-sql';
 import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
-import { usersSync } from 'drizzle-orm/neon/neon-identity';
+import { usersSync } from 'drizzle-orm/neon/neon-auth';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
@@ -1882,7 +1882,7 @@ test('select for ...', () => {
 			.for('share', { of: users2Table, noWait: true })
 			.toSQL();
 
-		expect(query.sql).toMatch(/for share of "users2" no wait$/);
+		expect(query.sql).toMatch(/for share of "users2" nowait$/);
 	}
 });
 
@@ -4768,7 +4768,7 @@ test('neon: neon_auth', () => {
 
 	expect(name).toBe('users_sync');
 	expect(schema).toBe('neon_auth');
-	expect(columns).toHaveLength(6);
+	expect(columns).toHaveLength(7);
 });
 
 test('Enable RLS function', () => {

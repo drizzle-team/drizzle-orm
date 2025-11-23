@@ -67,10 +67,7 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 		_config?: SQLiteTransactionConfig,
 	): T {
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.schema);
-		this.client.transactionSync(() => {
-			transaction(tx);
-		});
-		return {} as any;
+		return this.client.transactionSync(() => transaction(tx));
 	}
 }
 
@@ -86,9 +83,7 @@ export class SQLiteDOTransaction<TFullSchema extends Record<string, unknown>, TS
 
 	override transaction<T>(transaction: (tx: SQLiteDOTransaction<TFullSchema, TSchema>) => T): T {
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
-		this.session.transaction(() => transaction(tx));
-
-		return {} as any;
+		return this.session.transaction(() => transaction(tx));
 	}
 }
 
@@ -111,7 +106,8 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('sync', executeMethod, query);
+		// 3-6 params are for cache. As long as we don't support sync cache - it will be skipped here
+		super('sync', executeMethod, query, undefined, undefined, undefined);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {
@@ -145,7 +141,7 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 
 		const { fields, client, joinsNotNullableMap, customResultMapper, query } = this;
 		if (!fields && !customResultMapper) {
-			return params.length > 0 ? client.sql.exec(query.sql, ...params).one() : client.sql.exec(query.sql).one();
+			return (params.length > 0 ? client.sql.exec(query.sql, ...params) : client.sql.exec(query.sql)).next().value;
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
