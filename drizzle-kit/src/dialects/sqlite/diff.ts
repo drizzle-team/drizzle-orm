@@ -271,6 +271,15 @@ export const ddlDiff = async (
 		setOfTablesToRecereate.delete(it.name);
 	}
 
+	/**
+	 * {
+	[table]: {
+	 	columnDiff: DiffEntities["columns"],
+		pkDiff: DiffEntities["pks"],
+	}
+	 *
+	 */
+
 	for (const it of updates) {
 		if (
 			it.entityType === 'columns'
@@ -292,7 +301,10 @@ export const ddlDiff = async (
 	// });
 
 	const jsonRecreateTables = tablesToRecreate.map((it) => {
-		return prepareStatement('recreate_table', { to: tableFromDDL(it, ddl2), from: tableFromDDL(it, ddl1) });
+		return prepareStatement('recreate_table', {
+			to: tableFromDDL(it, ddl2),
+			from: tableFromDDL(it, ddl1),
+		});
 	});
 
 	const jsonTableAlternations = updates.filter((it) => it.entityType === 'columns')
