@@ -629,8 +629,6 @@ export const ddlDiff = async (
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
 
@@ -663,9 +661,7 @@ export const ddlDiff = async (
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
-			column: it.$right,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
+			diff: it,
 		})
 	);
 
@@ -765,7 +761,7 @@ export const ddlDiff = async (
 	);
 
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', { check: it.$right })
+		prepareStatement('alter_check', { check: it.$right, diff: it })
 	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -788,6 +784,7 @@ export const ddlDiff = async (
 			if (it.for || it.as) {
 				return prepareStatement('recreate_policy', {
 					policy: to,
+					diff: it,
 				});
 			} else {
 				return prepareStatement('alter_policy', {
@@ -898,9 +895,9 @@ export const ddlDiff = async (
 				it.default = c2.default;
 				return it;
 			});
-			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
+			recreateEnums.push(prepareStatement('recreate_enum', { to: e.$right, columns, from: e.$left }));
 		} else {
-			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
+			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, to: e.$left, from: e.$right }));
 		}
 	}
 

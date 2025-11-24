@@ -7,10 +7,13 @@ import type {
 	SchemaWarning as PostgresSchemaWarning,
 	View,
 } from 'src/dialects/postgres/ddl';
+import type { JsonStatement as StatementCockraoch } from '../dialects/cockroach/statements';
+import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
 import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
+// import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
 import { highlightSQL } from './highlighter';
@@ -67,8 +70,8 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 };
 
 function formatOptionChanges(
-	oldState: View['with'],
-	newState: View['with'],
+	oldState: Record<string, string | boolean | number | null> | null,
+	newState: Record<string, string | boolean | number | null> | null,
 ): string {
 	if (oldState === null && newState) {
 		const keys = Object.keys(newState) as Array<keyof View['with']>;
@@ -154,8 +157,8 @@ export const psqlExplain = (st: StatementPostgres) => {
 		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
 		if (d.dimensions) cause += `│ dimensions: ${d.dimensions.from} -> ${d.dimensions.to}\n`;
 
-		// TODO
-		// if (d.identity) msg += `│ identity: ${formatOptionChanges(d.identity.from)} -> ${d.notNull.to}\n`;
+		// TODO check manually
+		if (d.identity) cause += `│ identity: ${formatOptionChanges(d.identity.from, d.identity.to)}\n`;
 	}
 
 	if (st.type === 'recreate_column') {
@@ -322,9 +325,144 @@ export const psqlExplain = (st: StatementPostgres) => {
 	return null;
 };
 
+export const cockroachExplain = (st: StatementCockraoch) => {
+	let title = '';
+	let cause = '';
+
+	if (st.type === 'alter_column') {
+		const r = st.to;
+		const d = st.diff;
+
+		const key = `${r.schema}.${r.table}.${r.name}`;
+		title += `${key} column changed:`;
+		if (d.default) cause += `│ default: ${d.default.from} -> ${d.default.to}\n`;
+		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+		if (d.dimensions) cause += `│ dimensions: ${d.dimensions.from} -> ${d.dimensions.to}\n`;
+
+		// TODO check manually
+		if (d.identity) cause += `│ identity: ${formatOptionChanges(d.identity.from, d.identity.to)}\n`;
+	}
+
+	if (st.type === 'recreate_column') {
+		const { diff: d } = st;
+
+		const key = `${d.$right.schema}.${d.$right.table}.${d.$right.name}`;
+		title += `${key} column recreated:`;
+		if (d.generated) {
+			const from = d.generated.from ? `${d.generated.from.as} ${d.generated.from.type}` : 'null';
+			const to = d.generated.to ? `${d.generated.to.as} ${d.generated.to.type}` : 'null';
+			cause += `│ generated: ${from} -> ${to}\n`;
+		}
+	}
+
+	if (st.type === 'recreate_index') {
+		const diff = st.diff;
+		const idx = diff.$right;
+		const key = `${idx.schema}.${idx.table}.${idx.name}`;
+		title += `${key} index changed:`;
+		if (diff.isUnique) cause += `│ unique: ${diff.isUnique.from} -> ${diff.isUnique.to}\n`;
+		if (diff.where) cause += `│ where: ${diff.where.from} -> ${diff.where.to}\n`;
+		if (diff.method) cause += `│ where: ${diff.method.from} -> ${diff.method.to}\n`;
+	}
+
+	if (st.type === 'recreate_fk') {
+		const { fk, diff } = st;
+		const key = `${fk.schema}.${fk.table}.${fk.name}`;
+		title += `${key} index changed:`;
+		if (diff.onUpdate) cause += `│ where: ${diff.onUpdate.from} -> ${diff.onUpdate.to}\n`;
+		if (diff.onDelete) cause += `│ onDelete: ${diff.onDelete.from} -> ${diff.onDelete.to}\n`;
+	}
+
+	if (st.type === 'recreate_enum') {
+		const { to, from } = st;
+		title = `${to.schema}.${to.name} enum changed:`;
+		cause += `│ values shuffled/removed: [${from.values.join(',')}] -> [${to.values.join(',')}]\n`;
+	}
+
+	if (st.type === 'alter_enum') {
+		const r = st.to;
+		const l = st.from;
+		const d = st.diff;
+
+		title = `${r.schema}.${r.name} enum changed:`;
+		cause += `│ changes: [${r.values.join(',')}] -> [${l.values.join(',')}]\n`;
+		cause += `│ values added: ${d.filter((it) => it.type === 'added').map((it) => it.value).join(',')}\n`;
+	}
+
+	if (st.type === 'alter_role') {
+		const d = st.diff;
+		const to = st.role;
+
+		const key = `${to.name}`;
+		title = `${key} role changed:`;
+		if (d.createDb) cause += `│ createDb: ${d.createDb.from} -> ${d.createDb.to}\n`;
+		if (d.createRole) cause += `│ createRole: ${d.createRole.from} -> ${d.createRole.to}\n`;
+	}
+
+	if (st.type === 'alter_sequence') {
+		const d = st.diff;
+		const to = st.sequence;
+
+		const key = `${to.schema}.${to.name}`;
+		title = `${key} sequence changed:`;
+		if (d.cacheSize) cause += `│ cacheSize: ${d.cacheSize.from} -> ${d.cacheSize.to}\n`;
+		if (d.incrementBy) cause += `│ incrementBy: ${d.incrementBy.from} -> ${d.incrementBy.to}\n`;
+		if (d.maxValue) cause += `│ maxValue: ${d.maxValue.from} -> ${d.maxValue.to}\n`;
+		if (d.minValue) cause += `│ minValue: ${d.minValue.from} -> ${d.minValue.to}\n`;
+		if (d.startWith) cause += `│ startWith: ${d.startWith.from} -> ${d.startWith.to}\n`;
+	}
+
+	if (st.type === 'alter_rls') {
+		const key = `${st.schema}.${st.name}`;
+		title = `${key} rls changed:\n`;
+		cause += `│ rlsEnabled: ${!st.isRlsEnabled} -> ${st.isRlsEnabled}\n`;
+	}
+
+	if (st.type === 'alter_policy' || st.type === 'recreate_policy') {
+		const d = st.diff;
+		const to = st.policy;
+
+		const key = `${to.schema}.${to.table}.${to.name}`;
+		title = `${key} policy changed:`;
+		if (d.as) cause += `│ as: ${d.as.from} -> ${d.as.to}\n`;
+		if (d.for) cause += `│ for: ${d.for.from} -> ${d.for.to}\n`;
+		if (d.roles) cause += `│ roles: [${d.roles.from.join(',')}] -> [${d.roles.to.join(',')}]\n`;
+		if (d.using) cause += `│ using: ${d.using.from} -> ${d.using.to}\n`;
+		if (d.withCheck) cause += `│ withCheck: ${d.withCheck.from} -> ${d.withCheck.to}\n`;
+	}
+
+	if (st.type === 'alter_check') {
+		const d = st.diff;
+
+		const key = `${d.schema}.${d.table}.${d.name}`;
+		title = `${key} check changed:`;
+		if (d.value) cause += `│ definition: ${d.value.from} -> ${d.value.to}\n`;
+	}
+
+	if (st.type === 'alter_pk') {
+		const d = st.diff;
+
+		const key = `${d.schema}.${d.table}.${d.name}`;
+		title += `${key} pk changed:`;
+		if (d.columns) cause += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
+	}
+
+	if (st.type === 'recreate_view') {
+		const { from, to } = st;
+
+		const key = `${to.schema}.${to.name}`;
+		title += `${key} view changed:`;
+		cause += `│ definition: [${from.definition}] -> [${to.definition}]\n`;
+	}
+
+	if (title) return { title, cause };
+
+	return null;
+};
+
 export const mysqlExplain = (
 	st: StatementMysql,
-	sqls: string[],
 ) => {
 	let title = '';
 	let cause = '';
@@ -370,19 +508,123 @@ export const mysqlExplain = (
 		}
 	}
 
-	if (title) {
-		let msg = `┌─── ${title}\n`;
-		msg += cause;
-		msg += `├───\n`;
-		for (const sql of sqls) {
-			msg += `│ ${highlightSQL(sql)}\n`;
-		}
-		msg += `└───\n`;
-		return msg;
-	}
+	if (title) return { title, cause };
 
 	return null;
 };
+
+export const mssqlExplain = (
+	st: StatementMssql,
+) => {
+	let title = '';
+	let cause = '';
+
+	if (st.type === 'alter_column') {
+		const r = st.diff.$right;
+		const d = st.diff;
+
+		const key = `${r.schema}.${r.table}.${r.name}`;
+		title += `${key} column changed:\n`;
+		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+	}
+
+	if (st.type === 'recreate_column') {
+		const { diff } = st;
+
+		const key = `${diff.$right.schema}.${diff.$right.table}.${diff.$right.name}`;
+		title += `${key} column recreated:\n`;
+		if (diff.generated) {
+			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
+			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
+			cause += `│ generated: ${from} -> ${to}\n`;
+		}
+	}
+	if (st.type === 'recreate_identity_column') {
+		const { column } = st;
+
+		const key = `${column.$right.schema}.${column.$right.table}.${column.$right.name}`;
+		title += `${key} column recreated:\n`;
+		if (column.identity) {
+			const from = column.identity.from ? `${column.identity.from.increment} ${column.identity.from.seed}` : 'null';
+			const to = column.identity.to ? `${column.identity.to.increment} ${column.identity.to.seed}` : 'null';
+			cause += `│ identity: ${from} -> ${to}\n`;
+		}
+	}
+
+	if (st.type === 'alter_view') {
+		const { diff, view } = st;
+
+		const key = `${view.schema}.${view.name}`;
+		title += `${key} view changed:\n`;
+		if (diff.checkOption) cause += `│ checkOption: ${diff.checkOption.from} -> ${diff.checkOption.to}\n`;
+		if (diff.definition) cause += `│ definition: ${diff.definition.from} -> ${diff.definition.to}\n`;
+		if (diff.encryption) cause += `│ encryption: ${diff.encryption.from} -> ${diff.encryption.to}\n`;
+		if (diff.schemaBinding) {
+			cause += `│ schemaBinding: ${diff.schemaBinding.from} -> ${diff.schemaBinding.to}\n`;
+		}
+		if (diff.viewMetadata) {
+			cause += `│ viewMetadata: ${diff.viewMetadata.from} -> ${diff.viewMetadata.to}\n`;
+		}
+	}
+
+	if (st.type === 'recreate_default') {
+		const { from, to } = st;
+
+		const key = `${to.schema}.${to.name}`;
+		title += `${key} default changed:\n`;
+		cause += `│ default: ${from.default} -> ${to.default}\n`;
+	}
+
+	if (title) return { title, cause };
+
+	return null;
+};
+
+// export const sqliteExplain = (
+// 	st: StatementSqlite,
+// ) => {
+// 	let title = '';
+// 	let cause = '';
+
+// 	if (st.type === 'recreate_table') {
+// 		const { from, to } = st;
+
+// 		const key = `${to.name}`;
+
+// 		title += `${key} column changed:\n`;
+// 		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
+// 		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
+// 	}
+
+// 	if (st.type === 'recreate_column') {
+// 		const { column } = st;
+
+// 		const key = `${column.table}.${column.name}`;
+// 		title += `${key} column recreated:\n`;
+// 		if (diff.generated) {
+// 			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
+// 			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
+// 			cause += `│ generated: ${from} -> ${to}\n`;
+// 		}
+// 	}
+
+// 	if (st.type === '') {
+// 		const { diff } = st;
+
+// 		const key = `${diff.$right.table}.${diff.$right.name}`;
+// 		title += `${key} column recreated:\n`;
+// 		if (diff.generated) {
+// 			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
+// 			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
+// 			cause += `│ generated: ${from} -> ${to}\n`;
+// 		}
+// 	}
+
+// 	if (title) return { title, cause };
+
+// 	return null;
+// };
 
 export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
