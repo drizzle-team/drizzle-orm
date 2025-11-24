@@ -29,9 +29,8 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
-import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import { postgresSchemaError, postgresSchemaWarning, ProgressView, psqlExplain } from '../views';
+import { explain, postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -40,7 +39,7 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
-	explain: boolean,
+	explainFlag: boolean,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -103,28 +102,10 @@ export const handle = async (
 	}
 
 	const hints = await suggestions(db, jsonStatements);
-	if (explain) {
-		const messages: string[] = [`\n\nThe following migration was generated:\n`];
-		for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
-			const msg = psqlExplain(jsonStatement, sql);
-			if (msg) messages.push(msg);
-			// Logic below should show all statements depending on flags like 'verbose' etc.
-			// else messages.push(...sql);
-		}
-		console.log(withStyle.info(messages.join('\n')));
-		process.exit(0);
-	}
+	const explainMessage = explain('postgres', groupedStatements, explainFlag, hints);
 
-	if (hints.length > 0) {
-		console.log();
-		console.log(withStyle.warning(`There're potential data loss statements:`));
-
-		for (const h of hints) {
-			console.log(h.hint);
-			if (h.statement) console.log(highlightSQL(h.statement), '\n');
-		}
-		console.log();
-	}
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));

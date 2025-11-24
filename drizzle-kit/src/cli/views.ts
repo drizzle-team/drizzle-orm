@@ -94,18 +94,61 @@ function formatOptionChanges(
 
 	return '';
 }
-export const psqlExplain = (
-	st: StatementPostgres,
-	sqls: string[],
+
+export const explain = (
+	dialect: 'mysql' | 'postgres',
+	grouped: { jsonStatement: StatementPostgres; sqlStatements: string[] }[],
+	explain: boolean,
+	hints: { hint: string; statement?: string }[],
 ) => {
+	const res = [];
+	const explains = [];
+	for (const { jsonStatement, sqlStatements } of grouped) {
+		const res = dialect === 'postgres' ? psqlExplain(jsonStatement as StatementPostgres) : null;
+
+		if (res) {
+			let msg = `┌─── ${res.title}\n`;
+			msg += res.cause;
+			msg += `├───\n`;
+			for (const sql of sqlStatements) {
+				msg += `│ ${highlightSQL(sql)}\n`;
+			}
+			msg += `└───\n`;
+			explains.push(msg);
+		} else if (explain) {
+			explains.push(...sqlStatements.map((x) => highlightSQL(x)));
+		}
+	}
+
+	if (explains.length > 0) {
+		res.push('\n');
+		if (explain) res.push(chalk.gray(`--- Generated migration statements ---\n`));
+		res.push(explains.join('\n'));
+	}
+
+	if (hints.length > 0) {
+		res.push('\n\n');
+		res.push(withStyle.warning(`There're potential data loss statements:\n`));
+
+		for (const h of hints) {
+			res.push(h.hint);
+			res.push('\n');
+			if (h.statement) res.push(highlightSQL(h.statement), '\n');
+		}
+	}
+	return res.join('');
+};
+
+export const psqlExplain = (st: StatementPostgres) => {
 	let title = '';
 	let cause = '';
+
 	if (st.type === 'alter_column') {
 		const r = st.to;
 		const d = st.diff;
 
 		const key = `${r.schema}.${r.table}.${r.name}`;
-		title += `┌─── ${key} column changed:\n`;
+		title += `${key} column changed:`;
 		if (d.default) cause += `│ default: ${d.default.from} -> ${d.default.to}\n`;
 		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
 		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
@@ -119,7 +162,7 @@ export const psqlExplain = (
 		const { diff: d } = st;
 
 		const key = `${d.$right.schema}.${d.$right.table}.${d.$right.name}`;
-		title += `┌─── ${key} column recreated:\n`;
+		title += `${key} column recreated:`;
 		if (d.generated) {
 			const from = d.generated.from ? `${d.generated.from.as} ${d.generated.from.type}` : 'null';
 			const to = d.generated.to ? `${d.generated.to.as} ${d.generated.to.type}` : 'null';
@@ -274,16 +317,7 @@ export const psqlExplain = (
 		if (diff.type) cause += `│ type: [${diff.type.from}] -> [${diff.type.to}]\n`;
 	}
 
-	if (title) {
-		let msg = `┌─── ${title}\n`;
-		msg += cause;
-		msg += `├───\n`;
-		for (const sql of sqls) {
-			msg += `│ ${highlightSQL(sql)}\n`;
-		}
-		msg += `└───\n`;
-		return msg;
-	}
+	if (title) return { title, cause };
 
 	return null;
 };
