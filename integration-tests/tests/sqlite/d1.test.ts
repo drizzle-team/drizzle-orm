@@ -1,47 +1,21 @@
-import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
 import { sql } from 'drizzle-orm';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { drizzle } from 'drizzle-orm/d1';
 import { migrate } from 'drizzle-orm/d1/migrator';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
-import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
+import { d1Test as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
+import { tests as cacheTests } from './sqlite-common-cache';
 
-const ENABLE_LOGGING = false;
-
-let db: DrizzleD1Database<never, typeof relations>;
-let dbGlobalCached: DrizzleD1Database;
-let cachedDb: DrizzleD1Database;
-
-beforeAll(async () => {
-	const sqliteDb = await createSQLiteDB(':memory:');
-	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
-});
-
-beforeEach((ctx) => {
-	ctx.sqlite = {
-		db,
-	};
-	ctx.cachedSqlite = {
-		db: cachedDb,
-		dbGlobalCached,
-	};
-});
-
-test('migrator', async () => {
+test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists another_users`);
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+	await migrate(db as DrizzleD1Database<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = await db.select().from(usersMigratorTable).all();
@@ -57,13 +31,16 @@ test('migrator', async () => {
 	await db.run(sql`drop table __drizzle_migrations`);
 });
 
-test('migrator : migrate with custom table', async () => {
+test('migrator : migrate with custom table', async ({ db }) => {
 	const customTable = randomString();
 	await db.run(sql`drop table if exists another_users`);
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists ${sql.identifier(customTable)}`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/sqlite', migrationsTable: customTable });
+	await migrate(db as DrizzleD1Database<never, typeof relations>, {
+		migrationsFolder: './drizzle2/sqlite',
+		migrationsTable: customTable,
+	});
 
 	// test if the custom migrations table was created
 	const res = await db.all(sql`select * from ${sql.identifier(customTable)};`);
@@ -79,14 +56,14 @@ test('migrator : migrate with custom table', async () => {
 	await db.run(sql`drop table ${sql.identifier(customTable)}`);
 });
 
-test('migrator : --init', async () => {
+test('migrator : --init', async ({ db }) => {
 	const migrationsTable = 'drzl_init';
 
 	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db, {
+	const migratorRes = await migrate(db as DrizzleD1Database<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
@@ -110,14 +87,14 @@ test('migrator : --init', async () => {
 	expect(!!res?.tableExists).toStrictEqual(false);
 });
 
-test('migrator : --init - local migrations error', async () => {
+test('migrator : --init - local migrations error', async ({ db }) => {
 	const migrationsTable = 'drzl_init';
 
 	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db, {
+	const migratorRes = await migrate(db as DrizzleD1Database<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -141,19 +118,19 @@ test('migrator : --init - local migrations error', async () => {
 	expect(!!res?.tableExists).toStrictEqual(false);
 });
 
-test('migrator : --init - db migrations error', async () => {
+test('migrator : --init - db migrations error', async ({ db }) => {
 	const migrationsTable = 'drzl_init';
 
 	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	await migrate(db, {
+	await migrate(db as DrizzleD1Database<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 		migrationsTable,
 	});
 
-	const migratorRes = await migrate(db, {
+	const migratorRes = await migrate(db as DrizzleD1Database<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -177,7 +154,7 @@ test('migrator : --init - db migrations error', async () => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-skipTests([
+const skip = [
 	// Cannot convert 49,50,55 to a BigInt
 	'insert bigint values',
 	// SyntaxError: Unexpected token , in JSON at position 2
@@ -195,6 +172,6 @@ skipTests([
 	'select from alias',
 	'join view as subquery',
 	'cross join',
-]);
-cacheTests();
-tests();
+];
+cacheTests(test, skip);
+tests(test, skip);

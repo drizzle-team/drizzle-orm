@@ -21,6 +21,8 @@ on:
         required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
+      SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -211,10 +213,12 @@ jobs:
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         shell: bash
         run: |
