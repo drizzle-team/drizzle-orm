@@ -27,7 +27,7 @@ import {
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import { grey, MigrateProgress } from './views';
+import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -315,16 +315,7 @@ export const push = command({
 
 		if (dialect === 'mysql') {
 			const { handle } = await import('./commands/push-mysql');
-			await handle(
-				schemaPath,
-				credentials,
-				strict,
-				verbose,
-				force,
-				casing,
-				filters,
-				explain,
-			);
+			await handle(schemaPath, credentials, verbose, force, casing, filters, explain);
 		} else if (dialect === 'postgresql') {
 			if ('driver' in credentials) {
 				const { driver } = credentials;
@@ -339,72 +330,24 @@ export const push = command({
 			}
 
 			const { handle } = await import('./commands/push-postgres');
-			await handle(
-				schemaPath,
-				verbose,
-				credentials,
-				filters,
-				force,
-				casing,
-				explain,
-			);
+			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'sqlite') {
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
-			await sqlitePush(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				filters,
-				force,
-				casing,
-			);
+			await sqlitePush(schemaPath, verbose, credentials, filters, force, casing);
 		} else if (dialect === 'turso') {
 			const { handle: libSQLPush } = await import('./commands/push-libsql');
-			await libSQLPush(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				filters,
-				force,
-				casing,
-			);
+			await libSQLPush(schemaPath, verbose, credentials, filters, force, casing);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
-			await handle(
-				schemaPath,
-				credentials,
-				filters,
-				strict,
-				verbose,
-				force,
-				casing,
-			);
+			await handle(schemaPath, credentials, filters, verbose, force, casing);
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
-			await handle(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				filters,
-				force,
-				casing,
-			);
+			await handle(schemaPath, verbose, credentials, filters, force, casing);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
-			await handle(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				filters,
-				force,
-				casing,
-			);
+			await handle(schemaPath, verbose, credentials, filters, force, casing);
 		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'push' command with Gel dialect`);
+			console.log(error(`You can't use 'push' command with Gel dialect`));
 		} else {
 			assertUnreachable(dialect);
 		}

@@ -20,7 +20,6 @@ import { ProgressView } from '../views';
 export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
-	strict: boolean,
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
@@ -69,7 +68,7 @@ export const handle = async (
 		console.log();
 	}
 
-	if (!force && strict) {
+	if (!force && sqlStatements.length > 0) {
 		const { data } = await render(
 			new Select(['No, abort', `Yes, I want to execute all statements`]),
 		);

@@ -177,7 +177,7 @@
 	},
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
-		"@aws-sdk/client-rds-data": "^3.549.0",
+		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",

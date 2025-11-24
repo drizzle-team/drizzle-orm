@@ -21,7 +21,6 @@ import { introspect } from './pull-mysql';
 export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
-	strict: boolean,
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
@@ -90,7 +89,7 @@ export const handle = async (
 		console.log();
 	}
 
-	if (!force && strict && hints.length > 0) {
+	if (!force && hints.length > 0) {
 		const { data } = await render(
 			new Select(['No, abort', `Yes, I want to execute all statements`]),
 		);
