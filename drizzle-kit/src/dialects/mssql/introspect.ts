@@ -323,6 +323,7 @@ LEFT JOIN sys.computed_columns computed
 LEFT JOIN sys.objects obj 
   ON obj.object_id = col.object_id
 WHERE obj.type in ('U', 'V')
+AND AND obj.is_ms_shipped = 0
 ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};
 `).then((rows) => {
 			queryCallback('columns', rows, null);
