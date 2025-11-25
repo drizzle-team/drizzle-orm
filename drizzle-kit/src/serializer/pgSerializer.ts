@@ -1257,7 +1257,8 @@ WHERE
 					WHERE
 						tc.table_name = '${tableName}'
 						AND tc.constraint_schema = '${tableSchema}'
-						AND tc.constraint_type = 'CHECK';`);
+						AND tc.constraint_type = 'CHECK'
+						AND con.contype = 'c';`);
 
 					columnsCount += tableResponse.length;
 					if (progressCallback) {
