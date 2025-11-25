@@ -881,10 +881,6 @@ export const applyPgSnapshotsDiff = async (
 		return [key, it];
 	});
 
-	console.log('DEBUG drizzle-kit: After table rename patching, tablesPatchedSnap1 keys:', Object.keys(tablesPatchedSnap1.tables));
-	console.log('DEBUG drizzle-kit: json2 (source) table keys:', Object.keys(json2.tables));
-	console.log('DEBUG drizzle-kit: renamedTables:', JSON.stringify(renamedTables.map(r => ({ from: r.from.name, to: r.to.name })), null, 2));
-
 	const res = diffColumns(tablesPatchedSnap1.tables, json2.tables);
 
 	const columnRenames = [] as {
