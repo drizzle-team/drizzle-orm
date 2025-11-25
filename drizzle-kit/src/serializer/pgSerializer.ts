@@ -904,6 +904,9 @@ export const generatePgSnapshot = (
 		roles: rolesToReturn,
 		policies: policiesToReturn,
 		views: resultViews,
+		functions: {},
+		triggers: {},
+		procedures: {},
 		_meta: {
 			schemas: {},
 			tables: {},
@@ -1915,6 +1918,105 @@ WHERE
 		progressCallback('views', viewsCount, 'done');
 	}
 
+	const whereFunctions = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
+
+	const allFunctions = await db.query<{
+		schema: string;
+		name: string;
+		definition: string;
+	}>(
+		`SELECT
+			n.nspname as schema,
+			p.proname as name,
+			pg_get_functiondef(p.oid) as definition
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE p.prokind = 'f'
+			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+			${whereFunctions === '' ? '' : ` AND (${whereFunctions})`}
+		ORDER BY schema, name;`,
+	);
+
+	const functionsToReturn: Record<string, { name: string; schema: string; definition: string }> = {};
+	for (const row of allFunctions) {
+		if (row.definition) {
+			const key = `${row.schema}.${row.name}`;
+			functionsToReturn[key] = {
+				name: row.name,
+				schema: row.schema,
+				definition: row.definition,
+			};
+		}
+	}
+
+	const allProcedures = await db.query<{
+		schema: string;
+		name: string;
+		definition: string;
+	}>(
+		`SELECT
+			n.nspname as schema,
+			p.proname as name,
+			pg_get_functiondef(p.oid) as definition
+		FROM pg_proc p
+		JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE p.prokind = 'p'
+			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+			${whereFunctions === '' ? '' : ` AND (${whereFunctions})`}
+		ORDER BY schema, name;`,
+	);
+
+	const proceduresToReturn: Record<string, { name: string; schema: string; definition: string }> = {};
+	for (const row of allProcedures) {
+		if (row.definition) {
+			const key = `${row.schema}.${row.name}`;
+			proceduresToReturn[key] = {
+				name: row.name,
+				schema: row.schema,
+				definition: row.definition,
+			};
+		}
+	}
+
+	const allTriggers = await db.query<{
+		schema: string;
+		name: string;
+		table_name: string;
+		definition: string;
+	}>(
+		`SELECT
+			n.nspname as schema,
+			t.tgname as name,
+			c.relname as table_name,
+			pg_get_triggerdef(t.oid) as definition
+		FROM pg_trigger t
+		JOIN pg_class c ON c.oid = t.tgrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE NOT t.tgisinternal
+			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+			${whereFunctions === '' ? '' : ` AND (${whereFunctions})`}
+		ORDER BY schema, table_name, name;`,
+	);
+
+	const triggersToReturn: Record<string, { name: string; schema: string; tableName: string; definition: string }> = {};
+	for (const row of allTriggers) {
+		if (row.definition) {
+			const key = `${row.schema}.${row.table_name}.${row.name}`;
+			triggersToReturn[key] = {
+				name: row.name,
+				schema: row.schema,
+				tableName: row.table_name,
+				definition: row.definition,
+			};
+		}
+	}
+
+	if (progressCallback) {
+		progressCallback('functions', Object.keys(functionsToReturn).length, 'done');
+		progressCallback('triggers', Object.keys(triggersToReturn).length, 'done');
+		progressCallback('procedures', Object.keys(proceduresToReturn).length, 'done');
+	}
+
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
@@ -1927,6 +2029,9 @@ WHERE
 		roles: rolesToReturn,
 		policies,
 		views: views,
+		functions: functionsToReturn,
+		triggers: triggersToReturn,
+		procedures: proceduresToReturn,
 		_meta: {
 			schemas: {},
 			tables: {},

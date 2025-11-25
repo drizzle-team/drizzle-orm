@@ -83,6 +83,12 @@ import {
 	JsonSqliteAddColumnStatement,
 	JsonSqliteCreateTableStatement,
 	JsonStatement,
+	JsonCreateFunctionStatement,
+	JsonDropFunctionStatement,
+	JsonCreateTriggerStatement,
+	JsonDropTriggerStatement,
+	JsonCreateProcedureStatement,
+	JsonDropProcedureStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
 import { MySqlSquasher } from './serializer/mysqlSchema';
@@ -3950,6 +3956,66 @@ class SingleStoreRecreateTableConvertor extends Convertor {
 	}
 }
 
+class PgCreateFunctionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_function' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreateFunctionStatement): string {
+		return st.definition.endsWith(';') ? st.definition : `${st.definition};`;
+	}
+}
+
+class PgDropFunctionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_function' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropFunctionStatement): string {
+		return `DROP FUNCTION IF EXISTS "${st.schema}"."${st.name}";`;
+	}
+}
+
+class PgCreateTriggerConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_trigger' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreateTriggerStatement): string {
+		return st.definition.endsWith(';') ? st.definition : `${st.definition};`;
+	}
+}
+
+class PgDropTriggerConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_trigger' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropTriggerStatement): string {
+		return `DROP TRIGGER IF EXISTS "${st.name}" ON "${st.schema}"."${st.tableName}";`;
+	}
+}
+
+class PgCreateProcedureConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_procedure' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonCreateProcedureStatement): string {
+		return st.definition.endsWith(';') ? st.definition : `${st.definition};`;
+	}
+}
+
+class PgDropProcedureConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_procedure' && dialect === 'postgresql';
+	}
+
+	convert(st: JsonDropProcedureStatement): string {
+		return `DROP PROCEDURE IF EXISTS "${st.schema}"."${st.name}";`;
+	}
+}
+
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());
@@ -3988,6 +4054,13 @@ convertors.push(new DropPgSequenceConvertor());
 convertors.push(new RenamePgSequenceConvertor());
 convertors.push(new MovePgSequenceConvertor());
 convertors.push(new AlterPgSequenceConvertor());
+
+convertors.push(new PgCreateFunctionConvertor());
+convertors.push(new PgDropFunctionConvertor());
+convertors.push(new PgCreateTriggerConvertor());
+convertors.push(new PgDropTriggerConvertor());
+convertors.push(new PgCreateProcedureConvertor());
+convertors.push(new PgDropProcedureConvertor());
 
 convertors.push(new PgDropTableConvertor());
 convertors.push(new MySQLDropTableConvertor());

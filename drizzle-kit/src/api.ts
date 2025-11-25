@@ -233,3 +233,5 @@ export { ConflictNeedsResolutionError } from './migrationState';
 export { originUUID } from './global';
 
 export const introspectPostgres = pgFromDatabase;
+
+export type { Function, Trigger, Procedure } from './serializer/pgSchema';

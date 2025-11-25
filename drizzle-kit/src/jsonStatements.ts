@@ -798,6 +798,47 @@ export type JsonAlterViewStatement =
 	| JsonAlterViewAlterTablespaceStatement
 	| JsonAlterViewAlterUsingStatement;
 
+export interface JsonCreateFunctionStatement {
+	type: 'create_function';
+	name: string;
+	schema: string;
+	definition: string;
+}
+
+export interface JsonDropFunctionStatement {
+	type: 'drop_function';
+	name: string;
+	schema: string;
+}
+
+export interface JsonCreateTriggerStatement {
+	type: 'create_trigger';
+	name: string;
+	schema: string;
+	tableName: string;
+	definition: string;
+}
+
+export interface JsonDropTriggerStatement {
+	type: 'drop_trigger';
+	name: string;
+	schema: string;
+	tableName: string;
+}
+
+export interface JsonCreateProcedureStatement {
+	type: 'create_procedure';
+	name: string;
+	schema: string;
+	definition: string;
+}
+
+export interface JsonDropProcedureStatement {
+	type: 'drop_procedure';
+	name: string;
+	schema: string;
+}
+
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
 	| JsonAlterColumnTypeStatement
@@ -884,7 +925,13 @@ export type JsonStatement =
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement;
+	| JsonAlterIndPolicyStatement
+	| JsonCreateFunctionStatement
+	| JsonDropFunctionStatement
+	| JsonCreateTriggerStatement
+	| JsonDropTriggerStatement
+	| JsonCreateProcedureStatement
+	| JsonDropProcedureStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -3552,3 +3599,68 @@ export const prepareMySqlAlterView = (
 ): JsonAlterSingleStoreViewStatement => {
 	return { type: 'alter_singlestore_view', ...view };
 }; */
+
+export const prepareCreateFunctionJson = (
+	func: { name: string; schema: string; definition: string },
+): JsonCreateFunctionStatement => {
+	return {
+		type: 'create_function',
+		name: func.name,
+		schema: func.schema,
+		definition: func.definition,
+	};
+};
+
+export const prepareDropFunctionJson = (
+	func: { name: string; schema: string },
+): JsonDropFunctionStatement => {
+	return {
+		type: 'drop_function',
+		name: func.name,
+		schema: func.schema,
+	};
+};
+
+export const prepareCreateTriggerJson = (
+	trigger: { name: string; schema: string; tableName: string; definition: string },
+): JsonCreateTriggerStatement => {
+	return {
+		type: 'create_trigger',
+		name: trigger.name,
+		schema: trigger.schema,
+		tableName: trigger.tableName,
+		definition: trigger.definition,
+	};
+};
+
+export const prepareDropTriggerJson = (
+	trigger: { name: string; schema: string; tableName: string },
+): JsonDropTriggerStatement => {
+	return {
+		type: 'drop_trigger',
+		name: trigger.name,
+		schema: trigger.schema,
+		tableName: trigger.tableName,
+	};
+};
+
+export const prepareCreateProcedureJson = (
+	proc: { name: string; schema: string; definition: string },
+): JsonCreateProcedureStatement => {
+	return {
+		type: 'create_procedure',
+		name: proc.name,
+		schema: proc.schema,
+		definition: proc.definition,
+	};
+};
+
+export const prepareDropProcedureJson = (
+	proc: { name: string; schema: string },
+): JsonDropProcedureStatement => {
+	return {
+		type: 'drop_procedure',
+		name: proc.name,
+		schema: proc.schema,
+	};
+};

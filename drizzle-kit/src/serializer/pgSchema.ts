@@ -154,6 +154,25 @@ export const roleSchema = object({
 	inherit: boolean().optional(),
 }).strict();
 
+export const functionSchema = object({
+	name: string(),
+	schema: string(),
+	definition: string(),
+}).strict();
+
+export const triggerSchema = object({
+	name: string(),
+	schema: string(),
+	tableName: string(),
+	definition: string(),
+}).strict();
+
+export const procedureSchema = object({
+	name: string(),
+	schema: string(),
+	definition: string(),
+}).strict();
+
 export const sequenceSquashed = object({
 	name: string(),
 	schema: string(),
@@ -444,6 +463,9 @@ export const pgSchemaInternal = object({
 	sequences: record(string(), sequenceSchema).default({}),
 	roles: record(string(), roleSchema).default({}),
 	policies: record(string(), policy).default({}),
+	functions: record(string(), functionSchema).default({}),
+	triggers: record(string(), triggerSchema).default({}),
+	procedures: record(string(), procedureSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -499,6 +521,9 @@ export const pgSchemaSquashed = object({
 	sequences: record(string(), sequenceSquashed),
 	roles: record(string(), roleSchema).default({}),
 	policies: record(string(), policySquashed).default({}),
+	functions: record(string(), functionSchema).default({}),
+	triggers: record(string(), triggerSchema).default({}),
+	procedures: record(string(), procedureSchema).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
@@ -511,6 +536,9 @@ export const pgSchema = pgSchemaInternal.merge(schemaHash);
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;
 export type Role = TypeOf<typeof roleSchema>;
+export type Function = TypeOf<typeof functionSchema>;
+export type Trigger = TypeOf<typeof triggerSchema>;
+export type Procedure = TypeOf<typeof procedureSchema>;
 export type Column = TypeOf<typeof column>;
 export type TableV3 = TypeOf<typeof tableV3>;
 export type TableV4 = TypeOf<typeof tableV4>;
@@ -864,6 +892,9 @@ export const squashPgScheme = (
 		policies: mappedPolicies,
 		sequences: mappedSequences,
 		roles: json.roles,
+		functions: json.functions ?? {},
+		triggers: json.triggers ?? {},
+		procedures: json.procedures ?? {},
 	};
 };
 
@@ -878,6 +909,9 @@ export const dryPg = pgSchema.parse({
 	policies: {},
 	roles: {},
 	sequences: {},
+	functions: {},
+	triggers: {},
+	procedures: {},
 	_meta: {
 		schemas: {},
 		tables: {},
