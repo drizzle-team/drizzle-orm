@@ -13,7 +13,7 @@ import type { JsonStatement as StatementMysql } from '../dialects/mysql/statemen
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
-// import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
+import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
 import { highlightSQL } from './highlighter';
@@ -581,50 +581,165 @@ export const mssqlExplain = (
 	return null;
 };
 
-// export const sqliteExplain = (
-// 	st: StatementSqlite,
-// ) => {
-// 	let title = '';
-// 	let cause = '';
+export const sqliteExplain = (
+	st: StatementSqlite,
+) => {
+	let title = '';
+	let cause = '';
 
-// 	if (st.type === 'recreate_table') {
-// 		const { from, to } = st;
+	if (st.type === 'recreate_table') {
+		const {
+			to,
+			alteredColumnsBecameGenerated,
+			checkDiffs,
+			checksAlters,
+			columnAlters,
+			fksAlters,
+			fksDiff,
+			indexesDiff,
+			newStoredColumns,
+			pksAlters,
+			pksDiff,
+			uniquesAlters,
+			uniquesDiff,
+		} = st;
 
-// 		const key = `${to.name}`;
+		const key = `${to.name}`;
 
-// 		title += `${key} column changed:\n`;
-// 		if (d.type) cause += `│ type: ${d.type.from} -> ${d.type.to}\n`;
-// 		if (d.notNull) cause += `│ notNull: ${d.notNull.from} -> ${d.notNull.to}\n`;
-// 	}
+		title += `${key} table recreated:\n`;
+		if (alteredColumnsBecameGenerated.length) {
+			cause += `│ Columns become generated: ${alteredColumnsBecameGenerated.map((it) => `${it.name}`).join('\n`')}\n`;
+			cause += `│ It is not possible to make existing column as generated\n`;
+		}
 
-// 	if (st.type === 'recreate_column') {
-// 		const { column } = st;
+		if (checkDiffs.length) {
+			cause += `| Check constraints added: ${
+				checkDiffs.filter((it) => it.$diffType === 'create').map((it) => `${it.name}`).join(',')
+			}\n`;
+			cause += `| Check constraints dropped: ${
+				checkDiffs.filter((it) => it.$diffType === 'drop').map((it) => `${it.name}`).join(',')
+			}\n`;
 
-// 		const key = `${column.table}.${column.name}`;
-// 		title += `${key} column recreated:\n`;
-// 		if (diff.generated) {
-// 			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
-// 			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
-// 			cause += `│ generated: ${from} -> ${to}\n`;
-// 		}
-// 	}
+			cause += `| It is not possible to create/drop check constraints on existing table\n`;
+		}
 
-// 	if (st.type === '') {
-// 		const { diff } = st;
+		if (checksAlters.length) {
+			cause += `│ Check constraints altered definition: ${checksAlters.map((it) => `${it.name}`).join(',')}\n`;
+			cause += `│ It is not possible to alter definition\n`;
+		}
 
-// 		const key = `${diff.$right.table}.${diff.$right.name}`;
-// 		title += `${key} column recreated:\n`;
-// 		if (diff.generated) {
-// 			const from = diff.generated.from ? `${diff.generated.from.as} ${diff.generated.from.type}` : 'null';
-// 			const to = diff.generated.to ? `${diff.generated.to.as} ${diff.generated.to.type}` : 'null';
-// 			cause += `│ generated: ${from} -> ${to}\n`;
-// 		}
-// 	}
+		if (columnAlters) {
+			cause += `│ Columns altered:\n`;
+			cause += `│ notNull: ${
+				columnAlters.filter((it) => it.notNull).map((it) => `${it.name}, ${it.notNull?.from} -> ${it.notNull?.to}`)
+					.join(', ')
+			}\n`;
+			cause += `│ type: ${
+				columnAlters.filter((it) => it.type).map((it) => `${it.name}, ${it.type?.from} -> ${it.type?.to}`)
+					.join(', ')
+			}\n`;
+			cause += `│ default: ${
+				columnAlters.filter((it) => it.default).map((it) => `${it.name}, ${it.default?.from} -> ${it.default?.to}`)
+					.join(', ')
+			}\n`;
+			cause += `│ autoincrement: ${
+				columnAlters.filter((it) => it.autoincrement).map((it) =>
+					`${it.name}, ${it.autoincrement?.from} -> ${it.autoincrement?.to}`
+				)
+					.join(', ')
+			}\n`;
+		}
 
-// 	if (title) return { title, cause };
+		if (uniquesDiff.length) {
+			cause += `| Unique constraints added: ${
+				uniquesDiff.filter((it) => it.$diffType === 'create').map((it) => `${it.name}`).join(', ')
+			}\n`;
+			cause += `| Unique constraints dropped: ${
+				uniquesDiff.filter((it) => it.$diffType === 'drop').map((it) => `${it.name}`).join(', ')
+			}\n`;
 
-// 	return null;
-// };
+			cause += `| It is not possible to create/drop unique constraints on existing table\n`;
+		}
+
+		if (pksDiff.length) {
+			cause += `| Primary key constraints added: ${
+				pksDiff.filter((it) => it.$diffType === 'create').map((it) => `${it.name}`).join(', ')
+			}\n`;
+			cause += `| Primary key constraints dropped: ${
+				pksDiff.filter((it) => it.$diffType === 'drop').map((it) => `${it.name}`).join(', ')
+			}\n`;
+
+			cause += `| It is not possible to create/drop primary key constraints on existing table\n`;
+		}
+
+		if (newStoredColumns.length) {
+			cause += `| Stored columns added: ${newStoredColumns.map((it) => `${it.name}`).join(', ')}\n`;
+			cause +=
+				`| It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however\n`;
+		}
+
+		if (pksAlters.length) {
+			cause += `│ Primary key was altered:\n`;
+			cause += `│ columns: ${
+				pksAlters.filter((it) => it.columns).map((it) =>
+					`${it.name}, [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
+				)
+			}\n`;
+		}
+
+		if (uniquesAlters.length) {
+			cause += `│ Unique constraint was altered:\n`;
+			cause += `│ columns: ${
+				uniquesAlters.filter((it) => it.columns).map((it) =>
+					`${it.name}, [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
+				)
+			}\n`;
+		}
+
+		if (fksAlters.length) {
+			cause += `│ Foreign key constraint was altered:\n`;
+			cause += `│ columns: ${
+				fksAlters.filter((it) => it.columns).map((it) =>
+					`${it.name}, [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
+				)
+			}\n`;
+			cause += `│ columnTos: ${
+				fksAlters.filter((it) => it.columnsTo).map((it) =>
+					`${it.name}, [${it.columnsTo?.from.join(',')}] -> [${it.columnsTo?.to.join(',')}]`
+				)
+			}\n`;
+			cause += `│ tableTo: ${
+				fksAlters.filter((it) => it.tableTo).map((it) => `${it.name}, [${it.tableTo?.from}] -> [${it.tableTo?.to}]`)
+			}\n`;
+		}
+
+		if (fksDiff.length) {
+			cause += `| Foreign key constraints added: ${
+				fksDiff.filter((it) => it.$diffType === 'create').map((it) => `${it.name}`).join(', ')
+			}\n`;
+			cause += `| Unique constraints dropped: ${
+				fksDiff.filter((it) => it.$diffType === 'drop').map((it) => `${it.name}`).join(', ')
+			}\n`;
+
+			cause += `| It is not possible to create/drop foreign key constraints on existing table\n`;
+		}
+
+		if (indexesDiff.filter((it) => it.isUnique && it.origin === 'auto').length) {
+			cause += `| System generated index added: ${
+				fksDiff.filter((it) => it.$diffType === 'create').map((it) => `${it.name}`).join(', ')
+			}\n`;
+			cause += `| System generated index dropped: ${
+				fksDiff.filter((it) => it.$diffType === 'drop').map((it) => `${it.name}`).join(', ')
+			}\n`;
+
+			cause += `| It is not possible to drop/create auto generated unique indexes\n`;
+		}
+	}
+
+	if (title) return { title, cause };
+
+	return null;
+};
 
 export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
