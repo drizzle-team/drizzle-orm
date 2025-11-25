@@ -25,11 +25,12 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
+	sqliteDB?: SQLiteDB,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
-	const db = await connectToSQLite(credentials);
+	const db = sqliteDB ?? await connectToSQLite(credentials);
 	const files = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(files);
 
