@@ -393,8 +393,8 @@ export class CockroachInsertBase<
 	}
 
 	toSQL(): Query {
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		return query;
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
 	/** @internal */
