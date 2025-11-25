@@ -16,6 +16,7 @@ import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 const { Pool, types } = pg;
+const NativePool = (<any> pg).native ? (<{ Pool: typeof Pool }> (<any> pg).native).Pool : undefined;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
@@ -304,7 +305,7 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
+		const session = (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) // eslint-disable-line no-instanceof/no-instanceof
 			? new NodePgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
@@ -322,7 +323,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
+			if (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) { // eslint-disable-line no-instanceof/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}
