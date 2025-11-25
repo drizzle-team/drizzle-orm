@@ -99,15 +99,19 @@ function formatOptionChanges(
 }
 
 export const explain = (
-	dialect: 'mysql' | 'postgres',
-	grouped: { jsonStatement: StatementPostgres; sqlStatements: string[] }[],
+	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
+	grouped: { jsonStatement: StatementPostgres | StatementSqlite; sqlStatements: string[] }[],
 	explain: boolean,
 	hints: { hint: string; statement?: string }[],
 ) => {
 	const res = [];
 	const explains = [];
 	for (const { jsonStatement, sqlStatements } of grouped) {
-		const res = dialect === 'postgres' ? psqlExplain(jsonStatement as StatementPostgres) : null;
+		const res = dialect === 'postgres'
+			? psqlExplain(jsonStatement as StatementPostgres)
+			: dialect === 'sqlite'
+			? sqliteExplain(jsonStatement as StatementSqlite)
+			: null;
 
 		if (res) {
 			let msg = `┌─── ${res.title}\n`;
@@ -618,27 +622,22 @@ export const sqliteExplain = (
 		}
 
 		if (checkDiffs.length) {
-			let res: string = '';
 			const createdChecks = checkDiffs.filter((it) => it.$diffType === 'create');
 			const droppedChecks = checkDiffs.filter((it) => it.$diffType === 'drop');
 
 			if (createdChecks.length) {
-				res += `| Check constraints added: ${createdChecks.map((it) => `${it.name}`).join(', ')}\n`;
+				blocks.push([`| Check constraints added: ${createdChecks.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
 
-			if (droppedChecks) {
-				res += `| Check constraints dropped: ${droppedChecks.map((it) => `${it.name}`).join(', ')}\n`;
+			if (droppedChecks.length) {
+				blocks.push([`| Check constraints dropped: ${droppedChecks.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
-
-			res += `| It is not possible to create/drop check constraints on existing table\n`;
-			blocks.push([res]);
 		}
 
 		if (checksAlters.length) {
 			blocks.push([
 				`│ Check constraints altered definition:\n`,
 				`│ ${checksAlters.map((it) => `${it.name}: ${it.$left.value} -> ${it.$right.value}`).join(',\n')}\n`,
-				`│ It is not possible to alter definition\n`,
 			]);
 		}
 
@@ -679,49 +678,40 @@ export const sqliteExplain = (
 		}
 
 		if (uniquesDiff.length) {
-			let res: string = '';
-
 			const uniquesCreated = uniquesDiff.filter((it) => it.$diffType === 'create');
 			const uniquesDropped = uniquesDiff.filter((it) => it.$diffType === 'drop');
 			if (uniquesCreated.length) {
-				res += `│ Unique constraints added: ${uniquesCreated.map((it) => `${it.name}`).join(', ')}\n`;
+				blocks.push([`│ Unique constraints added: ${uniquesCreated.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
 			if (uniquesDropped.length) {
-				res += `│ Unique constraints dropped: ${uniquesDropped.map((it) => `${it.name}`).join(', ')}\n`;
+				blocks.push([`│ Unique constraints dropped: ${uniquesDropped.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
-
-			res += `│ It is not possible to create/drop unique constraints on existing table\n`;
-
-			blocks.push([res]);
 		}
 
 		if (pksDiff.length) {
-			let res: string = '';
 			const pksCreated = pksDiff.filter((it) => it.$diffType === 'create');
 			const pksDropped = pksDiff.filter((it) => it.$diffType === 'drop');
 
 			if (pksCreated.length) {
-				res += `│ Primary key constraints added: ${pksCreated.map((it) => `${it.name}`).join(', ')}\n`;
+				blocks.push([`│ Primary key constraints added: ${pksCreated.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
-			if (pksDropped) res += `│ Primary key constraints dropped: ${pksDropped.map((it) => `${it.name}`).join(', ')}\n`;
-
-			res += `│ It is not possible to create/drop primary key constraints on existing table\n`;
-			blocks.push([res]);
+			if (pksDropped.length) {
+				blocks.push([`│ Primary key constraints dropped: ${pksDropped.map((it) => `${it.name}`).join(', ')}\n`]);
+			}
 		}
 
 		if (newStoredColumns.length) {
 			blocks.push([
 				`| Stored columns added: ${newStoredColumns.map((it) => `${it.name}`).join(', ')}\n`,
-				`| It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however\n`,
 			]);
 		}
 
 		if (pksAlters.length) {
 			blocks.push([
 				`│ Primary key was altered:\n`,
-				`│ columns: ${
+				`${
 					pksAlters.filter((it) => it.columns).map((it) =>
-						`${it.name}: [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]\n`
+						`[${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]\n`
 					)
 				}\n`,
 			]);
@@ -730,9 +720,9 @@ export const sqliteExplain = (
 		if (uniquesAlters.length) {
 			blocks.push([
 				`│ Unique constraint was altered:\n`,
-				`│ columns: ${
+				`${
 					uniquesAlters.filter((it) => it.columns).map((it) =>
-						`${it.name}, [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]\n`
+						`│ name: ${it.name} => columns: [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]\n`
 					)
 				}\n`,
 			]);
@@ -749,20 +739,20 @@ export const sqliteExplain = (
 			if (columnsAltered) {
 				res += `${
 					columnsAltered.map((it) =>
-						`│ ${it.name} => columns: [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
+						`│ name: ${it.name} => columns: [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
 					)
 				}\n`;
 			}
 			if (columnsToAltered) {
 				res += ` ${
 					columnsToAltered.map((it) =>
-						`│ ${it.name} => columnsTo: [${it.columnsTo?.from.join(',')}] -> [${it.columnsTo?.to.join(',')}]`
+						`│ name: ${it.name} => columnsTo: [${it.columnsTo?.from.join(',')}] -> [${it.columnsTo?.to.join(',')}]`
 					)
 				}\n`;
 			}
 			if (tablesToAltered) {
 				res += `${
-					tablesToAltered.map((it) => `│ ${it.name} => tableTo: [${it.tableTo?.from}] -> [${it.tableTo?.to}]`)
+					tablesToAltered.map((it) => `│ name: ${it.name} => tableTo: [${it.tableTo?.from}] -> [${it.tableTo?.to}]`)
 				}\n`;
 			}
 
@@ -770,35 +760,28 @@ export const sqliteExplain = (
 		}
 
 		if (fksDiff.length) {
-			let res: string = '';
-
 			const fksCreated = fksDiff.filter((it) => it.$diffType === 'create');
 			const fksDropped = fksDiff.filter((it) => it.$diffType === 'drop');
-			if (fksCreated) res += `| Foreign key constraints added: ${fksCreated.map((it) => `${it.name}`).join(', ')}\n`;
-			if (fksDropped) res += `| Unique constraints dropped: ${fksDropped.map((it) => `${it.name}`).join(', ')}\n`;
-
-			res += `| It is not possible to create/drop foreign key constraints on existing table\n`;
-
-			blocks.push([res]);
+			if (fksCreated.length) {
+				blocks.push([`| Foreign key constraints added: ${fksCreated.map((it) => `${it.name}`).join(', ')}\n`]);
+			}
+			if (fksDropped.length) {
+				blocks.push([`| Foreign key constraints dropped: ${fksDropped.map((it) => `${it.name}`).join(', ')}\n`]);
+			}
 		}
 
 		if (indexesDiff.filter((it) => it.isUnique && it.origin === 'auto').length) {
-			let res: string = '';
 			const indexCreated = indexesDiff.filter((it) => it.$diffType === 'create');
 			const indexDropped = indexesDiff.filter((it) => it.$diffType === 'drop');
-			if (indexCreated) res += `| System generated index added: ${indexCreated.map((it) => `${it.name}`).join(', ')}\n`;
-			if (indexDropped) {
-				res += `| System generated index dropped: ${indexDropped.map((it) => `${it.name}`).join(', ')}\n`;
+			if (indexCreated.length) {
+				blocks.push([`| System generated index added: ${indexCreated.map((it) => `${it.name}`).join(', ')}\n`]);
 			}
-
-			res += `| It is not possible to drop/create auto generated unique indexes\n`;
-
-			blocks.push([res]);
+			if (indexDropped.length) {
+				blocks.push([`| System generated index dropped: ${indexDropped.map((it) => `${it.name}`).join(', ')}\n`]);
+			}
 		}
 
-		if (blocks.filter((it) => Boolean(it))) {
-			cause += blocks.map((it) => it.join('')).join('|-\n');
-		}
+		cause += blocks.map((it) => it.join('')).join('├─\n');
 	}
 
 	if (st.type === 'recreate_column') {
