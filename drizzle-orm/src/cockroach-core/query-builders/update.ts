@@ -584,8 +584,8 @@ export class CockroachUpdateBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		return query;
 	}
 
 	/** @internal */

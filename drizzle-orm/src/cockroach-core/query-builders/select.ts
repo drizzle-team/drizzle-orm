@@ -971,8 +971,8 @@ export abstract class CockroachSelectQueryBuilderBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		return query;
 	}
 
 	as<TAlias extends string>(

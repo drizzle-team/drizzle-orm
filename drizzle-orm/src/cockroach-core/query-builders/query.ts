@@ -9,7 +9,7 @@ import {
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
 import type { CockroachDialect } from '../dialect.ts';
@@ -130,7 +130,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._getQuery().sql as SQL;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
