@@ -3854,6 +3854,45 @@ export function tests(driver?: string) {
 			]);
 		});
 
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const users = singlestoreTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at')
+					.notNull()
+					.$onUpdate(() => sql`current_timestamp`),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`
+					create table ${users} (
+						\`id\` serial primary key,
+						\`name\` text not null,
+						\`updated_at\` timestamp not null
+					)
+				`,
+			);
+
+			await db.insert(users).values({
+				name: 'John',
+			});
+			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			await db.update(users).set({
+				name: 'John',
+			});
+			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		test('all types', async (ctx) => {
 			const { db } = ctx.singlestore;
 

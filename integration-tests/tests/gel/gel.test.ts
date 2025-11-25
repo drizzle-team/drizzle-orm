@@ -540,6 +540,12 @@ describe('some', async () => {
         create required property age: int32;
         create required property city: str;
         };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+		await $`gel query "CREATE TYPE default::users_on_update_sql {
+			create required property id1: int16;
+			create required property name: str;
+			create required property updated_at: datetime;
+		};" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {
@@ -555,6 +561,7 @@ describe('some', async () => {
 		await $`gel query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::users_on_update_sql;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterAll(async () => {
@@ -601,6 +608,7 @@ describe('some', async () => {
 		await $`gel query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::users_on_update_sql;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	async function setupSetOperationTest(db: GelJsDatabase) {
@@ -4799,6 +4807,35 @@ describe('some', async () => {
 
 		expect(config1.enableRLS).toBeTruthy();
 		expect(config2.enableRLS).toBeFalsy();
+	});
+
+	test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const users = gelTable('users_on_update_sql', {
+			id: integer('id1').notNull(),
+			name: text('name').notNull(),
+			updatedAt: timestamptz('updated_at').notNull().$onUpdate(() => sql`now()`),
+		});
+
+		const insertResp = await db.insert(users).values({
+			id: 1,
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		const now = Date.now();
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		const updateResp = await db.update(users).set({
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+
+		expect(new Date(insertResp[0]?.updatedAt.toISOString() ?? 0).getTime()).lessThan(now);
+		expect(new Date(updateResp[0]?.updatedAt.toISOString() ?? 0).getTime()).greaterThan(now);
 	});
 
 	test('$count separate', async (ctx) => {
