@@ -1,3 +1,4 @@
+import type { DiffEntities } from '../cockroach/ddl';
 import type { Column, DiffColumn, ForeignKey, Index, SQLiteDDL, TableFull, View } from './ddl';
 
 export interface JsonCreateTableStatement {
@@ -67,6 +68,7 @@ export interface JsonRenameColumnStatement {
 export interface JsonRecreateColumnStatement {
 	type: 'recreate_column';
 	column: Column;
+	diffGenerated: DiffEntities['columns']['generated'];
 	fk: ForeignKey | null;
 }
 
@@ -139,6 +141,7 @@ export const prepareRecreateColumn = (
 	if (diffColumn.generated) {
 		return {
 			type: 'recreate_column',
+			diffGenerated: diffColumn.generated,
 			column: column,
 			fk: fk,
 		};
