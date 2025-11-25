@@ -9,13 +9,13 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/d
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteDB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
-import { withStyle } from '../validations/outputs';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { ProgressView } from '../views';
+import { explain, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -24,6 +24,7 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
+	explainFlag: boolean,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
@@ -43,7 +44,7 @@ export const handle = async (
 
 	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress);
 
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),
@@ -56,40 +57,14 @@ export const handle = async (
 		return;
 	}
 
-	const { hints } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
 
-	if (verbose && sqlStatements.length > 0) {
-		console.log();
-		console.log(
-			withStyle.warning('You are about to execute current statements:'),
-		);
-		console.log();
-		console.log(sqlStatements.map((s) => chalk.blue(s)).join('\n'));
-		console.log();
-	}
+	const explainMessage = explain('sqlite', groupedStatements, explainFlag, hints);
 
-	if (!force && sqlStatements.length > 0) {
-		const { data } = await render(
-			new Select(['No, abort', `Yes, I want to execute all statements`]),
-		);
-		if (data?.index === 0) {
-			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
-		}
-	}
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
-		console.log(withStyle.warning('Found data-loss statements:'));
-		console.log(hints.join('\n'));
-		console.log();
-		console.log(
-			chalk.red.bold(
-				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-			),
-		);
-
-		console.log(chalk.white('Do you still want to push changes?'));
-
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -97,6 +72,8 @@ export const handle = async (
 			process.exit(0);
 		}
 	}
+
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	if (sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);
@@ -108,8 +85,10 @@ export const handle = async (
 			const isD1 = 'driver' in credentials && credentials.driver === 'd1-http';
 			if (!isD1) await db.run('begin');
 			try {
-				for (const dStmnt of sqlStatements) {
-					await db.run(dStmnt);
+				for (const statement of [...lossStatements, ...sqlStatements]) {
+					if (verbose) console.log(highlightSQL(statement));
+
+					await db.run(statement);
 				}
 				if (!isD1) await db.run('commit');
 			} catch (e) {
@@ -127,8 +106,7 @@ export const suggestions = async (
 	connection: SQLiteDB,
 	jsonStatements: JsonStatement[],
 ) => {
-	const statements: string[] = [];
-	const hints = [] as string[];
+	const grouped: { hint: string; statement?: string }[] = [];
 
 	// TODO: generate truncations/recreates ??
 	for (const statement of jsonStatements) {
@@ -136,7 +114,7 @@ export const suggestions = async (
 			const name = statement.tableName;
 			const res = await connection.query(`select 1 from "${name}" limit 1;`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty '${name}' table`);
+			if (res.length > 0) grouped.push({ hint: `· You're about to delete non-empty '${name}' table` });
 			continue;
 		}
 
@@ -144,7 +122,9 @@ export const suggestions = async (
 			const { table, name } = statement.column;
 
 			const res = await connection.query(`select 1 from "${table}" limit 1;`);
-			if (res.length > 0) hints.push(`· You're about to delete '${name}' column in a non-empty '${table}' table`);
+			if (res.length > 0) {
+				grouped.push({ hint: `· You're about to delete '${name}' column in a non-empty '${table}' table` });
+			}
 			continue;
 		}
 
@@ -152,11 +132,12 @@ export const suggestions = async (
 			const { table, name } = statement.column;
 			const res = await connection.query(`select 1 from "${table}" limit 1`);
 			if (res.length > 0) {
-				hints.push(
-					`· You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
+				grouped.push(
+					{
+						hint: `· You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
+						statement: `DELETE FROM "${table}" where true;`,
+					},
 				);
-
-				statements.push(`DELETE FROM "${table}" where true;`);
 			}
 
 			continue;
@@ -170,14 +151,16 @@ export const suggestions = async (
 
 			const res = await connection.query(`select 1 from "${statement.from.name}" limit 1`);
 			if (res.length > 0) {
-				hints.push(
-					`· You're about to drop ${
-						droppedColumns.map((col) => `'${col.name}'`).join(', ')
-					} column(s) in a non-empty '${statement.from.name}' table`,
+				grouped.push(
+					{
+						hint: `· You're about to drop ${
+							droppedColumns.map((col) => `'${col.name}'`).join(', ')
+						} column(s) in a non-empty '${statement.from.name}' table`,
+					},
 				);
 			}
 		}
 	}
 
-	return { statements, hints };
+	return grouped;
 };

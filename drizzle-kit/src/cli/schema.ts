@@ -333,10 +333,10 @@ export const push = command({
 			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'sqlite') {
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
-			await sqlitePush(schemaPath, verbose, credentials, filters, force, casing);
+			await sqlitePush(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'turso') {
 			const { handle: libSQLPush } = await import('./commands/push-libsql');
-			await libSQLPush(schemaPath, verbose, credentials, filters, force, casing);
+			await libSQLPush(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
 			await handle(schemaPath, credentials, filters, verbose, force, casing);

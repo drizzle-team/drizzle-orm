@@ -270,6 +270,9 @@ export const ddlDiff = async (
 	for (const it of createdTables) {
 		setOfTablesToRecereate.delete(it.name);
 	}
+	for (const it of deletedTables) {
+		setOfTablesToRecereate.delete(it.name);
+	}
 
 	for (const it of updates) {
 		if (
