@@ -1425,77 +1425,77 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 		transactionProxy: TransactionProxy;
 	}
 > => {
-	if (await checkPackage('@libsql/client')) {
-		const { createClient } = await import('@libsql/client');
-		const { drizzle } = await import('drizzle-orm/libsql');
-		const { migrate } = await import('drizzle-orm/libsql/migrator');
-
-		const client = createClient({
-			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
-			authToken: credentials.authToken,
-		});
-		const drzl = drizzle({ client });
-		const migrateFn = async (config: MigrationConfig) => {
-			return migrate(drzl, config);
-		};
-
-		const db: LibSQLDB = {
-			query: async <T>(sql: string, params?: any[]) => {
-				const res = await client.execute({ sql, args: params || [] }).catch((e) => {
-					throw new QueryError(e, sql, params || []);
-				});
-				return res.rows as T[];
-			},
-			run: async (query: string) => {
-				await client.execute(query).catch((e) => {
-					throw new QueryError(e, query, []);
-				});
-			},
-			batchWithPragma: async (queries: string[]) => {
-				await client.migrate(queries);
-			},
-		};
-
-		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
-
-		const proxy = async (params: ProxyParams) => {
-			const preparedParams = prepareSqliteParams(params.params || []);
-			const result = await client.execute({
-				sql: params.sql,
-				args: preparedParams,
-			});
-
-			if (params.mode === 'array') {
-				return result.rows.map((row) => Object.values(row));
-			} else {
-				return result.rows;
-			}
-		};
-
-		const transactionProxy: TransactionProxy = async (queries) => {
-			const results: (any[] | Error)[] = [];
-			let transaction: Transaction | null = null;
-			try {
-				transaction = await client.transaction();
-				for (const query of queries) {
-					const result = await transaction.execute(query.sql);
-					results.push(result.rows);
-				}
-				await transaction.commit();
-			} catch (error) {
-				results.push(error as Error);
-				await transaction?.rollback();
-			} finally {
-				transaction?.close();
-			}
-			return results;
-		};
-
-		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+	if (!(await checkPackage('@libsql/client'))) {
+		console.log(
+			"Please install '@libsql/client' for Drizzle Kit to connect to LibSQL databases",
+		);
+		process.exit(1);
 	}
 
-	console.log(
-		"Please install '@libsql/client' for Drizzle Kit to connect to LibSQL databases",
-	);
-	process.exit(1);
+	const { createClient } = await import('@libsql/client');
+	const { drizzle } = await import('drizzle-orm/libsql');
+	const { migrate } = await import('drizzle-orm/libsql/migrator');
+
+	const client = createClient({
+		url: normaliseSQLiteUrl(credentials.url, 'libsql'),
+		authToken: credentials.authToken,
+	});
+	const drzl = drizzle({ client });
+	const migrateFn = async (config: MigrationConfig) => {
+		return migrate(drzl, config);
+	};
+
+	const db: LibSQLDB = {
+		query: async <T>(sql: string, params?: any[]) => {
+			const res = await client.execute({ sql, args: params || [] }).catch((e) => {
+				throw new QueryError(e, sql, params || []);
+			});
+			return res.rows as T[];
+		},
+		run: async (query: string) => {
+			await client.execute(query).catch((e) => {
+				throw new QueryError(e, query, []);
+			});
+		},
+		batchWithPragma: async (queries: string[]) => {
+			await client.migrate(queries);
+		},
+	};
+
+	type Transaction = Awaited<ReturnType<typeof client.transaction>>;
+
+	const proxy = async (params: ProxyParams) => {
+		const preparedParams = prepareSqliteParams(params.params || []);
+		const result = await client.execute({
+			sql: params.sql,
+			args: preparedParams,
+		});
+
+		if (params.mode === 'array') {
+			return result.rows.map((row) => Object.values(row));
+		} else {
+			return result.rows;
+		}
+	};
+
+	const transactionProxy: TransactionProxy = async (queries) => {
+		const results: (any[] | Error)[] = [];
+		let transaction: Transaction | null = null;
+		try {
+			transaction = await client.transaction();
+			for (const query of queries) {
+				const result = await transaction.execute(query.sql);
+				results.push(result.rows);
+			}
+			await transaction.commit();
+		} catch (error) {
+			results.push(error as Error);
+			await transaction?.rollback();
+		} finally {
+			transaction?.close();
+		}
+		return results;
+	};
+
+	return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 };
