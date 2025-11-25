@@ -248,6 +248,8 @@ export const ddlDiff = async (
 		return ddl2.fks.hasDiff(it);
 	});
 
+	const checksAlters = updates.filter((it) => it.entityType === 'checks');
+
 	const alteredColumnsBecameGenerated = updates.filter((it) => it.entityType === 'columns').filter((it) =>
 		it.generated?.to?.type === 'stored'
 	);
@@ -262,23 +264,12 @@ export const ddlDiff = async (
 			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes;,
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
-		].map((it) => {
-			return it.table;
-		}),
+		].map((it) => it.table),
 	);
 
 	for (const it of createdTables) {
 		setOfTablesToRecereate.delete(it.name);
 	}
-
-	/**
-	 * {
-	[table]: {
-	 	columnDiff: DiffEntities["columns"],
-		pkDiff: DiffEntities["pks"],
-	}
-	 *
-	 */
 
 	for (const it of updates) {
 		if (
@@ -290,7 +281,7 @@ export const ddlDiff = async (
 		if (pksAlters.length > 0 && it.entityType === 'pks') setOfTablesToRecereate.add(it.table);
 		if (fksAlters.length > 0 && it.entityType === 'fks') setOfTablesToRecereate.add(it.table);
 		if (uniquesAlters.length > 0 && it.entityType === 'uniques') setOfTablesToRecereate.add(it.table);
-		if (it.entityType === 'checks') setOfTablesToRecereate.add(it.table);
+		if (checksAlters.length > 0 && it.entityType === 'checks') setOfTablesToRecereate.add(it.table);
 	}
 
 	const tablesToRecreate = Array.from(setOfTablesToRecereate);
@@ -304,6 +295,18 @@ export const ddlDiff = async (
 		return prepareStatement('recreate_table', {
 			to: tableFromDDL(it, ddl2),
 			from: tableFromDDL(it, ddl1),
+			alteredColumnsBecameGenerated: alteredColumnsBecameGenerated.filter((acbg) => acbg.table === it),
+			newStoredColumns: newStoredColumns.filter((column) => column.table === it),
+			checkDiffs: checksDiff.filter((checkDiff) => checkDiff.table === it),
+			checksAlters: checksAlters.filter((checkAlter) => checkAlter.table === it),
+			columnAlters: updates.filter((it) => it.entityType === 'columns').filter((column) => column.table === it),
+			fksAlters: fksAlters.filter((fkAlters) => fkAlters.table === it),
+			fksDiff: fksDiff.filter((fkDiff) => fkDiff.table === it),
+			indexesDiff: indexesDiff.filter((indexDiff) => indexDiff.table === it),
+			pksAlters: pksAlters.filter((pkAlters) => pkAlters.table === it),
+			pksDiff: pksDiff.filter((pkDiff) => pkDiff.table === it),
+			uniquesAlters: uniquesAlters.filter((uniqueAlters) => uniqueAlters.table === it),
+			uniquesDiff: uniquesDiff.filter((uniqueDiff) => uniqueDiff.table === it),
 		});
 	});
 
