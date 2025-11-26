@@ -300,7 +300,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 export const normaliseSQLiteUrl = (
 	it: string,
-	type: 'libsql' | 'better-sqlite' | '@tursodatabase/database',
+	type: 'libsql' | 'better-sqlite' | '@tursodatabase/database' | 'bun',
 ) => {
 	if (type === 'libsql') {
 		if (it.startsWith('file:')) {
@@ -317,7 +317,7 @@ export const normaliseSQLiteUrl = (
 		}
 	}
 
-	if (type === 'better-sqlite' || type === '@tursodatabase/database') {
+	if (type === 'better-sqlite' || type === '@tursodatabase/database' || type === 'bun') {
 		if (it.startsWith('file:')) {
 			return it.substring(5);
 		}
