@@ -181,9 +181,6 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.2.12
         version: 0.2.12
-      '@hono/bun-compress':
-        specifier: ^0.1.0
-        version: 0.1.0(hono@4.10.7)
       '@hono/node-server':
         specifier: ^1.9.0
         version: 1.19.6(hono@4.10.7)
@@ -2386,11 +2383,6 @@ packages:
     resolution: {integrity: sha512-rc1hOQtjIWGxcxpb9aHAfLpIctjEnsDehj0DAiVfBlmT84uvR0uUtN2hEi/ecvWVjXUGf5qPF4qEgiLOx1YIMQ==}
     engines: {node: '>=6'}
     hasBin: true
-
-  '@hono/bun-compress@0.1.0':
-    resolution: {integrity: sha512-wxy9PdC07Yc81NawIcdIiuGAEeDujwPWd01KdxubXJ33G9vdjUO85ec0UMjH0Cy7+zfNXlcWgJ+zoATjT/IfTg==}
-    peerDependencies:
-      hono: '*'
 
   '@hono/node-server@1.19.6':
     resolution: {integrity: sha512-Shz/KjlIeAhfiuE93NDKVdZ7HdBVLQAfdbaXEaoAVO3ic9ibRSLGIQGkcBbFyuLr+7/1D5ZCINM8B+6IvXeMtw==}
@@ -10559,10 +10551,6 @@ snapshots:
       protobufjs: 7.5.4
       yargs: 17.7.2
 
-  '@hono/bun-compress@0.1.0(hono@4.10.7)':
-    dependencies:
-      hono: 4.10.7
-
   '@hono/node-server@1.19.6(hono@4.10.7)':
     dependencies:
       hono: 4.10.7
@@ -11797,7 +11785,7 @@ snapshots:
   '@types/sql.js@1.4.9':
     dependencies:
       '@types/emscripten': 1.41.5
-      '@types/node': 20.19.25
+      '@types/node': 24.10.1
 
   '@types/ssh2@1.15.5':
     dependencies:
@@ -13024,7 +13012,7 @@ snapshots:
 
   dotenv-expand@11.0.7:
     dependencies:
-      dotenv: 16.4.7
+      dotenv: 16.6.1
 
   dotenv@10.0.0: {}
 
