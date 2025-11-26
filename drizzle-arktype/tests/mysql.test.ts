@@ -3,7 +3,13 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { bigintNarrow, jsonSchema, unsignedBigintNarrow } from '~/column.ts';
+import {
+	bigintNarrow,
+	bigintStringModeSchema,
+	jsonSchema,
+	unsignedBigintNarrow,
+	unsignedBigintStringModeSchema,
+} from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -429,8 +435,8 @@ test('all data types', (t) => {
 		bigint2: type.bigint.narrow(bigintNarrow),
 		bigint3: type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER),
 		bigint4: type.bigint.narrow(unsignedBigintNarrow),
-		bigint5: type.string,
-		bigint6: type.string,
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
 		binary: type(`/^[01]{0,10}$/`).describe(
 			`a string containing ones or zeros while being up to 10 characters long`,
 		) as Type<string>,

@@ -3,7 +3,7 @@ import { customType, int, json, serial, singlestoreSchema, singlestoreTable, tex
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -458,8 +458,8 @@ test('all data types', (t) => {
 		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
 		bigint3: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
 		bigint4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
-		bigint5: v.string(),
-		bigint6: v.string(),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
 		binary: v.pipe(v.string(), v.regex(/^[01]*$/), v.maxLength(10 as number)),
 		boolean: v.boolean(),
 		char1: v.pipe(v.string(), v.maxLength(10 as number)),

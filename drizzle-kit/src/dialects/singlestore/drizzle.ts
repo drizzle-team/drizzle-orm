@@ -166,7 +166,7 @@ export const fromDrizzleSchema = (
 						return { value: `${getColumnCasing(it, casing)}`, isExpression: false };
 					}
 				}),
-				algorithm: index.config.algorythm ?? null,
+				algorithm: index.config.algorithm ?? null,
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,

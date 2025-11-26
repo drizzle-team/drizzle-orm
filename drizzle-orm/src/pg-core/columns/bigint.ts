@@ -68,7 +68,6 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends PgCo
 }
 
 export class PgBigIntStringBuilder extends PgIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'string int64';
 	data: string;
 	driverParam: string;

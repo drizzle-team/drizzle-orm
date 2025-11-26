@@ -3,7 +3,7 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -383,7 +383,7 @@ test('all data types', (tc) => {
 		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
 		bigint5: bigint({ mode: 'string' }).notNull(),
 		bigint6: bigint({ unsigned: true, mode: 'string' }).notNull(),
-		binary: binary({ ength: 10 }).notNull(),
+		binary: binary({ length: 10 }).notNull(),
 		boolean: boolean().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
@@ -436,8 +436,8 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
-		bigint5: t.String(),
-		bigint6: t.String(),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
 		binary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),
