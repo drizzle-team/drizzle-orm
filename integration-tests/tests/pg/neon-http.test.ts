@@ -498,7 +498,7 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('all types - neon-http', async ({ db }) => {
+	test('all types - neon-http', async ({ db, push }) => {
 		const en = pgEnum('en2', ['enVal1', 'enVal2']);
 
 		const allTypesTable = pgTable('all_types', {

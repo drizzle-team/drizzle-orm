@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
@@ -471,7 +471,7 @@ test('all data types', (tc) => {
 	const expected = t.Object({
 		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bigint3: t.String(),
+		bigint3: bigintStringModeSchema,
 		bigserial1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigserial2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),

@@ -84,7 +84,6 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bi
 
 export class SingleStoreBigIntStringBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'string uint64' : 'string int64';
 		data: string;
 		driverParam: string;

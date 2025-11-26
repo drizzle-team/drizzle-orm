@@ -86,7 +86,6 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint u
 
 export class MySqlBigIntStringBuilder<TUnsigned extends boolean | undefined>
 	extends MySqlColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'string uint64' : 'string int64';
 		data: string;
 		driverParam: number | string;

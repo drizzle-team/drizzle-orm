@@ -380,6 +380,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		with: $with,

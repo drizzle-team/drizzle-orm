@@ -192,9 +192,28 @@ TypeRegistry.Set('BigIntStringMode', (_, value) => {
 
 	return true;
 });
+
+TypeRegistry.Set('UnsignedBigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
+		return false;
+	}
+
+	const bigint = BigInt(value);
+	if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
+		return false;
+	}
+
+	return true;
+});
 /** @internal */
 export const bigintStringModeSchema: BigIntStringModeSchema = {
 	[Kind]: 'BigIntStringMode',
+	type: 'string',
+} as any;
+
+/** @internal */
+export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'UnsignedBigIntStringMode',
 	type: 'string',
 } as any;
 
@@ -357,6 +376,9 @@ function stringColumnToSchema(
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	const options: Partial<StringOptions> = {};

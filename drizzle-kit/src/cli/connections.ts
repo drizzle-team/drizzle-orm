@@ -1,4 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -1128,7 +1129,7 @@ export const connectToSQLite = async (
 ): Promise<
 	& SQLiteDB
 	& {
-		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3' | '@sqlitecloud/drivers' | '@tursodatabase/database';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -1269,6 +1270,90 @@ export const connectToSQLite = async (
 				return result.rows;
 			};
 			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+		} else if (driver === 'sqlite-cloud') {
+			assertPackages('@sqlitecloud/drivers');
+			const { Database } = await import('@sqlitecloud/drivers');
+			const { drizzle } = await import('drizzle-orm/sqlite-cloud');
+			const { migrate } = await import('drizzle-orm/sqlite-cloud/migrator');
+
+			const client = new Database(credentials.url);
+			const drzl = drizzle({ client });
+			const migrateFn = async (config: MigrationConfig) => {
+				return migrate(drzl, config);
+			};
+
+			const query = async <T>(sql: string, params?: any[]) => {
+				const stmt = client.prepare(sql).bind(params || []);
+				return await new Promise<T[]>((resolve, reject) => {
+					stmt.all((e: Error | null, d: SQLiteCloudRowset) => {
+						if (e) return reject(e);
+
+						return resolve(d.map((v) => Object.fromEntries(Object.entries(v))));
+					});
+				});
+			};
+			const run = async (query: string) => {
+				return await new Promise<void>((resolve, reject) => {
+					client.exec(query, (e: Error | null) => {
+						if (e) return reject(e);
+						return resolve();
+					});
+				});
+			};
+
+			const proxy = async (params: ProxyParams) => {
+				const preparedParams = prepareSqliteParams(params.params || []);
+				const stmt = client.prepare(params.sql).bind(preparedParams);
+				return await new Promise<any[]>((resolve, reject) => {
+					stmt.all((e: Error | null, d: SQLiteCloudRowset | undefined) => {
+						if (e) return reject(e);
+
+						if (params.mode === 'array') {
+							return resolve((d || []).map((v) => v.getData()));
+						} else {
+							return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+						}
+					});
+				});
+			};
+
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const results: (any[] | Error)[] = [];
+				try {
+					await new Promise<void>((resolve, reject) => {
+						client.exec('BEGIN', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+					for (const query of queries) {
+						const result = await new Promise<any[]>((resolve, reject) => {
+							client.all(query.sql, (e: Error | null, d: SQLiteCloudRowset | undefined) => {
+								if (e) return reject(e);
+								return resolve((d || []).map((v) => Object.fromEntries(Object.entries(v))));
+							});
+						});
+						results.push(result);
+					}
+					await new Promise<void>((resolve, reject) => {
+						client.exec('COMMIT', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				} catch (error) {
+					results.push(error as Error);
+					await new Promise<void>((resolve, reject) => {
+						client.exec('ROLLBACK', (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				}
+				return results;
+			};
+
+			return { query, run, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1339,6 +1424,61 @@ export const connectToSQLite = async (
 		};
 
 		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+	}
+
+	if (await checkPackage('@tursodatabase/database')) {
+		console.log(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
+		const { Database } = await import('@tursodatabase/database');
+		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
+		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+
+		const client = new Database(normaliseSQLiteUrl(credentials.url, '@tursodatabase/database'));
+		const drzl = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			const stmt = client.prepare(sql).bind(preparePGliteParams(params || []));
+			const res = await stmt.all();
+			return res as T[];
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const stmt = client.prepare(params.sql).bind(preparedParams);
+
+			return stmt.raw(params.mode === 'array').all();
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			try {
+				const tx = client.transaction(async () => {
+					for (const query of queries) {
+						const result = await client.prepare(query.sql).all();
+						results.push(result);
+					}
+				});
+				await tx();
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			query,
+			packageName: '@tursodatabase/database',
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+			run: async (query: string) => {
+				await client.exec(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
+			},
+		};
 	}
 
 	if (await checkPackage('better-sqlite3')) {
