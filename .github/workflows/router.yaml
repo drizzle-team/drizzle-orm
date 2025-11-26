@@ -16,10 +16,11 @@ jobs:
       - name: Route release
         id: route
         run: |
+          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
             echo "target=latest" >> $GITHUB_OUTPUT
           # only run on all pushes or pull requests from forks
-          elif [[ "$GITHUB_EVENT_NAME" == "push" ]] || [[ "$GITHUB_HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]] || [[ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
             echo "target=feature" >> $GITHUB_OUTPUT
           else
             echo "target=skip" >> $GITHUB_OUTPUT
