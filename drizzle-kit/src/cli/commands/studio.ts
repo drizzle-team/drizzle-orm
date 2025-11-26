@@ -25,8 +25,7 @@ import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
 import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
-// TODO: replace with '@hono/compress' when Bun supports CompressionStream
-import { compress } from '@hono/bun-compress';
+import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import type { CasingType } from 'src/cli/validations/common';
