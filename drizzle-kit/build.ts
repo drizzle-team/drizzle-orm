@@ -68,7 +68,11 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: [
+			'esbuild',
+			'drizzle-orm',
+			...driversPackages,
+		],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
