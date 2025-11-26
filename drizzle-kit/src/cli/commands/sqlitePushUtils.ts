@@ -11,6 +11,7 @@ import {
 
 import type { JsonStatement } from '../../jsonStatements';
 import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
+import { collectCascadeDependents } from '../../utils/cascade';
 
 export const _moveDataStatements = (
 	tableName: string,
@@ -112,31 +113,6 @@ export const _moveDataStatements = (
 	}
 
 	return statements;
-};
-
-const collectCascadeDependents = (
-	rootTable: string,
-	json: SQLiteSchemaSquashed,
-): string[] => {
-	const result = new Set<string>();
-	const queue = [rootTable];
-
-	while (queue.length) {
-		const current = queue.pop()!;
-		for (const table of Object.values(json.tables)) {
-			for (const fk of Object.values(table.foreignKeys)) {
-				const data = SQLiteSquasher.unsquashPushFK(fk);
-				if (data.tableTo === current && data.onDelete === 'cascade') {
-					if (!result.has(table.name)) {
-						result.add(table.name);
-						queue.push(table.name);
-					}
-				}
-			}
-		}
-	}
-
-	return Array.from(result);
 };
 
 export const getOldTableName = (
