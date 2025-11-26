@@ -6049,7 +6049,7 @@ export function tests() {
 			}]));
 		});
 
-		test.concurrent('select from a many subquery', async (ctx) => {
+		test('select from a many subquery', async (ctx) => {
 			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable)
@@ -6084,7 +6084,7 @@ export function tests() {
 			}]);
 		});
 
-		test.concurrent('select from a one subquery', async (ctx) => {
+		test('select from a one subquery', async (ctx) => {
 			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable)
@@ -6121,7 +6121,7 @@ export function tests() {
 			}]);
 		});
 
-		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
 			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_on_update', {
