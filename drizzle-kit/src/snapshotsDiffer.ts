@@ -121,6 +121,12 @@ import {
 	prepareSqliteAlterColumns,
 	prepareSQLiteCreateTable,
 	prepareSqliteCreateViewJson,
+	prepareCreateFunctionJson,
+	prepareDropFunctionJson,
+	prepareCreateTriggerJson,
+	prepareDropTriggerJson,
+	prepareCreateProcedureJson,
+	prepareDropProcedureJson,
 } from './jsonStatements';
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
@@ -1372,7 +1378,7 @@ export const applyPgSnapshotsDiff = async (
 				it.schema,
 				it.altered,
 				json2,
-				json1,
+				viewsPatchedSnap1,
 				action,
 			);
 		})
@@ -1945,6 +1951,67 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
+	const jsonCreateFunctions: JsonStatement[] = [];
+	const jsonDropFunctions: JsonStatement[] = [];
+	const jsonCreateTriggers: JsonStatement[] = [];
+	const jsonDropTriggers: JsonStatement[] = [];
+	const jsonCreateProcedures: JsonStatement[] = [];
+	const jsonDropProcedures: JsonStatement[] = [];
+
+	const functionsDiff = diffSchemasOrTables(json1.functions ?? {}, json2.functions ?? {});
+	for (const func of functionsDiff.added) {
+		jsonCreateFunctions.push(prepareCreateFunctionJson(func));
+	}
+	for (const func of functionsDiff.deleted) {
+		jsonDropFunctions.push(prepareDropFunctionJson(func));
+	}
+	for (const key of Object.keys(json1.functions ?? {})) {
+		if (json2.functions?.[key]) {
+			const prev = json1.functions![key];
+			const cur = json2.functions[key];
+			if (prev.definition !== cur.definition) {
+				jsonDropFunctions.push(prepareDropFunctionJson(prev));
+				jsonCreateFunctions.push(prepareCreateFunctionJson(cur));
+			}
+		}
+	}
+
+	const triggersDiff = diffSchemasOrTables(json1.triggers ?? {}, json2.triggers ?? {});
+	for (const trigger of triggersDiff.added) {
+		jsonCreateTriggers.push(prepareCreateTriggerJson(trigger));
+	}
+	for (const trigger of triggersDiff.deleted) {
+		jsonDropTriggers.push(prepareDropTriggerJson(trigger));
+	}
+	for (const key of Object.keys(json1.triggers ?? {})) {
+		if (json2.triggers?.[key]) {
+			const prev = json1.triggers![key];
+			const cur = json2.triggers[key];
+			if (prev.definition !== cur.definition) {
+				jsonDropTriggers.push(prepareDropTriggerJson(prev));
+				jsonCreateTriggers.push(prepareCreateTriggerJson(cur));
+			}
+		}
+	}
+
+	const proceduresDiff = diffSchemasOrTables(json1.procedures ?? {}, json2.procedures ?? {});
+	for (const proc of proceduresDiff.added) {
+		jsonCreateProcedures.push(prepareCreateProcedureJson(proc));
+	}
+	for (const proc of proceduresDiff.deleted) {
+		jsonDropProcedures.push(prepareDropProcedureJson(proc));
+	}
+	for (const key of Object.keys(json1.procedures ?? {})) {
+		if (json2.procedures?.[key]) {
+			const prev = json1.procedures![key];
+			const cur = json2.procedures[key];
+			if (prev.definition !== cur.definition) {
+				jsonDropProcedures.push(prepareDropProcedureJson(prev));
+				jsonCreateProcedures.push(prepareCreateProcedureJson(cur));
+			}
+		}
+	}
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -2016,6 +2083,13 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonDropIndPoliciesStatements);
 	jsonStatements.push(...jsonCreateIndPoliciesStatements);
 	jsonStatements.push(...jsonAlterIndPoliciesStatements);
+
+	jsonStatements.push(...jsonDropTriggers);
+	jsonStatements.push(...jsonDropFunctions);
+	jsonStatements.push(...jsonDropProcedures);
+	jsonStatements.push(...jsonCreateFunctions);
+	jsonStatements.push(...jsonCreateProcedures);
+	jsonStatements.push(...jsonCreateTriggers);
 
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);

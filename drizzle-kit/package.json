@@ -1,6 +1,6 @@
 {
-	"name": "drizzle-kit",
-	"version": "0.31.7",
+	"name": "@weweb/drizzle-kit",
+	"version": "0.32.0-weweb.3",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -20,13 +20,13 @@
 		"schema"
 	],
 	"publishConfig": {
-		"provenance": true
+		"access": "public"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+		"url": "git+https://github.com/weweb-team/drizzle-orm.git"
 	},
-	"author": "Drizzle Team",
+	"author": "WeWeb Team (forked from Drizzle Team)",
 	"license": "MIT",
 	"bin": {
 		"drizzle-kit": "./bin.cjs"
@@ -100,7 +100,7 @@
 		"mysql2": "3.14.1",
 		"node-fetch": "^3.3.2",
 		"ohm-js": "^17.1.0",
-		"pg": "^8.11.5",
+		"pg": "^8.16.0",
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",

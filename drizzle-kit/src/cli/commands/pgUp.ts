@@ -106,6 +106,9 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 		policies: {},
 		views: {},
 		roles: {},
+		functions: {},
+		triggers: {},
+		procedures: {},
 	};
 };
 
