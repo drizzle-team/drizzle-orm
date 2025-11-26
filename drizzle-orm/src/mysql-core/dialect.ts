@@ -1220,7 +1220,8 @@ export class MySqlDialect {
 				case 'MySqlDecimal':
 				case 'MySqlDecimalNumber':
 				case 'MySqlDecimalBigInt':
-				case 'MySqlBigInt64': {
+				case 'MySqlBigInt64':
+				case 'MySqlBigIntString': {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
 				}
 

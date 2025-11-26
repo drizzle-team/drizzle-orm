@@ -970,6 +970,7 @@ export class PgDialect {
 				case 'PgNumericNumber':
 				case 'PgNumericBigInt':
 				case 'PgBigInt64':
+				case 'PgBigIntString':
 				case 'PgBigSerial64':
 				case 'PgTimestampString':
 				case 'PgGeometry':

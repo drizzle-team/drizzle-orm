@@ -205,12 +205,30 @@ export type Writable<T> = {
 
 export type NonArray<T> = T extends any[] ? never : T;
 
+/**
+ * @deprecated
+ * Use `getColumns` instead
+ */
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
 	return view[ViewBaseConfig].selectedFields;
+}
+
+export function getColumns<T extends Table | View | Subquery>(
+	table: T,
+): T extends Table ? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T extends Subquery ? T['_']['selectedFields']
+	: never
+{
+	return (is(table, Table)
+		? table[Table.Symbol.Columns]
+		: is(table, View)
+		? table[ViewBaseConfig].selectedFields
+		: table._.selectedFields) as any;
 }
 
 /** @internal */

@@ -69,21 +69,56 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends PgCo
 	}
 }
 
-export interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export class PgBigIntStringBuilder extends PgIntColumnBaseBuilder<{
+	name: string;
+	dataType: 'string int64';
+	data: string;
+	driverParam: string;
+}> {
+	static override readonly [entityKind]: string = 'PgBigIntStringBuilder';
+
+	constructor(name: string) {
+		super(name, 'string int64', 'PgBigIntString');
+	}
+
+	/** @internal */
+	override build(table: PgTable<any>) {
+		return new PgBigIntString(table, this.config as any);
+	}
+}
+
+export class PgBigIntString<T extends ColumnBaseConfig<'string int64'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgBigIntString';
+
+	getSQLType(): string {
+		return 'bigint';
+	}
+
+	override mapFromDriverValue(value: string | number): string {
+		if (typeof value === 'string') return value;
+
+		return String(value);
+	}
+}
+
+export interface PgBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {
 	mode: T;
 }
 
 export function bigint<TMode extends PgBigIntConfig['mode']>(
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53Builder : PgBigInt64Builder;
+): TMode extends 'string' ? PgBigIntStringBuilder : TMode extends 'bigint' ? PgBigInt64Builder : PgBigInt53Builder;
 export function bigint<TMode extends PgBigIntConfig['mode']>(
 	name: string,
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53Builder : PgBigInt64Builder;
+): TMode extends 'string' ? PgBigIntStringBuilder : TMode extends 'bigint' ? PgBigInt64Builder : PgBigInt53Builder;
 export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new PgBigInt53Builder(name);
+	}
+	if (config.mode === 'string') {
+		return new PgBigIntStringBuilder(name);
 	}
 	return new PgBigInt64Builder(name);
 }
