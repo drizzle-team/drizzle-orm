@@ -29,10 +29,17 @@ export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	cascadeDependents: string[] = [],
 ) => {
 	const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
+
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`CREATE TEMP TABLE \`__bak_${dep}\` AS SELECT * FROM \`${dep}\`;`,
+		);
+	}
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -107,7 +114,40 @@ export const _moveDataStatements = (
 			}),
 		);
 	}
+
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`INSERT OR REPLACE INTO \`${dep}\` SELECT * FROM \`__bak_${dep}\`;`,
+		);
+		statements.push(`DROP TABLE \`__bak_${dep}\`;`);
+	}
+
 	return statements;
+};
+
+const collectCascadeDependents = (
+	rootTable: string,
+	json: SQLiteSchemaSquashed,
+): string[] => {
+	const result = new Set<string>();
+	const queue = [rootTable];
+
+	while (queue.length) {
+		const current = queue.pop()!;
+		for (const table of Object.values(json.tables)) {
+			for (const fk of Object.values(table.foreignKeys)) {
+				const data = SQLiteSquasher.unsquashPushFK(fk);
+				if (data.tableTo === current && data.onDelete === 'cascade') {
+					if (!result.has(table.name)) {
+						result.add(table.name);
+						queue.push(table.name);
+					}
+				}
+			}
+		}
+	}
+
+	return Array.from(result);
 };
 
 export const libSqlLogSuggestionsAndReturn = async (
@@ -302,14 +342,17 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+			const cascadeDependents = collectCascadeDependents(tableName, json2);
+
+			if (tablesReferencingCurrent.length === 0) {
+				statementsToExecute.push(
+					..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+				);
 				continue;
 			}
 
-			// recreate table
 			statementsToExecute.push(
-				..._moveDataStatements(tableName, json2, dataLoss),
+				..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
 			);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'
