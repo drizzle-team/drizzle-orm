@@ -377,6 +377,8 @@ test('all data types', (t) => {
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
 		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
 		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
+		bigint5: bigint({ mode: 'string' }).notNull(),
+		bigint6: bigint({ unsigned: true, mode: 'string' }).notNull(),
 		binary: binary({ length: 10 }).notNull(),
 		boolean: boolean().notNull(),
 		char1: char({ length: 10 }).notNull(),
@@ -438,6 +440,8 @@ test('all data types', (t) => {
 		bigint2: type.bigint.narrow(bigintNarrow),
 		bigint3: type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER),
 		bigint4: type.bigint.narrow(unsignedBigintNarrow),
+		bigint5: type.string,
+		bigint6: type.string,
 		binary: type(`/^[01]{0,10}$/`).describe(
 			`a string containing ones or zeros while being up to 10 characters long`,
 		) as Type<string>,

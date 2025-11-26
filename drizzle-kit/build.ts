@@ -18,6 +18,9 @@ const driversPackages = [
 	'@libsql/client',
 	'better-sqlite3',
 	'bun:sqlite',
+	'@sqlitecloud/drivers',
+	'@tursodatabase/database',
+	'bun',
 ];
 
 esbuild.buildSync({
