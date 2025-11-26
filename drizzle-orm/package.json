@@ -55,6 +55,7 @@
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
 		"@prisma/client": "*",
+		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
 		"@tursodatabase/database": ">=0.2.1",
 		"@tursodatabase/database-common": ">=0.2.1",
@@ -145,6 +146,9 @@
 		"@electric-sql/pglite": {
 			"optional": true
 		},
+		"@sqlitecloud/drivers": {
+			"optional": true
+		},
 		"@tidbcloud/serverless": {
 			"optional": true
 		},
@@ -181,6 +185,7 @@
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
+		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
 		"@tursodatabase/database": "0.2.1",
 		"@tursodatabase/database-common": "^0.2.1",

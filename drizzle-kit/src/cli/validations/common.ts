@@ -39,7 +39,7 @@ export const assertCollisions = <
 	whitelist: Exclude<TKeys, 'config'>,
 	remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 ): IsUnion<LastTupleElement<UNIQ>> extends false ? 'cli' | 'config' : TKeys => {
-	const { config, ...rest } = options;
+	const { config, init, ...rest } = options;
 
 	let atLeastOneParam = false;
 	for (const key of Object.keys(rest)) {
@@ -65,6 +65,7 @@ export const sqliteDriversLiterals = [
 	literal('d1-http'),
 	literal('expo'),
 	literal('durable-sqlite'),
+	literal('sqlite-cloud'),
 ] as const;
 
 export const postgresqlDriversLiterals = [
@@ -163,7 +164,7 @@ export const configPushSchema = object({
 });
 
 export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite'] as const;
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
 export type Driver = (typeof drivers)[number];
 const _: Driver = '' as TypeOf<typeof driver>;
 

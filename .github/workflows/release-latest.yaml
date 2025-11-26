@@ -1,6 +1,26 @@
 name: Release (latest)
 
-on: workflow_dispatch
+on:
+  workflow_call:
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
+      SQLITE_CLOUD_CONNECTION_STRING:
+        required: true
 
 jobs:
   test:
@@ -77,7 +97,7 @@ jobs:
         ports:
           - 33306:3306
       singlestore:
-        image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+        image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
         env:
           ROOT_PASSWORD: singlestore
         ports:
@@ -139,6 +159,7 @@ jobs:
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in
@@ -214,6 +235,12 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -248,6 +275,14 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
+
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
 
       - name: Check preconditions
         id: checks
@@ -286,7 +321,9 @@ jobs:
         run: bunx attw package.tgz
 
   release:
-    permissions: write-all
+    permissions:
+      contents: read
+      id-token: write
     needs:
       - test
       - attw
@@ -303,6 +340,10 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""
+      NPM_TOKEN: ""
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -356,36 +397,20 @@ jobs:
         ports:
           - 33306:3306
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v3
-        name: Install pnpm
-        id: pnpm-install
-        with:
-          version: latest
-          run_install: false
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
 
       - name: Check preconditions
         id: checks
@@ -398,7 +423,6 @@ jobs:
 
           if [[ "$is_version_published" == "true" ]]; then
             echo "\`${{ matrix.package }}@$version\` already published, adding tag \`latest\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version latest
           elif [[ "$latest" != "$version" ]]; then
             echo "Latest:  $latest"
             echo "Current: $version"
@@ -432,16 +456,12 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npm run pack
-
+      
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: |
           version="${{ steps.checks.outputs.version }}"
 

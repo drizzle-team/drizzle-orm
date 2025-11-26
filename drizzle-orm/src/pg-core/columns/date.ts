@@ -30,8 +30,10 @@ export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<
 		return 'date';
 	}
 
-	override mapFromDriverValue(value: string): Date {
-		return new Date(value);
+	override mapFromDriverValue(value: string | Date): Date {
+		if (typeof value === 'string') return new Date(value);
+
+		return value;
 	}
 
 	override mapToDriverValue(value: Date): string {
@@ -65,6 +67,12 @@ export class PgDateString<T extends ColumnBaseConfig<'string date'>> extends PgC
 
 	getSQLType(): string {
 		return 'date';
+	}
+
+	override mapFromDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+
+		return value.toISOString().slice(0, -14);
 	}
 }
 

@@ -18,6 +18,9 @@ const driversPackages = [
 	'@libsql/client',
 	'better-sqlite3',
 	'bun:sqlite',
+	'@sqlitecloud/drivers',
+	'@tursodatabase/database',
+	'bun',
 ];
 
 esbuild.buildSync({
@@ -105,7 +108,11 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/api.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: [
+			'esbuild',
+			'drizzle-orm',
+			...driversPackages,
+		],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],

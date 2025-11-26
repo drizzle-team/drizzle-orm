@@ -63,7 +63,7 @@ export class GelDialect {
 	}
 
 	// TODO can not migrate gel with drizzle
-	// async migrate(migrations: MigrationMeta[], session: GelSession, config: string | MigrationConfig): Promise<void> {
+	// async migrate(migrations: MigrationMeta[], session: GelSession, config: string | MigrationConfig): Promise<void | MigratorInitFailResponse> {
 	// 	const migrationsTable = typeof config === 'string'
 	// 		? '__drizzle_migrations'
 	// 		: config.migrationsTable ?? '__drizzle_migrations';
@@ -83,6 +83,28 @@ export class GelDialect {
 	// 			sql.identifier(migrationsTable)
 	// 		} order by created_at desc limit 1`,
 	// 	);
+
+	// if (typeof config === 'object' && config.init) {
+	// 	if (dbMigrations.length) {
+	// 		return { exitCode: 'databaseMigrations' as const };
+	// 	}
+
+	// 	if (migrations.length > 1) {
+	// 		return { exitCode: 'localMigrations' as const };
+	// 	}
+
+	// 	const [migration] = migrations;
+
+	// 	if (!migration) return;
+
+	// 	await session.execute(
+	// 		sql`insert into ${sql.identifier(migrationsSchema)}.${
+	// 			sql.identifier(migrationsTable)
+	// 		} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+	// 	);
+
+	// 	return;
+	// }
 
 	// 	const lastDbMigration = dbMigrations[0];
 	// 	await session.transaction(async (tx) => {
@@ -153,7 +175,8 @@ export class GelDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setLength - 1) {
@@ -245,6 +268,23 @@ export class GelDialect {
 					// } else {
 					chunk.push(field);
 					// }
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field._.sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {

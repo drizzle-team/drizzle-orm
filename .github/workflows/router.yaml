@@ -1,0 +1,53 @@
+name: Release Router
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.route.outputs.target }}
+    steps:
+      - name: Route release
+        id: route
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "target=latest" >> $GITHUB_OUTPUT
+          else
+            echo "target=feature" >> $GITHUB_OUTPUT
+          fi
+
+  run-feature:
+    needs: switch
+    if: needs.switch.outputs.target == 'feature'
+    uses: ./.github/workflows/release-feature-branch.yaml
+    secrets:
+      PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+      NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+      XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+      XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+      LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+      LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+      SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
+
+  run-latest:
+    needs: switch
+    if: needs.switch.outputs.target == 'latest'
+    uses: ./.github/workflows/release-latest.yaml
+    secrets:
+      PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+      NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+      TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+      XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+      XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+      LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+      LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+      SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}

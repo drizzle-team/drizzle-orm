@@ -44,7 +44,7 @@ let client: mysql.Connection;
 export async function createDockerDB() {
 	globalDocker = new Docker();
 	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
+	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67';
 
 	const pullStream = await globalDocker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -3786,6 +3786,9 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 					ownerId: 3,
 				},
 				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
 			},
 		},
 		orderBy: {

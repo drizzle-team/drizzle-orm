@@ -1,10 +1,10 @@
 import { renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
+import type { SQLiteDB } from 'src/utils';
 import { originUUID } from '../../global';
 import { schemaToTypeScript } from '../../introspect-sqlite';
 import type { SQLiteSchema } from '../../serializer/sqliteSchema';
 import { fromDatabase } from '../../serializer/sqliteSerializer';
-import type { SQLiteDB } from '../../utils';
 import { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, ProgressView } from '../views';

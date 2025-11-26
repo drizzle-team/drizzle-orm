@@ -5,7 +5,7 @@ import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -115,7 +115,8 @@ export abstract class SQLiteDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setLength - 1) {
@@ -208,6 +209,20 @@ export abstract class SQLiteDialect {
 							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
 						}
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+						if (fieldDecoder) field._.sql.decoder = fieldDecoder;
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
@@ -1111,7 +1126,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,
-	): void {
+	): void | MigratorInitFailResponse {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
@@ -1130,6 +1145,28 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		const dbMigrations = session.values<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
+
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			session.run(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
 		session.run(sql`BEGIN`);
@@ -1169,7 +1206,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
@@ -1189,8 +1226,29 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 		);
 
-		const lastDbMigration = dbMigrations[0] ?? undefined;
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.run(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
+
+		const lastDbMigration = dbMigrations[0] ?? undefined;
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {

@@ -126,7 +126,7 @@ function construct<
 		logger,
 		cache: config.cache,
 	}, undefined);
-	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
+	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

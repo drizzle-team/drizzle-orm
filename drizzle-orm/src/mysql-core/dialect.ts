@@ -4,7 +4,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,
@@ -65,7 +65,7 @@ export class MySqlDialect {
 		migrations: MigrationMeta[],
 		session: MySqlSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 		const migrationTableCreate = sql`
 			create table if not exists ${sql.identifier(migrationsTable)} (
@@ -80,8 +80,29 @@ export class MySqlDialect {
 			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 		);
 
-		const lastDbMigration = dbMigrations[0];
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
+
+		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
 				if (
@@ -154,7 +175,8 @@ export class MySqlDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setLength - 1) {
@@ -232,6 +254,23 @@ export class MySqlDialect {
 					} else {
 						chunk.push(field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field._.sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
