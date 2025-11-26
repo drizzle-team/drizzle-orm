@@ -349,7 +349,8 @@ const allTypesTable = pgTable('all_types', {
 	arrvarchar: varchar('arrvarchar').array(),
 });
 
-let pgContainer: Docker.Container | undefined | undefined;
+// oxlint-disable-next-line no-unassigned-vars
+let pgContainer: Docker.Container | undefined;
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
@@ -2227,6 +2228,7 @@ test('select from raw sql', async () => {
 		name: sql<string>`name`,
 	}).from(sql`(select 1 as id, 'John' as name) as users`);
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<Equal<{ id: number; name: string }[], typeof result>>;
 	expect(result).toEqual([
 		{ id: 1, name: 'John' },
@@ -2244,6 +2246,7 @@ test('select from raw sql with joins', async () => {
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
 		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`);
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
 
 	expect(result).toEqual([
@@ -2263,6 +2266,7 @@ test('join on aliased sql from select', async () => {
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
 		.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId));
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<
 		Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
 	>;
@@ -2304,6 +2308,7 @@ test('join on aliased sql from with clause', async () => {
 		.from(users)
 		.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<
 		Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
 	>;
@@ -2522,6 +2527,7 @@ test.skip('all date and time columns', async () => {
 
 	const result = await db.select().from(table);
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<
 		Equal<{
 			id: number;
@@ -2536,6 +2542,7 @@ test.skip('all date and time columns', async () => {
 		}[], typeof result>
 	>;
 
+	// oxlint-disable-next-line no-unused-expressions
 	Expect<
 		Equal<{
 			dateString: string;
@@ -4881,7 +4888,9 @@ test('neon: policy', () => {
 		for (const it of Object.values(policy)) {
 			expect(is(it, PgPolicy)).toBe(true);
 			expect(it?.to).toStrictEqual(authenticatedRole);
+			// oxlint-disable-next-line no-unused-expressions
 			it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
+			// oxlint-disable-next-line no-unused-expressions
 			it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
 		}
 	}

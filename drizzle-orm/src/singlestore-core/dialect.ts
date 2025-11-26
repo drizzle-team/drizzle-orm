@@ -886,6 +886,7 @@ export class SingleStoreDialect {
 				case 'SingleStoreDecimalNumber':
 				case 'SingleStoreDecimalBigInt':
 				case 'SingleStoreBigInt64':
+				case 'SingleStoreBigIntString':
 				case 'SingleStoreEnumColumn': {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
 				}

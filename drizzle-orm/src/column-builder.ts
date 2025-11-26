@@ -69,6 +69,7 @@ export type ColumnDataStringConstraint =
 	| 'datetime'
 	| 'enum'
 	| 'inet'
+	| 'int64'
 	| 'interval'
 	| 'macaddr'
 	| 'macaddr8'
@@ -76,6 +77,7 @@ export type ColumnDataStringConstraint =
 	| 'sparsevec'
 	| 'time'
 	| 'timestamp'
+	| 'uint64'
 	| 'unumeric'
 	| 'uuid';
 
