@@ -1733,7 +1733,7 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3', '@libsql/client' or 'bun' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases",
 	);
 	process.exit(1);
 };
