@@ -18,8 +18,11 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
             echo "target=latest" >> $GITHUB_OUTPUT
-          else
+          # only run on all pushes or pull requests from forks
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]] || [[ "$GITHUB_HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
             echo "target=feature" >> $GITHUB_OUTPUT
+          else
+            echo "target=skip" >> $GITHUB_OUTPUT
           fi
 
   run-feature:
