@@ -2462,6 +2462,17 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('select from a many subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
 			await push({ citiesTable, users2Table });
 
 			await db.insert(citiesTable)
@@ -2499,6 +2510,17 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('select from a one subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
 			await push({ citiesTable, users2Table });
 
 			await db.insert(citiesTable)
@@ -2613,6 +2635,7 @@ export function tests(test: Test) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				binary: '1',
 				boolean: true,
 				char: 'c',
