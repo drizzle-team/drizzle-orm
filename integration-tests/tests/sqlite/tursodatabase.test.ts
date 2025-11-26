@@ -141,6 +141,8 @@ const skip = [
 	'$count embedded',
 	'$count embedded reuse',
 	'$count embedded with filters',
+	'select from a many subquery',
+	'select from a one subquery',
 	// CROSS JOIN is not supported
 	'cross join',
 	// ORDER BY is not supported for compound SELECTs yet

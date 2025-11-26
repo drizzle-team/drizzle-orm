@@ -74,7 +74,7 @@ import createClient, {
 	RelativeDuration,
 } from 'gel';
 import { v4 as uuidV4 } from 'uuid';
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test, vi } from 'vitest';
 import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
@@ -480,7 +480,13 @@ describe('some', async () => {
 		    create required property user_id: int32;
 		    create property content: str;
 			create required property created_at -> datetime;
-		}" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		};
+		CREATE TYPE default::users_on_update_sql {
+			create required property id1: int16;
+			create required property name: str;
+			create required property updated_at: datetime;
+		};
+		" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {
@@ -499,6 +505,7 @@ describe('some', async () => {
 			client.querySQL(`DELETE FROM "user_rqb_test"`),
 			client.querySQL(`DELETE FROM "post_rqb_test"`),
 			client.querySQL(`DELETE FROM "mySchema"."users";`),
+			client.querySQL(`DELETE FROM "users_on_update_sql";`),
 		]);
 	});
 
@@ -1753,6 +1760,78 @@ describe('some', async () => {
 				},
 			},
 		]);
+	});
+
+	test('select from a many subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			population: db.select({ count: count().as('count') }).from(users2Table).where(
+				eq(users2Table.cityId, citiesTable.id1),
+			).as(
+				'population',
+			),
+			name: citiesTable.name,
+		}).from(citiesTable);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			population: number;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			population: 1,
+			name: 'Paris',
+		}, {
+			population: 2,
+			name: 'London',
+		}]);
+	});
+
+	test('select from a one subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id1))
+				.as(
+					'cityName',
+				),
+			name: users2Table.name,
+		}).from(users2Table);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			cityName: string;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			cityName: 'Paris',
+			name: 'John',
+		}, {
+			cityName: 'London',
+			name: 'Jane',
+		}, {
+			cityName: 'London',
+			name: 'Jack',
+		}]);
 	});
 
 	test('join subquery', async (ctx) => {
@@ -4619,6 +4698,35 @@ describe('some', async () => {
 
 		expect(config1.enableRLS).toBeTruthy();
 		expect(config2.enableRLS).toBeFalsy();
+	});
+
+	test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const users = gelTable('users_on_update_sql', {
+			id: integer('id1').notNull(),
+			name: text('name').notNull(),
+			updatedAt: timestamptz('updated_at').notNull().$onUpdate(() => sql`now()`),
+		});
+
+		const insertResp = await db.insert(users).values({
+			id: 1,
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		const now = Date.now();
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		const updateResp = await db.update(users).set({
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+
+		expect(new Date(insertResp[0]?.updatedAt.toISOString() ?? 0).getTime()).lessThan(now);
+		expect(new Date(updateResp[0]?.updatedAt.toISOString() ?? 0).getTime()).greaterThan(now);
 	});
 
 	test('$count separate', async (ctx) => {

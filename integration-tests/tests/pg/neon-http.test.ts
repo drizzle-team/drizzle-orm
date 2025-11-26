@@ -498,7 +498,7 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('all types - neon-http', async ({ db, push }) => {
+	test('all types - neon-http', async ({ db }) => {
 		const en = pgEnum('en2', ['enVal1', 'enVal2']);
 
 		const allTypesTable = pgTable('all_types', {
@@ -515,6 +515,9 @@ describe('migrator', () => {
 			}),
 			bigint64: bigint('bigint64', {
 				mode: 'bigint',
+			}),
+			bigintString: bigint('bigint_string', {
+				mode: 'string',
 			}),
 			bool: boolean('bool'),
 			bytea: bytea('bytea'),
@@ -581,6 +584,9 @@ describe('migrator', () => {
 			arrbigint64: bigint('arrbigint64', {
 				mode: 'bigint',
 			}).array(),
+			arrbigintString: bigint('bigint_string', {
+				mode: 'string',
+			}).array(),
 			arrbool: boolean('arrbool').array(),
 			arrbytea: bytea('arrbytea').array(),
 			arrchar: char('arrchar').array(),
@@ -646,6 +652,7 @@ describe('migrator', () => {
 			smallserial: 15,
 			bigint53: 9007199254740991,
 			bigint64: 5044565289845416380n,
+			bigintString: '5044565289845416380',
 			bigserial53: 9007199254740991,
 			bigserial64: 5044565289845416380n,
 			bool: true,
@@ -695,6 +702,7 @@ describe('migrator', () => {
 			varchar: 'C4-',
 			arrbigint53: [9007199254740991],
 			arrbigint64: [5044565289845416380n],
+			arrbigintString: ['5044565289845416380'],
 			arrbool: [true],
 			arrbytea: [Buffer.from('BYTES')],
 			arrchar: ['c'],
@@ -751,6 +759,7 @@ describe('migrator', () => {
 			int: number | null;
 			bigint53: number | null;
 			bigint64: bigint | null;
+			bigintString: string | null;
 			bool: boolean | null;
 			bytea: Buffer | null;
 			char: string | null;
@@ -793,6 +802,7 @@ describe('migrator', () => {
 			arrint: number[] | null;
 			arrbigint53: number[] | null;
 			arrbigint64: bigint[] | null;
+			arrbigintString: string[] | null;
 			arrbool: boolean[] | null;
 			arrbytea: Buffer[] | null;
 			arrchar: string[] | null;
@@ -838,6 +848,7 @@ describe('migrator', () => {
 				int: 621,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				bool: true,
 				bytea: null,
 				char: 'c',
@@ -873,6 +884,7 @@ describe('migrator', () => {
 				arrint: [621],
 				arrbigint53: [9007199254740991],
 				arrbigint64: [5044565289845416380n],
+				arrbigintString: ['5044565289845416380'],
 				arrbool: [true],
 				arrbytea: [Buffer.from('BYTES')],
 				arrchar: ['c'],

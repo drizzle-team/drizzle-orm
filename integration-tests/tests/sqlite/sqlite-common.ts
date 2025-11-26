@@ -1059,6 +1059,74 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(inserted).toEqual({ id: 1, name: 'John' });
 		});
 
+		test.concurrent('select from a many subquery', async ({ db }) => {
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test.concurrent('select from a one subquery', async ({ db }) => {
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
 		test.concurrent('join subquery', async ({ db }) => {
 			await db.insert(courseCategoriesTable).values([
 				{ name: 'Category 1' },
@@ -2777,6 +2845,47 @@ export function tests(test: Test, exclude: string[] = []) {
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
+		});
+
+		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db }) => {
+			const users = sqliteTable('users_on_update', {
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				name: text('name').notNull(),
+				updatedAt: integer('updated_at')
+					.notNull()
+					.$onUpdate(() =>
+						sql`(strftime('%s', 'now') * 1000) + (strftime('%f', 'now') - strftime('%S', 'now')) * 1000`
+					),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`
+					create table ${users} (
+						\`id\` integer primary key autoincrement,
+						\`name\` text not null,
+						\`updated_at\` integer not null
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const updateResp = await db.update(users).set({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+
+			expect(insertResp[0]?.updatedAt ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt ?? 0).greaterThan(now);
 		});
 
 		test.concurrent('$count separate', async ({ db }) => {

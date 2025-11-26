@@ -248,6 +248,9 @@ export const allTypesTable = mysqlTable('all_types', {
 	bigint64: bigint({
 		mode: 'bigint',
 	}),
+	bigintString: bigint({
+		mode: 'string',
+	}),
 	binary: binary(),
 	boolean: boolean(),
 	char: char(),

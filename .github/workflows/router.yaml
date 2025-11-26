@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  detect:
+  switch:
     runs-on: ubuntu-latest
     outputs:
       target: ${{ steps.route.outputs.target }}
@@ -23,8 +23,8 @@ jobs:
           fi
 
   run-feature:
-    needs: detect
-    if: needs.detect.outputs.target == 'feature'
+    needs: switch
+    if: needs.switch.outputs.target == 'feature'
     uses: ./.github/workflows/release-feature-branch.yaml
     secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
@@ -39,8 +39,8 @@ jobs:
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
 
   run-latest:
-    needs: detect
-    if: needs.detect.outputs.target == 'latest'
+    needs: switch
+    if: needs.switch.outputs.target == 'latest'
     uses: ./.github/workflows/release-latest.yaml
     secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
