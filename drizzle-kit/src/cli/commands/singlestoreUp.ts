@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { Journal } from 'src/utils';
+import type { Journal } from 'src/utils';
 
 export const upSinglestoreHandler = (out: string) => {
 	// if there is meta folder - and there is a journal - it's version <8

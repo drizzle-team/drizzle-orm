@@ -58,13 +58,13 @@ import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
 import { upToV8 } from 'src/cli/commands/up-postgres';
-import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
+import { getReasonsFromStatements } from 'src/dialects/postgres/commutativity';
+import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
-import { getReasonsFromStatements } from 'src/utils/commutativity';
 import { tsc } from 'tests/utils';
 import { expect } from 'vitest';
 
@@ -697,22 +697,26 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const parentInterim = fromDrizzleSchema({
-		tables: Object.values(parent.schema),
-		schemas: [],
-		enums: [],
-		sequences: [],
-		roles: [],
-		policies: [],
-		views: [],
-		matViews: [],
-	}, undefined);
+	const parentInterim = fromDrizzleSchema(
+		{
+			tables: Object.values(parent.schema),
+			schemas: [],
+			enums: [],
+			sequences: [],
+			roles: [],
+			policies: [],
+			views: [],
+			matViews: [],
+		},
+		undefined,
+		() => true,
+	);
 
 	const parentSnapshot = {
 		version: '8',
 		dialect: 'postgres',
 		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId]: [],
+		prevIds: parent.prevId ? [parent.prevId] : [],
 		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
 		renames: [],
 	} satisfies PostgresSnapshot;

@@ -1,19 +1,19 @@
 import { readFileSync } from 'fs';
+import { detectNonCommutative } from 'src/utils/commutativity';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
-import { detectNonCommutative } from 'src/utils/commutativity';
 
 export const checkHandler = async (out: string, dialect: Dialect) => {
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
-	const snapshotsData: any[] = [];
+	// const snapshotsData: PostgresSnapshot[] = [];
 
 	for (const snapshot of snapshots) {
 		const raw = JSON.parse(readFileSync(`./${snapshot}`).toString());
 
-		snapshotsData.push(raw);
+		// snapshotsData.push(raw);
 
 		const res = validator(raw);
 		if (res.status === 'unsupported') {
@@ -36,12 +36,11 @@ export const checkHandler = async (out: string, dialect: Dialect) => {
 		}
 	}
 
-	// Non-commutative detection for branching
 	try {
-		const nc = await detectNonCommutative(snapshotsData, dialect);
-		if (nc.conflicts.length > 0) {
+		const response = await detectNonCommutative(snapshots, dialect);
+		if (response!.conflicts.length > 0) {
 			console.log('\nNon-commutative migration branches detected:');
-			for (const c of nc.conflicts) {
+			for (const c of response!.conflicts) {
 				console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
 				console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
 				console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
@@ -49,5 +48,6 @@ export const checkHandler = async (out: string, dialect: Dialect) => {
 			}
 		}
 	} catch (e) {
+		console.error(e);
 	}
 };
