@@ -23,13 +23,13 @@ test('push #1', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
+		explain: false,
 		filters: {
 			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
 		},
-		strict: false,
 		verbose: false,
 		casing: undefined,
 	});
@@ -46,13 +46,13 @@ test('push #2', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
+		explain: false,
 		filters: {
 			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
 		},
-		strict: false,
 		verbose: false,
 		casing: undefined,
 	});
@@ -71,13 +71,13 @@ test('push #3', async (t) => {
 		},
 		force: false,
 		schemaPath: './schema.ts',
+		explain: false,
 		filters: {
 			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
 		},
-		strict: false,
 		verbose: false,
 		casing: undefined,
 	});
@@ -96,6 +96,7 @@ test('push #4', async (t) => {
 			user: 'postgresql',
 		},
 		force: false,
+		explain: false,
 		filters: {
 			schemas: undefined,
 			tables: undefined,
@@ -103,7 +104,6 @@ test('push #4', async (t) => {
 			extensions: undefined,
 		},
 		schemaPath: './schema.ts',
-		strict: false,
 		verbose: false,
 		casing: undefined,
 	});
@@ -126,13 +126,13 @@ test('push #5', async (t) => {
 			user: 'postgresql',
 		},
 		schemaPath: './schema.ts',
+		explain: false,
 		filters: {
 			schemas: undefined,
 			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
 		},
-		strict: false,
 		force: false,
 		verbose: false,
 		casing: undefined,

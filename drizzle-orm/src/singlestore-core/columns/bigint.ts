@@ -82,8 +82,41 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bi
 	}
 }
 
+export class SingleStoreBigIntStringBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		dataType: Equal<TUnsigned, true> extends true ? 'string uint64' : 'string int64';
+		data: string;
+		driverParam: string;
+	}, { unsigned: boolean }>
+{
+	static override readonly [entityKind]: string = 'SingleStoreBigIntStringBuilder';
+
+	constructor(name: string, unsigned: boolean = false) {
+		super(name, unsigned ? 'string uint64' : 'string int64' as any, 'SingleStoreBigIntString');
+		this.config.unsigned = unsigned;
+	}
+
+	/** @internal */
+	override build(table: SingleStoreTable) {
+		return new SingleStoreBigIntString(
+			table,
+			this.config as any,
+		);
+	}
+}
+
+export class SingleStoreBigIntString<T extends ColumnBaseConfig<'string int64' | 'string uint64'>>
+	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
+{
+	static override readonly [entityKind]: string = 'SingleStoreBigIntString';
+
+	getSQLType(): string {
+		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
+	}
+}
+
 export interface SingleStoreBigIntConfig<
-	T extends 'number' | 'bigint' = 'number' | 'bigint',
+	T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string',
 	TUnsigned extends boolean | undefined = boolean | undefined,
 > {
 	mode: T;
@@ -92,15 +125,22 @@ export interface SingleStoreBigIntConfig<
 
 export function bigint<TMode extends SingleStoreBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
 	config: SingleStoreBigIntConfig<TMode, TUnsigned>,
-): TMode extends 'number' ? SingleStoreBigInt53Builder<TUnsigned> : SingleStoreBigInt64Builder<TUnsigned>;
+): TMode extends 'string' ? SingleStoreBigIntStringBuilder<TUnsigned>
+	: TMode extends 'bigint' ? SingleStoreBigInt64Builder<TUnsigned>
+	: SingleStoreBigInt53Builder<TUnsigned>;
 export function bigint<TMode extends SingleStoreBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
 	name: string,
 	config: SingleStoreBigIntConfig<TMode, TUnsigned>,
-): TMode extends 'number' ? SingleStoreBigInt53Builder<TUnsigned> : SingleStoreBigInt64Builder<TUnsigned>;
+): TMode extends 'string' ? SingleStoreBigIntStringBuilder<TUnsigned>
+	: TMode extends 'bigint' ? SingleStoreBigInt64Builder<TUnsigned>
+	: SingleStoreBigInt53Builder<TUnsigned>;
 export function bigint(a?: string | SingleStoreBigIntConfig, b?: SingleStoreBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreBigIntConfig>(a, b);
 	if (config.mode === 'number') {
 		return new SingleStoreBigInt53Builder(name, config.unsigned);
+	}
+	if (config.mode === 'string') {
+		return new SingleStoreBigIntStringBuilder(name, config.unsigned);
 	}
 	return new SingleStoreBigInt64Builder(name, config.unsigned);
 }

@@ -83,6 +83,82 @@ test('imports-issues', () => {
 // 	assert.equal(issues.length, 0);
 // });
 
+test('check imports api-postgres', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
+		entry: 'src/ext/api-postgres.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
+test('check imports api-mysql', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
+		entry: 'src/ext/api-mysql.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
+test('check imports api-sqlite', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
+		entry: 'src/ext/api-sqlite.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
+test('check imports api-singlestore', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
+		entry: 'src/ext/api-singlestore.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
 test('check imports sqlite-studio', () => {
 	const issues = analyzeImports({
 		basePath: '.',
@@ -108,6 +184,25 @@ test('check imports postgres-studio', () => {
 		localPaths: ['src'],
 		whiteList: ['camelcase', 'ohm-js', '@js-temporal/polyfill'],
 		entry: 'src/ext/studio-postgres.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
+test('check imports mysql-studio', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ['camelcase', 'ohm-js', '@js-temporal/polyfill'],
+		entry: 'src/ext/studio-mysql.ts',
 		logger: true,
 		ignoreTypes: true,
 	}).issues;

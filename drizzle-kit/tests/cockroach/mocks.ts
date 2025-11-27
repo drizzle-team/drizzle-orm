@@ -36,7 +36,7 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, psqlExplain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
@@ -178,6 +178,7 @@ export const push = async (
 		log?: 'statements' | 'none';
 		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
+		explain?: true;
 	},
 ) => {
 	const { db, to } = config;
@@ -212,7 +213,7 @@ export const push = async (
 	// TODO: handle errors
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -231,6 +232,12 @@ export const push = async (
 
 	const { hints, losses } = await suggestions(db, statements);
 
+	if (config.explain) {
+		// const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
+		// console.log(text);
+		return { sqlStatements, statements, hints, losses };
+	}
+
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
 		await db.query(sql);
@@ -242,7 +249,7 @@ export const push = async (
 			const { schema } = await introspect(db, filter, new EmptyProgressView());
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
-			const { sqlStatements, statements } = await ddlDiff(
+			const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 				ddl1,
 				ddl2,
 				mockResolver(renames),
@@ -259,7 +266,9 @@ export const push = async (
 				'push',
 			);
 			if (sqlStatements.length > 0) {
+				// const msg = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).join('\n');
 				console.error('---- subsequent push is not empty ----');
+				// console.error(msg);
 				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}

@@ -553,10 +553,10 @@ export const DateType: SqlType = {
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value) => {
 		if (typeof value === 'string') return wrapWith(value, "'");
-		if (!(value instanceof Date)) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (!(value instanceof Date)) {
 			throw new Error(
 				'"date" default value must be instance of Date or String',
-			); // oxlint-disable-line drizzle-internal/no-instanceof
+			);
 		}
 
 		const mapped = value.toISOString().split('T')[0];
@@ -565,7 +565,7 @@ export const DateType: SqlType = {
 	defaultArrayFromDrizzle: (value) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v === 'string') return v;
-			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (v instanceof Date) {
 				return v.toISOString().split('T')[0];
 			}
 			throw new Error(
@@ -617,10 +617,10 @@ export const Timestamp: SqlType = {
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value, _type) => {
 		if (typeof value === 'string') return wrapWith(value, "'");
-		if (!(value instanceof Date)) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (!(value instanceof Date)) {
 			throw new Error(
 				'Timestamp default value must be instance of Date or String',
-			); // oxlint-disable-line drizzle-internal/no-instanceof
+			);
 		}
 
 		const mapped = value
@@ -634,7 +634,7 @@ export const Timestamp: SqlType = {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v === 'string') return wrapWith(v, '"');
 
-			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (v instanceof Date) {
 				return wrapWith(
 					v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23),
 					'"',
@@ -709,7 +709,7 @@ export const TimestampTz: SqlType = {
 			return wrapWith(mapped, "'");
 		}
 
-		if (!(value instanceof Date)) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (!(value instanceof Date)) {
 			throw new Error(
 				'Timestamp default value must be instance of Date or String',
 			);
@@ -726,7 +726,7 @@ export const TimestampTz: SqlType = {
 				return wrapWith(mapped, '"');
 			}
 
-			if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (v instanceof Date) {
 				return wrapWith(
 					v.toISOString().replace('T', ' ').replace('Z', '+00'),
 					'"',
@@ -1787,7 +1787,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				return String(value);
 			}
 
-			if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (value instanceof Date) {
 				if (sqlType === 'date') {
 					return `${value.toISOString().split('T')[0]}`;
 				} else if (sqlType === 'timestamp') {

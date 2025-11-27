@@ -53,7 +53,7 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 			return `'${value.toString()}'`;
 		}
 
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			const v = mode === 'timestamp' ? value.getTime() / 1000 : value.getTime();
 			return v.toFixed(0);
 		}

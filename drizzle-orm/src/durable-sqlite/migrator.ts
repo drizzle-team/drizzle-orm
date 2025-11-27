@@ -1,10 +1,12 @@
-import { formatToMillis, type MigrationMeta } from '~/migrator.ts';
+import { formatToMillis, type MigrationMeta, type MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
+	/** @internal */
+	init?: boolean;
 }
 
 function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
@@ -45,10 +47,10 @@ export async function migrate<
 >(
 	db: DrizzleSqliteDODatabase<TSchema, TRelations>,
 	config: MigrationConfig,
-): Promise<void> {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 
-	db.transaction((tx) => {
+	return await db.transaction((tx) => {
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
@@ -65,8 +67,29 @@ export async function migrate<
 				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
 			);
 
-			const lastDbMigration = dbMigrations[0] ?? undefined;
+			if (config.init) {
+				if (dbMigrations.length) {
+					return { exitCode: 'databaseMigrations' as const };
+				}
 
+				if (migrations.length > 1) {
+					return { exitCode: 'localMigrations' as const };
+				}
+
+				const [migration] = migrations;
+
+				if (!migration) return;
+
+				db.run(
+					sql`insert into ${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				);
+
+				return;
+			}
+
+			const lastDbMigration = dbMigrations[0] ?? undefined;
 			for (const migration of migrations) {
 				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
 					for (const stmt of migration.sql) {
@@ -79,6 +102,8 @@ export async function migrate<
 					);
 				}
 			}
+
+			return;
 		} catch (error: any) {
 			tx.rollback();
 			throw error;

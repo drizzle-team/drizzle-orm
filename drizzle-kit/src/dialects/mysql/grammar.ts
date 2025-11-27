@@ -425,7 +425,7 @@ export const Timestamp: SqlType = {
 	is: (type) => /^(?:timestamp)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			const converted = value.toISOString().replace('T', ' ').slice(0, 23);
 			return `'${converted}'`;
 		}
@@ -489,7 +489,7 @@ export const Date_: SqlType = {
 	is: (type) => /^\s*date\s*$/i.test(type),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			const converted = value.toISOString().split('T')[0];
 			return `'${converted}'`;
 		}

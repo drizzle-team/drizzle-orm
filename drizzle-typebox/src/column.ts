@@ -16,7 +16,7 @@ import type { BigIntStringModeSchema, BufferSchema, JsonSchema } from './utils.t
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
-TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // oxlint-disable-line drizzle-internal/no-instanceof
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {
@@ -192,9 +192,28 @@ TypeRegistry.Set('BigIntStringMode', (_, value) => {
 
 	return true;
 });
+
+TypeRegistry.Set('UnsignedBigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
+		return false;
+	}
+
+	const bigint = BigInt(value);
+	if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
+		return false;
+	}
+
+	return true;
+});
 /** @internal */
 export const bigintStringModeSchema: BigIntStringModeSchema = {
 	[Kind]: 'BigIntStringMode',
+	type: 'string',
+} as any;
+
+/** @internal */
+export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'UnsignedBigIntStringMode',
 	type: 'string',
 } as any;
 
@@ -357,6 +376,9 @@ function stringColumnToSchema(
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	const options: Partial<StringOptions> = {};

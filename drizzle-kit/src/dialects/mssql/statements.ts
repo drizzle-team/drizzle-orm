@@ -77,8 +77,7 @@ export interface RecreateIdentityColumn {
 }
 export interface RecreateColumn {
 	type: 'recreate_column';
-	column: DiffEntities['columns'];
-	defaults: DefaultConstraint[];
+	diff: DiffEntities['columns'];
 }
 
 export interface CreateIndex {
@@ -107,11 +106,6 @@ export interface CreatePK {
 
 export interface DropPK {
 	type: 'drop_pk';
-	pk: PrimaryKey;
-}
-
-export interface RecreatePK {
-	type: 'recreate_pk';
 	pk: PrimaryKey;
 }
 
@@ -157,11 +151,6 @@ export interface CreateUnique {
 export interface DeleteUnique {
 	type: 'drop_unique';
 	unique: UniqueConstraint;
-}
-
-export interface AlterUnique {
-	type: 'alter_unique';
-	diff: DiffEntities['uniques'];
 }
 
 export interface MoveTable {
@@ -244,7 +233,6 @@ export type JsonStatement =
 	| MoveTable
 	| CreateUnique
 	| DeleteUnique
-	| AlterUnique
 	| CreateTable
 	| DropTable
 	| RenameTable
@@ -260,7 +248,6 @@ export type JsonStatement =
 	| DropFK
 	| CreatePK
 	| DropPK
-	| RecreatePK
 	| CreateView
 	| DropView
 	| RenameView

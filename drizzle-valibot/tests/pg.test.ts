@@ -15,7 +15,7 @@ import {
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
@@ -421,6 +421,7 @@ test('all data types', (t) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigint3: bigint({ mode: 'string' }).notNull(),
 		bigserial1: bigserial({ mode: 'number' }).notNull(),
 		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
 		bit: bit({ dimensions: 5 }).notNull(),
@@ -471,6 +472,7 @@ test('all data types', (t) => {
 	const expected = v.object({
 		bigint1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
 		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		bigint3: bigintStringModeSchema,
 		bigserial1: v.pipe(
 			v.number(),
 			v.minValue(Number.MIN_SAFE_INTEGER),

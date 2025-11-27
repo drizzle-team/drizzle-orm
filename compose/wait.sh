@@ -22,7 +22,7 @@ for db in "$@"; do
     singlestore)          wait_tcp 127.0.0.1 33307 "singlestore" ;;
     singlestore-many)
       # loop through 5 ports (33307–33311)
-      for i in $(seq 3308 3312); do
+      for i in $(seq 3308 3311); do
         wait_tcp 127.0.0.1 "$i" "singlestore-$((i-3308))"
       done
       ;;

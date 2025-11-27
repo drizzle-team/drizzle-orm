@@ -1,5 +1,6 @@
 import type { Casing } from 'drizzle-orm';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
 	getTableConfig,
@@ -350,6 +351,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -361,6 +363,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			tables.push(...prepared.tables);
 			schemas.push(...prepared.schemas);
 			views.push(...prepared.views);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -368,6 +371,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		tables,
 		schemas,
 		views,
+		relations,
 	};
 };
 
@@ -375,6 +379,7 @@ const fromExport = (exports: Record<string, unknown>) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -389,11 +394,16 @@ const fromExport = (exports: Record<string, unknown>) => {
 		if (is(t, MsSqlView)) {
 			views.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
 		tables,
 		schemas,
 		views,
+		relations,
 	};
 };
