@@ -15,17 +15,17 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
-import { ProgressView } from '../views';
+import { mysqlExplain, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
-	strict: boolean,
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
+	explain: boolean,
 ) => {
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
@@ -50,7 +50,7 @@ export const handle = async (
 	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
 	// TODO: handle errors
 
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),
@@ -62,58 +62,70 @@ export const handle = async (
 	const filteredStatements = statements;
 	if (filteredStatements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
+	}
+
+	if (explain) {
+		const messages: string[] = [`\n\nThe following migration was generated:\n`];
+		for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
+			const msg = mysqlExplain(jsonStatement, sql);
+			if (msg) messages.push(msg);
+			// Logic below should show all statements depending on flags like 'verbose' etc.
+			// else messages.push(...sql);
+		}
+		console.log(withStyle.info(messages.join('\n')));
+		process.exit(0);
+	}
+
+	const { hints, truncates } = await suggestions(db, filteredStatements);
+
+	const combinedStatements = [...truncates, ...sqlStatements];
+	if (verbose) {
+		console.log();
+		console.log(
+			withStyle.warning('You are about to execute current statements:'),
+		);
+		console.log();
+		console.log(combinedStatements.map((s) => chalk.blue(s)).join('\n'));
+		console.log();
+	}
+
+	if (!force && hints.length > 0) {
+		const { data } = await render(
+			new Select(['No, abort', `Yes, I want to execute all statements`]),
+		);
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	if (!force && hints.length > 0) {
+		console.log(withStyle.warning('Found data-loss statements:'));
+		console.log(truncates.join('\n'));
+		console.log();
+		console.log(
+			chalk.red.bold(
+				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+			),
+		);
+
+		console.log(chalk.white('Do you still want to push changes?'));
+
+		const { data } = await render(new Select(['No, abort', `Yes, execute`]));
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	for (const st of combinedStatements) {
+		await db.query(st);
+	}
+
+	if (filteredStatements.length > 0) {
+		render(`[${chalk.green('✓')}] Changes applied`);
 	} else {
-		const { hints, truncates } = await suggestions(db, filteredStatements);
-
-		const combinedStatements = [...truncates, ...sqlStatements];
-		if (verbose) {
-			console.log();
-			console.log(
-				withStyle.warning('You are about to execute current statements:'),
-			);
-			console.log();
-			console.log(combinedStatements.map((s) => chalk.blue(s)).join('\n'));
-			console.log();
-		}
-
-		if (!force && strict && hints.length > 0) {
-			const { data } = await render(
-				new Select(['No, abort', `Yes, I want to execute all statements`]),
-			);
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
-
-		if (!force && hints.length > 0) {
-			console.log(withStyle.warning('Found data-loss statements:'));
-			console.log(truncates.join('\n'));
-			console.log();
-			console.log(
-				chalk.red.bold(
-					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-				),
-			);
-
-			console.log(chalk.white('Do you still want to push changes?'));
-
-			const { data } = await render(new Select(['No, abort', `Yes, execute`]));
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
-
-		for (const st of combinedStatements) {
-			await db.query(st);
-		}
-
-		if (filteredStatements.length > 0) {
-			render(`[${chalk.green('✓')}] Changes applied`);
-		} else {
-			render(`[${chalk.blue('i')}] No changes detected`);
-		}
+		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };
 

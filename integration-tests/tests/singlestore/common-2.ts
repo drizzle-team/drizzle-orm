@@ -75,6 +75,9 @@ const allTypesTable = singlestoreTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
+	bigintString: bigint('bigint_string', {
+		mode: 'string',
+	}),
 	binary: binary('binary'),
 	boolean: boolean('boolean'),
 	char: char('char'),
@@ -2458,6 +2461,132 @@ export function tests(test: Test) {
 			}
 		});
 
+		test.concurrent('select from a many subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					population: number;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]));
+		});
+
+		test.concurrent('select from a one subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					cityName: string;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]));
+		});
+
+		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
+			const users = singlestoreTable('users_on_update_sql', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at')
+					.notNull()
+					.$onUpdate(() => sql`current_timestamp`),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({
+				name: 'John',
+			});
+			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			await db.update(users).set({
+				name: 'John',
+			});
+			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		test.concurrent('all types', async ({ db }) => {
 			await db.execute(sql`drop table if exists ${allTypesTable};`);
 			await db.execute(sql`
@@ -2465,6 +2594,7 @@ export function tests(test: Test) {
                         \`scol\` serial,
                         \`bigint53\` bigint,
                         \`bigint64\` bigint,
+                        \`bigint_string\` bigint,
                         \`binary\` binary,
                         \`boolean\` boolean,
                         \`char\` char,
@@ -2505,6 +2635,7 @@ export function tests(test: Test) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				binary: '1',
 				boolean: true,
 				char: 'c',
@@ -2560,6 +2691,7 @@ export function tests(test: Test) {
 				serial: number;
 				bigint53: number | null;
 				bigint64: bigint | null;
+				bigintString: string | null;
 				binary: string | null;
 				boolean: boolean | null;
 				char: string | null;
@@ -2599,6 +2731,7 @@ export function tests(test: Test) {
 					serial: 1,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
+					bigintString: '5044565289845416380',
 					binary: '1',
 					boolean: true,
 					char: 'c',

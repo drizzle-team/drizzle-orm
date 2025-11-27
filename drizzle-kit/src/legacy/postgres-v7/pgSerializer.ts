@@ -126,7 +126,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				return value ? 'true' : 'false';
 			} else if (Array.isArray(value)) {
 				return buildArrayString(value, sqlType);
-			} else if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+			} else if (value instanceof Date) {
 				if (sqlType === 'date') {
 					return `"${value.toISOString().split('T')[0]}"`;
 				} else if (sqlType === 'timestamp') {
@@ -300,7 +300,7 @@ export const generatePgSnapshot = (
 					} else {
 						if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
 							columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-						} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+						} else if (column.default instanceof Date) {
 							if (sqlTypeLowered === 'date') {
 								columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 							} else if (sqlTypeLowered === 'timestamp') {
@@ -878,7 +878,7 @@ export const generatePgSnapshot = (
 						} else {
 							if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
 								columnToSet.default = `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`;
-							} else if (column.default instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+							} else if (column.default instanceof Date) {
 								if (sqlTypeLowered === 'date') {
 									columnToSet.default = `'${column.default.toISOString().split('T')[0]}'`;
 								} else if (sqlTypeLowered === 'timestamp') {

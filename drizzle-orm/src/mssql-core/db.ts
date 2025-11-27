@@ -2,7 +2,7 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { MsSqlDialect } from './dialect.ts';
@@ -328,9 +328,9 @@ export class MsSqlDatabase<
 	}
 
 	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
-		query: SQLWrapper,
+		query: SQLWrapper | string,
 	): Promise<QueryResultKind<TQueryResult, T>> {
-		return this.session.execute(query.getSQL());
+		return this.session.execute((typeof query === 'string' ? sql.raw(query) : query).getSQL());
 	}
 
 	transaction<T>(
@@ -380,6 +380,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		with: $with,

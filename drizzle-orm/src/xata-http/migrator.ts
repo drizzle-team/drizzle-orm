@@ -1,4 +1,4 @@
-import { readMigrationFiles } from '~/migrator.ts';
+import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { XataHttpDatabase } from './driver.ts';
@@ -6,6 +6,8 @@ import type { XataHttpDatabase } from './driver.ts';
 export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
+	/** @internal */
+	init?: boolean;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface MigrationConfig {
 >(
 	db: XataHttpDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationTableCreate = sql`
@@ -41,8 +43,29 @@ export interface MigrationConfig {
 		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
 	);
 
-	const lastDbMigration = dbMigrations[0];
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' as const };
+		}
 
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' as const };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await db.session.execute(
+			sql`insert into ${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+		);
+
+		return;
+	}
+
+	const lastDbMigration = dbMigrations[0];
 	for await (const migration of migrations) {
 		if (!lastDbMigration || Number(lastDbMigration.created_at) < migration.folderMillis) {
 			for (const stmt of migration.sql) {

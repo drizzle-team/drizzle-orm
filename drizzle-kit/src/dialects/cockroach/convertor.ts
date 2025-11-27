@@ -231,11 +231,9 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
-	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
+	const drop = dropColumnConvertor.convert({ column: st.diff.$right }) as string;
 	const add = addColumnConvertor.convert({
-		column: st.column,
-		isPK: st.isPK,
-		isCompositePK: st.isCompositePK,
+		column: st.diff.$right,
 	}) as string;
 
 	return [drop, add];
@@ -538,8 +536,8 @@ const moveEnumConvertor = convertor('move_enum', (st) => {
 });
 
 const alterEnumConvertor = convertor('alter_enum', (st) => {
-	const { diff, enum: e } = st;
-	const key = e.schema !== 'public' ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
+	const { diff, to } = st;
+	const key = to.schema !== 'public' ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
 
 	const statements = [] as string[];
 	for (const d of diff.filter((it) => it.type === 'added')) {

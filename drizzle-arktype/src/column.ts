@@ -14,7 +14,7 @@ import { CONSTANTS } from './constants.ts';
 
 export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
-export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // oxlint-disable-line drizzle-internal/no-instanceof
+export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe(
 	'a Buffer instance',
 );
 
@@ -264,6 +264,26 @@ export const bigintStringModeSchema = type.string.narrow((v, ctx) => {
 	return true;
 });
 
+/** @internal */
+export const unsignedBigintStringModeSchema = type.string.narrow((v, ctx) => {
+	if (typeof v !== 'string') {
+		return ctx.mustBe('a string');
+	}
+	if (!(/^\d+$/.test(v))) {
+		return ctx.mustBe('a string representing a number');
+	}
+
+	const bigint = BigInt(v);
+	if (bigint < 0) {
+		return ctx.mustBe('greater than');
+	}
+	if (bigint > CONSTANTS.INT64_MAX) {
+		return ctx.mustBe('less than');
+	}
+
+	return true;
+});
+
 function bigintColumnToSchema(column: Column, constraint?: ColumnDataBigIntConstraint | undefined): Type {
 	switch (constraint) {
 		case 'int64': {
@@ -301,6 +321,9 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstr
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	return length && isLengthExact

@@ -15,7 +15,7 @@ import {
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
@@ -421,6 +421,7 @@ test('all data types', (t) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigint3: bigint({ mode: 'string' }).notNull(),
 		bigserial1: bigserial({ mode: 'number' }).notNull(),
 		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
 		bit: bit({ dimensions: 5 }).notNull(),
@@ -471,6 +472,7 @@ test('all data types', (t) => {
 	const expected = z.object({
 		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		bigint3: bigintStringModeSchema,
 		bigserial1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		bigserial2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bit: z.string().regex(/^[01]*$/).length(5),

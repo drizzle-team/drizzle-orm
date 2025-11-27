@@ -1,6 +1,6 @@
 services:
   singlestore0:
-    image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+    image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -13,7 +13,7 @@ services:
       retries: 60
 
   singlestore1:
-    image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+    image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -26,7 +26,7 @@ services:
       retries: 60
 
   singlestore2:
-    image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+    image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -39,7 +39,7 @@ services:
       retries: 60
 
   singlestore3:
-    image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+    image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC

@@ -2498,6 +2498,130 @@ export function tests(test: Test) {
 			}]));
 		});
 
+		test.concurrent('select from a many subquery', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: char('state', { length: 2 }),
+			});
+
+			const users2Table = pgTable('users2_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test.concurrent('select from a one subquery', async ({ db, push }) => {
+			const citiesTable = pgTable('cities_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: char('state', { length: 2 }),
+			});
+
+			const users2Table = pgTable('users2_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
+		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
+			const users = pgTable('users_on_update', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$onUpdate(() => sql`now()`),
+			});
+
+			await push({ users });
+
+			const insertResp = await db.insert(users).values({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const updateResp = await db.update(users).set({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		test.concurrent('all types', async ({ db, push }) => {
 			const en = pgEnum('en_48', ['enVal1', 'enVal2']);
 			const allTypesTable = pgTable('all_types_48', {
@@ -2514,6 +2638,9 @@ export function tests(test: Test) {
 				}),
 				bigint64: bigint('bigint64', {
 					mode: 'bigint',
+				}),
+				bigintString: bigint('bigint_string', {
+					mode: 'string',
 				}),
 				bool: boolean('bool'),
 				bytea: bytea('bytea'),
@@ -2579,6 +2706,9 @@ export function tests(test: Test) {
 				}).array(),
 				arrbigint64: bigint('arrbigint64', {
 					mode: 'bigint',
+				}).array(),
+				arrbigintString: bigint('arrbigint_string', {
+					mode: 'string',
 				}).array(),
 				arrbool: boolean('arrbool').array(),
 				arrbytea: bytea('arrbytea').array(),
@@ -2646,6 +2776,7 @@ export function tests(test: Test) {
 				smallserial: 15,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				bigserial53: 9007199254740991,
 				bigserial64: 5044565289845416380n,
 				bool: true,
@@ -2695,6 +2826,7 @@ export function tests(test: Test) {
 				varchar: 'C4-',
 				arrbigint53: [9007199254740991],
 				arrbigint64: [5044565289845416380n],
+				arrbigintString: ['5044565289845416380'],
 				arrbool: [true],
 				arrbytea: [Buffer.from('BYTES')],
 				arrchar: ['c'],
@@ -2751,6 +2883,7 @@ export function tests(test: Test) {
 				int: number | null;
 				bigint53: number | null;
 				bigint64: bigint | null;
+				bigintString: string | null;
 				bool: boolean | null;
 				bytea: Buffer | null;
 				char: string | null;
@@ -2793,6 +2926,7 @@ export function tests(test: Test) {
 				arrint: number[] | null;
 				arrbigint53: number[] | null;
 				arrbigint64: bigint[] | null;
+				arrbigintString: string[] | null;
 				arrbool: boolean[] | null;
 				arrbytea: Buffer[] | null;
 				arrchar: string[] | null;
@@ -2838,6 +2972,7 @@ export function tests(test: Test) {
 					int: 621,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
+					bigintString: '5044565289845416380',
 					bool: true,
 					bytea: Buffer.from('BYTES'),
 					char: 'c',
@@ -2873,6 +3008,7 @@ export function tests(test: Test) {
 					arrint: [621],
 					arrbigint53: [9007199254740991],
 					arrbigint64: [5044565289845416380n],
+					arrbigintString: ['5044565289845416380'],
 					arrbool: [true],
 					arrbytea: [Buffer.from('BYTES')],
 					arrchar: ['c'],

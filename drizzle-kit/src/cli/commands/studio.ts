@@ -69,8 +69,11 @@ export type Setup = {
 		| '@planetscale/database'
 		| 'd1-http'
 		| '@libsql/client'
-		| 'better-sqlite3';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
+		| 'better-sqlite3'
+		| '@sqlitecloud/drivers'
+		| '@tursodatabase/database'
+		| 'bun';
+	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -453,6 +456,8 @@ export const drizzleForSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			dbUrl = `d1-http://${credentials.accountId}/${credentials.databaseId}/${credentials.token}`;
+		} else if (driver === 'sqlite-cloud') {
+			dbUrl = credentials.url;
 		} else {
 			assertUnreachable(driver);
 		}
@@ -689,7 +694,7 @@ const schema = z.union([
 const jsonStringify = (data: any) => {
 	return JSONB.stringify(data, (_key, value) => {
 		// Convert Error to object
-		if (value instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Error) {
 			return {
 				error: value.message,
 			};
@@ -702,8 +707,8 @@ const jsonStringify = (data: any) => {
 				&& 'type' in value
 				&& 'data' in value
 				&& value.type === 'Buffer')
-			|| value instanceof ArrayBuffer // oxlint-disable-line drizzle-internal/no-instanceof
-			|| value instanceof Buffer // oxlint-disable-line drizzle-internal/no-instanceof
+			|| value instanceof ArrayBuffer
+			|| value instanceof Buffer
 		) {
 			return Buffer.from(value).toString('base64');
 		}

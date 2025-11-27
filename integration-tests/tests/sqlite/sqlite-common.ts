@@ -45,19 +45,11 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
-import type relations from './relations';
+import { Test } from './instrumentation';
 import { clear, init, rqbPost, rqbUser } from './schema';
-
-declare module 'vitest' {
-	interface TestContext {
-		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
-		};
-	}
-}
 
 const allTypesTable = sqliteTable('all_types', {
 	int: integer('int', {
@@ -186,11 +178,13 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	nullOnly: integer('null_only'),
 });
 
-export function tests() {
-	describe('common', () => {
-		beforeEach(async (ctx) => {
-			const { db } = ctx.sqlite;
+export function tests(test: Test, exclude: string[] = []) {
+	test.beforeEach(({ task, skip }) => {
+		if (exclude.includes(task.name)) skip();
+	});
 
+	describe('common', () => {
+		test.beforeEach(async ({ db }) => {
 			await db.run(sql`drop table if exists ${usersTable}`);
 			await db.run(sql`drop table if exists ${users2Table}`);
 			await db.run(sql`drop table if exists ${citiesTable}`);
@@ -337,7 +331,7 @@ export function tests() {
 			]);
 		}
 
-		test('table config: foreign keys name', async () => {
+		test.concurrent('table config: foreign keys name', async () => {
 			const table = sqliteTable(
 				'cities',
 				{
@@ -360,7 +354,7 @@ export function tests() {
 			expect(tableConfig.foreignKeys[1]!.getName()).toBe('custom_fk_deprecated');
 		});
 
-		test('table config: primary keys name', async () => {
+		test.concurrent('table config: primary keys name', async () => {
 			const table = sqliteTable('cities', {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
@@ -373,9 +367,7 @@ export function tests() {
 			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 		});
 
-		test('insert bigint values', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert bigint values', async ({ db }) => {
 			await db.insert(bigIntExample).values({ name: 'one', bigInt: BigInt('0') }).run();
 			await db.insert(bigIntExample).values({ name: 'two', bigInt: BigInt('127') }).run();
 			await db.insert(bigIntExample).values({ name: 'three', bigInt: BigInt('32767') }).run();
@@ -392,9 +384,7 @@ export function tests() {
 			]);
 		});
 
-		test('select all fields', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select all fields', async ({ db }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' }).run();
@@ -404,18 +394,14 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('select partial', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select partial', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const result = await db.select({ name: usersTable.name }).from(usersTable).all();
 
 			expect(result).toEqual([{ name: 'John' }]);
 		});
 
-		test('select sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select sql', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.select({
 				name: sql`upper(${usersTable.name})`,
@@ -424,9 +410,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select typed sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select typed sql', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.select({
 				name: sql<string>`upper(${usersTable.name})`,
@@ -435,9 +419,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select with empty array in inArray', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with empty array in inArray', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
 				.select({
@@ -449,9 +431,7 @@ export function tests() {
 			expect(result).toEqual([]);
 		});
 
-		test('select with empty array in notInArray', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with empty array in notInArray', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
 				.select({
@@ -463,9 +443,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
-		test('select distinct', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select distinct', async ({ db }) => {
 			const usersDistinctTable = sqliteTable('users_distinct', {
 				id: integer('id').notNull(),
 				name: text('name').notNull(),
@@ -490,9 +468,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 		});
 
-		test('insert returning sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert returning sql', async ({ db }) => {
 			const users = await db.insert(usersTable).values({ name: 'John' }).returning({
 				name: sql`upper(${usersTable.name})`,
 			}).all();
@@ -500,9 +476,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('$default function', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$default function', async ({ db }) => {
 			await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
 			const selectedOrder = await db.select().from(orders);
 
@@ -515,9 +489,7 @@ export function tests() {
 			}]);
 		});
 
-		test('delete returning sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('delete returning sql', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
 				name: sql`upper(${usersTable.name})`,
@@ -526,9 +498,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('query check: insert single empty row', (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('query check: insert single empty row', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name').default('Dan'),
@@ -546,9 +516,7 @@ export function tests() {
 			});
 		});
 
-		test('query check: insert multiple empty rows', (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('query check: insert multiple empty rows', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name').default('Dan'),
@@ -566,9 +534,7 @@ export function tests() {
 			});
 		});
 
-		test('Insert all defaults in 1 row', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('Insert all defaults in 1 row', async ({ db }) => {
 			const users = sqliteTable('empty_insert_single', {
 				id: integer('id').primaryKey(),
 				name: text('name').default('Dan'),
@@ -588,9 +554,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }]);
 		});
 
-		test('Insert all defaults in multiple rows', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('Insert all defaults in multiple rows', async ({ db }) => {
 			const users = sqliteTable('empty_insert_multiple', {
 				id: integer('id').primaryKey(),
 				name: text('name').default('Dan'),
@@ -610,9 +574,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 		});
 
-		test('update returning sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('update returning sql', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
 				name: sql`upper(${usersTable.name})`,
@@ -621,9 +583,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JANE' }]);
 		});
 
-		test('insert with auto increment', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with auto increment', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'John' },
 				{ name: 'Jane' },
@@ -640,27 +600,21 @@ export function tests() {
 			]);
 		});
 
-		test('insert with default values', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with default values', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const result = await db.select().from(usersTable).all();
 
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('insert with overridden default values', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with overridden default values', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John', verified: true }).run();
 			const result = await db.select().from(usersTable).all();
 
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, json: null, createdAt: result[0]!.createdAt }]);
 		});
 
-		test('update with returning all fields', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('update with returning all fields', async ({ db }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' }).run();
@@ -672,9 +626,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 		});
 
-		test('update with returning partial', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('update with returning partial', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
 				id: usersTable.id,
@@ -684,9 +636,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'Jane' }]);
 		});
 
-		test('delete with returning all fields', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('delete with returning all fields', async ({ db }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' }).run();
@@ -697,9 +647,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'John', verified: false, json: null, createdAt: users[0]!.createdAt }]);
 		});
 
-		test('delete with returning partial', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('delete with returning partial', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
 				id: usersTable.id,
@@ -709,9 +657,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert + select', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert + select', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
@@ -723,9 +669,7 @@ export function tests() {
 			expect(result2).toEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 		});
 
-		test('json insert', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('json insert', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John', json: ['foo', 'bar'] }).run();
 			const result = await db.select({
 				id: usersTable.id,
@@ -736,9 +680,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', json: ['foo', 'bar'] }]);
 		});
 
-		test('insert many', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert many', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'John' },
 				{ name: 'Bruce', json: ['foo', 'bar'] },
@@ -760,9 +702,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert many with returning', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert many with returning', async ({ db }) => {
 			const result = await db.insert(usersTable).values([
 				{ name: 'John' },
 				{ name: 'Bruce', json: ['foo', 'bar'] },
@@ -785,8 +725,7 @@ export function tests() {
 			]);
 		});
 
-		test('partial join with alias', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('partial join with alias', async ({ db }) => {
 			const customerAlias = alias(usersTable, 'customer');
 
 			await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -811,9 +750,7 @@ export function tests() {
 			}]);
 		});
 
-		test('full join with alias', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('full join with alias', async ({ db }) => {
 			const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
 
 			const users = sqliteTable('users', {
@@ -848,9 +785,7 @@ export function tests() {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4389
-		test('inner join', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test('inner join', async ({ db }) => {
 			const teams = sqliteTable('teams_1', {
 				id: integer().primaryKey(),
 			});
@@ -893,9 +828,7 @@ export function tests() {
 			await db.run(sql`drop table ${teams}`);
 		});
 
-		test('select from alias', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select from alias', async ({ db }) => {
 			const sqliteTable = sqliteTableCreator((name) => `prefixed_${name}`);
 
 			const users = sqliteTable('users', {
@@ -931,18 +864,14 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('insert with spaces', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with spaces', async ({ db }) => {
 			await db.insert(usersTable).values({ name: sql`'Jo   h     n'` }).run();
 			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
 
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
 
-		test('prepared statement', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const statement = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).prepare();
 			const result = await statement.all();
@@ -950,9 +879,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('prepared statement reuse', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement reuse', async ({ db }) => {
 			const stmt = db.insert(usersTable).values({ name: sql.placeholder('name') }).prepare();
 
 			for (let i = 0; i < 10; i++) {
@@ -978,9 +905,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert: placeholders on columns with encoder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert: placeholders on columns with encoder', async ({ db }) => {
 			const stmt = db.insert(usersTable).values({
 				name: 'John',
 				verified: sql.placeholder('verified'),
@@ -1000,9 +925,7 @@ export function tests() {
 			]);
 		});
 
-		test('prepared statement with placeholder in .where', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement with placeholder in .where', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const stmt = db.select({
 				id: usersTable.id,
@@ -1015,9 +938,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('prepared statement with placeholder in .limit', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement with placeholder in .limit', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const stmt = db
 				.select({
@@ -1035,9 +956,7 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('prepared statement with placeholder in .offset', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement with placeholder in .offset', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]).run();
 			const stmt = db
 				.select({
@@ -1054,9 +973,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
-		test('prepared statement built using $dynamic', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prepared statement built using $dynamic', async ({ db }) => {
 			function withLimitOffset(qb: any) {
 				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
 			}
@@ -1077,9 +994,7 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('select with group by as field', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with group by as field', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -1089,9 +1004,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 		});
 
-		test('select with exists', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with exists', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const user = alias(usersTable, 'user');
@@ -1104,9 +1017,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }]);
 		});
 
-		test('select with group by as sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with group by as sql', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -1116,9 +1027,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 		});
 
-		test('select with group by as sql + column', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with group by as sql + column', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -1129,9 +1038,7 @@ export function tests() {
 			expect(result).toStrictEqual(expect.arrayContaining([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]));
 		});
 
-		test('select with group by as column + sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with group by as column + sql', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -1141,9 +1048,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 		});
 
-		test('select with group by complex query', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select with group by complex query', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]).run();
 
 			const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -1155,9 +1060,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'Jane' }]);
 		});
 
-		test('build query', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('build query', async ({ db }) => {
 			const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
 				.groupBy(usersTable.id, usersTable.name)
 				.toSQL();
@@ -1168,18 +1071,14 @@ export function tests() {
 			});
 		});
 
-		test('insert via db.run + select via db.all', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert via db.run + select via db.all', async ({ db }) => {
 			await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 			const result = await db.all<{ id: number; name: string }>(sql`select id, name from "users"`);
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert via db.get', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert via db.get', async ({ db }) => {
 			const inserted = await db.get<{ id: number; name: string }>(
 				sql`insert into ${usersTable} (${new Name(
 					usersTable.name.name,
@@ -1188,9 +1087,7 @@ export function tests() {
 			expect(inserted).toEqual({ id: 1, name: 'John' });
 		});
 
-		test('insert via db.run + select via db.get', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert via db.run + select via db.get', async ({ db }) => {
 			await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
 			const result = await db.get<{ id: number; name: string }>(
@@ -1199,18 +1096,82 @@ export function tests() {
 			expect(result).toEqual({ id: 1, name: 'John' });
 		});
 
-		test('insert via db.get w/ query builder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert via db.get w/ query builder', async ({ db }) => {
 			const inserted = await db.get<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 				db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 			);
 			expect(inserted).toEqual({ id: 1, name: 'John' });
 		});
 
-		test('join subquery', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('select from a many subquery', async ({ db }) => {
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
 
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test.concurrent('select from a one subquery', async ({ db }) => {
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
+		test.concurrent('join subquery', async ({ db }) => {
 			await db.insert(courseCategoriesTable).values([
 				{ name: 'Category 1' },
 				{ name: 'Category 2' },
@@ -1253,9 +1214,7 @@ export function tests() {
 			]);
 		});
 
-		test('with ... select', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('with ... select', async ({ db }) => {
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -1337,9 +1296,7 @@ export function tests() {
 			]);
 		});
 
-		test('with ... update', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('with ... update', async ({ db }) => {
 			const products = sqliteTable('products', {
 				id: integer('id').primaryKey(),
 				price: numeric('price').notNull(),
@@ -1391,9 +1348,7 @@ export function tests() {
 			]);
 		});
 
-		test('with ... insert', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('with ... insert', async ({ db }) => {
 			const users = sqliteTable('users', {
 				username: text('username').notNull(),
 				admin: integer('admin', { mode: 'boolean' }).notNull(),
@@ -1425,9 +1380,7 @@ export function tests() {
 			expect(result).toEqual([{ admin: true }]);
 		});
 
-		test('with ... delete', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('with ... delete', async ({ db }) => {
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -1464,9 +1417,7 @@ export function tests() {
 			]);
 		});
 
-		test('select from subquery sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select from subquery sql', async ({ db }) => {
 			await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 			const sq = db
@@ -1479,23 +1430,17 @@ export function tests() {
 			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 		});
 
-		test('select a field without joining its table', (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select a field without joining its table', async ({ db }) => {
 			expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare()).toThrowError();
 		});
 
-		test('select all fields from subquery without alias', (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select all fields from subquery without alias', async ({ db }) => {
 			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 			expect(() => db.select().from(sq).prepare()).toThrowError();
 		});
 
-		test('select count()', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select count()', async ({ db }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
 			const res = await db.select({ count: sql`count(*)` }).from(usersTable).all();
@@ -1503,9 +1448,7 @@ export function tests() {
 			expect(res).toEqual([{ count: 2 }]);
 		});
 
-		test('having', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('having', async ({ db }) => {
 			await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]).run();
 
 			await db.insert(users2Table).values([
@@ -1542,9 +1485,7 @@ export function tests() {
 			]);
 		});
 
-		test('view', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('view', async ({ db }) => {
 			const newYorkers1 = sqliteView('new_yorkers')
 				.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
 
@@ -1605,9 +1546,7 @@ export function tests() {
 			await db.run(sql`drop view ${newYorkers1}`);
 		});
 
-		test('insert null timestamp', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert null timestamp', async ({ db }) => {
 			const test = sqliteTable('test', {
 				t: integer('t', { mode: 'timestamp' }),
 			});
@@ -1621,9 +1560,7 @@ export function tests() {
 			await db.run(sql`drop table ${test}`);
 		});
 
-		test('select from raw sql', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select from raw sql', async ({ db }) => {
 			const result = await db.select({
 				id: sql<number>`id`,
 				name: sql<string>`name`,
@@ -1636,9 +1573,7 @@ export function tests() {
 			]);
 		});
 
-		test('select from raw sql with joins', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select from raw sql with joins', async ({ db }) => {
 			const result = await db
 				.select({
 					id: sql<number>`users.id`,
@@ -1657,9 +1592,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from select', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('join on aliased sql from select', async ({ db }) => {
 			const result = await db
 				.select({
 					userId: sql<number>`users.id`.as('userId'),
@@ -1681,9 +1614,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from with clause', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('join on aliased sql from with clause', async ({ db }) => {
 			const users = db.$with('users').as(
 				db.select({
 					id: sql<number>`id`.as('userId'),
@@ -1725,9 +1656,7 @@ export function tests() {
 			]);
 		});
 
-		test('prefixed table', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('prefixed table', async ({ db }) => {
 			const sqliteTable = sqliteTableCreator((name) => `myprefix_${name}`);
 
 			const users = sqliteTable('test_prefixed_table_with_unique_name', {
@@ -1750,9 +1679,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('orderBy with aliased column', (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('orderBy with aliased column', async ({ db }) => {
 			const query = db.select({
 				test: sql`something`.as('test'),
 			}).from(users2Table).orderBy((fields) => fields.test).toSQL();
@@ -1760,9 +1687,7 @@ export function tests() {
 			expect(query.sql).toBe('select something as "test" from "users2" order by "test"');
 		});
 
-		test('transaction', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('transaction', async ({ db }) => {
 			const users = sqliteTable('users_transactions', {
 				id: integer('id').primaryKey(),
 				balance: integer('balance').notNull(),
@@ -1797,9 +1722,7 @@ export function tests() {
 			await db.run(sql`drop table ${products}`);
 		});
 
-		test('transaction rollback', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('transaction rollback', async ({ db }) => {
 			const users = sqliteTable('users_transactions_rollback', {
 				id: integer('id').primaryKey(),
 				balance: integer('balance').notNull(),
@@ -1824,9 +1747,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('nested transaction', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('nested transaction', async ({ db }) => {
 			const users = sqliteTable('users_nested_transactions', {
 				id: integer('id').primaryKey(),
 				balance: integer('balance').notNull(),
@@ -1853,9 +1774,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('nested transaction rollback', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('nested transaction rollback', async ({ db }) => {
 			const users = sqliteTable('users_nested_transactions_rollback', {
 				id: integer('id').primaryKey(),
 				balance: integer('balance').notNull(),
@@ -1885,9 +1804,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('join subquery with join', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('join subquery with join', async ({ db }) => {
 			const internalStaff = sqliteTable('internal_staff', {
 				userId: integer('user_id').notNull(),
 			});
@@ -1937,9 +1854,7 @@ export function tests() {
 			await db.run(sql`drop table ${ticket}`);
 		});
 
-		test('join view as subquery', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('join view as subquery', async ({ db }) => {
 			const users = sqliteTable('users_join_view', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1990,9 +1905,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do nothing', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
 
 			await db
@@ -2010,9 +1923,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert with onConflict do nothing using composite pk', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do nothing using composite pk', async ({ db }) => {
 			await db
 				.insert(pkExampleTable)
 				.values({ id: 1, name: 'John', email: 'john@example.com' })
@@ -2033,9 +1944,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }]);
 		});
 
-		test('insert with onConflict do nothing using target', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do nothing using target', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
 
 			await db
@@ -2053,9 +1962,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert with onConflict do nothing using composite pk as target', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do nothing using composite pk as target', async ({ db }) => {
 			await db
 				.insert(pkExampleTable)
 				.values({ id: 1, name: 'John', email: 'john@example.com' })
@@ -2076,9 +1983,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }]);
 		});
 
-		test('insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do update', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
 
 			await db
@@ -2096,9 +2001,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John1' }]);
 		});
 
-		test('insert with onConflict do update where', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do update where', async ({ db }) => {
 			await db
 				.insert(usersTable)
 				.values([{ id: 1, name: 'John', verified: false }])
@@ -2123,9 +2026,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John1', verified: true }]);
 		});
 
-		test('insert with onConflict do update using composite pk', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict do update using composite pk', async ({ db }) => {
 			await db.insert(pkExampleTable).values({ id: 1, name: 'John', email: 'john@example.com' }).run();
 
 			await db
@@ -2143,9 +2044,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john1@example.com' }]);
 		});
 
-		test('insert with onConflict chained (.update -> .nothing)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict chained (.update -> .nothing)', async ({ db }) => {
 			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
 				id: 2,
 				name: 'John Second',
@@ -2183,9 +2082,7 @@ export function tests() {
 			}]);
 		});
 
-		test('insert with onConflict chained (.nothing -> .update)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict chained (.nothing -> .update)', async ({ db }) => {
 			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
 				id: 2,
 				name: 'John Second',
@@ -2223,9 +2120,7 @@ export function tests() {
 			}]);
 		});
 
-		test('insert with onConflict chained (.update -> .update)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict chained (.update -> .update)', async ({ db }) => {
 			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
 				id: 2,
 				name: 'John Second',
@@ -2263,9 +2158,7 @@ export function tests() {
 			}]);
 		});
 
-		test('insert with onConflict chained (.nothing -> .nothing)', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert with onConflict chained (.nothing -> .nothing)', async ({ db }) => {
 			await db.insert(conflictChainExampleTable).values([{ id: 1, name: 'John', email: 'john@example.com' }, {
 				id: 2,
 				name: 'John Second',
@@ -2302,9 +2195,7 @@ export function tests() {
 			}]);
 		});
 
-		test('insert undefined', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('insert undefined', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2323,9 +2214,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('update undefined', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('update undefined', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2347,9 +2236,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('async api - CRUD', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('async api - CRUD', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2382,9 +2269,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('async api - insert + select w/ prepare + async execute', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('async api - insert + select w/ prepare + async execute', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2421,9 +2306,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('async api - insert + select w/ prepare + sync execute', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('async api - insert + select w/ prepare + sync execute', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2460,9 +2343,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('select + .get() for empty result', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('select + .get() for empty result', async ({ db }) => {
 			const users = sqliteTable('users', {
 				id: integer('id').primaryKey(),
 				name: text('name'),
@@ -2481,9 +2362,7 @@ export function tests() {
 			await db.run(sql`drop table ${users}`);
 		});
 
-		test('set operations (union) from query builder with subquery', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (union) from query builder with subquery', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const sq = db
@@ -2517,9 +2396,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (union) as function', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (union) as function', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await union(
@@ -2556,9 +2433,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (union all) from query builder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (union all) from query builder', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -2590,9 +2465,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (union all) as function', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (union all) as function', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await unionAll(
@@ -2630,9 +2503,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) from query builder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (intersect) from query builder', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -2661,9 +2532,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) as function', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (intersect) as function', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await intersect(
@@ -2697,9 +2566,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (except) from query builder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (except) from query builder', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -2727,9 +2594,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (except) as function', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (except) as function', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await except(
@@ -2766,9 +2631,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (mixed) from query builder', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (mixed) from query builder', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -2806,9 +2669,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('set operations (mixed all) as function with subquery', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('set operations (mixed all) as function with subquery', async ({ db }) => {
 			await setupSetOperationTest(db);
 
 			const sq = union(
@@ -2858,7 +2719,7 @@ export function tests() {
 			}).rejects.toThrowError();
 		});
 
-		test('define constraints as array', async (_ctx) => {
+		test.concurrent('define constraints as array', async () => {
 			const table = sqliteTable('name', {
 				id: int(),
 			}, (t) => [
@@ -2872,7 +2733,7 @@ export function tests() {
 			expect(primaryKeys.length).toBe(1);
 		});
 
-		test('define constraints as array inside third param', async (_ctx) => {
+		test.concurrent('define constraints as array inside third param', async () => {
 			const table = sqliteTable('name', {
 				id: int(),
 			}, (t) => [
@@ -2886,8 +2747,7 @@ export function tests() {
 			expect(primaryKeys.length).toBe(1);
 		});
 
-		test('aggregate function: count', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('aggregate function: count', async ({ db }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -2900,8 +2760,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe(6);
 		});
 
-		test('aggregate function: avg', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('aggregate function: avg', async ({ db }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -2914,8 +2773,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe('42.5');
 		});
 
-		test('aggregate function: sum', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('aggregate function: sum', async ({ db }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -2928,8 +2786,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe('170');
 		});
 
-		test('aggregate function: max', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('aggregate function: max', async ({ db }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -2940,8 +2797,7 @@ export function tests() {
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('aggregate function: min', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('aggregate function: min', async ({ db }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -2952,9 +2808,7 @@ export function tests() {
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
 			await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 			await db.run(
@@ -2994,9 +2848,7 @@ export function tests() {
 			}
 		});
 
-		test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 			await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 			await db.run(
@@ -3039,9 +2891,48 @@ export function tests() {
 			}
 		});
 
-		test('$count separate', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db }) => {
+			const users = sqliteTable('users_on_update', {
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				name: text('name').notNull(),
+				updatedAt: integer('updated_at')
+					.notNull()
+					.$onUpdate(() =>
+						sql`(strftime('%s', 'now') * 1000) + (strftime('%f', 'now') - strftime('%S', 'now')) * 1000`
+					),
+			});
 
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`
+					create table ${users} (
+						\`id\` integer primary key autoincrement,
+						\`name\` text not null,
+						\`updated_at\` integer not null
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const updateResp = await db.update(users).set({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+
+			expect(insertResp[0]?.updatedAt ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt ?? 0).greaterThan(now);
+		});
+
+		test.concurrent('$count separate', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3064,9 +2955,7 @@ export function tests() {
 			expect(count).toStrictEqual(4);
 		});
 
-		test('$count embedded', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$count embedded', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3096,9 +2985,7 @@ export function tests() {
 			]);
 		});
 
-		test('$count separate reuse', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$count separate reuse', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3133,9 +3020,7 @@ export function tests() {
 			expect(count3).toStrictEqual(6);
 		});
 
-		test('$count embedded reuse', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$count embedded reuse', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3190,9 +3075,7 @@ export function tests() {
 			]);
 		});
 
-		test('$count separate with filters', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$count separate with filters', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3215,9 +3098,7 @@ export function tests() {
 			expect(count).toStrictEqual(3);
 		});
 
-		test('$count embedded with filters', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('$count embedded with filters', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
 				id: int('id').notNull(),
 				name: text('name').notNull(),
@@ -3247,9 +3128,7 @@ export function tests() {
 			]);
 		});
 
-		test('update with limit and order by', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('update with limit and order by', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'Barry', verified: false },
 				{ name: 'Alan', verified: false },
@@ -3269,9 +3148,7 @@ export function tests() {
 			]);
 		});
 
-		test('delete with limit and order by', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('delete with limit and order by', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'Barry', verified: false },
 				{ name: 'Alan', verified: false },
@@ -3289,9 +3166,7 @@ export function tests() {
 			]);
 		});
 
-		test('cross join', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('cross join', async ({ db }) => {
 			await db
 				.insert(usersTable)
 				.values([
@@ -3323,8 +3198,7 @@ export function tests() {
 			]);
 		});
 
-		test('RQB v2 simple find first - no rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find first - no rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3336,8 +3210,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find first - multiple rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find first - multiple rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3369,8 +3242,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find first - with relation', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find first - with relation', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3432,8 +3304,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find first - placeholders', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find first - placeholders', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3474,8 +3345,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find many - no rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find many - no rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3487,8 +3357,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find many - multiple rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find many - multiple rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3524,8 +3393,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find many - with relation', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find many - with relation', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3588,8 +3456,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 simple find many - placeholders', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 simple find many - placeholders', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3630,8 +3497,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find first - no rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find first - no rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3645,8 +3511,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find first - multiple rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find first - multiple rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3680,8 +3545,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find first - with relation', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find first - with relation', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3745,8 +3609,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find first - placeholders', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find first - placeholders', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3789,8 +3652,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find many - no rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find many - no rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3804,8 +3666,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find many - multiple rows', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find many - multiple rows', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3843,8 +3704,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find many - with relation', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find many - with relation', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3909,8 +3769,7 @@ export function tests() {
 			}
 		});
 
-		test('RQB v2 transaction find many - placeholders', async (ctx) => {
-			const { db } = ctx.sqlite;
+		test.concurrent('RQB v2 transaction find many - placeholders', async ({ db }) => {
 			try {
 				await init(db);
 
@@ -3953,9 +3812,7 @@ export function tests() {
 			}
 		});
 
-		test('limit 0', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('limit 0', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.select()
@@ -3965,9 +3822,7 @@ export function tests() {
 			expect(users).toEqual([]);
 		});
 
-		test('limit -1', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('limit -1', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.select()
@@ -3977,9 +3832,7 @@ export function tests() {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
-		test('column.as', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('column.as', async ({ db }) => {
 			const users = sqliteTable('users_column_as', {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4133,9 +3986,7 @@ export function tests() {
 			}
 		});
 
-		test('all types', async (ctx) => {
-			const { db } = ctx.sqlite;
-
+		test.concurrent('all types', async ({ db }) => {
 			await db.run(sql`
 				CREATE TABLE \`all_types\`(
 					\`int\` integer,
@@ -4261,7 +4112,7 @@ export function tests() {
 		});
 	});
 
-	test('table configs: unique third param', () => {
+	test.concurrent('table configs: unique third param', () => {
 		const cities1Table = sqliteTable('cities1', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
@@ -4286,7 +4137,7 @@ export function tests() {
 		expect(tableConfig.uniqueConstraints[1]?.name).toBe('custom');
 	});
 
-	test('table configs: unique in column', () => {
+	test.concurrent('table configs: unique in column', () => {
 		const cities1Table = sqliteTable('cities1', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull().unique(),
@@ -4309,9 +4160,7 @@ export function tests() {
 		expect(columnField?.uniqueName).toBe(undefined);
 	});
 
-	test('update ... from', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('update ... from', async ({ db }) => {
 		await db.run(sql`drop table if exists \`cities\``);
 		await db.run(sql`drop table if exists \`users2\``);
 		await db.run(sql`
@@ -4353,9 +4202,7 @@ export function tests() {
 		}]);
 	});
 
-	test('update ... from with alias', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('update ... from with alias', async ({ db }) => {
 		await db.run(sql`drop table if exists \`users2\``);
 		await db.run(sql`drop table if exists \`cities\``);
 		await db.run(sql`
@@ -4400,9 +4247,7 @@ export function tests() {
 		await db.run(sql`drop table if exists \`users2\``);
 	});
 
-	test('update ... from with join', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('update ... from with join', async ({ db }) => {
 		const states = sqliteTable('states', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			name: text('name').notNull(),
@@ -4488,9 +4333,7 @@ export function tests() {
 		}]);
 	});
 
-	test('insert into ... select', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('insert into ... select', async ({ db }) => {
 		const notifications = sqliteTable('notifications_insert_into', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			sentAt: integer('sent_at', { mode: 'timestamp' }).notNull().default(sql`current_timestamp`),
@@ -4563,9 +4406,7 @@ export function tests() {
 		]);
 	});
 
-	test('insert into ... select with keys in different order', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('insert into ... select with keys in different order', async ({ db }) => {
 		const users1 = sqliteTable('users1', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			name: text('name').notNull(),
@@ -4604,9 +4445,7 @@ export function tests() {
 		}).rejects.toThrowError();
 	});
 
-	test('Object keys as column names', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('Object keys as column names', async ({ db }) => {
 		// Tests the following:
 		// Column with optional config without providing a value
 		// Column with optional config providing a value
@@ -4644,9 +4483,7 @@ export function tests() {
 		await db.run(sql`drop table users`);
 	});
 
-	test('sql operator as cte', async (ctx) => {
-		const { db } = ctx.sqlite;
-
+	test.concurrent('sql operator as cte', async ({ db }) => {
 		const users = sqliteTable('users', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
 			name: text('name').notNull(),

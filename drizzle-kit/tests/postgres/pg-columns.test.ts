@@ -376,7 +376,7 @@ test('create composite primary key', async () => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		'CREATE TABLE "table" (\n\t"col1" integer,\n\t"col2" integer,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
@@ -714,7 +714,7 @@ test('add not null to a column', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
 
 	const st0: string[] = ['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;'];
 
@@ -724,7 +724,7 @@ test('add not null to a column', async () => {
 	// TODO: revise should I use suggestion func?
 	// const { losses, hints } = await suggestions(db, statements);
 
-	expect(losses).toStrictEqual([]);
+	expect(hints).toStrictEqual([]);
 });
 
 test('add not null to a column with null data. Should rollback', async () => {

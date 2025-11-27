@@ -481,3 +481,13 @@ test('introspect table with self reference', async () => {
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+test('introspect empty db', async () => {
+	const { introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'introspect-empty-db',
+	);
+
+	expect(introspectDDL.entities.list().length).toBe(0);
+});
