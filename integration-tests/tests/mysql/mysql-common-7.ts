@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import {
 	bigint,
 	getTableConfig,
@@ -16,11 +16,123 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
-import { allTypesTable } from './schema2';
+import { allTypesTable, createCitiesTable, createUsers2Table } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
 		if (exclude.has(task.name)) skip();
+	});
+
+	test('select from a many subquery', async ({ db, push }) => {
+		const citiesTable = createCitiesTable('cities_many_subquery');
+		const users2Table = createUsers2Table('users_2_many_subquery', citiesTable);
+
+		await push({ citiesTable, users2Table });
+
+		await db.insert(citiesTable)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			population: db.select({ count: count().as('count') }).from(users2Table).where(
+				eq(users2Table.cityId, citiesTable.id),
+			).as(
+				'population',
+			),
+			name: citiesTable.name,
+		}).from(citiesTable);
+
+		expectTypeOf(res).toEqualTypeOf<
+			{
+				population: number;
+				name: string;
+			}[]
+		>();
+
+		expect(res).toStrictEqual([{
+			population: 1,
+			name: 'Paris',
+		}, {
+			population: 2,
+			name: 'London',
+		}]);
+	});
+
+	test('select from a one subquery', async ({ db, push }) => {
+		const citiesTable = createCitiesTable('cities_one_subquery');
+		const users2Table = createUsers2Table('users_2_one_subquery', citiesTable);
+
+		await push({ citiesTable, users2Table });
+
+		await db.insert(citiesTable)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+				.as(
+					'cityName',
+				),
+			name: users2Table.name,
+		}).from(users2Table);
+
+		expectTypeOf(res).toEqualTypeOf<
+			{
+				cityName: string;
+				name: string;
+			}[]
+		>();
+
+		expect(res).toStrictEqual([{
+			cityName: 'Paris',
+			name: 'John',
+		}, {
+			cityName: 'London',
+			name: 'Jane',
+		}, {
+			cityName: 'London',
+			name: 'Jack',
+		}]);
+	});
+
+	test('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
+		const users = mysqlTable('users_on_update', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			updatedAt: timestamp('updated_at', {
+				fsp: 6,
+			})
+				.notNull()
+				.$onUpdate(() => sql`current_timestamp`),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values({
+			name: 'John',
+		});
+		const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		const now = Date.now();
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		await db.update(users).set({
+			name: 'John',
+		});
+		const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+		expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 	});
 
 	test.concurrent('all types', async ({ db, push }) => {
@@ -30,6 +142,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			serial: 1,
 			bigint53: 9007199254740991,
 			bigint64: 5044565289845416380n,
+			bigintString: '5044565289845416380',
 			binary: '1',
 			boolean: true,
 			char: 'c',
@@ -75,6 +188,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			serial: number;
 			bigint53: number | null;
 			bigint64: bigint | null;
+			bigintString: string | null;
 			binary: string | null;
 			boolean: boolean | null;
 			char: string | null;
@@ -116,6 +230,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				binary: '1',
 				boolean: true,
 				char: 'c',

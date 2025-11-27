@@ -32,7 +32,6 @@ import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../vie
 export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
-	strict: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
@@ -104,7 +103,7 @@ export const handle = async (
 		console.log();
 	}
 
-	if (!force && strict && hints.length === 0) {
+	if (!force && hints.length === 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -259,7 +258,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			continue;
 		}
 
-		if (statement.type === 'create_index' && statement.index.isUnique) {
+		if (statement.type === 'create_index' && statement.index.isUnique && !statement.newTable) {
 			const unique = statement.index;
 			const id = identifier({ schema: unique.schema, name: unique.table });
 

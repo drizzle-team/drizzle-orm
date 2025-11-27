@@ -32,7 +32,6 @@ import { mssqlSchemaError, ProgressView } from '../views';
 export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
-	strict: boolean,
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
@@ -103,7 +102,7 @@ export const handle = async (
 		console.log();
 	}
 
-	if (!force && strict && hints.length === 0) {
+	if (!force && hints.length === 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {

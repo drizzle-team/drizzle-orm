@@ -19,7 +19,7 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.array(v.any()),
 	v.record(v.string(), v.any()),
 ]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line drizzle-internal/no-instanceof
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -188,6 +188,17 @@ export const bigintStringModeSchema = v.pipe(
 	v.transform((v) => v.toString()),
 );
 
+/** @internal */
+export const unsignedBigintStringModeSchema = v.pipe(
+	v.string(),
+	v.regex(/^\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	v.transform((v) => BigInt(v)),
+	v.minValue(0n),
+	v.maxValue(CONSTANTS.INT64_MAX),
+	v.transform((v) => v.toString()),
+);
+
 function bigintColumnToSchema(column: Column, constraint: ColumnDataBigIntConstraint | undefined): v.GenericSchema {
 	let min!: bigint | undefined;
 	let max!: bigint | undefined;
@@ -301,6 +312,9 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstr
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	const actions: any[] = [];

@@ -20,7 +20,7 @@ export const jsonSchema: zod.ZodType<Json> = zod.union([
 	zod.record(zod.string(), zod.any()),
 	zod.array(zod.any()),
 ]);
-export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line drizzle-internal/no-instanceof
+export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer);
 
 export function columnToSchema(
 	column: Column,
@@ -193,6 +193,11 @@ export const bigintStringModeSchema = zod.string().regex(/^-?\d+$/).transform(Bi
 	zod.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 ).transform(String);
 
+/** @internal */
+export const unsignedBigintStringModeSchema = zod.string().regex(/^\d+$/).transform(BigInt).pipe(
+	zod.bigint().gte(0n).lte(CONSTANTS.INT64_MAX),
+).transform(String);
+
 function bigintColumnToSchema(
 	column: Column,
 	constraint: ColumnDataBigIntConstraint | undefined,
@@ -326,6 +331,9 @@ function stringColumnToSchema(
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();

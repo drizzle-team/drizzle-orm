@@ -686,6 +686,7 @@ export const withReplicas = <
 		transaction,
 		refreshMaterializedView,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		selectDistinctOn,

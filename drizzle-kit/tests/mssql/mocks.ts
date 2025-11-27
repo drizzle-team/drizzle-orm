@@ -159,6 +159,8 @@ export const diffIntrospect = async (
 	rmSync(`tests/mssql/tmp/${testName}.ts`);
 
 	return {
+		introspectDDL: ddl1,
+		fromFileDDL: ddl2,
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};

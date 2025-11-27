@@ -65,7 +65,7 @@ export class AwsDataApiPreparedQuery<
 			resourceArn: options.resourceArn,
 			database: options.database,
 			transactionId,
-			includeResultMetadata: !fields && !customResultMapper,
+			includeResultMetadata: isRqbV2Query || (!fields && !customResultMapper),
 		});
 	}
 
@@ -113,7 +113,7 @@ export class AwsDataApiPreparedQuery<
 		const { columnMetadata, rows } = result;
 		if (!columnMetadata) {
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-				rows as any as Record<string, unknown>[],
+				rows as [],
 			);
 		}
 		const mappedRows = rows.map((sourceRow) => {
@@ -134,8 +134,6 @@ export class AwsDataApiPreparedQuery<
 			}
 			return row;
 		});
-
-		Object.assign(result, { rows: mappedRows });
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 			mappedRows,
@@ -291,6 +289,17 @@ export class AwsDataApiSession<
 		);
 	}
 
+	override async count(sql: SQL): Promise<number> {
+		const query = this.dialect.sqlToQuery(sql);
+		const prepared = this.prepareQuery(query, undefined, undefined, true);
+
+		const { rows } = await prepared.values();
+		const count = rows[0]?.[0] ?? 0;
+
+		if (typeof count === 'number') return count;
+		return Number(count);
+	}
+
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T; values: AwsDataApiPgQueryResult<unknown[]> }>(
 			this.dialect.sqlToQuery(query),
@@ -322,6 +331,8 @@ export class AwsDataApiSession<
 			session,
 			this.relations,
 			this.schema,
+			undefined,
+			true,
 		);
 		if (config) {
 			await tx.setTransaction(config);

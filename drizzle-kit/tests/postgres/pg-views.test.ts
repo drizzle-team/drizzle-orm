@@ -649,7 +649,7 @@ test('drop materialized view with data', async () => {
 	await push({ db, to: schema1 });
 	await db.query(`INSERT INTO "table" ("id") VALUES (1), (2), (3)`);
 
-	const { sqlStatements: pst, hints, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		`DROP MATERIALIZED VIEW "view";`,
@@ -659,7 +659,6 @@ test('drop materialized view with data', async () => {
 	expect(pst).toStrictEqual(st0);
 
 	expect(hints).toStrictEqual([]);
-	expect(losses).toStrictEqual([]);
 });
 
 test('drop materialized view without data', async () => {

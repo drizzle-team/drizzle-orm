@@ -1,7 +1,9 @@
-import { command, run } from '@drizzle-team/brocli';
+import { command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
+import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
-import { ormCoreVersions } from './utils';
+import { ormCoreVersions, QueryError } from './utils';
+import { error } from './views';
 
 const version = async () => {
 	const { npmVersion } = await ormCoreVersions();
@@ -56,4 +58,33 @@ const legacy = [
 run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
+
+	hook: (event, command) => {
+		if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
+	},
+	theme: (event) => {
+		if (event.type === 'error') {
+			if (event.violation !== 'unknown_error') return false;
+
+			const e = event.error;
+			if (e instanceof QueryError) {
+				let msg = `┌── ${chalk.bgRed.bold('query error:')} ${chalk.red(e.message)}\n\n`;
+				msg += `${highlightSQL(e.sql)}\n`;
+				if (e.params.length > 0) msg += '| ' + chalk.gray(`--- params: ${e.params || '[]'}\n\n`);
+				msg += '└──';
+				console.log();
+				console.log(msg);
+				return true;
+			}
+
+			if (
+				!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
+			) return false;
+
+			console.log(error(e.message));
+			return true;
+		}
+
+		return false;
+	},
 });

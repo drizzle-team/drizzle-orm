@@ -78,6 +78,7 @@ export type ColumnDataStringConstraint =
 	| 'sparsevec'
 	| 'time'
 	| 'timestamp'
+	| 'uint64'
 	| 'unumeric'
 	| 'uuid';
 

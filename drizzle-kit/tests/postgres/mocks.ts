@@ -50,18 +50,18 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
-import { upToV8 } from 'src/cli/commands/up-postgres';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { getReasonsFromStatements } from 'src/dialects/postgres/commutativity';
 import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
@@ -196,6 +196,7 @@ export const push = async (config: {
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
+	explain?: true;
 }) => {
 	const { db, to } = config;
 
@@ -235,7 +236,7 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -255,7 +256,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
+
+	if (config.explain) {
+		const explainMessage = explain('postgres', groupedStatements, false, []);
+		if (explainMessage) console.log(explainMessage);
+		return { sqlStatements, statements, hints };
+	}
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -298,7 +305,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses };
+	return { sqlStatements, statements, hints };
 };
 
 // init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file

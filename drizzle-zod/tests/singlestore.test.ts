@@ -3,7 +3,7 @@ import { customType, int, json, serial, singlestoreSchema, singlestoreTable, tex
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -379,6 +379,8 @@ test('all data types', (t) => {
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
 		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
 		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
+		bigint5: bigint({ mode: 'string' }).notNull(),
+		bigint6: bigint({ unsigned: true, mode: 'string' }).notNull(),
 		binary: binary({ length: 10 }).notNull(),
 		boolean: boolean().notNull(),
 		char1: char({ length: 10 }).notNull(),
@@ -440,6 +442,8 @@ test('all data types', (t) => {
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bigint3: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
 		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
 		binary: z.string().regex(/^[01]*$/).max(10),
 		boolean: z.boolean(),
 		char1: z.string().max(10),
