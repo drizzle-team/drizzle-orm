@@ -9,13 +9,13 @@ import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { connectToMySQL } from '../connections';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { withStyle } from '../validations/outputs';
-import { mysqlExplain, ProgressView } from '../views';
+import { explain, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -25,7 +25,7 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
-	explain: boolean,
+	explainFlag: boolean,
 ) => {
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
@@ -64,62 +64,27 @@ export const handle = async (
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 
-	if (explain) {
-		const messages: string[] = [`\n\nThe following migration was generated:\n`];
-		for (const { jsonStatement, sqlStatements: sql } of groupedStatements) {
-			const msg = mysqlExplain(jsonStatement, sql);
-			if (msg) messages.push(msg);
-			// Logic below should show all statements depending on flags like 'verbose' etc.
-			// else messages.push(...sql);
-		}
-		console.log(withStyle.info(messages.join('\n')));
-		process.exit(0);
-	}
+	const hints = await suggestions(db, filteredStatements);
+	const explainMessage = explain('mysql', groupedStatements, explainFlag, hints);
 
-	const { hints, truncates } = await suggestions(db, filteredStatements);
-
-	const combinedStatements = [...truncates, ...sqlStatements];
-	if (verbose) {
-		console.log();
-		console.log(
-			withStyle.warning('You are about to execute current statements:'),
-		);
-		console.log();
-		console.log(combinedStatements.map((s) => chalk.blue(s)).join('\n'));
-		console.log();
-	}
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
-		const { data } = await render(
-			new Select(['No, abort', `Yes, I want to execute all statements`]),
-		);
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);
 		}
 	}
 
-	if (!force && hints.length > 0) {
-		console.log(withStyle.warning('Found data-loss statements:'));
-		console.log(truncates.join('\n'));
-		console.log();
-		console.log(
-			chalk.red.bold(
-				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-			),
-		);
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
-		console.log(chalk.white('Do you still want to push changes?'));
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) console.log(highlightSQL(statement));
 
-		const { data } = await render(new Select(['No, abort', `Yes, execute`]));
-		if (data?.index === 0) {
-			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
-		}
-	}
-
-	for (const st of combinedStatements) {
-		await db.query(st);
+		await db.query(statement);
 	}
 
 	if (filteredStatements.length > 0) {
@@ -228,10 +193,7 @@ export const handle = async (
 // };
 
 export const suggestions = async (_db: DB, _statements: JsonStatement[]) => {
-	const hints: string[] = [];
-	const truncates: string[] = [];
-
-	return { hints, truncates };
+	return [] as { hint: string; statement?: string | undefined }[];
 
 	// TODO: update and implement
 

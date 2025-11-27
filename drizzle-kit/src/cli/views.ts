@@ -100,7 +100,7 @@ function formatOptionChanges(
 
 export const explain = (
 	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
-	grouped: { jsonStatement: StatementPostgres | StatementSqlite; sqlStatements: string[] }[],
+	grouped: { jsonStatement: StatementPostgres | StatementSqlite | StatementMysql; sqlStatements: string[] }[],
 	explain: boolean,
 	hints: { hint: string; statement?: string }[],
 ) => {
@@ -111,6 +111,8 @@ export const explain = (
 			? psqlExplain(jsonStatement as StatementPostgres)
 			: dialect === 'sqlite'
 			? sqliteExplain(jsonStatement as StatementSqlite)
+			: dialect === 'mysql'
+			? mysqlExplain(jsonStatement as StatementMysql)
 			: null;
 
 		if (res) {

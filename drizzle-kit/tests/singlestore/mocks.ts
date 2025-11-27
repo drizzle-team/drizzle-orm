@@ -6,6 +6,7 @@ import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
+import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
@@ -130,7 +131,7 @@ export const diffPush = async (config: {
 	// TODO: handle errors
 
 	const renames = new Set(rens);
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -139,8 +140,10 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const { hints, truncates } = await suggestions(db, statements);
-	return { sqlStatements, statements, hints, truncates };
+	const explainMessage = explain('singlestore', groupedStatements, false, []);
+	if (explainMessage) console.log(explainMessage);
+
+	return { sqlStatements, statements, hints: [] };
 };
 
 async function createDockerDB(): Promise<{ url: string; container: Container }> {
