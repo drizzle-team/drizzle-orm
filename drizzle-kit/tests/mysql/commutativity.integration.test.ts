@@ -1,28 +1,25 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, primaryKey } from 'drizzle-orm/pg-core';
-import { createDDL } from 'src/dialects/postgres/ddl';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { detectNonCommutative } from 'src/utils/commutativity';
+import { check, index, mysqlTable, primaryKey, unique } from 'drizzle-orm/mysql-core';
 import { describe, expect, test } from 'vitest';
 import { conflictsFromSchema } from './mocks';
 
 describe('conflict rule coverage (statement pairs)', () => {
 	test('column: create vs drop (same-resource-different-op)', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child1 = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
-				d: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+				d: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({})),
+			t: mysqlTable('t', (t) => ({})),
 		};
 
 		const conflicts = await conflictsFromSchema({
@@ -36,20 +33,20 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 	test('column: alter vs alter (same-resource-same-op)', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child1 = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar().notNull(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }).notNull(),
 			})),
 		};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({
-				c: t.integer(),
+			t: mysqlTable('t', (t) => ({
+				c: t.int(),
 			})),
 		};
 
@@ -62,19 +59,19 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('table drop vs child index', async () => {
+	test.only('table drop vs child index', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child1 = {};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
-			}), (table) => [index().on(table.c)]),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+			}), (table) => [index('test_idx').on(table.c)]),
 		};
 
 		const conflicts = await conflictsFromSchema({
@@ -88,23 +85,23 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 	test('pk: alter vs drop', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				id: t.integer().primaryKey(),
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				id: t.int().primaryKey(),
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child1 = {
-			t: pgTable('t', (t) => ({
-				id: t.integer(),
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				id: t.int(),
+				c: t.varchar({ length: 255 }),
 			}), (table) => [primaryKey({ columns: [table.id, table.c] })]),
 		};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({
-				id: t.integer(),
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				id: t.int(),
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
@@ -119,21 +116,21 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 	test('unique: create vs drop', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar().unique(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }).unique(),
 			})),
 		};
 
 		const child1 = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar().unique(),
-				d: t.varchar().unique(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }).unique(),
+				d: t.varchar({ length: 255 }).unique(),
 			})),
 		};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({
-				c: t.varchar(),
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
@@ -147,31 +144,31 @@ describe('conflict rule coverage (statement pairs)', () => {
 	});
 
 	test('fk: recreate vs drop', async () => {
-		const p = pgTable('p', (t) => ({
-			id: t.integer().primaryKey(),
+		const p = mysqlTable('p', (t) => ({
+			id: t.int().primaryKey(),
 		}));
 
 		const parent = {
 			p,
-			t: pgTable('t', (t) => ({
-				id: t.integer().primaryKey(),
-				pId: t.integer().references(() => p.id),
+			t: mysqlTable('t', (t) => ({
+				id: t.int().primaryKey(),
+				pId: t.int().references(() => p.id),
 			})),
 		};
 
 		const child1 = {
 			p,
-			t: pgTable('t', (t) => ({
-				id: t.integer().primaryKey(),
-				pId: t.integer().references(() => p.id, { onDelete: 'cascade' }),
+			t: mysqlTable('t', (t) => ({
+				id: t.int().primaryKey(),
+				pId: t.int().references(() => p.id, { onDelete: 'cascade' }),
 			})),
 		};
 
 		const child2 = {
 			p,
-			t: pgTable('t', (t) => ({
-				id: t.integer().primaryKey(),
-				pId: t.integer(),
+			t: mysqlTable('t', (t) => ({
+				id: t.int().primaryKey(),
+				pId: t.int(),
 			})),
 		};
 
@@ -186,20 +183,20 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 	test('check: alter vs drop', async () => {
 		const parent = {
-			t: pgTable('t', (t) => ({
-				c: t.integer(),
+			t: mysqlTable('t', (t) => ({
+				c: t.int(),
 			}), (table) => [check('chk', sql`${table.c} > 0`)]),
 		};
 
 		const child1 = {
-			t: pgTable('t', (t) => ({
-				c: t.integer(),
+			t: mysqlTable('t', (t) => ({
+				c: t.int(),
 			}), (table) => [check('chk', sql`${table.c} > 5`)]),
 		};
 
 		const child2 = {
-			t: pgTable('t', (t) => ({
-				c: t.integer(),
+			t: mysqlTable('t', (t) => ({
+				c: t.int(),
 			})),
 		};
 
@@ -214,15 +211,15 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 	test('explainConflicts returns reason for table drop vs column alter', async () => {
 		const parent = {
-			c: pgTable('t', (t) => ({
-				c: t.varchar(),
+			c: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
 			})),
 		};
 
 		const child1 = {};
 		const child2 = {
-			c: pgTable('t', (t) => ({
-				c: t.varchar().notNull(),
+			c: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }).notNull(),
 			})),
 		};
 

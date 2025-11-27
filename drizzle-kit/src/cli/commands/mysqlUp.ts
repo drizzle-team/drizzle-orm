@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { Column, MySqlSchemaV4, MySqlSchemaV5, mysqlSchemaV5, Table } from '../../serializer/mysqlSchema';
-import { Journal } from '../../utils';
+import type { Column, MySqlSchemaV4, MySqlSchemaV5, Table } from '../../legacy/mysql-v5/mysqlSchema';
+import type { Journal } from '../../utils';
 
 export const upMysqlHandler = (out: string) => {
 	// if there is meta folder - and there is a journal - it's version <8
