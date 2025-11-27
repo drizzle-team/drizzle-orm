@@ -50,7 +50,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { EmptyProgressView, psqlExplain } from 'src/cli/views';
+import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
@@ -257,8 +257,8 @@ export const push = async (config: {
 	const hints = await suggestions(db, statements);
 
 	if (config.explain) {
-		const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
-		console.log(text);
+		const msg = explain('postgres', groupedStatements, true, hints);
+		console.log(msg);
 		return { sqlStatements, statements, hints };
 	}
 
