@@ -902,7 +902,7 @@ test('recreate table with added column not null and without default with data', 
 	await db.run(`INSERT INTO \`users\` ("name", "age") VALUES ('drizzle', 12)`);
 	await db.run(`INSERT INTO \`users\` ("name", "age") VALUES ('turso', 12)`);
 
-	const { sqlStatements: pst, hints: phints, losses, error } = await push({
+	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,
 		expectError: true,
@@ -926,10 +926,7 @@ test('recreate table with added column not null and without default with data', 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints).toStrictEqual([
-		`· You're about to add not-null 'new_column' column without default value to non-empty 'users' table`,
-	]);
-	expect(losses).toStrictEqual(['DELETE FROM "users" where true;']);
+	expect(phints[0].statement).toStrictEqual('DELETE FROM "users" where true;');
 	expect(error).toBeNull();
 });
 

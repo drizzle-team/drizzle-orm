@@ -153,10 +153,10 @@ export const push = async (config: {
 		'push',
 	);
 
-	const res = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
 
 	if (force) {
-		for (const st of res) {
+		for (const st of hints) {
 			if (!st.statement) continue;
 			await db.run(st.statement);
 		}
@@ -192,7 +192,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints: res, error, next: ddl2 };
+	return { sqlStatements, statements, hints, error, next: ddl2 };
 };
 
 export const diffDefault = async <T extends SQLiteColumnBuilder>(

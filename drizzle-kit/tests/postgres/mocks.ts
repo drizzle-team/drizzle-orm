@@ -257,8 +257,8 @@ export const push = async (config: {
 	const hints = await suggestions(db, statements);
 
 	if (config.explain) {
-		const msg = explain('postgres', groupedStatements, true, hints);
-		console.log(msg);
+		const explainMessage = explain('postgres', groupedStatements, false, []);
+		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
 
