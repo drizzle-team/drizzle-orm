@@ -8,5 +8,5 @@ export function migrate<TSchema extends Record<string, unknown>, TRelations exte
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	db.dialect.migrate(migrations, db.session, config);
+	return db.dialect.migrate(migrations, db.session, config);
 }

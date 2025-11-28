@@ -22,11 +22,6 @@ export interface JsonCreateTable {
 	table: Table;
 }
 
-export interface JsonRecreateTable {
-	type: 'recreate_table';
-	table: Table;
-}
-
 export interface JsonDropTable {
 	type: 'drop_table';
 	table: Table;
@@ -67,11 +62,13 @@ export interface JsonRecreateEnum {
 	type: 'recreate_enum';
 	to: Enum;
 	columns: Column[];
+	from: Enum;
 }
 
 export interface JsonAlterEnum {
 	type: 'alter_enum';
-	enum: Enum;
+	to: Enum;
+	from: Enum;
 	diff: {
 		type: 'same' | 'removed' | 'added';
 		value: string;
@@ -113,6 +110,7 @@ export interface JsonRevokePrivilege {
 export interface JsonRegrantPrivilege {
 	type: 'regrant_privilege';
 	privilege: Privilege;
+	diff: DiffEntities['privileges'];
 }
 
 export interface JsonDropValueFromEnum {
@@ -193,11 +191,18 @@ export interface JsonAlterPolicy {
 export interface JsonRecreatePolicy {
 	type: 'recreate_policy';
 	policy: Policy;
+	diff: DiffEntities['policies'];
 }
 
 export interface JsonCreateIndex {
 	type: 'create_index';
 	index: Index;
+}
+
+export interface JsonRecreateIndex {
+	type: 'recreate_index';
+	index: Index;
+	diff: DiffEntities['indexes'];
 }
 
 export interface JsonCreateFK {
@@ -213,6 +218,7 @@ export interface JsonDropFK {
 export interface JsonRecreateFK {
 	type: 'recreate_fk';
 	fk: ForeignKey;
+	diff: DiffEntities['fks'];
 }
 
 export interface JsonCreateUnique {
@@ -242,7 +248,7 @@ export interface JsonDropCheck {
 
 export interface JsonAlterCheck {
 	type: 'alter_check';
-	check: CheckConstraint;
+	diff: DiffEntities['checks'];
 }
 
 export interface JsonAddPrimaryKey {
@@ -317,7 +323,7 @@ export interface JsonAlterColumn {
 
 export interface JsonRecreateColumn {
 	type: 'recreate_column';
-	column: Column;
+	diff: DiffEntities['columns'];
 	isPK: boolean;
 }
 
@@ -335,18 +341,6 @@ export interface JsonAlterColumnChangeGenerated {
 export interface JsonAlterColumnChangeIdentity {
 	type: 'alter_column_change_identity';
 	column: Column;
-}
-
-export interface JsonAlterColumnAlterGenerated {
-	type: 'alter_column_alter_generated';
-	table: string;
-	column: string;
-	schema: string;
-	newDataType: string;
-	columnDefault: string;
-	columnNotNull: boolean;
-	columnPk: boolean;
-	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
 }
 
 export interface JsonCreateSchema {
@@ -404,7 +398,6 @@ export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
 	| JsonRenameTable
-	| JsonRecreateTable
 	| JsonRenameColumn
 	| JsonAlterColumn
 	| JsonRecreateColumn
@@ -462,7 +455,8 @@ export type JsonStatement =
 	| JsonDropView
 	| JsonRenameView
 	| JsonAlterCheck
-	| JsonDropValueFromEnum;
+	| JsonDropValueFromEnum
+	| JsonRecreateIndex;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

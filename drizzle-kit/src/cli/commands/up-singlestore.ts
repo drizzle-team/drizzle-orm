@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import type { SchemaV1, SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';

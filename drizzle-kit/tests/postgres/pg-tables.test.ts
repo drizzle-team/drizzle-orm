@@ -1268,7 +1268,7 @@ test('rename table with composite primary key', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2, renames });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0: string[] = ['ALTER TABLE "table1" RENAME TO "table2";'];
 
@@ -1283,9 +1283,9 @@ test('rename table and enable rls', async () => {
 		}),
 	};
 	const schema2 = {
-		table: pgTable('table2', {
+		table: pgTable.withRLS('table2', {
 			id: text().primaryKey(),
-		}).enableRLS(),
+		}),
 	};
 
 	const renames = ['public.table1->public.table2'];

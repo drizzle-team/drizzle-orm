@@ -44,7 +44,7 @@ let client: mysql.Connection;
 export async function createDockerDB() {
 	globalDocker = new Docker();
 	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
+	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67';
 
 	const pullStream = await globalDocker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -3786,6 +3786,9 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 					ownerId: 3,
 				},
 				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
 			},
 		},
 		orderBy: {
@@ -11128,6 +11131,7 @@ test('alltypes', async () => {
 			\`scol\` serial,
 			\`bigint53\` bigint,
 			\`bigint64\` bigint,
+			\`bigint_string\` bigint,
 			\`binary\` binary,
 			\`boolean\` boolean,
 			\`char\` char,
@@ -11173,6 +11177,7 @@ test('alltypes', async () => {
 		serial: 1,
 		bigint53: 9007199254740991,
 		bigint64: 5044565289845416380n,
+		bigintString: '5044565289845416380',
 		binary: '1',
 		boolean: true,
 		char: 'c',
@@ -11241,6 +11246,7 @@ test('alltypes', async () => {
 			serial: 1,
 			bigint53: 9007199254740991,
 			bigint64: 5044565289845416380n,
+			bigintString: '5044565289845416380',
 			binary: '1',
 			boolean: true,
 			char: 'c',

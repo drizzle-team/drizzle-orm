@@ -191,7 +191,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, truncates } = await suggestions(db, statements);
+	const res = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -223,7 +223,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, truncates };
+	return { sqlStatements, statements, hints: res };
 };
 
 export const diffDefault = async <T extends MySqlColumnBuilder>(

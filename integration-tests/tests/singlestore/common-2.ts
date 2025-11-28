@@ -60,8 +60,8 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { Expect } from '~/utils';
-import type { Equal } from '~/utils';
+import { Expect } from '../utils';
+import type { Equal } from '../utils';
 import type { Test } from './instrumentation';
 import type relations from './relations';
 
@@ -74,6 +74,9 @@ const allTypesTable = singlestoreTable('all_types', {
 	}),
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
+	}),
+	bigintString: bigint('bigint_string', {
+		mode: 'string',
 	}),
 	binary: binary('binary'),
 	boolean: boolean('boolean'),
@@ -211,69 +214,90 @@ const usersMySchemaTable = mySchema.table('userstest', {
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export function tests(test: Test, driver?: string) {
+export function tests(test: Test) {
+	const connDict: Record<string, any> = {};
+
 	describe('common', () => {
-		test.beforeEach(async ({ db }) => {
-			await Promise.all([
-				db.execute(sql`drop schema if exists \`mySchema\`;`),
-				db.execute(sql`drop table if exists userstest;`),
-				db.execute(sql`drop table if exists users2;`),
-				db.execute(sql`drop table if exists cities;`),
-				db.execute(sql`drop table if exists aggregate_table;`),
-				db.execute(sql`drop table if exists vector_search;`),
-				db.execute(sql`drop table if exists users_default_fn;`),
-			]);
-			await db.execute(sql`create schema if not exists \`mySchema\`;`);
-			await Promise.all([
-				db.execute(sql`create table userstest (
+		test.beforeEach(async ({ db, client }) => {
+			const connKey = `${client.config.user}:${client.config.password}@${client.config.host}:${client.config.port}`;
+
+			if (connDict[connKey] === undefined) {
+				connDict[connKey] = false;
+
+				await Promise.all([
+					db.execute(sql`drop schema if exists \`mySchema\`;`),
+					db.execute(sql`drop table if exists userstest;`),
+					db.execute(sql`drop table if exists users2;`),
+					db.execute(sql`drop table if exists cities;`),
+					db.execute(sql`drop table if exists aggregate_table;`),
+					db.execute(sql`drop table if exists vector_search;`),
+					db.execute(sql`drop table if exists users_default_fn;`),
+				]);
+				await db.execute(sql`create schema \`mySchema\`;`);
+				await Promise.all([
+					db.execute(sql`create table userstest (
                         id serial primary key,
                         name text not null,
                         verified boolean not null default false,
                         jsonb json,
                         created_at timestamp not null default now()
                     );`),
-				db.execute(sql`create table users2 (
+					db.execute(sql`create table users2 (
                         id serial primary key,
                         name text not null,
                         city_id int
-                );`),
-				db.execute(sql`create table cities (
-                    id serial primary key,
-                    name text not null
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`userstest\` (
-                    id serial primary key,
-                    name text not null,
-                    verified boolean not null default false,
-                    jsonb json,
-                    created_at timestamp not null default now()
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`cities\` (
-                    \`id\` serial primary key,
-                    \`name\` text not null
-                );`),
-				db.execute(sql`create table \`mySchema\`.\`users2\` (
-                    \`id\` serial primary key,
-                    \`name\` text not null,
-                    \`city_id\` int 
-                );`),
-				db.execute(sql`create table aggregate_table (
-                    id integer primary key auto_increment not null,
-                    name text not null,
-                    a integer,
-                    b integer,
-                    c integer,
-                    null_only integer
-                );`),
-				db.execute(sql`create table vector_search (
-                    id integer primary key auto_increment not null,
-                    text text not null,
-                    embedding vector(10) not null
-                );`),
-				db.execute(sql`create table users_default_fn (
-                    id varchar(256) primary key,
-                    name text not null
-                );`),
+                	);`),
+					db.execute(sql`create table cities (
+                	    id serial primary key,
+                	    name text not null
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`userstest\` (
+                	    id serial primary key,
+                	    name text not null,
+                	    verified boolean not null default false,
+                	    jsonb json,
+                	    created_at timestamp not null default now()
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`cities\` (
+                	    \`id\` serial primary key,
+                	    \`name\` text not null
+                	);`),
+					db.execute(sql`create table \`mySchema\`.\`users2\` (
+                	    \`id\` serial primary key,
+                	    \`name\` text not null,
+                	    \`city_id\` int 
+                	);`),
+					db.execute(sql`create table aggregate_table (
+                	    id integer primary key auto_increment not null,
+                	    name text not null,
+                	    a integer,
+                	    b integer,
+                	    c integer,
+                	    null_only integer
+                	);`),
+					db.execute(sql`create table vector_search (
+                	    id integer primary key auto_increment not null,
+                	    text text not null,
+                	    embedding vector(10) not null
+                	);`),
+					db.execute(sql`create table users_default_fn (
+                	    id varchar(256) primary key,
+                	    name text not null
+                	);`),
+				]);
+			}
+
+			await Promise.all([
+				db.execute(sql`truncate table userstest;`),
+				db.execute(sql`truncate table users2;`),
+				db.execute(sql`truncate table cities;`),
+				db.execute(sql`truncate table aggregate_table;`),
+				db.execute(sql`truncate table vector_search;`),
+				db.execute(sql`truncate table users_default_fn;`),
+
+				db.execute(sql`truncate table \`mySchema\`.\`userstest\`;`),
+				db.execute(sql`truncate table \`mySchema\`.\`cities\`;`),
+				db.execute(sql`truncate table \`mySchema\`.\`users2\`;`),
 			]);
 		});
 
@@ -1711,7 +1735,7 @@ export function tests(test: Test, driver?: string) {
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 1000;
+			const msDelay = 5000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -2376,6 +2400,193 @@ export function tests(test: Test, driver?: string) {
 			]);
 		});
 
+		test.concurrent('column.as', async ({ db, push }) => {
+			const users = singlestoreTable('users_column_as', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const cities = singlestoreTable('cities_column_as', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users, cities });
+
+			try {
+				await db.insert(cities).values([{
+					id: 1,
+					name: 'Firstistan',
+				}, {
+					id: 2,
+					name: 'Secondaria',
+				}]);
+
+				await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+					id: 2,
+					name: 'Second',
+					cityId: 2,
+				}, {
+					id: 3,
+					name: 'Third',
+				}]);
+
+				const joinSelectReturn = await db.select({
+					userId: users.id.as('user_id'),
+					cityId: cities.id.as('city_id'),
+					userName: users.name.as('user_name'),
+					cityName: cities.name.as('city_name'),
+				}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+
+				expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+					userId: 1,
+					userName: 'First',
+					cityId: 1,
+					cityName: 'Firstistan',
+				}, {
+					userId: 2,
+					userName: 'Second',
+					cityId: 2,
+					cityName: 'Secondaria',
+				}, {
+					userId: 3,
+					userName: 'Third',
+					cityId: null,
+					cityName: null,
+				}]));
+			} finally {
+				await db.execute(sql`DROP TABLE ${users}`).catch(() => null);
+				await db.execute(sql`DROP TABLE ${cities}`).catch(() => null);
+			}
+		});
+
+		test.concurrent('select from a many subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_many_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					population: number;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]));
+		});
+
+		test.concurrent('select from a one subquery', async ({ db, push }) => {
+			const users2Table = singlestoreTable('users_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			const citiesTable = singlestoreTable('cities_one_subquery', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					cityName: string;
+					name: string;
+				}[]
+			>();
+
+			expect(res).toStrictEqual(expect.arrayContaining([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]));
+		});
+
+		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
+			const users = singlestoreTable('users_on_update_sql', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at')
+					.notNull()
+					.$onUpdate(() => sql`current_timestamp`),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({
+				name: 'John',
+			});
+			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			await db.update(users).set({
+				name: 'John',
+			});
+			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
 		test.concurrent('all types', async ({ db }) => {
 			await db.execute(sql`drop table if exists ${allTypesTable};`);
 			await db.execute(sql`
@@ -2383,6 +2594,7 @@ export function tests(test: Test, driver?: string) {
                         \`scol\` serial,
                         \`bigint53\` bigint,
                         \`bigint64\` bigint,
+                        \`bigint_string\` bigint,
                         \`binary\` binary,
                         \`boolean\` boolean,
                         \`char\` char,
@@ -2423,6 +2635,7 @@ export function tests(test: Test, driver?: string) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
+				bigintString: '5044565289845416380',
 				binary: '1',
 				boolean: true,
 				char: 'c',
@@ -2478,6 +2691,7 @@ export function tests(test: Test, driver?: string) {
 				serial: number;
 				bigint53: number | null;
 				bigint64: bigint | null;
+				bigintString: string | null;
 				binary: string | null;
 				boolean: boolean | null;
 				char: string | null;
@@ -2517,6 +2731,7 @@ export function tests(test: Test, driver?: string) {
 					serial: 1,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
+					bigintString: '5044565289845416380',
 					binary: '1',
 					boolean: true,
 					char: 'c',

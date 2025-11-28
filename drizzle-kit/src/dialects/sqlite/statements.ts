@@ -1,4 +1,5 @@
-import type { Column, DiffColumn, ForeignKey, Index, TableFull, View } from './ddl';
+import type { DiffEntities } from '../cockroach/ddl';
+import type { Column, DiffColumn, ForeignKey, Index, SQLiteDDL, TableFull, View } from './ddl';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -9,6 +10,20 @@ export interface JsonRecreateTableStatement {
 	type: 'recreate_table';
 	to: TableFull;
 	from: TableFull;
+	checkDiffs: SQLiteDDL['_']['diffs']['createdrop']['checks'][];
+	uniquesDiff: SQLiteDDL['_']['diffs']['createdrop']['uniques'][];
+	pksDiff: SQLiteDDL['_']['diffs']['createdrop']['pks'][];
+	fksDiff: SQLiteDDL['_']['diffs']['createdrop']['fks'][];
+	indexesDiff: SQLiteDDL['_']['diffs']['createdrop']['indexes'][];
+
+	alteredColumnsBecameGenerated: SQLiteDDL['_']['diffs']['alter']['columns'][];
+	newStoredColumns: Column[];
+
+	columnAlters: SQLiteDDL['_']['diffs']['alter']['columns'][];
+	pksAlters: SQLiteDDL['_']['diffs']['alter']['pks'][];
+	fksAlters: SQLiteDDL['_']['diffs']['alter']['fks'][];
+	uniquesAlters: SQLiteDDL['_']['diffs']['alter']['uniques'][];
+	checksAlters: SQLiteDDL['_']['diffs']['alter']['checks'][];
 }
 
 export interface JsonDropTableStatement {
@@ -53,6 +68,7 @@ export interface JsonRenameColumnStatement {
 export interface JsonRecreateColumnStatement {
 	type: 'recreate_column';
 	column: Column;
+	diffGenerated: DiffEntities['columns']['generated'];
 	fk: ForeignKey | null;
 }
 
@@ -125,6 +141,7 @@ export const prepareRecreateColumn = (
 	if (diffColumn.generated) {
 		return {
 			type: 'recreate_column',
+			diffGenerated: diffColumn.generated,
 			column: column,
 			fk: fk,
 		};

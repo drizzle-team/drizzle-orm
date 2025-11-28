@@ -1,4 +1,5 @@
 import type * as V1 from './_relations.ts';
+import { OriginalColumn } from './column-common.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -7,14 +8,18 @@ import { SQL, sql } from './sql/sql.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
-export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
-	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
+export class ColumnTableAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
+	static readonly [entityKind]: string = 'ColumnTableAliasProxyHandler';
 
-	constructor(private table: Table | View) {}
+	constructor(private table: Table | View, private ignoreColumnAlias?: boolean) {}
 
 	get(columnObj: TColumn, prop: string | symbol): any {
 		if (prop === 'table') {
 			return this.table;
+		}
+
+		if (prop === 'isAlias' && this.ignoreColumnAlias) {
+			return false;
 		}
 
 		return columnObj[prop as keyof TColumn];
@@ -24,7 +29,7 @@ export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHan
 export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'TableAliasProxyHandler';
 
-	constructor(private alias: string, private replaceOriginalName: boolean) {}
+	constructor(private alias: string, private replaceOriginalName: boolean, private ignoreColumnAlias?: boolean) {}
 
 	get(target: T, prop: string | symbol): any {
 		if (prop === Table.Symbol.IsAlias) {
@@ -58,7 +63,7 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 			Object.keys(columns).map((key) => {
 				proxiedColumns[key] = new Proxy(
 					columns[key]!,
-					new ColumnAliasProxyHandler(new Proxy(target, this)),
+					new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),
 				);
 			});
 
@@ -67,10 +72,39 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 
 		const value = target[prop as keyof typeof target];
 		if (is(value, Column)) {
-			return new Proxy(value as AnyColumn, new ColumnAliasProxyHandler(new Proxy(target, this)));
+			return new Proxy(
+				value as AnyColumn,
+				new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),
+			);
 		}
 
 		return value;
+	}
+}
+
+export class ColumnAliasProxyHandler<T extends Column> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
+
+	constructor(private alias: string) {}
+
+	get(target: T, prop: keyof Column): any {
+		if (prop === 'isAlias') {
+			return true;
+		}
+
+		if (prop === 'name') {
+			return this.alias;
+		}
+
+		if (prop === 'keyAsName') {
+			return false;
+		}
+
+		if (prop === OriginalColumn) {
+			return () => target;
+		}
+
+		return target[prop];
 	}
 }
 
@@ -89,7 +123,11 @@ export class RelationTableAliasProxyHandler<T extends V1.Relation> implements Pr
 }
 
 export function aliasedTable<T extends Table | View>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false));
+	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false));
+}
+
+export function aliasedColumn<T extends Column>(column: T, alias: string): T {
+	return new Proxy(column, new ColumnAliasProxyHandler(alias));
 }
 
 export function aliasedRelation<T extends V1.Relation>(relation: T, tableAlias: string): T {
@@ -99,7 +137,10 @@ export function aliasedRelation<T extends V1.Relation>(relation: T, tableAlias: 
 export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: string): T {
 	return new Proxy(
 		column,
-		new ColumnAliasProxyHandler(new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false))),
+		new ColumnTableAliasProxyHandler(
+			new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false, false)),
+			false,
+		),
 	);
 }
 
@@ -120,4 +161,13 @@ export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
 		}
 		return c;
 	}));
+}
+
+// Defined separately from the Column class to resolve circular dependency
+Column.prototype.as = function(alias: string): Column {
+	return aliasedColumn(this, alias);
+};
+
+export function getOriginalColumnFromAlias<T extends Column>(column: T): T {
+	return column[OriginalColumn]();
 }

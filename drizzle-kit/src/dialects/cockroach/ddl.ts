@@ -17,10 +17,7 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',
-			default: {
-				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'func', 'unknown'],
-			},
+			default: 'string?',
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',

@@ -19,7 +19,6 @@ export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
 	filters: EntitiesFilterConfig,
-	strict: boolean,
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
@@ -27,7 +26,11 @@ export const handle = async (
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
 
-	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
+	/*
+		schemas in singlestore are ignored just like in mysql
+		there're now views in singlestore either, so no entities with .existing() for now
+	 */
+	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const { db, database } = await connectToSingleStore(credentials);
 	const progress = new ProgressView(
@@ -78,7 +81,7 @@ export const handle = async (
 			console.log();
 		}
 
-		if (!force && strict && hints.length > 0) {
+		if (!force && hints.length > 0) {
 			const { data } = await render(
 				new Select(['No, abort', `Yes, I want to execute all statements`]),
 			);

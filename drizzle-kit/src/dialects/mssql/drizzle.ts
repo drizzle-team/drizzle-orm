@@ -1,5 +1,6 @@
 import type { Casing } from 'drizzle-orm';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
 	getTableConfig,
@@ -13,6 +14,7 @@ import {
 import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
@@ -51,23 +53,19 @@ export const fromDrizzleSchema = (
 		views: MsSqlView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): { schema: InterimSchema; errors: SchemaError[] } => {
 	const dialect = new MsSqlDialect({ casing });
 	const errors: SchemaError[] = [];
 
 	const schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'dbo' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'dbo';
-			} else {
-				return it.name !== 'dbo';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
@@ -110,7 +108,7 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'dbo';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
+		if (!filter({ type: 'table', schema, name: tableName })) {
 			continue;
 		}
 
@@ -313,6 +311,7 @@ export const fromDrizzleSchema = (
 		} = cfg;
 
 		if (isExisting) continue;
+		if (!filter({ type: 'table', schema: drizzleSchema ?? 'dbo', name })) continue;
 
 		const schema = drizzleSchema ?? 'dbo';
 
@@ -352,6 +351,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -363,6 +363,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			tables.push(...prepared.tables);
 			schemas.push(...prepared.schemas);
 			views.push(...prepared.views);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -370,6 +371,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		tables,
 		schemas,
 		views,
+		relations,
 	};
 };
 
@@ -377,6 +379,7 @@ const fromExport = (exports: Record<string, unknown>) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -391,11 +394,16 @@ const fromExport = (exports: Record<string, unknown>) => {
 		if (is(t, MsSqlView)) {
 			views.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
 		tables,
 		schemas,
 		views,
+		relations,
 	};
 };

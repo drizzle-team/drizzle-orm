@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';

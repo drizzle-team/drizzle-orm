@@ -165,7 +165,7 @@ export const defaultToSQL = (it: Pick<Column, 'default' | 'dimensions' | 'type' 
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions, typeSchema } = it;
-	const { value } = it.default;
+	const value = it.default;
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
@@ -178,7 +178,7 @@ export const defaultToSQL = (it: Pick<Column, 'default' | 'dimensions' | 'type' 
 	const grammarType = typeFor(columnType, Boolean(typeSchema));
 
 	if (grammarType) {
-		const value = it.default.value ?? '';
+		const value = it.default ?? '';
 		return `${value}${suffix}`;
 	}
 
@@ -370,10 +370,10 @@ export const defaultsCommutative = (
 ): boolean => {
 	if (!diffDef) return false;
 
-	if (diffDef.from?.value === diffDef.to?.value) return true;
+	if (diffDef.from === diffDef.to) return true;
 
-	let from = diffDef.from?.value;
-	let to = diffDef.to?.value;
+	let from = diffDef.from;
+	let to = diffDef.to;
 
 	if (from === to) return true;
 
@@ -407,7 +407,11 @@ export const defaultsCommutative = (
 	}
 
 	if ((type.startsWith('bit') || type.startsWith('varbit')) && from && to) {
-		if (formatBit(type, diffDef.from?.value, true) === formatBit(type, diffDef?.to?.value, true)) return true;
+		if (
+			formatBit(type, diffDef.from, true) === formatBit(type, diffDef?.to, true)
+		) {
+			return true;
+		}
 
 		try {
 			const stringify = (v: any) => {
@@ -434,8 +438,8 @@ export const defaultsCommutative = (
 
 	if (type.startsWith('timestamp')) {
 		// "Z" can be inserted in mode:string
-		from = from?.replace('Z', '+00');
-		to = to?.replace('Z', '+00');
+		from = from?.replace('Z', '+00') ?? null;
+		to = to?.replace('Z', '+00') ?? null;
 		if (from === to) return true;
 
 		const { options } = splitSqlType(type);
@@ -480,8 +484,8 @@ export const defaultsCommutative = (
 	}
 
 	if (type.startsWith('time')) {
-		from = from?.replace('Z', '+00');
-		to = to?.replace('Z', '+00');
+		from = from?.replace('Z', '+00') ?? null;
+		to = to?.replace('Z', '+00') ?? null;
 
 		if (from === to) return true;
 
@@ -505,8 +509,7 @@ export const defaultsCommutative = (
 					const fromArrayOriginal = stringifyArray(parseArray(from), 'sql', (v) => stringify(v, false));
 
 					if (fromArrayOriginal === toArray) return true;
-				} catch {
-				}
+				} catch {}
 
 				return false;
 			}
@@ -535,8 +538,7 @@ export const defaultsCommutative = (
 				try {
 					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatDate(v));
 					if (from === toArray) return true;
-				} catch {
-				}
+				} catch {}
 
 				return false;
 			}
@@ -556,8 +558,7 @@ export const defaultsCommutative = (
 					// parse to identical format
 					const fromArrayOriginal = stringifyArray(parseArray(from), 'sql', (v) => String(v));
 					if (fromArrayOriginal === toArray) return true;
-				} catch {
-				}
+				} catch {}
 
 				return false;
 			}
@@ -568,8 +569,8 @@ export const defaultsCommutative = (
 	// const timeCommutatives = [['now', 'now()', 'current_timestamp', 'current_timestamp()']];
 	// if (type.startsWith('timestamp')) {
 	// 	for (const it of timeCommutatives) {
-	// 		const leftIn = it.some((x) => x === diffDef.from?.value);
-	// 		const rightIn = it.some((x) => x === diffDef.to?.value);
+	// 		const leftIn = it.some((x) => x === diffDef.from);
+	// 		const rightIn = it.some((x) => x === diffDef.to);
 
 	// 		if (leftIn && rightIn) return true;
 	// 	}
@@ -599,9 +600,7 @@ export const defaultsCommutative = (
 	return false;
 };
 
-const commutativeTypes = [
-	['char(1)', 'char'],
-];
+const commutativeTypes = [['char(1)', 'char']];
 export const typesCommutative = (left: string, right: string) => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
@@ -629,16 +628,16 @@ export const Int2: SqlType = {
 	is: (type: string) => /^\s*int2(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'int2',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' }; // 10, but '-10'
+		return value; // 10, but '-10'
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (_, value) => ({ default: value ?? '' }),
 	toArrayTs: (_, value) => {
@@ -674,19 +673,16 @@ export const Int8: SqlType = {
 	is: (type: string) => /^\s*int8(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'int8',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return {
-			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
-			type: 'unknown',
-		};
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' }; // 10, but '-10'
+		return value; // 10, but '-10'
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (_, value) => {
 		if (!value) return { options: { mode: 'number' }, default: '' };
@@ -698,7 +694,10 @@ export const Int8: SqlType = {
 		try {
 			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
 			const res = parseArray(trimmed);
-			return { options: { mode: 'bigint' }, default: stringifyArray(res, 'ts', (v) => `${v}n`) };
+			return {
+				options: { mode: 'bigint' },
+				default: stringifyArray(res, 'ts', (v) => `${v}n`),
+			};
 		} catch {
 			return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
 		}
@@ -709,16 +708,16 @@ export const Bool: SqlType = {
 	is: (type: string) => /^\s*bool(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'bool',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: `'${stringifyArray(value, 'sql', (v) => (v === true ? 'true' : 'false'))}'`, type: 'unknown' };
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: trimChar(value, "'"), type: 'unknown' };
+		return trimChar(value, "'");
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (_, value) => ({ default: value ?? '' }),
 	toArrayTs: (_, value) => {
@@ -743,27 +742,29 @@ export const Uuid: SqlType = {
 	is: (type: string) => /^\s*uuid(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'uuid',
 	defaultFromDrizzle: (value) => {
-		return { value: `'${value}'`, type: 'unknown' };
+		return `'${value}'`;
 	},
 	defaultArrayFromDrizzle: (value) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v !== 'string') throw new Error();
 			return v;
 		});
-		return { value: `'${res}'`, type: 'unknown' };
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
 		if (!value) return { options, default: '' };
 
 		value = trimChar(value, "'");
-		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+		if (value === 'gen_random_uuid()') {
+			return { options, default: '.defaultRandom()' };
+		}
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
@@ -790,17 +791,17 @@ export const Real: SqlType = {
 	is: (type: string) => /^\s*real(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'real',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value) => {
 		// 100 will be stored as 100.0
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (_, value) => ({ default: value ?? '' }),
 	toArrayTs: (_, value) => {
@@ -837,19 +838,16 @@ export const Decimal: SqlType = {
 	is: (type: string) => /^\s*decimal(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'decimal',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return {
-			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
-			type: 'unknown',
-		};
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
-	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+	defaultFromIntrospect: (value: string) => {
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (type, value) => {
 		const [precision, scale] = parseParams(type);
@@ -897,17 +895,17 @@ export const Bit: SqlType = {
 	is: (type: string) => /^\s*bit(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'bit',
 	defaultFromDrizzle: (value) => {
-		return { type: 'unknown', value: `'${value}'` };
+		return `'${value}'`;
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value) => {
 		// it is stored as B'<value>'
-		return { value: value.replace(/^B'/, "'"), type: 'unknown' };
+		return value.replace(/^B'/, "'");
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const [length] = parseParams(type);
@@ -960,31 +958,28 @@ export const Timestamp: SqlType = {
 	is: (type) => /^\s*timestamp(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '')}'` };
+		if (value instanceof Date) {
+			return `'${value.toISOString().replace('T', ' ').replace('Z', '')}'`;
 		}
 
-		return { type: 'unknown', value: `'${String(value)}'` };
+		return `'${String(value)}'`;
 	},
 	defaultArrayFromDrizzle(value) {
-		return {
-			value: `'${
-				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-						return `"${v.toISOString().replace('T', ' ').replace('Z', '')}"`;
-					}
+		return `'${
+			stringifyArray(value, 'sql', (v) => {
+				if (v instanceof Date) {
+					return `"${v.toISOString().replace('T', ' ').replace('Z', '')}"`;
+				}
 
-					return `"${String(v)}"`;
-				})
-			}'`,
-			type: 'unknown',
-		};
+				return `"${String(v)}"`;
+			})
+		}'`;
 	},
 	defaultFromIntrospect: (value: string) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (type, value) => {
 		const options: { mode: string; precision?: number } = { mode: 'string' };
@@ -994,7 +989,9 @@ export const Timestamp: SqlType = {
 
 		if (!value) return { default: '', options };
 
-		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+		if (value === 'now()' || value === 'current_timestamp()') {
+			return { default: '.defaultNow()', options };
+		}
 
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
@@ -1028,31 +1025,28 @@ export const TimestampTZ: SqlType = {
 	is: (type) => /^\s*timestamptz(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '+00')}'` };
+		if (value instanceof Date) {
+			return `'${value.toISOString().replace('T', ' ').replace('Z', '+00')}'`;
 		}
 
-		return { type: 'unknown', value: `'${String(value)}'` };
+		return `'${String(value)}'`;
 	},
 	defaultArrayFromDrizzle(value) {
-		return {
-			value: `'${
-				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-						return `"${v.toISOString().replace('T', ' ').replace('Z', '+00')}"`;
-					}
+		return `'${
+			stringifyArray(value, 'sql', (v) => {
+				if (v instanceof Date) {
+					return `"${v.toISOString().replace('T', ' ').replace('Z', '+00')}"`;
+				}
 
-					return `"${String(v)}"`;
-				})
-			}'`,
-			type: 'unknown',
-		};
+				return `"${String(v)}"`;
+			})
+		}'`;
 	},
 	defaultFromIntrospect: (value: string) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (type, value) => {
 		const options: { mode: string; withTimezone: boolean; precision?: number } = { mode: 'string', withTimezone: true };
@@ -1062,7 +1056,9 @@ export const TimestampTZ: SqlType = {
 
 		if (!value) return { default: '', options };
 
-		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+		if (value === 'now()' || value === 'current_timestamp()') {
+			return { default: '.defaultNow()', options };
+		}
 
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
@@ -1097,19 +1093,16 @@ export const Time: SqlType = {
 	is: (type) => /^\s*time(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'time',
 	defaultFromDrizzle: (value: unknown) => {
-		return { type: 'unknown', value: `'${String(value)}'` };
+		return `'${String(value)}'`;
 	},
 	defaultArrayFromDrizzle(value) {
-		return {
-			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
-			type: 'unknown',
-		};
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
 	},
 	defaultFromIntrospect: (value: string) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (type, value) => {
 		const options: { precision?: number } = {};
@@ -1119,7 +1112,9 @@ export const Time: SqlType = {
 
 		if (!value) return { default: '', options };
 
-		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+		if (value === 'now()' || value === 'current_timestamp()') {
+			return { default: '.defaultNow()', options };
+		}
 
 		// check for valid date
 		try {
@@ -1158,14 +1153,18 @@ export const TimeTz: SqlType = {
 	defaultFromIntrospect: Time.defaultFromIntrospect,
 	defaultArrayFromIntrospect: Time.defaultArrayFromIntrospect,
 	toTs: (type, value) => {
-		const options: { withTimezone: boolean; precision?: number } = { withTimezone: true };
+		const options: { withTimezone: boolean; precision?: number } = {
+			withTimezone: true,
+		};
 
 		const [precision] = parseParams(type);
 		if (precision) options.precision = Number(precision);
 
 		if (!value) return { default: '', options };
 
-		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+		if (value === 'now()' || value === 'current_timestamp()') {
+			return { default: '.defaultNow()', options };
+		}
 
 		// check for valid date
 		try {
@@ -1176,7 +1175,9 @@ export const TimeTz: SqlType = {
 		}
 	},
 	toArrayTs: (type, value) => {
-		const options: { withTimezone: boolean; precision?: number } = { withTimezone: true };
+		const options: { withTimezone: boolean; precision?: number } = {
+			withTimezone: true,
+		};
 
 		const [precision] = parseParams(type);
 		if (precision) options.precision = Number(precision);
@@ -1201,38 +1202,37 @@ export const DateType: SqlType = {
 	is: (type) => /^\s*date(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-			return { type: 'unknown', value: `'${value.toISOString().split('T')[0]}'` };
+		if (value instanceof Date) {
+			return `'${value.toISOString().split('T')[0]}'`;
 		}
 
-		return { type: 'unknown', value: `'${String(value)}'` };
+		return `'${String(value)}'`;
 	},
 	defaultArrayFromDrizzle(value) {
-		return {
-			value: `'${
-				stringifyArray(value, 'sql', (v) => {
-					if (v instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
-						return v.toISOString().split('T')[0];
-					}
+		return `'${
+			stringifyArray(value, 'sql', (v) => {
+				if (v instanceof Date) {
+					return v.toISOString().split('T')[0];
+				}
 
-					return String(v);
-				})
-			}'`,
-			type: 'unknown',
-		};
+				return String(v);
+			})
+		}'`;
 	},
 	defaultFromIntrospect: (value: string) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	toTs: (_, value) => {
 		const options: { mode: string } = { mode: 'string' };
 
 		if (!value) return { default: '', options };
 
-		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+		if (value === 'now()' || value === 'current_timestamp()') {
+			return { default: '.defaultNow()', options };
+		}
 
 		// check for valid date
 		try {
@@ -1269,29 +1269,29 @@ export const Char: SqlType = {
 	drizzleImport: () => 'char',
 	defaultFromDrizzle: (value) => {
 		const escaped = escapeForSqlDefault(String(value));
-		const result = String(value).includes('\\') || String(value).includes("'") ? `e'${escaped}'` : `'${escaped}'`;
+		const result = String(value).includes('\\') || String(value).includes("'")
+			? `e'${escaped}'`
+			: `'${escaped}'`;
 
-		return { value: result, type: 'unknown' };
+		return result;
 	},
 	defaultArrayFromDrizzle: (value) => {
-		const res = stringifyArray(
-			value,
-			'sql',
-			(v) => {
-				if (typeof v !== 'string') throw new Error();
-				const escaped = escapeForSqlDefault(v, 'arr');
-				if (v.includes('\\') || v.includes('"') || v.includes(',')) return `"${escaped}"`;
+		const res = stringifyArray(value, 'sql', (v) => {
+			if (typeof v !== 'string') throw new Error();
+			const escaped = escapeForSqlDefault(v, 'arr');
+			if (v.includes('\\') || v.includes('"') || v.includes(',')) {
+				return `"${escaped}"`;
+			}
 
-				return escaped;
-			},
-		);
-		return { value: `'${res}'`, type: 'unknown' };
+			return escaped;
+		});
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
@@ -1369,31 +1369,23 @@ export const Jsonb: SqlType = {
 			undefined,
 			undefined,
 		);
-		return {
-			type: 'unknown',
-			// cockroach escapes " inside of jsonb as \\"
-			value: shouldEscape ? `e'${stringified.replaceAll("'", "\\'").replaceAll('\\"', '\\\\"')}'` : `'${stringified}'`,
-		};
+		return shouldEscape
+			? `e'${stringified.replaceAll("'", "\\'").replaceAll('\\"', '\\\\"')}'`
+			: `'${stringified}'`;
 	},
 	// not supported
 	defaultArrayFromDrizzle: () => {
-		return {
-			value: `'[]'`,
-			type: 'unknown',
-		};
+		return `'[]'`;
 	},
 	/*
 		TODO: make less hacky,
 		from: { type: 'unknown', value: `'{"key": "value"}'` },
 		to:   { type: 'unknown', value: `'{"key":"value"}'` }
 	 */
-	defaultFromIntrospect: (value) => ({ type: 'unknown', value: value.replaceAll(`": "`, `":"`) }),
+	defaultFromIntrospect: (value) => value.replaceAll(`": "`, `":"`),
 	// not supported
 	defaultArrayFromIntrospect: () => {
-		return {
-			value: `'[]'`,
-			type: 'unknown',
-		};
+		return `'[]'`;
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
@@ -1435,28 +1427,27 @@ export const Interval: SqlType = {
 			.test(type),
 	drizzleImport: () => 'interval',
 	defaultFromDrizzle: (value) => {
-		return { value: `'${value}'`, type: 'unknown' };
+		return `'${value}'`;
 	},
 	defaultArrayFromDrizzle: (value) => {
-		const res = stringifyArray(
-			value,
-			'sql',
-			(v) => {
-				if (typeof v !== 'string') throw new Error();
-				return `"${v}"`;
-			},
-		);
+		const res = stringifyArray(value, 'sql', (v) => {
+			if (typeof v !== 'string') throw new Error();
+			return `"${v}"`;
+		});
 
-		return { value: `'${res}'`, type: 'unknown' };
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
-		const options: { precision?: number; fields?: typeof possibleIntervals[number] } = {};
+		const options: {
+			precision?: number;
+			fields?: (typeof possibleIntervals)[number];
+		} = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
 		const fields = parseIntervalFields(type);
@@ -1495,18 +1486,18 @@ export const Vector: SqlType = {
 	is: (type: string) => /^\s*vector(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'vector',
 	defaultFromDrizzle: (value) => {
-		return { value: `'[${String(value).replaceAll(' ', '')}]'`, type: 'unknown' };
+		return `'[${String(value).replaceAll(' ', '')}]'`;
 	},
 	// not supported
 	defaultArrayFromDrizzle: () => {
-		return { value: '', type: 'unknown' };
+		return '';
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	// not supported
 	defaultArrayFromIntrospect: () => {
-		return { value: '', type: 'unknown' };
+		return '';
 	},
 	toTs: (type, value) => {
 		const options: any = {};
@@ -1533,12 +1524,12 @@ export const Enum: SqlType = {
 	},
 	drizzleImport: () => 'cockroachEnum',
 	defaultFromDrizzle: (value: string) => {
-		if (!value) return { value: '', type: 'unknown' };
+		if (!value) return '';
 
 		if (value.includes("'") || value.includes('\\')) {
-			return { value: `e'${escapeForSqlDefault(value, 'default')}'`, type: 'unknown' };
+			return `e'${escapeForSqlDefault(value, 'default')}'`;
 		}
-		return { value: `'${value}'`, type: 'unknown' };
+		return `'${value}'`;
 	},
 
 	defaultArrayFromDrizzle: (value) => {
@@ -1554,13 +1545,13 @@ export const Enum: SqlType = {
 			},
 		);
 
-		return { value: `'${res}'`, type: 'unknown' };
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
@@ -1597,17 +1588,17 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		if (!value) return { value: '', type: 'unknown' };
-		return { value: String(value), type: 'unknown' };
+		if (!value) return '';
+		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
@@ -1639,18 +1630,20 @@ export const GeometryPoint: SqlType = {
 	is: (type: string) => /^\s*geometry\(point(?:,\d+)?\)(?:\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'geometry',
 	defaultFromDrizzle: (value, mode, config) => {
-		if (!value) return { type: 'unknown', value: '' };
+		if (!value) return '';
 
 		const srid: number | undefined = config ? Number(config) : undefined;
 		let sridPrefix = srid ? `SRID=${srid};` : '';
 		if (mode === 'tuple') {
 			const v: number[] = value as number[];
-			return { type: 'unknown', value: v.length > 0 ? `'${sridPrefix}POINT(${v[0]} ${v[1]})'` : '' };
+			return v.length > 0 ? `'${sridPrefix}POINT(${v[0]} ${v[1]})'` : '';
 		}
 
 		if (mode === 'object') {
 			const v: { x: number; y: number } = value as { x: number; y: number };
-			return { type: 'unknown', value: Object.values(v).length > 0 ? `'${sridPrefix}POINT(${v.x} ${v.y})'` : '' };
+			return Object.values(v).length > 0
+				? `'${sridPrefix}POINT(${v.x} ${v.y})'`
+				: '';
 		}
 
 		throw new Error('unknown geometry type');
@@ -1672,7 +1665,7 @@ export const GeometryPoint: SqlType = {
 			});
 		} else throw new Error('unknown geometry type');
 
-		return { type: 'unknown', value: `'${res}'` };
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
 		try {
@@ -1680,7 +1673,7 @@ export const GeometryPoint: SqlType = {
 			value = `'${(srid ? `SRID=${srid};` : ``) + `POINT(${point[0]} ${point[1]})`}'`;
 		} catch {}
 
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: function(value: string): Column['default'] {
 		try {
@@ -1694,7 +1687,7 @@ export const GeometryPoint: SqlType = {
 			value = wrapWith(value, "'");
 		} catch {}
 
-		return { type: 'unknown', value: value };
+		return value;
 	},
 	toTs: function(type: string, value: string | null): { options?: Record<string, unknown>; default: string } {
 		const options: { srid?: number; type: 'point' } = { type: 'point' };
@@ -1728,7 +1721,9 @@ export const GeometryPoint: SqlType = {
 			const res = parseArray(trimmed);
 
 			const def = stringifyArray(res, 'ts', (v) => {
-				if (v.includes('SRID=')) srids.push(Number(v.split('SRID=')[1].split(';')[0]));
+				if (v.includes('SRID=')) {
+					srids.push(Number(v.split('SRID=')[1].split(';')[0]));
+				}
 				const [res1, res2] = value.split('POINT(')[1].split(')')[0].split(' ');
 				if (!value.includes('POINT(')) isDrizzleSql = true;
 
@@ -1754,20 +1749,20 @@ export const Inet: SqlType = {
 	is: (type: string) => /^\s*inet(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'inet',
 	defaultFromDrizzle: (value) => {
-		return { value: `'${value}'`, type: 'unknown' };
+		return `'${value}'`;
 	},
 	defaultArrayFromDrizzle: (value) => {
 		const res = stringifyArray(value, 'sql', (v) => {
 			if (typeof v !== 'string') throw new Error();
 			return v;
 		});
-		return { value: `'${res}'`, type: 'unknown' };
+		return `'${res}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value, type: 'unknown' };
+		return value;
 	},
 	defaultArrayFromIntrospect: (value) => {
-		return { value: value as string, type: 'unknown' };
+		return value as string;
 	},
 	toTs: (type, value) => {
 		const options: any = {};

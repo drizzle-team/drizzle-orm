@@ -248,8 +248,8 @@ export const preparePushConfig = async (
 	& {
 		schemaPath: string | string[];
 		verbose: boolean;
-		strict: boolean;
 		force: boolean;
+		explain: boolean;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
 	}
@@ -274,12 +274,6 @@ export const preparePushConfig = async (
 
 	const config = parsed.data;
 
-	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
-	if (isEmptySchemaFilter) {
-		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
-		config.schemaFilter = [defaultSchema];
-	}
-
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);
@@ -303,7 +297,7 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'postgresql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
+			explain: (options.explain as boolean) ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -321,12 +315,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'mysql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -340,11 +334,11 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'singlestore',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -357,12 +351,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'sqlite',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -375,12 +369,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'turso',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -402,12 +396,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'mssql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -421,12 +415,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'cockroach',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			explain: false,
 		};
 	}
 
@@ -476,6 +470,9 @@ export const preparePullConfig = async (
 		casing: Casing;
 		prefix: Prefix;
 		filters: EntitiesFilterConfig;
+		init: boolean;
+		migrationsSchema: string | undefined;
+		migrationsTable: string | undefined;
 	}
 > => {
 	const raw = flattenPull(
@@ -493,6 +490,7 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
+	const { schema, table } = parsed.data.migrations || {};
 
 	const filters = {
 		tables: config.tablesFilter,
@@ -516,6 +514,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -533,6 +534,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -551,6 +555,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -568,6 +575,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -585,6 +595,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -601,6 +614,9 @@ export const preparePullConfig = async (
 			casing: config.casing,
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 			filters,
 		};
 	}
@@ -620,6 +636,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -638,6 +657,9 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			prefix: config.migrations?.prefix || 'index',
 			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
 		};
 	}
 
@@ -748,24 +770,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
-	if (dialect === 'gel') {
-		console.log(
-			error(
-				`You can't use 'studio' command with Gel dialect`,
-			),
-		);
-		process.exit(1);
-	}
-
-	if (dialect === 'mssql') {
-		console.log(
-			error(
-				`You can't use 'studio' command with MsSql dialect yet`,
-			),
-		);
-		process.exit(1);
-	}
-
 	if (dialect === 'cockroach') {
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
@@ -780,6 +784,14 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			port,
 			credentials,
 		};
+	}
+
+	if (dialect === 'gel') {
+		throw new Error(`You can't use 'studio' command with Gel dialect`);
+	}
+
+	if (dialect === 'mssql') {
+		throw new Error(`You can't use 'studio' command with MsSql dialect yet`);
 	}
 
 	assertUnreachable(dialect);

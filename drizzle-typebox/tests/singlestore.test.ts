@@ -3,7 +3,7 @@ import type { Equal } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -384,6 +384,8 @@ test('all data types', (tc) => {
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
 		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
 		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
+		bigint5: bigint({ mode: 'string' }).notNull(),
+		bigint6: bigint({ unsigned: true, mode: 'string' }).notNull(),
 		binary: binary({ length: 10 }).notNull(),
 		boolean: boolean().notNull(),
 		char1: char({ length: 10 }).notNull(),
@@ -445,6 +447,8 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
 		binary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),

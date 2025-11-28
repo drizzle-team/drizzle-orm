@@ -16,10 +16,7 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',
-			default: {
-				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'func', 'unknown'],
-			},
+			default: 'string?',
 			generated: {
 				type: ['stored'],
 				as: 'string',
@@ -180,6 +177,7 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
+
 export type ViewColumn = {
 	schema: string;
 	view: string;

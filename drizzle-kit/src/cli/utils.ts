@@ -110,3 +110,9 @@ export const ormCoreVersions = async () => {
 		return {};
 	}
 };
+
+export class QueryError extends Error {
+	constructor(wrapped: Error, public readonly sql: string, public readonly params: any[]) {
+		super(wrapped.message, { cause: wrapped });
+	}
+}

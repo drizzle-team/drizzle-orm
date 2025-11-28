@@ -26,6 +26,7 @@ import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../di
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { prepareCockroach } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
@@ -41,11 +42,14 @@ export const handle = async (
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
-	const { prepareCockroach } = await import('../connections');
-	const db = await prepareCockroach(credentials);
+	if (!db) {
+		const { prepareCockroach } = await import('../connections');
+		db = await prepareCockroach(credentials);
+	}
 
-	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
 	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
@@ -127,7 +131,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (

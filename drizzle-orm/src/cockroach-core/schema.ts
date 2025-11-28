@@ -8,7 +8,7 @@ import {
 	cockroachEnumWithSchema,
 } from './columns/enum.ts';
 import { type cockroachSequence, cockroachSequenceWithSchema } from './sequence.ts';
-import { type CockroachTableFn, cockroachTableWithSchema } from './table.ts';
+import { type CockroachTableFn, type CockroachTableFnInternal, cockroachTableWithSchema, EnableRLS } from './table.ts';
 import {
 	type cockroachMaterializedView,
 	cockroachMaterializedViewWithSchema,
@@ -22,11 +22,20 @@ export class CockroachSchema<TName extends string = string> implements SQLWrappe
 	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
-	) {}
+	) {
+		this.table = Object.assign(this.table, {
+			withRLS: ((name, columns, extraConfig) => {
+				const table = cockroachTableWithSchema(name, columns, extraConfig, this.schemaName);
+				table[EnableRLS] = true;
+
+				return table;
+			}) as CockroachTableFnInternal<TName>,
+		});
+	}
 
 	table: CockroachTableFn<TName> = ((name, columns, extraConfig) => {
 		return cockroachTableWithSchema(name, columns, extraConfig, this.schemaName);
-	});
+	}) as CockroachTableFn<TName>;
 
 	view = ((name, columns) => {
 		return cockroachViewWithSchema(name, columns, this.schemaName);
@@ -81,7 +90,7 @@ export function isCockroachSchema(obj: unknown): obj is CockroachSchema {
 export function cockroachSchema<T extends string>(name: T) {
 	if (name === 'public') {
 		throw new Error(
-			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema`,
+			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use cockroachTable() instead of creating a schema`,
 		);
 	}
 

@@ -72,7 +72,10 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const { schema } = fromDrizzleSchema(res, config.casing);
+
+	// TODO: do we wanna respect entity filter while exporting to sql?
+	// cc: @AleksandrSherman
+	const { schema } = fromDrizzleSchema(res, config.casing, () => true);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));

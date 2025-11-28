@@ -20,14 +20,12 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { resolver } from '../prompts';
-import { checkHandler } from './check';
+import { explain } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
-
-	await checkHandler(outFolder, 'postgresql');
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
@@ -47,7 +45,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema'),
@@ -66,6 +64,9 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
+
+	const explainMessage = explain('mysql', groupedStatements, false, []);
+	if (explainMessage) console.log(explainMessage);
 
 	writeResult({
 		snapshot: snapshot,
