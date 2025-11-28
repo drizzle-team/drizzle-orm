@@ -230,7 +230,7 @@ function generateIdentityParams(column: Column) {
 	return `.generatedByDefaultAsIdentity(${params})`;
 }
 
-export const paramNameFor = (name: string, schema: string | null) => {
+export const paramNameFor = (name: string, schema?: string | null) => {
 	const schemaSuffix = schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
 	return `${name}${schemaSuffix}`;
 };

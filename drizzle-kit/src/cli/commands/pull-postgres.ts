@@ -72,7 +72,7 @@ export const handle = async (
 	}
 
 	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(ddl2, casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
