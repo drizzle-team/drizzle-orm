@@ -160,8 +160,8 @@ const alterColumn = convertor('alter_column', (st) => {
 
 const recreateColumn = convertor('recreate_column', (st) => {
 	return [
-		dropColumn.convert({ column: st.column.$left }) as string,
-		addColumn.convert({ column: st.column.$right, defaults: [], isPK: false }) as string,
+		dropColumn.convert({ column: st.diff.$left }) as string,
+		addColumn.convert({ column: st.diff.$right, defaults: [], isPK: false }) as string,
 	];
 });
 

@@ -352,7 +352,8 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : tableFn;
+		let func = tableSchema ? `${tableSchema}.table` : tableFn;
+		func += table.isRlsEnabled ? '.withRLS' : '';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
 		statement += '}';
@@ -376,7 +377,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
+		statement += ');';
 		return statement;
 	});
 
@@ -457,8 +458,8 @@ const column = (
 	const grammarType = typeFor(type, isEnum);
 
 	const { options, default: defaultValue, customType } = dimensions > 0
-		? grammarType.toArrayTs(type, def?.value ?? null)
-		: grammarType.toTs(type, def?.value ?? null);
+		? grammarType.toArrayTs(type, def ?? null)
+		: grammarType.toTs(type, def ?? null);
 
 	const dbName = dbColumnName({ name, casing });
 	const opts = inspect(options);
@@ -522,8 +523,8 @@ const createTableColumns = (
 		const grammarType = typeFor(stripped, isEnum);
 
 		const { options, default: defaultValue, customType } = dimensions > 0
-			? grammarType.toArrayTs(type, def?.value ?? null)
-			: grammarType.toTs(type, def?.value ?? null);
+			? grammarType.toArrayTs(type, def ?? null)
+			: grammarType.toTs(type, def ?? null);
 
 		const dbName = dbColumnName({ name, casing });
 		const opts = inspect(options);

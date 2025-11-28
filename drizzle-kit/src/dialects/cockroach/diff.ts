@@ -21,7 +21,7 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaultsCommutative, typesCommutative } from './grammar';
+import { defaults, defaultsCommutative, typesCommutative } from './grammar';
 import type {
 	JsonAlterColumn,
 	JsonAlterColumnAddNotNull,
@@ -574,15 +574,18 @@ export const ddlDiff = async (
 	};
 
 	const jsonCreateIndexes = indexesCreates
-		.filter((index) => {
+		.map((index) => {
 			const tableCreated = !tablesFilter('created')({
 				schema: index.schema,
 				table: index.table,
 			});
-
-			return !(tableCreated && index.isUnique);
-		})
-		.map((index) => prepareStatement('create_index', { index }));
+			return prepareStatement('create_index', { index, newTable: tableCreated });
+		}).filter((st) => {
+			const { index, newTable } = st;
+			const forCreateTable = index.isUnique && (!index.method || index.method === defaults.index.method)
+				&& !index.where;
+			return !(newTable && forCreateTable);
+		});
 	const jsonDropIndexes = indexesDeletes.filter(tablesFilter('deleted')).map((index) =>
 		prepareStatement('drop_index', { index })
 	);
@@ -597,16 +600,14 @@ export const ddlDiff = async (
 		return ddl2.indexes.hasDiff(it);
 	});
 
-	for (const idx of indexesAlters) {
+	const jsonRecreateIndexes = indexesAlters.filter((idx) => {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
-		if (idx.isUnique || idx.method || forColumns || forWhere) {
-			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
-			jsonDropIndexes.push(prepareStatement('drop_index', { index }));
-			jsonCreateIndexes.push(prepareStatement('create_index', { index }));
-		}
-	}
+		return idx.isUnique || idx.method || forColumns || forWhere;
+	}).map((x) => {
+		return prepareStatement('recreate_index', { diff: x });
+	});
 
 	const jsonDropTables = deletedTables.map((it) => {
 		const oldSchema = renamedSchemas.find((x) => x.to.name === it.schema);
@@ -628,8 +629,6 @@ export const ddlDiff = async (
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
 
@@ -662,9 +661,7 @@ export const ddlDiff = async (
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
-			column: it.$right,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
+			diff: it,
 		})
 	);
 
@@ -740,7 +737,7 @@ export const ddlDiff = async (
 
 			return ddl2.fks.hasDiff(x);
 		})
-		.map((it) => prepareStatement('recreate_fk', { fk: it.$right }));
+		.map((it) => prepareStatement('recreate_fk', { fk: it.$right, diff: it }));
 
 	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 
@@ -764,7 +761,7 @@ export const ddlDiff = async (
 	);
 
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', { check: it.$right })
+		prepareStatement('alter_check', { check: it.$right, diff: it })
 	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -787,6 +784,7 @@ export const ddlDiff = async (
 			if (it.for || it.as) {
 				return prepareStatement('recreate_policy', {
 					policy: to,
+					diff: it,
 				});
 			} else {
 				return prepareStatement('alter_policy', {
@@ -897,16 +895,16 @@ export const ddlDiff = async (
 				it.default = c2.default;
 				return it;
 			});
-			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
+			recreateEnums.push(prepareStatement('recreate_enum', { to: e.$right, columns, from: e.$left }));
 		} else {
-			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
+			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, to: e.$left, from: e.$right }));
 		}
 	}
 
 	const jsonAlterAddNotNull: JsonAlterColumnAddNotNull[] = [];
 	const jsonAlterDropNotNull: JsonAlterColumnDropNotNull[] = [];
 	const jsonAlterColumns: JsonAlterColumn[] = [];
-	columnAlters
+	const filteredColumnAlters = columnAlters
 		.filter((it) => !it.generated)
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
@@ -932,35 +930,38 @@ export const ddlDiff = async (
 			}
 
 			return ddl2.columns.hasDiff(it);
-		})
-		.forEach((it) => {
-			if (it.notNull) {
-				if (it.notNull.from) {
-					jsonAlterDropNotNull.push(
-						prepareStatement('alter_drop_column_not_null', {
-							table: it.table,
-							schema: it.schema,
-							column: it.name,
-						}),
-					);
-				} else {
-					jsonAlterAddNotNull.push(prepareStatement('alter_add_column_not_null', {
+		});
+
+	// TODO: move to alter_column convertor
+	// cc: @AleksandrSherman
+	for (const it of filteredColumnAlters) {
+		if (it.notNull) {
+			if (it.notNull.from) {
+				jsonAlterDropNotNull.push(
+					prepareStatement('alter_drop_column_not_null', {
 						table: it.table,
 						schema: it.schema,
 						column: it.name,
-					}));
-				}
+					}),
+				);
+			} else {
+				jsonAlterAddNotNull.push(prepareStatement('alter_add_column_not_null', {
+					table: it.table,
+					schema: it.schema,
+					column: it.name,
+				}));
 			}
+		}
 
-			const column = it.$right;
-			jsonAlterColumns.push(prepareStatement('alter_column', {
-				diff: it,
-				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
-				wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
-					?? false,
-				to: column,
-			}));
-		});
+		const column = it.$right;
+		jsonAlterColumns.push(prepareStatement('alter_column', {
+			diff: it,
+			isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
+			wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
+				?? false,
+			to: column,
+		}));
+	}
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSequences.map((it) => prepareStatement('drop_sequence', { sequence: it }));
@@ -1067,6 +1068,7 @@ export const ddlDiff = async (
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonRenameIndexes);
 	jsonStatements.push(...jsonDropIndexes);
+	jsonStatements.push(...jsonRecreateIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
 
 	jsonStatements.push(...jsonRenamePrimaryKey);

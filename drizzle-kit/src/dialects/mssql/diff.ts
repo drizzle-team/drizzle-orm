@@ -551,8 +551,7 @@ export const ddlDiff = async (
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
-			column: it,
-			defaults: ddl2.defaults.list(),
+			diff: it,
 		})
 	);
 

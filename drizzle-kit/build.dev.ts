@@ -7,12 +7,17 @@ const driversPackages = [
 	'postgres',
 	'@vercel/postgres',
 	'@neondatabase/serverless',
+	'@electric-sql/pglite',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',
 	// sqlite drivers
 	'@libsql/client',
 	'better-sqlite3',
+	'bun:sqlite',
+	'@sqlitecloud/drivers',
+	'@tursodatabase/database',
+	'bun',
 ];
 
 esbuild.buildSync({

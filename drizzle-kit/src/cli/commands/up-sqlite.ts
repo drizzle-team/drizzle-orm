@@ -8,8 +8,11 @@ import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6 } from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
 import { embeddedMigrations } from './generate-common';
+import { migrateToFoldersV3 } from './utils';
 
 export const upSqliteHandler = (out: string) => {
+	migrateToFoldersV3(out);
+
 	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'sqlite');
 

@@ -71,7 +71,9 @@ const recreateViewConvertor = convertor('recreate_view', (st) => {
 const createTableConvertor = convertor('create_table', (st) => {
 	const { schema, name, columns, pk, checks, policies, isRlsEnabled, indexes } = st.table;
 
-	const uniqueIndexes = indexes.filter((it) => it.isUnique);
+	const uniqueIndexes = indexes.filter((it) =>
+		it.isUnique && (!it.method || it.method === defaults.index.method) && !it.where
+	);
 
 	const statements = [] as string[];
 	let statement = '';
@@ -229,11 +231,9 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
-	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
+	const drop = dropColumnConvertor.convert({ column: st.diff.$right }) as string;
 	const add = addColumnConvertor.convert({
-		column: st.column,
-		isPK: st.isPK,
-		isCompositePK: st.isCompositePK,
+		column: st.diff.$right,
 	}) as string;
 
 	return [drop, add];
@@ -386,6 +386,13 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 	return `DROP INDEX "${st.index.name}"${cascade};`;
 });
 
+const recreateIndexConvertor = convertor('recreate_index', (st) => {
+	const { diff } = st;
+	const drop = dropIndexConvertor.convert({ index: diff.$right }) as string;
+	const create = createIndexConvertor.convert({ index: diff.$right, newTable: false }) as string;
+	return [drop, create];
+});
+
 const renameIndexConvertor = convertor('rename_index', (st) => {
 	const key = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
 
@@ -529,8 +536,8 @@ const moveEnumConvertor = convertor('move_enum', (st) => {
 });
 
 const alterEnumConvertor = convertor('alter_enum', (st) => {
-	const { diff, enum: e } = st;
-	const key = e.schema !== 'public' ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
+	const { diff, to } = st;
+	const key = to.schema !== 'public' ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
 
 	const statements = [] as string[];
 	for (const d of diff.filter((it) => it.type === 'added')) {
@@ -715,6 +722,7 @@ const convertors = [
 	alterColumnConvertor,
 	createIndexConvertor,
 	dropIndexConvertor,
+	recreateIndexConvertor,
 	renameIndexConvertor,
 	addPrimaryKeyConvertor,
 	dropPrimaryKeyConvertor,

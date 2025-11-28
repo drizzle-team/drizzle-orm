@@ -2,7 +2,7 @@ import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
-import { cockroachTable, int4, timestamp } from 'drizzle-orm/cockroach-core';
+import { cockroachTable, getTableConfig, int4, timestamp } from 'drizzle-orm/cockroach-core';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -131,6 +131,111 @@ test('migrator : migrate with custom table and custom schema', async () => {
 
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+});
+
+test('migrator : --init', async () => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/cockroach',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+				SELECT 1
+				FROM information_schema.tables
+				WHERE table_schema = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND table_name = ${
+		getTableConfig(usersMigratorTable).name
+	}
+			) as ${sql.identifier('tableExists')};`);
+
+	expect(migratorRes).toStrictEqual(undefined);
+	expect(meta.length).toStrictEqual(1);
+	expect(res.rows[0]?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - local migrations error', async () => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/cockroach-init',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+				SELECT 1
+				FROM information_schema.tables
+				WHERE table_schema = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND table_name = ${
+		getTableConfig(usersMigratorTable).name
+	}
+			) as ${sql.identifier('tableExists')};`);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+	expect(meta.length).toStrictEqual(0);
+	expect(res.rows[0]?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - db migrations error', async () => {
+	const migrationsSchema = 'drzl_migrations_init';
+	const migrationsTable = 'drzl_init';
+
+	await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+	await db.execute(sql`drop table if exists ${usersMigratorTable}`);
+
+	await migrate(db, {
+		migrationsFolder: './drizzle2/cockroach-init',
+		migrationsSchema,
+		migrationsTable,
+	});
+
+	const migratorRes = await migrate(db, {
+		migrationsFolder: './drizzle2/cockroach',
+		migrationsTable,
+		migrationsSchema,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+	const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+				SELECT 1
+				FROM information_schema.tables
+				WHERE table_schema = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND table_name = ${
+		getTableConfig(usersMigratorTable).name
+	}
+			) as ${sql.identifier('tableExists')};`);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+	expect(meta.length).toStrictEqual(2);
+	expect(res.rows[0]?.tableExists).toStrictEqual(true);
 });
 
 test('all date and time columns without timezone first case mode string', async () => {

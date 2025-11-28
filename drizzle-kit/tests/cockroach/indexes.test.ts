@@ -110,31 +110,31 @@ test.concurrent('altering indexes', async ({ dbc: db }) => {
 	expect(st).toStrictEqual([
 		'DROP INDEX "changeName";',
 		'DROP INDEX "removeColumn";',
-		'DROP INDEX "addColumn";',
-		'DROP INDEX "removeExpression";',
-		'DROP INDEX "changeExpression";',
-		'DROP INDEX "changeUsing";',
-		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
+		'DROP INDEX "addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
+		'DROP INDEX "removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
+		'DROP INDEX "changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
+		'DROP INDEX "changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
+		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 	]);
 
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
 		'DROP INDEX "changeName";',
 		'DROP INDEX "addColumn";',
+		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'DROP INDEX "changeUsing";',
+		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 		'DROP INDEX "removeColumn";',
+		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'DROP INDEX "removeExpression";',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		// 'DROP INDEX "changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
-		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 	]);
 });
@@ -219,10 +219,10 @@ test.concurrent('Indexes properties that should not trigger push changes', async
 
 	expect(st).toStrictEqual([
 		'DROP INDEX "changeExpression";',
-		'DROP INDEX "indx2";',
-		'DROP INDEX "indx4";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
+		'DROP INDEX "indx2";',
 		'CREATE INDEX "indx2" ON "users" ("name" DESC) WHERE false;',
+		'DROP INDEX "indx4";',
 		'CREATE INDEX "indx4" ON "users" (lower(id));',
 	]);
 	expect(pst).toStrictEqual([
@@ -283,32 +283,32 @@ test.concurrent('indexes #0', async ({ dbc: db }) => {
 	expect(st).toStrictEqual([
 		'DROP INDEX "changeName";',
 		'DROP INDEX "removeColumn";',
-		'DROP INDEX "addColumn";',
-		'DROP INDEX "removeExpression";',
-		'DROP INDEX "changeExpression";',
-		'DROP INDEX "changeUsing";',
-		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
+		'DROP INDEX "addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
+		'DROP INDEX "removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
+		'DROP INDEX "changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
+		'DROP INDEX "changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
+		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 	]);
 
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
 		'DROP INDEX "changeName";',
 		'DROP INDEX "addColumn";',
+		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'DROP INDEX "changeUsing";',
+		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 		'DROP INDEX "removeColumn";',
+		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'DROP INDEX "removeExpression";',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		// 'DROP INDEX "changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
-		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
-		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 	]);
 });
 
@@ -343,17 +343,17 @@ test.concurrent('index #2', async ({ dbc: db }) => {
 
 	expect(st).toStrictEqual([
 		'DROP INDEX "indx1";',
-		'DROP INDEX "indx3";',
-		'CREATE INDEX "indx4" ON "users" (lower(name));',
 		'CREATE INDEX "indx1" ON "users" ("name" DESC) WHERE false;',
+		'DROP INDEX "indx3";',
 		'CREATE INDEX "indx3" ON "users" (lower("name"));',
+		'CREATE INDEX "indx4" ON "users" (lower(name));',
 	]);
 	expect(pst).toStrictEqual([
 		'DROP INDEX "indx1";',
 		// TODO: we ignore columns changes during 'push', we should probably tell user about it in CLI?
 		// 'DROP INDEX "indx3";',
-		'CREATE INDEX "indx4" ON "users" (lower(name));',
 		'CREATE INDEX "indx1" ON "users" ("name" DESC) WHERE false;',
+		'CREATE INDEX "indx4" ON "users" (lower(name));',
 		// 'CREATE INDEX "indx3" ON "users" (lower("name"));',
 	]);
 });

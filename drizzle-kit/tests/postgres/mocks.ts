@@ -1,5 +1,6 @@
 import { is } from 'drizzle-orm';
 import {
+	getViewConfig,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -49,15 +50,16 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
-import { upToV8 } from 'src/cli/commands/up-postgres';
-import { EntitiesFilter } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { extractPostgresExisting } from 'src/dialects/drizzle';
+import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
@@ -105,6 +107,12 @@ class MockError extends Error {
 export const drizzleToDDL = (
 	schema: PostgresSchema,
 	casing?: CasingType | undefined,
+	filtersConfig: EntitiesFilterConfig = {
+		entities: undefined,
+		extensions: undefined,
+		schemas: undefined,
+		tables: undefined,
+	},
 ) => {
 	const tables = Object.values(schema).filter((it) => is(it, PgTable)) as PgTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, PgSchema)) as PgSchema[];
@@ -115,21 +123,22 @@ export const drizzleToDDL = (
 	const views = Object.values(schema).filter((it) => isPgView(it)) as PgView[];
 	const materializedViews = Object.values(schema).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
+	const grouped = { schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews };
+
+	const existing = extractPostgresExisting(schemas, views, materializedViews);
+	const filter = prepareEntityFilter('postgresql', filtersConfig, existing);
+
 	const {
 		schema: res,
 		errors,
 		warnings,
-	} = fromDrizzleSchema(
-		{ schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews },
-		casing,
-		() => true,
-	);
+	} = fromDrizzleSchema(grouped, casing, filter);
 
 	if (errors.length > 0) {
 		throw new Error();
 	}
 
-	return interimToDDL(res);
+	return { ...interimToDDL(res), existing };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -185,6 +194,7 @@ export const push = async (config: {
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
+	explain?: true;
 }) => {
 	const { db, to } = config;
 
@@ -193,19 +203,20 @@ export const push = async (config: {
 	const schemas = config.schemas ?? [];
 	const tables = config.tables ?? [];
 
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as PostgresDDL, errors: [] }
-		: drizzleToDDL(to, casing);
-
-	const filter = prepareEntityFilter('postgresql', {
+	const filterConfig = {
 		tables,
 		schemas,
-		drizzleSchemas: ddl2.schemas.list().map((x) => x.name),
 		entities: config.entities,
 		extensions: [],
-	});
+	};
 
+	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [], existing: [] }
+		: drizzleToDDL(to, casing, filterConfig);
+
+	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 	const { schema } = await introspect(db, filter, new EmptyProgressView());
+
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 	if (err2.length > 0) {
@@ -223,7 +234,7 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -243,7 +254,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
+
+	if (config.explain) {
+		const explainMessage = explain('postgres', groupedStatements, false, []);
+		if (explainMessage) console.log(explainMessage);
+		return { sqlStatements, statements, hints };
+	}
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -286,7 +303,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses };
+	return { sqlStatements, statements, hints };
 };
 
 // init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file
@@ -305,10 +322,9 @@ export const diffIntrospect = async (
 	const filter = prepareEntityFilter('postgresql', {
 		tables: [],
 		schemas,
-		drizzleSchemas: [],
 		entities,
 		extensions: [],
-	});
+	}, []);
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db, filter);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
@@ -417,10 +433,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const filter = prepareEntityFilter('postgresql', {
 		tables: tablesFilter ?? [],
 		schemas: [],
-		drizzleSchemas: [],
 		entities: undefined,
 		extensions: [],
-	});
+	}, []);
 
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(

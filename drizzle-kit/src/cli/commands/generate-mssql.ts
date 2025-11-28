@@ -91,7 +91,10 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const { schema, errors } = fromDrizzleSchema(res, config.casing);
+
+	// TODO: do we want to respect config filter here?
+	// cc: @AleksandrSherman
+	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));

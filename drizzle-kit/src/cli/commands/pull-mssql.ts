@@ -24,6 +24,7 @@ import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mssql/introspect';
 import { ddlToTypeScript } from '../../dialects/mssql/typescript';
 import { type DB, originUUID } from '../../utils';
+import type { connectToMsSQL } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
@@ -38,14 +39,17 @@ export const handle = async (
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof connectToMsSQL>>,
 ) => {
-	const { connectToMsSQL } = await import('../connections');
-	const { db } = await connectToMsSQL(credentials);
+	if (!db) {
+		const { connectToMsSQL } = await import('../connections');
+		db = await connectToMsSQL(credentials);
+	}
 
-	const filter = prepareEntityFilter('mssql', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('mssql', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
+	const task = fromDatabaseForDrizzle(db.db, filter, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
 
@@ -112,7 +116,6 @@ export const handle = async (
 			)
 		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (

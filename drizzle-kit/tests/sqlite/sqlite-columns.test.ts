@@ -235,7 +235,7 @@ test('added column not null and without default to table with data', async (t) =
 	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('turso');`);
 
 	// TODO: reivise
-	const { sqlStatements: pst, hints: phints, error, losses } = await push({
+	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,
 		expectError: true,
@@ -250,7 +250,7 @@ test('added column not null and without default to table with data', async (t) =
 		"· You're about to add not-null 'age' column without default value to non-empty 'companies' table",
 	]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual(['DELETE FROM "companies" where true;']);
+	expect(phints[0].statement).toStrictEqual('DELETE FROM "companies" where true;');
 
 	// TODO: check truncations
 });

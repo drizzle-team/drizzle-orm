@@ -1,17 +1,13 @@
 import * as V1 from '~/_relations.ts';
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import {
-	CockroachColumn,
-	CockroachDate,
-	CockroachDateString,
-	CockroachDecimal,
-	CockroachJsonb,
-	CockroachTime,
-	CockroachTimestamp,
-	CockroachTimestampString,
-	CockroachUUID,
-} from '~/cockroach-core/columns/index.ts';
+	aliasedTable,
+	aliasedTableColumn,
+	getOriginalColumnFromAlias,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias.ts';
+import { CasingCache } from '~/casing.ts';
+import { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type {
 	AnyCockroachSelectQueryBuilder,
 	CockroachDeleteConfig,
@@ -24,18 +20,9 @@ import { CockroachTable } from '~/cockroach-core/table.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { and, eq, View } from '~/sql/index.ts';
-import {
-	type DriverValueEncoder,
-	type Name,
-	Param,
-	type QueryTypingsValue,
-	type QueryWithTypings,
-	SQL,
-	sql,
-	type SQLChunk,
-} from '~/sql/sql.ts';
+import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -62,7 +49,7 @@ export class CockroachDialect {
 		migrations: MigrationMeta[],
 		session: CockroachSession,
 		config: string | MigrationConfig,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
@@ -82,6 +69,28 @@ export class CockroachDialect {
 				sql.identifier(migrationsTable)
 			} order by created_at desc limit 1`,
 		);
+
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			);
+
+			return;
+		}
 
 		const lastDbMigration = dbMigrations[0];
 		await session.transaction(async (tx) => {
@@ -152,7 +161,8 @@ export class CockroachDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -234,10 +244,31 @@ export class CockroachDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(
+							field.isAlias
+								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+								: sql.identifier(this.casing.getColumnCasing(field)),
+						);
 					} else {
-						chunk.push(field);
+						chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field._.sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
@@ -566,31 +597,12 @@ export class CockroachDialect {
 		return sql`refresh materialized view${concurrentlySql} ${view}${withNoDataSql}`;
 	}
 
-	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (is(encoder, CockroachJsonb)) {
-			return 'json';
-		} else if (is(encoder, CockroachDecimal)) {
-			return 'decimal';
-		} else if (is(encoder, CockroachTime)) {
-			return 'time';
-		} else if (is(encoder, CockroachTimestamp) || is(encoder, CockroachTimestampString)) {
-			return 'timestamp';
-		} else if (is(encoder, CockroachDate) || is(encoder, CockroachDateString)) {
-			return 'date';
-		} else if (is(encoder, CockroachUUID)) {
-			return 'uuid';
-		} else {
-			return 'none';
-		}
-	}
-
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
-			prepareTyping: this.prepareTyping,
 			invokeSource,
 		});
 	}
