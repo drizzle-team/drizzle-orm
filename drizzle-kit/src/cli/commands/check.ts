@@ -1,5 +1,4 @@
 import { readFileSync } from 'fs';
-import { detectNonCommutative } from 'src/utils/commutativity';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
@@ -36,18 +35,18 @@ export const checkHandler = async (out: string, dialect: Dialect) => {
 		}
 	}
 
-	try {
-		const response = await detectNonCommutative(snapshots, dialect);
-		if (response!.conflicts.length > 0) {
-			console.log('\nNon-commutative migration branches detected:');
-			for (const c of response!.conflicts) {
-				console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
-				console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
-				console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
-				// for (const r of c.reasons) console.log(`    • ${r}`);
-			}
-		}
-	} catch (e) {
-		console.error(e);
-	}
+	// try {
+	// 	const response = await detectNonCommutative(snapshots, dialect);
+	// 	if (response!.conflicts.length > 0) {
+	// 		console.log('\nNon-commutative migration branches detected:');
+	// 		for (const c of response!.conflicts) {
+	// 			console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
+	// 			console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
+	// 			console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
+	// 			// for (const r of c.reasons) console.log(`    • ${r}`);
+	// 		}
+	// 	}
+	// } catch (e) {
+	// 	console.error(e);
+	// }
 };
