@@ -1,6 +1,4 @@
 import { plural, singular } from 'pluralize';
-import { tableFromDDL } from 'src/dialects/postgres/ddl';
-import type { PostgresDDL } from 'src/ext/mover-postgres';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';
@@ -19,15 +17,15 @@ const withCasing = (value: string, casing: Casing) => {
 export type SchemaForPull = {
 	schema?: string;
 	foreignKeys: {
-		schema: string;
+		schema?: string;
 		table: string;
 		nameExplicit: boolean;
 		columns: string[];
-		schemaTo: string;
+		schemaTo?: string;
 		tableTo: string;
 		columnsTo: string[];
-		onUpdate: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | null;
-		onDelete: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | null;
+		onUpdate?: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | string | null;
+		onDelete?: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | string | null;
 		name: string;
 		entityType: 'fks';
 	}[];
@@ -37,34 +35,10 @@ export type SchemaForPull = {
 	}[];
 }[];
 
-function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
-	return Object.values(schema.tables.list()).map((table) => {
-		const rawTable = tableFromDDL(table, schema);
-		return {
-			schema: rawTable.schema,
-			foreignKeys: rawTable.fks,
-			uniques: [
-				...Object.values(rawTable.uniques).map((unq) => ({
-					columns: unq.columns,
-				})),
-				...Object.values(rawTable.indexes).map((idx) => ({
-					columns: idx.columns.map((idxc) => {
-						if (!idxc.isExpression && idx.isUnique) {
-							return idxc.value;
-						}
-					}).filter((item) => item !== undefined),
-				})),
-			],
-		};
-	});
-}
-
-// TODO: take from beta
 export const relationsToTypeScript = (
-	schemaInput: PostgresDDL,
+	schema: SchemaForPull,
 	casing: Casing,
 ) => {
-	const schema = postgresToRelationsPull(schemaInput);
 	const imports: string[] = [];
 	const tableRelations: Record<
 		string,

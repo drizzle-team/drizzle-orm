@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname } from 'path';
+import { assertUnreachable } from 'src/utils';
 import { createDDL, type PostgresDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
@@ -31,7 +32,6 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -40,7 +40,6 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -51,21 +50,12 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'rename_column',
 		'alter_rls',
 		'create_index',
+		'recreate_index',
 	],
 	rename_table: [
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
-		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
-	],
-	recreate_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -74,7 +64,6 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -83,7 +72,6 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -92,7 +80,6 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_table',
 		'drop_table',
 		'rename_table',
-		'recreate_table',
 		'move_table',
 		'remove_from_schema',
 		'set_new_schema',
@@ -109,6 +96,7 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	create_index: ['create_index', 'drop_index', 'rename_index'],
 	drop_index: ['create_index', 'drop_index', 'rename_index'],
 	rename_index: ['create_index', 'drop_index', 'rename_index'],
+	recreate_index: ['create_index', 'drop_index', 'rename_index'],
 
 	// Primary key operations
 	add_pk: ['add_pk', 'drop_pk', 'alter_pk'],
@@ -238,7 +226,6 @@ function extractStatementInfo(
 		// Table operations
 		case 'create_table':
 		case 'drop_table':
-		case 'recreate_table':
 			schema = statement.table.schema;
 			objectName = statement.table.name;
 			break;
@@ -262,10 +249,14 @@ function extractStatementInfo(
 		// Column operations
 		case 'add_column':
 		case 'drop_column':
-		case 'recreate_column':
 			schema = statement.column.schema;
 			objectName = statement.column.table;
 			columnName = statement.column.name;
+			break;
+		case 'recreate_column':
+			schema = statement.diff.schema;
+			objectName = statement.diff.table;
+			columnName = statement.diff.name;
 			break;
 		case 'alter_column':
 			schema = statement.to.schema;
@@ -288,6 +279,10 @@ function extractStatementInfo(
 		case 'rename_index':
 			schema = statement.schema;
 			objectName = statement.from;
+			break;
+		case 'recreate_index':
+			schema = statement.diff.schema;
+			objectName = statement.diff.name;
 			break;
 
 		// Primary key operations
@@ -319,10 +314,16 @@ function extractStatementInfo(
 
 		// Check constraint operations
 		case 'add_check':
-		case 'drop_check':
-		case 'alter_check':
 			schema = statement.check.schema;
 			objectName = statement.check.table;
+			break;
+		case 'drop_check':
+			schema = statement.check.schema;
+			objectName = statement.check.table;
+			break;
+		case 'alter_check':
+			schema = statement.diff.schema;
+			objectName = statement.diff.table;
 			break;
 
 		// Constraint operations
@@ -333,10 +334,16 @@ function extractStatementInfo(
 
 		// Enum operations
 		case 'create_enum':
-		case 'drop_enum':
-		case 'alter_enum':
 			schema = statement.enum.schema;
 			objectName = statement.enum.name;
+			break;
+		case 'drop_enum':
+			schema = statement.enum.schema;
+			objectName = statement.enum.name;
+			break;
+		case 'alter_enum':
+			schema = statement.to.schema;
+			objectName = statement.to.name;
 			break;
 		case 'recreate_enum':
 			schema = statement.to.schema;
@@ -441,7 +448,7 @@ function extractStatementInfo(
 			break;
 
 		default:
-			break;
+			assertUnreachable(statement);
 	}
 
 	return { action, schema, objectName, columnName };
@@ -506,7 +513,7 @@ function expandFootprintsFromSnapshot(
 		}
 	} // For tables - include all columns/indexes/constraints in that table
 	else if (
-		statement.type === 'drop_table' || statement.type === 'rename_table' || statement.type === 'recreate_table'
+		statement.type === 'drop_table' || statement.type === 'rename_table'
 	) {
 		const childEntities = findChildEntitiesInTableFromSnapshot(info.schema, info.objectName, snapshot);
 		for (const entity of childEntities) {
