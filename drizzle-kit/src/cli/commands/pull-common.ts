@@ -1,7 +1,6 @@
 import { plural, singular } from 'pluralize';
-import type { MysqlEntities } from 'src/dialects/mysql/ddl';
-import type { PostgresEntities } from 'src/dialects/postgres/ddl';
-import type { SqliteEntities } from 'src/dialects/sqlite/ddl';
+import { tableFromDDL } from 'src/dialects/postgres/ddl';
+import type { PostgresDDL } from 'src/ext/mover-postgres';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';
@@ -17,133 +16,310 @@ const withCasing = (value: string, casing: Casing) => {
 	assertUnreachable(casing);
 };
 
+export type SchemaForPull = {
+	schema?: string;
+	foreignKeys: {
+		schema: string;
+		table: string;
+		nameExplicit: boolean;
+		columns: string[];
+		schemaTo: string;
+		tableTo: string;
+		columnsTo: string[];
+		onUpdate: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | null;
+		onDelete: 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT' | null;
+		name: string;
+		entityType: 'fks';
+	}[];
+	// both unique constraints and unique indexes
+	uniques: {
+		columns: string[];
+	}[];
+}[];
+
+function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
+	return Object.values(schema.tables.list()).map((table) => {
+		const rawTable = tableFromDDL(table, schema);
+		return {
+			schema: rawTable.schema,
+			foreignKeys: rawTable.fks,
+			uniques: [
+				...Object.values(rawTable.uniques).map((unq) => ({
+					columns: unq.columns,
+				})),
+				...Object.values(rawTable.indexes).map((idx) => ({
+					columns: idx.columns.map((idxc) => {
+						if (!idxc.isExpression && idx.isUnique) {
+							return idxc.value;
+						}
+					}).filter((item) => item !== undefined),
+				})),
+			],
+		};
+	});
+}
+
 // TODO: take from beta
 export const relationsToTypeScript = (
-	fks: (PostgresEntities['fks'] | SqliteEntities['fks'] | MysqlEntities['fks'])[],
+	schemaInput: PostgresDDL,
 	casing: Casing,
 ) => {
+	const schema = postgresToRelationsPull(schemaInput);
 	const imports: string[] = [];
 	const tableRelations: Record<
 		string,
 		{
 			name: string;
-			type: 'one' | 'many';
+			type: 'one' | 'many' | 'through' | 'many-through' | 'one-one';
 			tableFrom: string;
 			schemaFrom?: string;
-			columnFrom: string;
+			columnsFrom: string[];
 			tableTo: string;
 			schemaTo?: string;
-			columnTo: string;
+			columnsTo: string[];
 			relationName?: string;
+			tableThrough?: string;
+			columnsThroughFrom?: string[];
+			columnsThroughTo?: string[];
 		}[]
 	> = {};
-	for (const fk of fks) {
-		const tableNameFrom = paramNameFor(fk.table, 'schema' in fk ? fk.schema : null);
-		const tableNameTo = paramNameFor(fk.tableTo, 'schemaTo' in fk ? fk.schemaTo : null);
-		const tableFrom = withCasing(tableNameFrom, casing);
-		const tableTo = withCasing(tableNameTo, casing);
-		// TODO: [0]?! =/
-		const columnFrom = withCasing(fk.columns[0], casing);
-		const columnTo = withCasing(fk.columnsTo[0], casing);
 
-		imports.push(tableTo, tableFrom);
+	// Process all foreign keys as before.
+	schema.forEach((table) => {
+		const fks = Object.values(table.foreignKeys);
 
-		// const keyFrom = `${schemaFrom}.${tableFrom}`;
-		const keyFrom = tableFrom;
+		if (fks.length === 2) {
+			const [fk1, fk2] = fks;
+			// reference to different tables, means it can be through many-many
+			const toTable1 = withCasing(paramNameFor(fk1.tableTo, fk1.schemaTo), casing);
+			const columnsTo1 = fk1.columnsTo.map((it) => withCasing(it, casing));
 
-		if (!tableRelations[keyFrom]) {
-			tableRelations[keyFrom] = [];
-		}
+			const toTable2 = withCasing(paramNameFor(fk2.tableTo, fk2.schemaTo), casing);
+			const columnsTo2 = fk2.columnsTo.map((it) => withCasing(it, casing));
 
-		tableRelations[keyFrom].push({
-			name: singular(tableTo),
-			type: 'one',
-			tableFrom,
-			columnFrom,
-			tableTo,
-			columnTo,
-		});
+			const tableThrough = withCasing(paramNameFor(fk1.table, table.schema), casing);
+			// const tableFrom2 = withCasing(paramNameFor(fk2.table, table.schema), casing);
+			const columnsThroughFrom = fk1.columns.map((it) => withCasing(it, casing));
+			const columnsThroughTo = fk2.columns.map((it) => withCasing(it, casing));
 
-		// const keyTo = `${schemaTo}.${tableTo}`;
-		const keyTo = tableTo;
+			if (
+				toTable1 !== toTable2
+			) {
+				if (!tableRelations[toTable1]) {
+					tableRelations[toTable1] = [];
+				}
 
-		if (!tableRelations[keyTo]) {
-			tableRelations[keyTo] = [];
-		}
+				tableRelations[toTable1].push({
+					name: plural(toTable2),
+					type: 'through',
+					tableFrom: toTable1,
+					columnsFrom: columnsTo1,
+					tableTo: toTable2,
+					columnsTo: columnsTo2,
+					tableThrough,
+					columnsThroughFrom,
+					columnsThroughTo,
+				});
 
-		tableRelations[keyTo].push({
-			name: plural(tableFrom),
-			type: 'many',
-			tableFrom: tableTo,
-			columnFrom: columnTo,
-			tableTo: tableFrom,
-			columnTo: columnFrom,
-		});
-	}
+				if (!tableRelations[toTable2]) {
+					tableRelations[toTable2] = [];
+				}
 
-	const uniqueImports = [...new Set(imports)];
+				tableRelations[toTable2].push({
+					name: plural(toTable1),
+					// this type is used for .many() side of relation, when another side has .through() with from and to fields
+					type: 'many-through',
+					tableFrom: toTable2,
+					columnsFrom: fk2.columnsTo,
+					tableTo: toTable1,
+					columnsTo: columnsTo2,
+					tableThrough,
+					columnsThroughFrom,
+					columnsThroughTo,
+				});
+			}
+		} else {
+			fks.forEach((fk) => {
+				const tableNameFrom = paramNameFor(fk.table, table.schema);
+				const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
+				const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
+				const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
+				const columnsFrom = fk.columns.map((it) => withCasing(it, casing));
+				const columnsTo = fk.columnsTo.map((it) => withCasing(it, casing));
 
-	const importsTs = `import { relations } from "drizzle-orm/relations";\nimport { ${
-		uniqueImports.join(
-			', ',
-		)
-	} } from "./schema";\n\n`;
+				imports.push(tableTo, tableFrom);
 
-	const relationStatements = Object.entries(tableRelations).map(
-		([table, relations]) => {
-			const hasOne = relations.some((it) => it.type === 'one');
-			const hasMany = relations.some((it) => it.type === 'many');
+				const keyFrom = tableFrom;
+				if (!tableRelations[keyFrom]) {
+					tableRelations[keyFrom] = [];
+				}
 
-			// * change relation names if they are duplicated or if there are multiple relations between two tables
-			const preparedRelations = relations.map(
-				(relation, relationIndex, originArray) => {
-					let name = relation.name;
-					let relationName;
-					const hasMultipleRelations = originArray.some(
-						(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
-					);
-					if (hasMultipleRelations) {
-						relationName = relation.type === 'one'
-							? `${relation.tableFrom}_${relation.columnFrom}_${relation.tableTo}_${relation.columnTo}`
-							: `${relation.tableTo}_${relation.columnTo}_${relation.tableFrom}_${relation.columnFrom}`;
-					}
-					const hasDuplicatedRelation = originArray.some(
-						(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
-					);
-					if (hasDuplicatedRelation) {
-						name = `${relation.name}_${relation.type === 'one' ? relation.columnFrom : relation.columnTo}`;
-					}
-					return {
-						...relation,
-						name,
-						relationName,
-					};
-				},
-			);
+				tableRelations[keyFrom].push({
+					name: singular(tableTo),
+					type: 'one',
+					tableFrom,
+					columnsFrom,
+					tableTo,
+					columnsTo,
+				});
 
-			const fields = preparedRelations.map((relation) => {
-				if (relation.type === 'one') {
-					return `\t${relation.name}: one(${relation.tableTo}, {\n\t\tfields: [${relation.tableFrom}.${relation.columnFrom}],\n\t\treferences: [${relation.tableTo}.${relation.columnTo}]${
-						relation.relationName
-							? `,\n\t\trelationName: "${relation.relationName}"`
-							: ''
-					}\n\t}),`;
+				const keyTo = tableTo;
+				if (!tableRelations[keyTo]) {
+					tableRelations[keyTo] = [];
+				}
+
+				// if this table has a unique on a column, that is used for 1-m, then we can assume that it's 1-1 relation
+				// we will check that all of the fk columns are unique, so we can assume it's 1-1
+				// not matter if it's 1 column, 2 columns or more
+				if (
+					table.uniques.find((constraint) =>
+						constraint.columns.length === columnsFrom.length
+						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+					)
+				) {
+					// the difference between one and one-one is that one-one won't contain from and to
+					// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
+					// but I decided just to have a different type field here
+					tableRelations[keyTo].push({
+						name: plural(tableFrom),
+						type: 'one-one',
+						tableFrom: tableTo,
+						columnsFrom: columnsTo,
+						tableTo: tableFrom,
+						columnsTo: columnsFrom,
+					});
 				} else {
-					return `\t${relation.name}: many(${relation.tableTo}${
-						relation.relationName
-							? `, {\n\t\trelationName: "${relation.relationName}"\n\t}`
-							: ''
-					}),`;
+					tableRelations[keyTo].push({
+						name: plural(tableFrom),
+						type: 'many',
+						tableFrom: tableTo,
+						columnsFrom: columnsTo,
+						tableTo: tableFrom,
+						columnsTo: columnsFrom,
+					});
 				}
 			});
+		}
+	});
 
-			return `export const ${table}Relations = relations(${table}, ({${hasOne ? 'one' : ''}${
-				hasOne && hasMany ? ', ' : ''
-			}${hasMany ? 'many' : ''}}) => ({\n${fields.join('\n')}\n}));`;
-		},
-	);
+	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "./schema";\n\n`;
+
+	let relationString = `export const relations = defineRelations(schema, (r) => ({`;
+
+	Object.entries(tableRelations).forEach(([table, relations]) => {
+		// Adjust duplicate names if needed.
+		const preparedRelations = relations.map(
+			(relation, relationIndex, originArray) => {
+				let name = relation.name;
+				let relationName;
+				const hasMultipleRelations = originArray.some(
+					(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
+				);
+				if (hasMultipleRelations) {
+					// if one relation - we need to name a relation from this table to "many" table
+					if (relation.type === 'one') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+							relation.columnsTo.join('_')
+						}`;
+						// if many relation - name in in different order, so alias names will match
+					} else if (relation.type === 'many' || relation.type === 'one-one') {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+							relation.columnsFrom.join('_')
+						}`;
+						// if through relation - we need to name a relation from this table to "many" table and include "via"
+					} else if (relation.type === 'through') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+							relation.columnsTo.join('_')
+						}_via_${relation.tableThrough}`;
+						// else is for many-through, meaning we need to reverse the order for tables and columns, but leave "via" the same
+					} else {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+							relation.columnsFrom.join('_')
+						}_via_${relation.tableThrough}`;
+					}
+				}
+				const hasDuplicatedRelation = originArray.some(
+					(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
+				);
+				if (hasDuplicatedRelation) {
+					name = `${relation.name}_${
+						relation.type === 'through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'many-through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'one'
+							? relation.columnsFrom.join('_')
+							: relation.columnsTo.join('_')
+					}`;
+				}
+				return {
+					...relation,
+					name: withCasing(name, casing),
+					relationName,
+				};
+			},
+		);
+
+		relationString += `\n\t${table}: {`;
+		preparedRelations.forEach((relation) => {
+			if (relation.type === 'one') {
+				const from = relation.columnsFrom.length === 1
+					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}`
+					: `[${
+						relation.columnsFrom
+							.map((it) => `r.${relation.tableFrom}.${it}`)
+							.join(', ')
+					}]`;
+				const to = relation.columnsTo.length === 1
+					? `r.${relation.tableTo}.${relation.columnsTo[0]}`
+					: `[${
+						relation.columnsTo
+							.map((it) => `r.${relation.tableTo}.${it}`)
+							.join(', ')
+					}]`;
+
+				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
+					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
+					+ `\n\t\t}),`;
+			} else if (relation.type === 'many' || relation.type === 'many-through') {
+				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}(`
+					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
+					+ `),`;
+			} else if (relation.type === 'one-one') {
+				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}(`
+					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
+					+ `),`;
+			} else {
+				const from = relation.columnsThroughFrom!.length === 1
+					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}.through(r.${relation.tableThrough}.${
+						relation.columnsThroughFrom![0]
+					})`
+					: `[${
+						relation.columnsThroughFrom!
+							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							.join(', ')
+					}]`;
+				const to = relation.columnsThroughTo!.length === 1
+					? `r.${relation.tableTo}.${relation.columnsTo![0]}.through(r.${relation.tableThrough}.${
+						relation.columnsThroughTo![0]
+					})`
+					: `[${
+						relation.columnsThroughTo!
+							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							.join(', ')
+					}]`;
+
+				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
+					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
+					+ `\n\t\t}),`;
+			}
+		});
+		relationString += `\n\t},`;
+	});
+
+	relationString += `\n}))`;
 
 	return {
-		file: importsTs + relationStatements.join('\n\n'),
+		file: importsTs + relationString,
 	};
 };
