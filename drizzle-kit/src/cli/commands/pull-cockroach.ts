@@ -19,7 +19,7 @@ import type {
 	Sequence,
 	View,
 } from '../../dialects/cockroach/ddl';
-import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
+import { cockroachToRelationsPull, createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
@@ -66,7 +66,7 @@ export const handle = async (
 	}
 
 	const ts = cockroachSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(cockroachToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);

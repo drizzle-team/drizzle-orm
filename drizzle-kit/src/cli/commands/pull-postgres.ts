@@ -22,7 +22,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
@@ -72,7 +72,7 @@ export const handle = async (
 	}
 
 	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
-	const relationsTs = relationsToTypeScript(ddl2, casing);
+	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);

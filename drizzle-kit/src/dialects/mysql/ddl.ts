@@ -1,3 +1,4 @@
+import type { SchemaForPull } from 'src/cli/commands/pull-common';
 import { create } from '../dialect';
 import { nameForUnique } from './grammar';
 
@@ -269,3 +270,40 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 	return { ddl, errors };
 };
+
+export const tableFromDDL = (
+	table: MysqlEntities['tables'],
+	ddl: MysqlDDL,
+) => {
+	const filter = { table: table.name } as const;
+	const columns = ddl.columns.list(filter);
+	const pk = ddl.pks.one(filter);
+	const fks = ddl.fks.list(filter);
+	const checks = ddl.checks.list(filter);
+	const indexes = ddl.indexes.list(filter);
+
+	return {
+		...table,
+		columns,
+		pk,
+		fks,
+		checks,
+		indexes,
+	};
+};
+
+export function mysqlToRelationsPull(schema: MysqlDDL): SchemaForPull {
+	return Object.values(schema.tables.list()).map((table) => {
+		const rawTable = tableFromDDL(table, schema);
+		return {
+			foreignKeys: rawTable.fks,
+			uniques: Object.values(rawTable.indexes).map((idx) => ({
+				columns: idx.columns.map((idxc) => {
+					if (!idxc.isExpression && idx.isUnique) {
+						return idxc.value;
+					}
+				}).filter((item) => item !== undefined),
+			})),
+		};
+	});
+}

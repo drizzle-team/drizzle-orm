@@ -1,3 +1,4 @@
+import type { SchemaForPull } from 'src/cli/commands/pull-common';
 import { create } from '../dialect';
 import { nameForPk, nameForUnique } from './grammar';
 
@@ -279,3 +280,24 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 
 	return { ddl, errors };
 };
+
+export function sqliteToRelationsPull(schema: SQLiteDDL): SchemaForPull {
+	return Object.values(schema.tables.list()).map((table) => {
+		const rawTable = tableFromDDL(table.name, schema);
+		return {
+			foreignKeys: rawTable.fks,
+			uniques: [
+				...Object.values(rawTable.uniques).map((unq) => ({
+					columns: unq.columns,
+				})),
+				...Object.values(rawTable.indexes).map((idx) => ({
+					columns: idx.columns.map((idxc) => {
+						if (!idxc.isExpression && idx.isUnique) {
+							return idxc.value;
+						}
+					}).filter((item) => item !== undefined),
+				})),
+			],
+		};
+	});
+}

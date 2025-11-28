@@ -62,9 +62,8 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	drop_index: ['create_index', 'drop_index'],
 
 	// Primary key operations
-	drop_pk: ['drop_pk', 'create_pk', 'recreate_pk'],
-	create_pk: ['drop_pk', 'create_pk', 'recreate_pk'],
-	recreate_pk: ['drop_pk', 'create_pk', 'recreate_pk'],
+	drop_pk: ['drop_pk', 'create_pk'],
+	create_pk: ['drop_pk', 'create_pk'],
 
 	// Foreign key operations
 	create_fk: ['create_fk'],
@@ -133,9 +132,6 @@ function extractStatementInfo(
 			objectName = statement.pk.table;
 			break;
 		case 'create_pk':
-			objectName = statement.pk.table;
-			break;
-		case 'recreate_pk':
 			objectName = statement.pk.table;
 			break;
 

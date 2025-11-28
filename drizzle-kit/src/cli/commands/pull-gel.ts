@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
@@ -44,7 +44,7 @@ export const handle = async (
 	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing, 'gel');
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
