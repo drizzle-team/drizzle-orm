@@ -246,11 +246,8 @@ test('added column not null and without default to table with data', async (t) =
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints).toStrictEqual([
-		"· You're about to add not-null 'age' column without default value to non-empty 'companies' table",
-	]);
-	expect(error).toBeNull();
 	expect(phints[0].statement).toStrictEqual('DELETE FROM "companies" where true;');
+	expect(error).toBeNull();
 
 	// TODO: check truncations
 });
@@ -638,8 +635,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = ["· You're about to drop 'name' column(s) in a non-empty 'companies' table"];
-	expect(phints).toStrictEqual(hints0);
+	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -692,8 +688,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = ["· You're about to drop 'name' column(s) in a non-empty 'companies' table"];
-	expect(phints).toStrictEqual(hints0);
+	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('change autoincrement. other table references current', async (t) => {

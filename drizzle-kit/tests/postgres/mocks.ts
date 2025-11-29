@@ -355,7 +355,12 @@ export const diffIntrospect = async (
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		groupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (afterFileSqlStatements.length > 0) {
+		console.log(explain('mysql', groupedStatements, true, []));
+	}
 
 	rmSync(`tests/postgres/tmp/${testName}.ts`);
 

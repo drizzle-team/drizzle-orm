@@ -139,8 +139,24 @@ ORDER BY lower(views.name);
 		});
 
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
-	const viewsIds = viewsList.map((it) => it.object_id);
-	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
+	const filteredViewIds = viewsList.map((it) => it.object_id);
+	const filteredViewsAndTableIds = [...filteredTableIds, ...filteredViewIds];
+
+	if (filteredViewIds.length === 0 && filteredTableIds.length === 0) {
+		return {
+			schemas,
+			tables: [],
+			columns: [],
+			pks: [],
+			fks: [],
+			indexes: [],
+			uniques: [],
+			defaults: [],
+			checks: [],
+			views: [],
+			viewColumns: [],
+		};
+	}
 
 	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
 	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0 ? `(${filteredViewsAndTableIds.join(',')})` : '';
@@ -250,30 +266,31 @@ ORDER BY lower(fk.name);
 		filter_definition: string;
 		column_id: number;
 	};
+
 	const pksUniquesAndIdxsQuery = await db.query<RawIdxsAndConstraints>(`
-SELECT 
-	i.object_id as table_id,
-	i.index_id as index_id,
-    i.name AS name,
-    i.is_unique as is_unique,
-    i.is_primary_key as is_primary_key,
-    i.is_unique_constraint as is_unique_constraint,
-    i.has_filter as has_filter,
-    i.filter_definition as filter_definition,
-    ic.column_id as column_id
-FROM sys.indexes i
-INNER JOIN sys.index_columns ic 
-    ON i.object_id = ic.object_id
-   AND i.index_id = ic.index_id
-${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
-ORDER BY lower(i.name)
-;`).then((rows) => {
-		queryCallback('indexes', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('indexes', [], error);
-		throw error;
-	});
+		SELECT 
+			i.object_id as table_id,
+			i.index_id as index_id,
+			i.name AS name,
+			i.is_unique as is_unique,
+			i.is_primary_key as is_primary_key,
+			i.is_unique_constraint as is_unique_constraint,
+			i.has_filter as has_filter,
+			i.filter_definition as filter_definition,
+			ic.column_id as column_id
+		FROM sys.indexes i
+		INNER JOIN sys.index_columns ic 
+			ON i.object_id = ic.object_id
+			AND i.index_id = ic.index_id
+		${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
+		ORDER BY lower(i.name);`)
+		.then((rows) => {
+			queryCallback('indexes', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('indexes', [], error);
+			throw error;
+		});
 
 	const columnsQuery = await db.query<{
 		column_id: number;
@@ -323,8 +340,7 @@ LEFT JOIN sys.computed_columns computed
 LEFT JOIN sys.objects obj 
   ON obj.object_id = col.object_id
 WHERE obj.type in ('U', 'V')
-AND AND obj.is_ms_shipped = 0
-${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};
+	AND col.object_id IN ${filterByTableAndViewIds};
 `).then((rows) => {
 			queryCallback('columns', rows, null);
 			return rows;

@@ -165,8 +165,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		}
 
 		if (statement.type === 'alter_column') {
-			const tableName = identifier({ table: statement.column.table });
-			const columnName = identifier({ column: statement.column.name });
+			const tableName = identifier({ table: statement.origin.table });
+			const columnName = identifier({ column: statement.origin.column });
 
 			// add not null without default or generated
 			if (

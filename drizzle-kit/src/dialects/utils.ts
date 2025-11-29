@@ -1,4 +1,4 @@
-import type { Simplify } from '../utils';
+import { type Simplify, trimChar } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
@@ -94,6 +94,7 @@ export const groupDiffs = <
 
 export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: string } => {
 	const check = Number(value);
+	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${trimChar(escapeForTsLiteral(value), '"')}\`` };
 
 	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
 	return { mode: 'bigint', value: `${value}n` };

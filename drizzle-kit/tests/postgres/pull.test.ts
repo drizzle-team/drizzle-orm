@@ -1107,12 +1107,7 @@ test('policy', async () => {
 		for: 'all',
 	}).link(organizationsInCore);
 
-	const { sqlStatements } = await diffIntrospect(
-		db,
-		{ organizationsInCore, policy },
-		'policy',
-	);
-
+	const { sqlStatements } = await diffIntrospect(db, { organizationsInCore, policy }, 'policy');
 	expect(sqlStatements).toStrictEqual([]);
 });
 
