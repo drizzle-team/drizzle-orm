@@ -317,16 +317,16 @@ export const ddlToTypeScript = (
 		const func = seqSchema ? `${seqSchema}.sequence` : 'pgSequence';
 
 		let params = '';
-		if (it.startWith) params += `, startWith: "${it.startWith}"`;
-		if (it.incrementBy) params += `, increment: "${it.incrementBy}"`;
-		if (it.minValue) params += `, minValue: "${it.minValue}"`;
-		if (it.maxValue) params += `, maxValue: "${it.maxValue}"`;
-		if (it.cacheSize) params += `, cache: "${it.cacheSize}"`;
+		if (it.startWith) params += `startWith: "${it.startWith}", `;
+		if (it.incrementBy) params += `increment: "${it.incrementBy}", `;
+		if (it.minValue) params += `minValue: "${it.minValue}", `;
+		if (it.maxValue) params += `maxValue: "${it.maxValue}", `;
+		if (it.cacheSize) params += `cache: "${it.cacheSize}", `;
 
-		if (it.cycle) params += `, cycle: true`;
-		else params += `, cycle: false`;
+		if (it.cycle) params += `cycle: true, `;
+		else params += `cycle: false, `;
 
-		params = params ? `, { ${trimChar(params, ',')} }` : '';
+		params = params ? `, { ${trimChar(params.trim(), ',')} }` : '';
 
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
 	})
@@ -967,7 +967,7 @@ const createTablePolicies = (
 		});
 
 		const tuples = [];
-		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase}"`]);
+		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase()}"`]);
 		if (it.for !== 'ALL') tuples.push(['for', `"${it.for.toLowerCase()}"`]);
 		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
 			tuples.push([
@@ -978,7 +978,7 @@ const createTablePolicies = (
 		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
 		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
-		statement += `\tpgPolicy("${it.name}"${opts}),\n`;
+		statement += `\n\tpgPolicy("${it.name}"${opts}),\n`;
 	});
 
 	return statement;

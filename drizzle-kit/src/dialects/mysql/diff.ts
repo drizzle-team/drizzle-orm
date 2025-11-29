@@ -418,10 +418,25 @@ export const ddlDiff = async (
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			// const { $diffType: _1, $left: _2, $right: _3, entityType: _4, table: _5, ...rest } = it;
-			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const isPK = !!ddl2.pks.one({ table: it.table, columns: [it.name] });
 			const wasPK = !!ddl1.pks.one({ table: it.table, columns: [it.name] });
-			return prepareStatement('alter_column', { diff: it, column, isPK: isPK, wasPK });
+
+			const potentialTableRename = renamedTables.find((x) => x.to.name === it.$left.table);
+			const originTableName = potentialTableRename?.from.name ?? it.$left.table;
+
+			const potentialRename = columnRenames.find((x) => x.from.table === it.$left.table && x.to.name === it.$left.name);
+			const originColumnName = potentialRename?.from.name ?? it.$left.name;
+
+			return prepareStatement('alter_column', {
+				diff: it,
+				column: it.$right,
+				isPK: isPK,
+				wasPK,
+				origin: {
+					table: originTableName,
+					column: originColumnName,
+				},
+			});
 		});
 
 	const columnRecreateStatatements = alters.filter((it) => it.entityType === 'columns').filter((it) =>
