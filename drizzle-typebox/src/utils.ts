@@ -1,6 +1,6 @@
-import type { Kind, Static, TSchema } from '@sinclair/typebox';
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { Static, TSchema } from 'typebox';
 import type { literalSchema } from './column.ts';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
@@ -16,12 +16,12 @@ export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> 
 type Literal = Static<typeof literalSchema>;
 export type Json = Literal | { [key: string]: any } | any[];
 export interface JsonSchema extends TSchema {
-	[Kind]: 'Union';
+	'~kind': 'Union';
 	static: Json;
 	anyOf: Json;
 }
 export interface BufferSchema extends TSchema {
-	[Kind]: 'Buffer';
+	'~kind': 'Buffer';
 	static: Buffer;
 	type: 'buffer';
 }

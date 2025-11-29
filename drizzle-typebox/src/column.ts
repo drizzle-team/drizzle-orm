@@ -1,5 +1,7 @@
-import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
-import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
+import Type from 'typebox';
+import type { TSchema, TStringOptions, TTypeScriptEnumToEnumValues } from 'typebox';
+
+const t = Type;
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
@@ -59,16 +61,41 @@ import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 import type { BufferSchema, JsonSchema } from './utils.ts';
 
+// Custom TBuffer class extending Type.Base for TypeBox 1.x
+export class TBuffer extends Type.Base<Buffer> {
+	public override Check(value: unknown): value is Buffer {
+		return value instanceof Buffer; // eslint-disable-line no-instanceof/no-instanceof
+	}
+	public override Errors(value: unknown): object[] {
+		return !this.Check(value) ? [{ message: 'not a Buffer' }] : [];
+	}
+	public override Clone(): TBuffer {
+		return new TBuffer();
+	}
+}
+
+// Custom TDate class extending Type.Base for TypeBox 1.x
+export class TDate extends Type.Base<Date> {
+	public override Check(value: unknown): value is Date {
+		return value instanceof Date; // eslint-disable-line no-instanceof/no-instanceof
+	}
+	public override Errors(value: unknown): object[] {
+		return !this.Check(value) ? [{ message: 'not a Date' }] : [];
+	}
+	public override Clone(): TDate {
+		return new TDate();
+	}
+}
+
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
-TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
-export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
+export const bufferSchema: BufferSchema = new TBuffer() as any;
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
-export function columnToSchema(column: Column, t: typeof typebox): TSchema {
+export function columnToSchema(column: Column, t: typeof Type): TSchema {
 	let schema!: TSchema;
 
 	if (isWithEnum(column)) {
@@ -121,7 +148,7 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 		} else if (column.dataType === 'boolean') {
 			schema = t.Boolean();
 		} else if (column.dataType === 'date') {
-			schema = t.Date();
+			schema = new TDate();
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column, t);
 		} else if (column.dataType === 'json') {
@@ -140,7 +167,7 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 	return schema;
 }
 
-function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
+function numberColumnToSchema(column: Column, t: typeof Type): TSchema {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -247,7 +274,7 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	});
 }
 
-function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
+function bigintColumnToSchema(column: Column, t: typeof Type): TSchema {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
 	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
@@ -258,7 +285,7 @@ function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	});
 }
 
-function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
+function stringColumnToSchema(column: Column, t: typeof Type): TSchema {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
 		return t.String({ format: 'uuid' });
 	} else if (
@@ -266,7 +293,7 @@ function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 			'PgBinaryVector',
 		])
 	) {
-		return t.RegExp(/^[01]+$/, column.dimensions ? { maxLength: column.dimensions } : undefined);
+		return t.String({ pattern: /^[01]+$/, ...(column.dimensions ? { maxLength: column.dimensions } : {}) });
 	}
 
 	let max: number | undefined;
@@ -301,7 +328,7 @@ function stringColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		fixed = true;
 	}
 
-	const options: Partial<StringOptions> = {};
+	const options: Partial<TStringOptions> = {};
 
 	if (max !== undefined && fixed) {
 		options.minLength = max;

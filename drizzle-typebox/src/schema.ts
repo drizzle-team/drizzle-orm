@@ -1,6 +1,9 @@
-import { Type as t } from '@sinclair/typebox';
-import type { TSchema } from '@sinclair/typebox';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
+import Type from 'typebox';
+import type { TSchema } from 'typebox';
+import type * as t from 'typebox';
+
+const Type_const = Type;
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import { columnToSchema, mapEnumValues } from './column.ts';
@@ -39,7 +42,7 @@ export function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column, factory?.typeboxInstance ?? t) : t.Any();
+		const schema = column ? columnToSchema(column, factory?.typeboxInstance ?? Type_const) : Type_const.Any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
@@ -50,20 +53,20 @@ export function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = t.Union([columnSchemas[key]!, t.Null()]);
+				columnSchemas[key] = Type_const.Union([columnSchemas[key]!, Type_const.Null()]);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = t.Optional(columnSchemas[key]!);
+				columnSchemas[key] = Type_const.Optional(columnSchemas[key]!);
 			}
 		}
 	}
 
-	return t.Object(columnSchemas) as any;
+	return Type_const.Object(columnSchemas) as any;
 }
 
-export function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
-	const typebox: typeof t = factory?.typeboxInstance ?? t;
+export function handleEnum<T extends [string, ...string[]]>(enum_: PgEnum<T>, factory?: CreateSchemaFactoryOptions) {
+	const typebox: typeof Type_const = factory?.typeboxInstance ?? Type_const;
 	return typebox.Enum(mapEnumValues(enum_.enumValues));
 }
 

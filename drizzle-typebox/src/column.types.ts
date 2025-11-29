@@ -1,5 +1,7 @@
-import type * as t from '@sinclair/typebox';
 import type { Assume, Column } from 'drizzle-orm';
+import type * as t from 'typebox';
+import type { TTypeScriptEnumToEnumValues } from 'typebox';
+import type { TDate } from './column.ts';
 import type { BufferSchema, IsEnumDefined, IsNever, JsonSchema } from './utils.ts';
 
 type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
@@ -37,15 +39,15 @@ export type GetTypeboxType<
 	| 'SQLiteInteger'
 	| 'MySqlYear'
 	| 'SingleStoreYear' ? t.TInteger
-	: TColumn['_']['columnType'] extends 'PgBinaryVector' ? t.TRegExp
+	: TColumn['_']['columnType'] extends 'PgBinaryVector' ? t.TString
 	: HasBaseColumn<TColumn> extends true ? t.TArray<
 			GetTypeboxType<Assume<TColumn['_']['baseColumn'], Column>>
 		>
 	: IsEnumDefined<TColumn['_']['enumValues']> extends true
-		? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
+		? t.TEnum<TTypeScriptEnumToEnumValues<EnumValuesToEnum<Assume<TColumn['_']['enumValues'], [string, ...string[]]>>>>
 	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? t.TTuple<[t.TNumber, t.TNumber]>
 	: TColumn['_']['columnType'] extends 'PgLine' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
-	: TColumn['_']['data'] extends Date ? t.TDate
+	: TColumn['_']['data'] extends Date ? TDate
 	: TColumn['_']['data'] extends Buffer ? BufferSchema
 	: TColumn['_']['dataType'] extends 'array'
 		? t.TArray<GetTypeboxPrimitiveType<Assume<TColumn['_']['data'], any[]>[number]>>
@@ -67,20 +69,20 @@ type HandleSelectColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? TSchema
-	: t.Union<[TSchema, t.TNull]>;
+	: t.TUnion<[TSchema, t.TNull]>;
 
 type HandleInsertColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? t.TOptional<TSchema>
 	: TSchema
-	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
+	: t.TOptional<t.TUnion<[TSchema, t.TNull]>>;
 
 type HandleUpdateColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? t.TOptional<TSchema>
-	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
+	: t.TOptional<t.TUnion<[TSchema, t.TNull]>>;
 
 export type HandleColumn<
 	TType extends 'select' | 'insert' | 'update',
