@@ -59,7 +59,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test.only('table drop vs child index', async () => {
+	test('table drop vs child index', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.varchar({ length: 255 }),
