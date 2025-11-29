@@ -11,8 +11,8 @@
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-typebox';
-import { Type } from '@sinclair/typebox';
-import { Value } from '@sinclair/typebox/value';
+import Type from 'typebox';
+import Value from 'typebox/value';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),

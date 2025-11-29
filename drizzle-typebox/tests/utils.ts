@@ -1,4 +1,4 @@
-import type * as t from '@sinclair/typebox';
+import type * as t from 'typebox';
 import { expect, type TaskContext } from 'vitest';
 
 function removeKeysFromObject(obj: Record<string, any>, keys: string[]) {

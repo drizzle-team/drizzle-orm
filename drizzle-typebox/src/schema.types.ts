@@ -1,4 +1,4 @@
-import type * as t from '@sinclair/typebox';
+import type * as t from 'typebox';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { EnumValuesToEnum } from './column.types.ts';

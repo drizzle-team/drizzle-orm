@@ -1,4 +1,4 @@
-import type * as t from '@sinclair/typebox';
+import type * as t from 'typebox';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { GetTypeboxType, HandleColumn } from './column.types.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
