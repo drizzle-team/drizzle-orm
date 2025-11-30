@@ -13,7 +13,8 @@ import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
+import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
+import type { PgPreparedQuery, PreparedQueryConfig, PromiseLikePgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
@@ -27,7 +28,7 @@ export class RelationalQueryBuilder<
 		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private parseJson: boolean,
 	) {}
 
@@ -77,7 +78,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private table: PgTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		private mode: 'many' | 'first',
 		private parseJson: boolean,
@@ -86,7 +87,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string): PromiseLikePgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 

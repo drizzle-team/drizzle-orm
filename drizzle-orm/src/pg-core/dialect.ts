@@ -65,7 +65,7 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import type { PgSession } from './session.ts';
+import type { PromiseLikePgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -85,7 +85,7 @@ export class PgDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: PgSession,
+		session: PromiseLikePgSession,
 		config: string | MigrationConfig,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'

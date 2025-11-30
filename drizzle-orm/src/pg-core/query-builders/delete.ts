@@ -5,8 +5,8 @@ import type {
 	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
-	PgSession,
 	PreparedQueryConfig,
+	PromiseLikePgSession,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -156,7 +156,7 @@ export class PgDeleteBase<
 
 	constructor(
 		table: TTable,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {

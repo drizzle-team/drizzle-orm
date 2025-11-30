@@ -15,10 +15,10 @@ import {
 	type PgDialect,
 	PgPreparedQuery,
 	type PgQueryResultHKT,
-	PgSession,
 	PgTransaction,
 	type PgTransactionConfig,
 	type PreparedQueryConfig,
+	PromiseLikePgSession,
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -207,7 +207,7 @@ export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PromiseLikePgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiSession';
 
 	/** @internal */

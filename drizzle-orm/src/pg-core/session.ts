@@ -1,8 +1,7 @@
 import type * as V1 from '~/_relations.ts';
-import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -10,6 +9,7 @@ import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
+import type { PromiseLikePgPreparedQuery } from './promiselike/prepared-query.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
@@ -18,27 +18,10 @@ export interface PreparedQueryConfig {
 	values: unknown;
 }
 
-export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
-	constructor(
-		protected query: Query,
-		// cache instance
-		private cache: Cache | undefined,
-		// per query related metadata
-		private queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig,
-	) {
-		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enable: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enable) {
-			this.cacheConfig = undefined;
-		}
-	}
+export abstract class PgPreparedQuery implements PreparedQuery {
+	static readonly [entityKind]: string = 'PgPreparedQuery';
+
+	constructor(protected query: Query) {}
 
 	protected authToken?: NeonAuthToken;
 
@@ -56,94 +39,8 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		return this;
 	}
 
-	static readonly [entityKind]: string = 'PgPreparedQuery';
-
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
-
-	/** @internal */
-	protected async queryWithCache<T>(
-		queryString: string,
-		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
-		}
-
-		// don't do any mutations, if globally is false
-		if (this.cacheConfig && !this.cacheConfig.enable) {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
-		}
-
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
-		if (
-			(
-				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
-				|| this.queryMetadata.type === 'delete'
-			) && this.queryMetadata.tables.length > 0
-		) {
-			return await Promise.all([
-				query(),
-				this.cache.onMutate({ tables: this.queryMetadata.tables }),
-			]).then((res) => res[0]).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
-		}
-
-		// don't do any reads if globally disabled
-		if (!this.cacheConfig) {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
-		}
-
-		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
-				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
-				});
-				// put actual key
-				await this.cache.put(
-					this.cacheConfig.tag ?? await hashQuery(queryString, params),
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-					this.cacheConfig.tag !== undefined,
-					this.cacheConfig.config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-
-		return query().catch((e) => {
-			throw new DrizzleQueryError(queryString, params, e as Error);
-		});
-	}
-
-	// TODO: why execute and all?
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
 
 	/** @internal */
 	abstract isResponseInArrayMode(): boolean;
@@ -155,7 +52,7 @@ export interface PgTransactionConfig {
 	deferrable?: boolean;
 }
 
-export abstract class PgSession<
+export abstract class PromiseLikePgSession<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -176,7 +73,7 @@ export abstract class PgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T>;
+	): PromiseLikePgPreparedQuery<T>;
 
 	abstract prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -186,7 +83,7 @@ export abstract class PgSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
-	): PgPreparedQuery<T>;
+	): PromiseLikePgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T>;
 	/** @internal */
@@ -244,7 +141,7 @@ export abstract class PgTransaction<
 
 	constructor(
 		dialect: PgDialect,
-		session: PgSession<any, any, any, any>,
+		session: PromiseLikePgSession<any, any, any, any>,
 		protected relations: TRelations,
 		protected schema: {
 			fullSchema: Record<string, unknown>;

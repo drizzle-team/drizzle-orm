@@ -6,7 +6,7 @@ import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
+import type { PgPreparedQuery, PreparedQueryConfig, PromiseLikePgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export class _RelationalQueryBuilder<
@@ -22,7 +22,7 @@ export class _RelationalQueryBuilder<
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 	) {}
 
 	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -75,7 +75,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private config: V1.DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {

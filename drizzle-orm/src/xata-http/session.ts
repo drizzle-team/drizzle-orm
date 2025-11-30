@@ -10,7 +10,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PromiseLikePgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -124,7 +124,7 @@ export class XataHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<
+> extends PromiseLikePgSession<
 	XataHttpQueryResultHKT,
 	TFullSchema,
 	TRelations,

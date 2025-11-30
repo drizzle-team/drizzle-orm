@@ -4,8 +4,8 @@ import type {
 	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
-	PgSession,
 	PreparedQueryConfig,
+	PromiseLikePgSession,
 } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
@@ -41,7 +41,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 
 	constructor(
 		view: PgMaterializedView,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private dialect: PgDialect,
 	) {
 		super();

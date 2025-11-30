@@ -6,8 +6,8 @@ import type {
 	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
-	PgSession,
 	PreparedQueryConfig,
+	PromiseLikePgSession,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -82,7 +82,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 
 	constructor(
 		private table: TTable,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 	) {}
@@ -371,7 +371,7 @@ export class PgUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: PgSession,
+		private session: PromiseLikePgSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {

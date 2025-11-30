@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { Table } from '~/table.ts';
-import type { CacheConfig } from './types.ts';
+import type { CacheConfig, WithCacheConfig } from './types.ts';
 
 export abstract class Cache {
 	static readonly [entityKind]: string = 'Cache';
@@ -42,11 +42,11 @@ export abstract class Cache {
 }
 
 export class NoopCache extends Cache {
+	static override readonly [entityKind]: string = 'NoopCache';
+
 	override strategy() {
 		return 'all' as const;
 	}
-
-	static override readonly [entityKind]: string = 'NoopCache';
 
 	override async get(_key: string): Promise<any[] | undefined> {
 		return undefined;
@@ -63,6 +63,42 @@ export class NoopCache extends Cache {
 		// noop
 	}
 }
+
+// TODO: one place for all dialects
+export const stragegyFor = async (
+	query: string,
+	params: any[] | undefined,
+	queryMetadata: {
+		type: 'select' | 'update' | 'delete' | 'insert';
+		tables: string[];
+	} | undefined,
+	withCacheConfig?: WithCacheConfig,
+) => {
+	if (!queryMetadata) return { type: 'skip' as const };
+
+	const { type, tables } = queryMetadata;
+
+	if ((type === 'insert' || type === 'update' || type === 'delete') && tables.length > 0) {
+		return { type: 'invalidate' as const, tables };
+	}
+
+	if (!withCacheConfig) return { type: 'skip' as const };
+	if (!withCacheConfig.enabled) return { type: 'skip' as const };
+
+	if (type === 'select') {
+		const tag = withCacheConfig.tag ?? await hashQuery(query, params);
+
+		return {
+			type: 'try' as const,
+			key: tag,
+			isTag: typeof withCacheConfig.tag !== 'undefined',
+			autoInvalidate: withCacheConfig.autoInvalidate,
+			tables: queryMetadata.tables,
+			config: withCacheConfig.config,
+		};
+	}
+	return { type: 'skip' as const };
+};
 
 export type MutationOption = { tags?: string | string[]; tables?: Table<any> | Table<any>[] | string | string[] };
 

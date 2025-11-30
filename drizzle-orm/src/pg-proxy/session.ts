@@ -8,7 +8,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
+import { PgPreparedQuery as PreparedQueryBase, PromiseLikePgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { QueryWithTypings } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
@@ -25,7 +25,7 @@ export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PromiseLikePgSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;

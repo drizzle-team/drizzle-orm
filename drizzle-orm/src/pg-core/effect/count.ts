@@ -1,18 +1,19 @@
+import { Effect } from 'effect';
+import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
-import type { PromiseLikePgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 
-export class PgCountBuilder<
-	TSession extends PromiseLikePgSession<any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper<number> {
+export class PgEffectCountBuilder<
+	TSession extends EffectPgSession<any, any, any>,
+> extends SQL<number> implements SQLWrapper<number> {
 	private sql: SQL<number>;
 	private token?: NeonAuthToken;
 
-	static override readonly [entityKind]: string = 'PgCountBuilder';
-	[Symbol.toStringTag] = 'PgCountBuilder';
+	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
+	[Symbol.toStringTag] = 'PgEffectCountBuilder';
 
 	private session: TSession;
 
@@ -38,13 +39,13 @@ export class PgCountBuilder<
 			session: TSession;
 		},
 	) {
-		super(PgCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(PgEffectCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.mapWith(Number);
 
 		this.session = params.session;
 
-		this.sql = PgCountBuilder.buildCount(
+		this.sql = PgEffectCountBuilder.buildCount(
 			params.source,
 			params.filters,
 		);
@@ -56,33 +57,21 @@ export class PgCountBuilder<
 		return this;
 	}
 
-	then<TResult1 = number, TResult2 = never>(
-		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
-		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
-	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql, this.token))
-			.then(
-				onfulfilled,
-				onrejected,
-			);
+	// TODO: neon token
+	private toEffect(): Effect.Effect<any[], Error, never> {
+		// TODO:[0]["count"]
+		return this.session.all(this.sql);
 	}
 
-	catch(
-		onRejected?: ((reason: any) => any) | null | undefined,
-	): Promise<number> {
-		return this.then(undefined, onRejected);
+	get [Effect.EffectTypeId]() {
+		return this.toEffect()[Effect.EffectTypeId];
 	}
 
-	finally(onFinally?: (() => void) | null | undefined): Promise<number> {
-		return this.then(
-			(value) => {
-				onFinally?.();
-				return value;
-			},
-			(reason) => {
-				onFinally?.();
-				throw reason;
-			},
-		);
+	[Symbol.iterator]() {
+		return this.toEffect()[Symbol.iterator]();
+	}
+
+	pipe(...args: any[]) {
+		return (this.toEffect() as any).pipe(...args);
 	}
 }
