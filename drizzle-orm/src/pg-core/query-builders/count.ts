@@ -20,7 +20,8 @@ export class PgCountBuilder<
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
+		const where = filters ? sql` where ${filters}` : sql.empty();
+		return sql<number>`(select count(*) from ${source}${where})`;
 	}
 
 	private static buildCount(

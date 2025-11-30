@@ -149,6 +149,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 		const p = mysqlTable('p', (t) => ({
 			id: t.int().primaryKey(),
+			z,
 		}));
 
 		const parent = {
