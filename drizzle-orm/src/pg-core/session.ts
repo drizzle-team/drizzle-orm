@@ -68,20 +68,16 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		query: () => Promise<T>,
 	): Promise<T> {
 		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			try {
-				return await query();
-			} catch (e) {
+			return query().catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
 		// don't do any mutations, if globally is false
 		if (this.cacheConfig && !this.cacheConfig.enable) {
-			try {
-				return await query();
-			} catch (e) {
+			return query().catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
 		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
@@ -91,24 +87,19 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				|| this.queryMetadata.type === 'delete'
 			) && this.queryMetadata.tables.length > 0
 		) {
-			try {
-				const [res] = await Promise.all([
-					query(),
-					this.cache.onMutate({ tables: this.queryMetadata.tables }),
-				]);
-				return res;
-			} catch (e) {
+			return await Promise.all([
+				query(),
+				this.cache.onMutate({ tables: this.queryMetadata.tables }),
+			]).then((res) => res[0]).catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
 		// don't do any reads if globally disabled
 		if (!this.cacheConfig) {
-			try {
-				return await query();
-			} catch (e) {
+			return query().catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
 		if (this.queryMetadata.type === 'select') {
@@ -118,13 +109,11 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				this.cacheConfig.tag !== undefined,
 				this.cacheConfig.autoInvalidate,
 			);
+
 			if (fromCache === undefined) {
-				let result;
-				try {
-					result = await query();
-				} catch (e) {
+				const result = await query().catch((e) => {
 					throw new DrizzleQueryError(queryString, params, e as Error);
-				}
+				});
 				// put actual key
 				await this.cache.put(
 					this.cacheConfig.tag ?? await hashQuery(queryString, params),
@@ -140,13 +129,13 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 
 			return fromCache as unknown as T;
 		}
-		try {
-			return await query();
-		} catch (e) {
+
+		return query().catch((e) => {
 			throw new DrizzleQueryError(queryString, params, e as Error);
-		}
+		});
 	}
 
+	// TODO: why execute and all?
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 	/** @internal */
 	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
