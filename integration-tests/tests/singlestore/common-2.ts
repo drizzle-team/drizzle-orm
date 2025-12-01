@@ -2784,7 +2784,7 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
 		test.concurrent('.where with isNull in it', async ({ db, push }) => {
 			const table = singlestoreTable('table_where_is_null', {
 				col1: boolean(),

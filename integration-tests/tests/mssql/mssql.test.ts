@@ -3953,7 +3953,7 @@ test('column.as', async ({ db }) => {
 	}]));
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/4091
+// https://github.com/drizzle-team/drizzle-orm/issues/4878
 test.concurrent('.where with isNull in it', async ({ db }) => {
 	const table = mssqlTable('table_where_is_null', {
 		col1: bit(),

@@ -728,7 +728,7 @@ describe('some', async () => {
 		]);
 	});
 
-	// https://github.com/drizzle-team/drizzle-orm/issues/4091
+	// https://github.com/drizzle-team/drizzle-orm/issues/4878
 	test.concurrent('.where with isNull in it', async (ctx) => {
 		const { db } = ctx.gel;
 		const table = gelTable('table_where_is_null', {

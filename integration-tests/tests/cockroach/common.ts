@@ -682,7 +682,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
 		test.concurrent('.where with isNull in it', async (ctx) => {
 			const { db } = ctx.cockroach;
 
