@@ -100,7 +100,9 @@ export const generateSqliteSnapshot = (
 			columnsObject[name] = columnToSet;
 
 			if (column.isUnique) {
-				const existingUnique = indexesObject[column.uniqueName!];
+				const originalColumnName = getColumnCasing(column, undefined);
+				const uniqueName = column.uniqueName!.replace(originalColumnName, name);
+				const existingUnique = indexesObject[uniqueName];
 				if (typeof existingUnique !== 'undefined') {
 					console.log(
 						`\n${
@@ -126,8 +128,8 @@ export const generateSqliteSnapshot = (
 					);
 					process.exit(1);
 				}
-				indexesObject[column.uniqueName!] = {
-					name: column.uniqueName!,
+				indexesObject[uniqueName] = {
+					name: uniqueName,
 					columns: [columnToSet.name],
 					isUnique: true,
 				};
