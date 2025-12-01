@@ -11,6 +11,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNull,
 	lt,
 	max,
 	min,
@@ -441,6 +442,26 @@ export function tests(test: Test, exclude: string[] = []) {
 				.where(notInArray(usersTable.id, []));
 
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		test.concurrent('.where with isNull in it', async ({ db, push }) => {
+			const table = sqliteTable('table_where_is_null', {
+				col1: int({ mode: 'boolean' }),
+				col2: text(),
+			});
+
+			await push({ table });
+			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "col1", "col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
+				params: [],
+			});
+			const res = await query;
+			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 		});
 
 		test.concurrent('select distinct', async ({ db }) => {

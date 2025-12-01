@@ -341,6 +341,7 @@ test('charSet and collate', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4110
 // https://github.com/drizzle-team/drizzle-orm/issues/1020
 // https://github.com/drizzle-team/drizzle-orm/issues/3457
 // https://github.com/drizzle-team/drizzle-orm/issues/1871

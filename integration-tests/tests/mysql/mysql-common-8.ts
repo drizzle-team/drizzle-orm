@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, getTableColumns, gt, Name, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gt, isNull, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	bigint,
@@ -753,5 +753,25 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			await db.execute(sql`DROP TABLE ${cities}`).catch(() => null);
 			await db.execute(sql`DROP VIEW ${ucView}`).catch(() => null);
 		}
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4091
+	test.concurrent('.where with isNull in it', async ({ db, push }) => {
+		const table = mysqlTable('table_where_is_null', {
+			col1: boolean(),
+			col2: text(),
+		});
+
+		await push({ table });
+		await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+		const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+		expect(query.toSQL()).toStrictEqual({
+			sql:
+				'select `col1`, `col2` from `table_where_is_null` where `table_where_is_null`.`col1` = (`table_where_is_null`.`col2` is null)',
+			params: [],
+		});
+		const res = await query;
+		expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 	});
 }

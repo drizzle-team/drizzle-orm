@@ -10,6 +10,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNull,
 	max,
 	min,
 	Name,
@@ -20,6 +21,7 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	bit,
 	except,
 	foreignKey,
 	getTableConfig,
@@ -75,6 +77,7 @@ test.beforeEach(async ({ client }) => {
 	await client.query(`drop table if exists [mySchema].[cities]`);
 	await client.query(`drop schema if exists [mySchema]`);
 	await client.query(`create schema [mySchema]`);
+	await client.query(`drop table if exists [table_where_is_null];`);
 
 	await client.query(`
 		create table [userstest] (
@@ -125,6 +128,12 @@ test.beforeEach(async ({ client }) => {
 			[id] int identity primary key,
 			[name] varchar(100) not null,
 			[city_id] int references [mySchema].[cities]([id])
+		)`);
+
+	await client.query(`
+		create table [table_where_is_null] (
+			[col1] bit,
+			[col2] varchar(6)
 		)`);
 });
 
@@ -3942,4 +3951,23 @@ test('column.as', async ({ db }) => {
 		cityId: null,
 		cityName: null,
 	}]));
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4091
+test.concurrent('.where with isNull in it', async ({ db }) => {
+	const table = mssqlTable('table_where_is_null', {
+		col1: bit(),
+		col2: text(),
+	});
+
+	await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+	const query = db.select().from(table).where(eq(table.col1, sql`case when ${isNull(table.col2)} then 1 else 0 end;`));
+	expect(query.toSQL()).toStrictEqual({
+		sql:
+			'select [col1], [col2] from [table_where_is_null] where [table_where_is_null].[col1] = case when [table_where_is_null].[col2] is null then 1 else 0 end;',
+		params: [],
+	});
+	const res = await query;
+	expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 });
