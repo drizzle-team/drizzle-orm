@@ -179,6 +179,7 @@
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
+		"@effect/sql": "^0.48.5",
 		"@effect/sql-pg": "^0.49.7",
 		"@effect/sql-sqlite-node": "^0.49.1",
 		"@electric-sql/pglite": "^0.2.12",

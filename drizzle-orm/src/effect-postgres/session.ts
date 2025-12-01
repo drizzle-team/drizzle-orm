@@ -1,5 +1,4 @@
 import type { PgClient } from '@effect/sql-pg';
-import type { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -9,18 +8,16 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { Query, SQL } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import type { Query } from '~/sql/sql.ts';
 import { EffectPgPreparedQuery } from './prepared-query';
 
 export interface NodePgQueryResultHKT extends PgQueryResultHKT {
-	// TODO: query result from driver?
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: (readonly unknown[])[];
 }
 
 // TODO:
 export class EffectPgSession<
-	// TFullSchema extends Record<string, unknown>,
+	_TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
 > {
@@ -87,18 +84,5 @@ export class EffectPgSession<
 			customResultMapper,
 			true,
 		);
-	}
-
-	// TODO: decouple
-	all<T = unknown>(query: SQL): Effect.Effect<T[], Error, never> {
-		const prepared = this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-		);
-
-		// TODO: placeholder values?
-		return prepared.yield();
 	}
 }

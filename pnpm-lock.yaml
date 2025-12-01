@@ -383,6 +383,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
+      '@effect/sql':
+        specifier: ^0.48.5
+        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8)
       '@effect/sql-pg':
         specifier: ^0.49.7
         version: 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(effect@3.19.8)
@@ -940,7 +943,7 @@ importers:
         version: typescript@5.9.3
       tsnext:
         specifier: npm:typescript@next
-        version: typescript@6.0.0-dev.20251130
+        version: typescript@6.0.0-dev.20251201
 
 packages:
 
@@ -8088,8 +8091,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251130:
-    resolution: {integrity: sha512-KsAcpCYlgZmHwL8h3eqhbFbYidBQR8MeRhfP9yQvhUG4gLb8U1jYjL02dqn2jKp88+pxqpZa5qXggULszSam6g==}
+  typescript@6.0.0-dev.20251201:
+    resolution: {integrity: sha512-ZW4PYEVveg/O8lbmnkwy1b3NOcvw+GHA0mCFLSAVHLGjLTtfoNfIRduaajqEL4gk25U7UtQ0W8fF26qHKM5BJg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -17232,7 +17235,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typescript@6.0.0-dev.20251130: {}
+  typescript@6.0.0-dev.20251201: {}
 
   ufo@1.6.1: {}
 

@@ -1,16 +1,16 @@
-import type { PgClient } from '@effect/sql-pg';
+import type { PgClient } from '@effect/sql-pg/PgClient';
+import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type { EffectCache } from '~/cache/core/cache-effect';
 import { stragegyFor } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors';
 import type { Logger } from '~/logger.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery } from '~/pg-core/session.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { assertUnreachable } from '~/utils.ts';
+import { assertUnreachable, mapResultRow } from '~/utils.ts';
 
 export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends PgPreparedQuery
@@ -18,7 +18,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	static override readonly [entityKind]: string = 'EffectPgPreparedQuery';
 
 	constructor(
-		private client: PgClient.PgClient,
+		private client: PgClient,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -101,54 +101,47 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 		assertUnreachable(cacheStrat);
 	}
-
-	/** @internal */
-	yield(placeholderValues: Record<string, unknown> | undefined = {}): Effect.Effect<any[], Error, never> {
+	execute(placeholderValues?: Record<string, unknown>): Effect.Effect<T['execute'], SqlError, PgClient> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-
-		// TODO: joinsNotNullableMap?
-		const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap: _, customResultMapper } =
-			this;
-
-		// TODO:
+		const { query, logger, customResultMapper, fields, joinsNotNullableMap, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
 
 		if (!fields && !customResultMapper) {
-			const query = client.unsafe<T>(rawQuery, params);
-			return this.queryWithCache(rawQuery.text, params, query);
+			return this.client.unsafe(query.sql, params as any).withoutTransform;
 		}
 
-		const q = this.queryWithCache(query.text, params, client.unsafe(query, params));
+		return client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
+			(rows) => {
+				if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 
-		const result = Effect.tryPromise({
-			try: async () => q,
-			catch: (e) => {
-				throw new DrizzleQueryError(query.text, params, e as Error);
+				return rows.map((row) =>
+					mapResultRow(
+						fields!,
+						row as unknown[],
+						joinsNotNullableMap,
+					)
+				);
 			},
-		});
-
-		if (customResultMapper) {
-			// TODO: map with custom mapper
-			return result;
-		}
-
-		// TODO: map regularly
-		// .map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap))
-		return result;
+		));
 	}
 
-	// TODO: cache?
 	private executeRqbV2(
-		placeholderValues: Record<string, unknown> | undefined = {},
-	): Effect.Effect<any[], Error, never> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-		const { rawQueryConfig: rawQuery, client, customResultMapper: _ } = this;
-		// TODO: map
-		return client.unsafe(rawQuery, params);
+		placeholderValues?: Record<string, unknown>,
+	): Effect.Effect<T['execute'], SqlError, PgClient> {
+		const { query, logger, customResultMapper, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+
+		logger.logQuery(query.sql, params);
+		return client.unsafe(query.sql, params as any).withoutTransform.pipe(
+			Effect.andThen((v) =>
+				(customResultMapper as (
+					rows: Record<string, unknown>[],
+					mapColumnValue?: (value: unknown) => unknown,
+				) => unknown)(v as Record<string, unknown>[])
+			),
+		);
 	}
 
 	/** @internal */
