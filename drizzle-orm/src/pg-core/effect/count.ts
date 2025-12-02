@@ -1,5 +1,7 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import { Effect } from 'effect';
+import type { EffectWrapper } from '~/effect-core/effectable.ts';
+import { applyEffectWrapper } from '~/effect-core/effectable.ts';
 import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
@@ -8,9 +10,15 @@ import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 
+export interface PgEffectCountBuilder<
+	// oxlint-disable-next-line no-unused-vars
+	TSession extends EffectPgSession<any, any, any>,
+> extends EffectWrapper<number, DrizzleQueryError, PgClient> {
+}
+
 export class PgEffectCountBuilder<
 	TSession extends EffectPgSession<any, any, any>,
-> extends SQL<number> implements SQLWrapper<number> {
+> extends SQL<number> implements SQLWrapper<number>, EffectWrapper<number, DrizzleQueryError, PgClient> {
 	private sql: SQL<number>;
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
 	[Symbol.toStringTag] = 'PgEffectCountBuilder';
@@ -54,7 +62,8 @@ export class PgEffectCountBuilder<
 		);
 	}
 
-	private toEffect(): Effect.Effect<number, DrizzleQueryError, PgClient> {
+	/** @internal */
+	toEffect(): Effect.Effect<number, DrizzleQueryError, PgClient> {
 		const query = this.dialect.sqlToQuery(this.sql);
 		return this.session.prepareQuery<{
 			execute: number;
@@ -68,16 +77,6 @@ export class PgEffectCountBuilder<
 			(rows) => Number(rows[0]?.[0] ?? 0),
 		).execute().pipe(Effect.catchAll((e) => Effect.fail(new DrizzleQueryError(query.sql, query.params, e))));
 	}
-
-	get [Effect.EffectTypeId]() {
-		return this.toEffect()[Effect.EffectTypeId];
-	}
-
-	[Symbol.iterator]() {
-		return this.toEffect()[Symbol.iterator]();
-	}
-
-	pipe(...args: any[]) {
-		return (this.toEffect() as any).pipe(...args);
-	}
 }
+
+applyEffectWrapper(PgEffectCountBuilder);
