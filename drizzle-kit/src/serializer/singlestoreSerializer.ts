@@ -277,7 +277,7 @@ export const generateSingleStoreSnapshot = (
 				columns: indexColumns,
 				isUnique: value.config.unique ?? false,
 				using: value.config.using,
-				algorithm: value.config.algorythm,
+				algorithm: value.config.algorithm,
 				lock: value.config.lock,
 			};
 		});
