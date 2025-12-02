@@ -1338,7 +1338,7 @@ export const Line: SqlType = {
 			const res = parseArray(trimmed);
 
 			const def = stringifyArray(res, 'ts', (v) => {
-				if (!/^\(\d+,\d+,\d+\)$/.test(v)) isDrizzleSql = true;
+				if (!/^\{\d+,\d+,\d+\}$/.test(v)) isDrizzleSql = true;
 				return v.replace('{', '[').replace('}', ']');
 			});
 

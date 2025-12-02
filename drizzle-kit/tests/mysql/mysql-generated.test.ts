@@ -1087,3 +1087,30 @@ test('generated as string: change generated constraint', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]);
 });
+
+test('generated as string: with backslashes', async () => {
+	const to = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				`'users\\\\hello'`,
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE TABLE \`users\` (
+	\`id\` int,
+	\`id2\` int,
+	\`name\` text,
+	\`gen_name\` text GENERATED ALWAYS AS ('users\\\\hello') VIRTUAL
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
