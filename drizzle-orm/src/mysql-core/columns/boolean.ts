@@ -4,7 +4,6 @@ import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlBooleanBuilder extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: number | boolean;

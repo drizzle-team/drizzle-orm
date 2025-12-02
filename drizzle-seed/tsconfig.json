@@ -44,5 +44,5 @@
 		}
 	},
 	"exclude": ["**/dist", "src/dev"],
-	"include": ["src", "*.ts", "tests"]
+	"include": ["src", "tests", "type-tests"]
 }

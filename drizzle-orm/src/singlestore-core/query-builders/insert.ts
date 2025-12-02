@@ -34,7 +34,7 @@ export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTabl
 
 export type SingleStoreInsertValue<
 	TTable extends SingleStoreTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;

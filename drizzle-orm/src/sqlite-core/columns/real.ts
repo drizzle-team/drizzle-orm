@@ -4,7 +4,6 @@ import type { SQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'number double';
 	data: number;
 	driverParam: number;

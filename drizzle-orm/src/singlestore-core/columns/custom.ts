@@ -8,7 +8,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -364,6 +363,6 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		b?: T['config'],
 	): SingleStoreCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new SingleStoreCustomColumnBuilder(name as ConvertCustomConfig<T>['name'], config, customTypeParams);
+		return new SingleStoreCustomColumnBuilder(name, config, customTypeParams);
 	};
 }

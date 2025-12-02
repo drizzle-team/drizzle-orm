@@ -6,7 +6,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreBigInt53Builder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'number uint53' : 'number int53';
 		data: number;
 		driverParam: number | string;
@@ -47,7 +46,6 @@ export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53' | 'nu
 
 export class SingleStoreBigInt64Builder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
 		data: bigint;
 		driverParam: string;
@@ -86,7 +84,6 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bi
 
 export class SingleStoreBigIntStringBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'string uint64' : 'string int64';
 		data: string;
 		driverParam: string;

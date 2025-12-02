@@ -29,7 +29,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle(postgres(''), { schema, casing: 'snake_case' });
+const db = drizzle({ client: postgres(''), schema, casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -244,5 +244,71 @@ describe('postgres to snake case', () => {
 			params: [1],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
+	});
+
+	it('select columns as', ({ expect }) => {
+		const query = db
+			.select({ age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.orderBy(asc(users.id.as('userId')));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select "AGE" as "ageOfUser", "id" as "userId" from "users" order by "userId" asc',
+			params: [],
+		});
+	});
+
+	it('select join columns as', ({ expect }) => {
+		const query = db
+			.select({ name: fullName, age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.leftJoin(developers, eq(users.id.as('userId'), developers.userId))
+			.orderBy(asc(users.firstName));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" as "ageOfUser", "users"."id" as "userId" from "users" left join "test"."developers" on "userId" = "test"."developers"."user_id" order by "users"."first_name" asc',
+			params: [],
+		});
+	});
+
+	it('insert (on conflict do update) returning as', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.firstName.as('userFirstName'), set: { age: 31 } })
+			.returning({ firstName: users.firstName, age: users.age.as('userAge') });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("userFirstName") do update set "AGE" = $4 returning "first_name", "AGE" as "userAge"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('update returning as', ({ expect }) => {
+		const query = db
+			.update(users)
+			.set({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.where(eq(users.id, 1))
+			.returning({ firstName: users.firstName.as('usersName'), age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'update "users" set "first_name" = $1, "last_name" = $2, "AGE" = $3 where "users"."id" = $4 returning "first_name" as "usersName", "AGE"',
+			params: ['John', 'Doe', 30, 1],
+		});
+	});
+
+	it('delete returning as', ({ expect }) => {
+		const query = db
+			.delete(users)
+			.where(eq(users.id, 1))
+			.returning({ firstName: users.firstName, age: users.age.as('usersAge') });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'delete from "users" where "users"."id" = $1 returning "first_name", "AGE" as "usersAge"',
+			params: [1],
+		});
 	});
 });

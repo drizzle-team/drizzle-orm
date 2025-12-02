@@ -8,7 +8,6 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -362,7 +361,7 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 	): SQLiteCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
 		return new SQLiteCustomColumnBuilder(
-			name as ConvertCustomConfig<T>['name'],
+			name,
 			config,
 			customTypeParams,
 		);

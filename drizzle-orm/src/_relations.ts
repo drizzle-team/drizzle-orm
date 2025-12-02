@@ -474,20 +474,20 @@ export function extractTablesRelationalConfig<
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
 			);
-			let primaryKey: AnyColumn[] | undefined;
+			// let primaryKey: AnyColumn[] | undefined;
 
 			for (const [relationName, relation] of Object.entries(relations)) {
 				if (tableName) {
 					const tableConfig = tablesConfig[tableName]!;
 					tableConfig.relations[relationName] = relation;
-					if (primaryKey) {
-						tableConfig.primaryKey.push(...primaryKey);
-					}
+					// if (primaryKey) {
+					// 	tableConfig.primaryKey.push(...primaryKey);
+					// }
 				} else {
 					if (!(dbName in relationsBuffer)) {
 						relationsBuffer[dbName] = {
 							relations: {},
-							primaryKey,
+							// primaryKey,
 						};
 					}
 					relationsBuffer[dbName]!.relations[relationName] = relation;
@@ -699,6 +699,71 @@ export function mapRelationalRow(
 					)
 				: (subRows as unknown[][]).map((subRow) =>
 					mapRelationalRow(
+						tablesConfig,
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRow,
+						selectionItem.selection,
+						mapColumnValue,
+					)
+				);
+		} else {
+			const value = mapColumnValue(row[selectionItemIndex]);
+			const field = selectionItem.field!;
+			let decoder;
+			if (is(field, Column)) {
+				decoder = field;
+			} else if (is(field, SQL)) {
+				decoder = field.decoder;
+			} else {
+				decoder = field.sql.decoder;
+			}
+			result[selectionItem.tsKey] = value === null ? null : decoder.mapFromDriverValue(value);
+		}
+	}
+
+	return result;
+}
+
+export function mapRelationalRowFromObj(
+	tablesConfig: TablesRelationalConfig,
+	tableConfig: TableRelationalConfig,
+	row: unknown[],
+	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
+	mapColumnValue: (value: unknown) => unknown = (value) => value,
+): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+
+	for (
+		const [
+			selectionItemIndex,
+			selectionItem,
+		] of buildQueryResultSelection.entries()
+	) {
+		if (selectionItem.isJson) {
+			const relation = tableConfig.relations[selectionItem.tsKey]!;
+			const isOne = is(relation, One);
+			const rawSubRows = row[selectionItemIndex] as unknown[] | null | [null] | string;
+
+			let subRows = rawSubRows as unknown[] | null;
+			if (subRows || Array.isArray(subRows)) {
+				subRows = (typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) : rawSubRows) as unknown[];
+
+				subRows = isOne
+					? subRows.flatMap((r) => Array.isArray(r) ? r : Object.values(r as any))
+					: subRows.map((r) => Array.isArray(r) ? r : Object.values(r as any));
+			}
+
+			result[selectionItem.tsKey] = isOne
+				? subRows
+					&& mapRelationalRowFromObj(
+						tablesConfig,
+						tablesConfig[selectionItem.relationTableTsKey!]!,
+						subRows,
+						selectionItem.selection,
+						mapColumnValue,
+					)
+				: ((subRows ?? []) as unknown[][]).map((subRow) =>
+					mapRelationalRowFromObj(
 						tablesConfig,
 						tablesConfig[selectionItem.relationTableTsKey!]!,
 						subRow,

@@ -4,7 +4,7 @@ import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { cities, countries, firstNames, lastNames, reset, seed } from 'drizzle-seed';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import * as schema from './pgSchema.ts';
+import * as schema from './pgSchema';
 
 let client: PGlite;
 let db: PgliteDatabase;
@@ -876,7 +876,7 @@ const createAllGeneratorsTables = async () => {
 beforeAll(async () => {
 	client = new PGlite();
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "seeder_lib_pg";`);
 
@@ -1242,8 +1242,8 @@ test('valuesFromArray unique generator test', async () => {
 				}),
 				valuesFromArrayWeightedNotNull: funcs.valuesFromArray({
 					values: [
-						{ values: lastNames.slice(0, 14920), weight: 0.3 },
-						{ values: lastNames.slice(14920), weight: 0.7 },
+						{ values: lastNames.slice(0, 14894), weight: 0.3 },
+						{ values: lastNames.slice(14894), weight: 0.7 },
 					],
 					isUnique: true,
 				}),

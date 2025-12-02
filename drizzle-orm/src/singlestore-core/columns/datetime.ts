@@ -7,7 +7,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
@@ -60,7 +59,6 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> exte
 }
 
 export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'string datetime';
 	data: string;
 	driverParam: string | number;

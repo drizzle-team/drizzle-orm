@@ -4,7 +4,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgSerialBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'number int32';
 	data: number;
 	driverParam: number;

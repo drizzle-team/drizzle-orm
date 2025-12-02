@@ -15,13 +15,26 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { bigintNarrow, jsonSchema } from '~/column.ts';
+import { bigintNarrow, bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX);
+const integerNullableSchema = integerSchema.or(type.null);
+const integerOptionalSchema = integerSchema.optional();
+const integerNullableOptionalSchema = integerSchema.or(type.null).optional();
+
 const textSchema = type.string;
+const textOptionalSchema = textSchema.optional();
+
+const anySchema = type('unknown.any');
+
+const extendedSchema = integerSchema.atMost(1000);
+const extendedNullableSchema = extendedSchema.or(type.null);
+const extendedOptionalSchema = extendedSchema.optional();
+
+const customSchema = type.string.pipe(Number);
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
@@ -56,7 +69,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = type({ name: textSchema, age: integerSchema.or(type.null).optional() });
+	const expected = type({ name: textSchema, age: integerNullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -70,8 +83,8 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = type({
-		name: textSchema.optional(),
-		age: integerSchema.or(type.null).optional(),
+		name: textOptionalSchema,
+		age: integerNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -85,7 +98,7 @@ test('view qb - select', (t) => {
 	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = type({ id: integerSchema, age: type('unknown.any') });
+	const expected = type({ id: integerSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -110,13 +123,13 @@ test('materialized view qb - select', (t) => {
 	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = type({ id: integerSchema, age: type('unknown.any') });
+	const expected = type({ id: integerSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('materialized view columns - select', (t) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -132,7 +145,7 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -146,7 +159,7 @@ test('view with nested fields - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = type({
 		id: integerSchema,
-		nested: { name: textSchema, age: type('unknown.any') },
+		nested: { name: textSchema, age: anySchema },
 		table: { id: integerSchema, name: textSchema },
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -172,9 +185,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = type({
-		c1: integerSchema.or(type.null),
+		c1: integerNullableSchema,
 		c2: integerSchema,
-		c3: integerSchema.or(type.null),
+		c3: integerNullableSchema,
 		c4: integerSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -194,11 +207,11 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = type({
-		c1: integerSchema.or(type.null).optional(),
+		c1: integerNullableOptionalSchema,
 		c2: integerSchema,
-		c3: integerSchema.or(type.null).optional(),
-		c4: integerSchema.optional(),
-		c7: integerSchema.optional(),
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
+		c7: integerOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 });
@@ -216,11 +229,11 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = type({
-		c1: integerSchema.or(type.null).optional(),
-		c2: integerSchema.optional(),
-		c3: integerSchema.or(type.null).optional(),
-		c4: integerSchema.optional(),
-		c7: integerSchema.optional(),
+		c1: integerNullableOptionalSchema,
+		c2: integerOptionalSchema,
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
+		c7: integerOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -238,9 +251,9 @@ test('refine table - select', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: integerSchema.or(type.null),
-		c2: integerSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -262,9 +275,9 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = type({
-		c1: integerSchema.or(type.null),
-		c2: integerSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -285,9 +298,9 @@ test('refine table - insert', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: integerSchema.or(type.null).optional(),
-		c2: integerSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: integerNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -306,9 +319,9 @@ test('refine table - update', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: integerSchema.or(type.null).optional(),
-		c2: integerSchema.atMost(1000).optional(),
-		c3: type.string.pipe(Number),
+		c1: integerNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -350,21 +363,21 @@ test('refine view - select', (t) => {
 		},
 	});
 	const expected = type({
-		c1: integerSchema.or(type.null),
-		c2: integerSchema.atMost(1000).or(type.null),
-		c3: type.string.pipe(Number),
+		c1: integerNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: type({
-			c4: integerSchema.or(type.null),
-			c5: integerSchema.atMost(1000).or(type.null),
-			c6: type.string.pipe(Number),
+			c4: integerNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: type({
-			c1: integerSchema.or(type.null),
-			c2: integerSchema.atMost(1000).or(type.null),
-			c3: type.string.pipe(Number),
-			c4: integerSchema.or(type.null),
-			c5: integerSchema.or(type.null),
-			c6: integerSchema.or(type.null),
+			c1: integerNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: integerNullableSchema,
+			c5: integerNullableSchema,
+			c6: integerNullableSchema,
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -430,7 +443,9 @@ test('all data types', (t) => {
 		line2: line({ mode: 'tuple' }).notNull(),
 		macaddr: macaddr().notNull(),
 		macaddr8: macaddr8().notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		point1: point({ mode: 'xy' }).notNull(),
 		point2: point({ mode: 'tuple' }).notNull(),
 		real: real().notNull(),
@@ -456,14 +471,14 @@ test('all data types', (t) => {
 	const expected = type({
 		bigint1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
 		bigint2: type.bigint.narrow(bigintNarrow),
-		bigint3: type.string,
+		bigint3: bigintStringModeSchema,
 		bigserial1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
 		bigserial2: type.bigint.narrow(bigintNarrow),
 		bit: type(/^[01]{5}$/).describe('a string containing ones or zeros while being 5 characters long'),
 		boolean: type.boolean,
 		date1: type.Date,
 		date2: type.string,
-		char1: type.string.exactlyLength(10),
+		char1: type.string.atMostLength(10),
 		char2: type.enumerated('a', 'b', 'c'),
 		cidr: type.string,
 		doublePrecision: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),
@@ -479,7 +494,9 @@ test('all data types', (t) => {
 		line2: type([type.number, type.number, type.number]),
 		macaddr: type.string,
 		macaddr8: type.string,
-		numeric: type.string,
+		numeric1: type.number.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		numeric2: type.bigint.narrow(bigintNarrow),
+		numeric3: type.string,
 		point1: type({ x: type.number, y: type.number }),
 		point2: type([type.number, type.number]),
 		real: type.number.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),

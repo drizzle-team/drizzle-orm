@@ -1,0 +1,129 @@
+{
+	"jsPlugins": ["./eslint/eslint-plugin-drizzle-internal/index.mjs"],
+	"lint-staged": {
+		"!**/eslint/eslint-plugin-drizzle-internal/**": "echo skip"
+	},
+	"rules": {
+		"typescript/consistent-type-imports": [
+			"error",
+			{
+				"prefer": "type-imports",
+				"disallowTypeAnnotations": true,
+				"fixStyle": "separate-type-imports"
+			}
+		],
+		"typescript/no-import-type-side-effects": "error",
+		"import/consistent-type-specifier-style Style": "error",
+		"import/no-cycle": "error",
+		"import/no-self-import": "error",
+		"import/no-empty-named-blocks": "error",
+		"import/no-duplicates": "error",
+		"import/extensions": [
+			"error",
+			"always",
+			{
+				"ignorePackages": true
+			}
+		],
+		"typescript/no-explicit-any": "off",
+		"typescript/no-non-null-assertion": "off",
+		"typescript/no-namespace": "off",
+		"no-unused-vars": [
+			"error",
+			{
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_"
+			}
+		],
+		"typescript/no-this-alias": "off",
+		"typescript/no-var-requires": "off",
+		"unicorn/prefer-node-protocol": "off",
+		"unicorn/prefer-top-level-await": "off",
+		"unicorn/catch-error-name": "off",
+		"unicorn/no-null": "off",
+		"unicorn/numeric-separators-style": "off",
+		"unicorn/explicit-length-check": "off",
+		"unicorn/filename-case": "off",
+		"unicorn/no-array-reduce": "off",
+		"unicorn/no-nested-ternary": "off",
+		"unicorn/no-useless-undefined": [
+			"error",
+			{
+				"checkArguments": false
+			}
+		],
+		"unicorn/no-this-assignment": "off",
+		"unicorn/empty-brace-spaces": "off",
+		"unicorn/no-thenable": "off",
+		"unicorn/consistent-function-scoping": "off",
+		"unicorn/prefer-type-error": "off",
+		"eqeqeq": "error",
+		"unicorn/no-instanceof-builtins": "error",
+		"unicorn/prefer-string-replace-all": "off",
+		"unicorn/no-process-exit": "off",
+		"unicorn/no-empty-file": "off",
+		"typescript/ban-ts-comment": "off",
+		"typescript/no-empty-interface": "off",
+		"typescript/no-unsafe-declaration-merging": "off",
+		"no-inner-declarations": "off",
+		"drizzle-internal/require-entity-kind": "error"
+	},
+	"overrides": [
+		{
+			"files": ["drizzle-orm/**/*"],
+			"rules": {
+				"drizzle-internal/no-instanceof": "error"
+			}
+		},
+		{
+			"files": [
+				"**/tests/**/*.ts",
+				"**/type-tests/**/*.ts",
+				"**/typeperf-test/**/*.ts"
+			],
+			"rules": {
+				"import/extensions": "off",
+				"no-useless-escape": "off",
+				"consistent-type-imports": "off",
+				"no-unused-vars": "off",
+				"no-unused-expressions": "off"
+			}
+		},
+		{
+			"files": ["**/type-tests/**/*.ts", "**/integration-tests/tests/**/*.ts"],
+			"rules": {
+				"no-unused-expressions": "off"
+			}
+		},
+		{
+			"files": ["eslint-plugin-drizzle/**/*"],
+			"rules": {
+				"import/extensions": "off"
+			}
+		},
+		{
+			"files": ["**/*.d.ts"],
+			"rules": {
+				"typescript/consistent-type-imports": "off"
+			}
+		},
+		{
+			"files": ["drizzle-kit/**/*"],
+			"rules": {
+				"drizzle-internal/require-entity-kind": "off"
+			}
+		}
+	],
+	"ignorePatterns": [
+		"node_modules",
+		"dist",
+		"dist-dts",
+		"examples",
+		"**/*.js",
+		"**/*.mjs",
+		"**/*.cjs",
+		"**/playground",
+		"integration-tests/tests/prisma/*/client",
+		"integration-tests/tests/prisma/*/drizzle"
+	]
+}

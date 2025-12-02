@@ -18,7 +18,6 @@ export interface PgEnumObject<TValues extends object> {
 export class PgEnumObjectColumnBuilder<
 	TValues extends object,
 > extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string enum';
 	data: TValues[keyof TValues];
 	enumValues: string[];
@@ -81,7 +80,6 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 export class PgEnumColumnBuilder<
 	TValues extends [string, ...string[]],
 > extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string enum';
 	data: TValues[number];
 	enumValues: TValues;

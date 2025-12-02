@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlDateBuilder extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
@@ -42,7 +41,6 @@ export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlC
 }
 
 export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'string date';
 	data: string;
 	driverParam: string | number;

@@ -1,5 +1,11 @@
 import * as V1 from '~/_relations.ts';
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
+import {
+	aliasedTable,
+	aliasedTableColumn,
+	getOriginalColumnFromAlias,
+	mapColumnsInAliasedSQLToAlias,
+	mapColumnsInSQLToAlias,
+} from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -264,9 +270,13 @@ export class GelDialect {
 					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
 					// thus forcing us to be explicit about column's source
 					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					// chunk.push(
+					// 	field.isAlias
+					// 		? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+					// 		: sql.identifier(this.casing.getColumnCasing(field)),
+					// );
 					// } else {
-					chunk.push(field);
+					chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
 					// }
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];

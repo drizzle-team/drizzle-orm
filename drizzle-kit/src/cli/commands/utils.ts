@@ -1,93 +1,41 @@
 import chalk from 'chalk';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rm, unlinkSync, writeFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
-import { assertUnreachable } from '../../global';
-import { type Dialect, dialect } from '../../schemaValidator';
-import { prepareFilenames } from '../../serializer';
-import { Entities, pullParams, pushParams } from '../validations/cli';
-import {
-	Casing,
-	CasingType,
-	CliConfig,
-	configCommonSchema,
-	configMigrations,
-	Driver,
-	Prefix,
-	wrapParam,
-} from '../validations/common';
-import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
-import {
-	LibSQLCredentials,
-	libSQLCredentials,
-	printConfigConnectionIssues as printIssuesLibSQL,
-} from '../validations/libsql';
-import {
-	MysqlCredentials,
-	mysqlCredentials,
-	printConfigConnectionIssues as printIssuesMysql,
-} from '../validations/mysql';
+import { assertUnreachable, type Journal } from '../../utils';
+import { type Dialect, dialect } from '../../utils/schemaValidator';
+import { prepareFilenames } from '../../utils/utils-node';
+import { safeRegister } from '../../utils/utils-node';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import { pullParams, pushParams } from '../validations/cli';
+import type { CockroachCredentials } from '../validations/cockroach';
+import { cockroachCredentials } from '../validations/cockroach';
+import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
+import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { GelCredentials } from '../validations/gel';
+import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import type { LibSQLCredentials } from '../validations/libsql';
+import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
+import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
+import type { MssqlCredentials } from '../validations/mssql';
+import { mssqlCredentials } from '../validations/mssql';
+import type { MysqlCredentials } from '../validations/mysql';
+import { mysqlCredentials, printConfigConnectionIssues as printIssuesMysql } from '../validations/mysql';
 import { outputs } from '../validations/outputs';
-import {
-	PostgresCredentials,
-	postgresCredentials,
-	printConfigConnectionIssues as printIssuesPg,
-} from '../validations/postgres';
+import type { PostgresCredentials } from '../validations/postgres';
+import { postgresCredentials, printConfigConnectionIssues as printIssuesPg } from '../validations/postgres';
+import type { SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
-	SingleStoreCredentials,
 	singlestoreCredentials,
 } from '../validations/singlestore';
-import {
-	printConfigConnectionIssues as printIssuesSqlite,
-	SqliteCredentials,
-	sqliteCredentials,
-} from '../validations/sqlite';
+import type { SqliteCredentials } from '../validations/sqlite';
+import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
-
-// NextJs default config is target: es5, which esbuild-register can't consume
-const assertES5 = async (unregister: () => void) => {
-	try {
-		require('./_es5.ts');
-	} catch (e: any) {
-		if ('errors' in e && Array.isArray(e.errors) && e.errors.length > 0) {
-			const es5Error = (e.errors as any[]).filter((it) => it.text?.includes(`("es5") is not supported yet`)).length > 0;
-			if (es5Error) {
-				console.log(
-					error(
-						`Please change compilerOptions.target from 'es5' to 'es6' or above in your tsconfig.json`,
-					),
-				);
-				process.exit(1);
-			}
-		}
-		console.error(e);
-		process.exit(1);
-	}
-};
-
-export const safeRegister = async () => {
-	const { register } = await import('esbuild-register/dist/node');
-	let res: { unregister: () => void };
-	try {
-		res = register({
-			format: 'cjs',
-			loader: 'ts',
-		});
-	} catch {
-		// tsx fallback
-		res = {
-			unregister: () => {},
-		};
-	}
-
-	// has to be outside try catch to be able to run with tsx
-	await assertES5(res.unregister);
-	return res;
-};
+import { prepareSnapshotFolderName } from './generate-common';
 
 export const prepareCheckParams = async (
 	options: {
@@ -153,6 +101,7 @@ export type ExportConfig = {
 	dialect: Dialect;
 	schema: string | string[];
 	sql: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -211,6 +160,7 @@ export const prepareExportConfig = async (
 		schema?: string;
 		dialect?: Dialect;
 		sql: boolean;
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
@@ -231,6 +181,7 @@ export const prepareExportConfig = async (
 		process.exit(0);
 	}
 	return {
+		casing: config.casing,
 		dialect: dialect,
 		schema: schema,
 		sql: sql,
@@ -264,7 +215,7 @@ export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
 ): Promise<
-	(
+	& (
 		| {
 			dialect: 'mysql';
 			credentials: MysqlCredentials;
@@ -285,15 +236,22 @@ export const preparePushConfig = async (
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
-	) & {
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
+		| {
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
+		}
+	)
+	& {
 		schemaPath: string | string[];
 		verbose: boolean;
-		strict: boolean;
 		force: boolean;
-		tablesFilter: string[];
-		schemasFilter: string[];
+		explain: boolean;
 		casing?: CasingType;
-		entities?: Entities;
+		filters: EntitiesFilterConfig;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -322,22 +280,12 @@ export const preparePushConfig = async (
 		process.exit(0);
 	}
 
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	const schemasFilterConfig = config.schemaFilter;
-
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
-
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -349,14 +297,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'postgresql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
+			explain: (options.explain as boolean) ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
-			entities: config.entities,
+			filters,
 		};
 	}
 
@@ -369,13 +315,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'mysql',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
+			explain: false,
 		};
 	}
 
@@ -389,12 +334,11 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'singlestore',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
+			filters,
+			explain: false,
 		};
 	}
 
@@ -407,13 +351,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'sqlite',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
+			explain: false,
 		};
 	}
 
@@ -426,13 +369,12 @@ export const preparePushConfig = async (
 		return {
 			dialect: 'turso',
 			schemaPath: config.schema,
-			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
-			tablesFilter,
-			schemasFilter,
+			filters,
+			explain: false,
 		};
 	}
 
@@ -443,6 +385,43 @@ export const preparePushConfig = async (
 			),
 		);
 		process.exit(1);
+	}
+
+	if (config.dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesSqlite(config, 'push'); // TODO print issues
+			process.exit(1);
+		}
+		return {
+			dialect: 'mssql',
+			schemaPath: config.schema,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			filters,
+			explain: false,
+		};
+	}
+
+	if (config.dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'cockroach',
+			schemaPath: config.schema,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			filters,
+			explain: false,
+		};
 	}
 
 	assertUnreachable(config.dialect);
@@ -477,14 +456,20 @@ export const preparePullConfig = async (
 			dialect: 'gel';
 			credentials?: GelCredentials;
 		}
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
+		| {
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
+		}
 	) & {
 		out: string;
 		breakpoints: boolean;
 		casing: Casing;
-		tablesFilter: string[];
-		schemasFilter: string[];
 		prefix: Prefix;
-		entities: Entities;
+		filters: EntitiesFilterConfig;
 		init: boolean;
 		migrationsSchema: string | undefined;
 		migrationsTable: string | undefined;
@@ -507,30 +492,12 @@ export const preparePullConfig = async (
 	const dialect = config.dialect;
 	const { schema, table } = parsed.data.migrations || {};
 
-	const tablesFilterConfig = config.tablesFilter;
-	const tablesFilter = tablesFilterConfig
-		? typeof tablesFilterConfig === 'string'
-			? [tablesFilterConfig]
-			: tablesFilterConfig
-		: [];
-
-	if (config.extensionsFilters) {
-		if (
-			config.extensionsFilters.includes('postgis')
-			&& dialect === 'postgresql'
-		) {
-			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
-			);
-		}
-	}
-
-	const schemasFilterConfig = config.schemaFilter; // TODO: consistent naming
-	const schemasFilter = schemasFilterConfig
-		? typeof schemasFilterConfig === 'string'
-			? [schemasFilterConfig]
-			: schemasFilterConfig
-		: [];
+	const filters = {
+		tables: config.tablesFilter,
+		schemas: config.schemaFilter,
+		entities: config.entities,
+		extensions: config.extensionsFilters,
+	} as const;
 
 	if (dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
@@ -545,10 +512,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -567,10 +532,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -590,10 +553,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -612,10 +573,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -634,10 +593,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -656,10 +613,50 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			tablesFilter,
-			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
-			entities: config.entities,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
+			filters,
+		};
+	}
+
+	if (dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesPg(config); // TODO add issues printing
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			prefix: config.migrations?.prefix || 'index',
+			filters,
+			init: !!options.init,
+			migrationsSchema: schema,
+			migrationsTable: table,
+		};
+	}
+
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			prefix: config.migrations?.prefix || 'index',
+			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -773,13 +770,28 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	if (dialect === 'gel') {
-		console.log(
-			error(
-				`You can't use 'studio' command with Gel dialect`,
-			),
-		);
-		process.exit(1);
+		throw new Error(`You can't use 'studio' command with Gel dialect`);
+	}
+
+	if (dialect === 'mssql') {
+		throw new Error(`You can't use 'studio' command with MsSql dialect yet`);
 	}
 
 	assertUnreachable(dialect);
@@ -892,6 +904,38 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		process.exit(1);
 	}
 
+	if (dialect === 'mssql') {
+		const parsed = mssqlCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printMssqlIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -903,9 +947,9 @@ export const drizzleConfigFromFile = async (
 
 	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
 	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
-	const defaultJsonConfigExists = existsSync(
-		join(resolve('drizzle.config.json')),
-	);
+	// const defaultJsonConfigExists = existsSync(
+	// 	join(resolve('drizzle.config.json')),
+	// );
 
 	const defaultConfigPath = defaultTsConfigExists
 		? 'drizzle.config.ts'
@@ -930,10 +974,11 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
-	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
-	const content = required.default ?? required;
-	unregister();
+	const content = await safeRegister(async () => {
+		const required = require(`${path}`);
+		const content = required.default ?? required;
+		return content;
+	});
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
@@ -946,4 +991,55 @@ export const drizzleConfigFromFile = async (
 	}
 
 	return res.data;
+};
+
+export const migrateToFoldersV3 = (out: string) => {
+	// if there is meta folder - and there is a journal - it's version 8
+	const metaPath = join(out, 'meta');
+	const journalPath = join(metaPath, '_journal.json');
+	if (existsSync(metaPath) && existsSync(journalPath)) {
+		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
+		const sqlFiles = readdirSync(out);
+		for (const entry of journal.entries) {
+			const folderName = prepareSnapshotFolderName(entry.when);
+			// Reading Snapshots files
+			const [snapshotPrefix, ...rest] = entry.tag.split('_');
+			const migrationName = rest.join('_');
+			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+
+			if (!existsSync(oldSnapshotPath)) {
+				// If for some reason this happens we need to throw an error
+				// This can't happen unless there were wrong drizzle-kit migrations usage
+				console.error('No snapshot was found');
+				process.exit(1);
+			}
+
+			const oldSnapshot = readFileSync(oldSnapshotPath);
+
+			// Reading SQL files
+			let oldSqlPath = join(out, `${entry.tag}.sql`);
+			const sqlFileFromJournal = join(out, `${entry.tag}.sql`);
+			if (!existsSync(sqlFileFromJournal)) {
+				// We will try to find it by prefix, but this is a sign that something went wrong
+				// with properly using drizzle-kit migrations
+				const sqlFileName = sqlFiles.find((file) => file.startsWith(snapshotPrefix));
+				if (!sqlFileName) continue;
+				if (sqlFileName?.length > 1) {
+					console.error('Several sql files were found');
+					process.exit(1);
+				}
+			}
+			const oldSql = readFileSync(oldSqlPath);
+
+			mkdirSync(join(out, `${folderName}_${migrationName}`));
+			writeFileSync(join(out, `${folderName}_${migrationName}/snapshot.json`), oldSnapshot);
+			writeFileSync(join(out, `${folderName}_${migrationName}/migration.sql`), oldSql);
+
+			unlinkSync(oldSqlPath);
+		}
+
+		rm(metaPath, { recursive: true, force: true }, () => {});
+		return true;
+	}
+	return false;
 };

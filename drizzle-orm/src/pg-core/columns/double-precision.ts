@@ -4,7 +4,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'number double';
 	data: number;
 	driverParam: string | number;

@@ -1,12 +1,10 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgPointTupleBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'array point';
 	data: [number, number];
 	driverParam: number | string;
@@ -29,6 +27,8 @@ export class PgPointTupleBuilder extends PgColumnBuilder<{
 export class PgPointTuple<T extends ColumnBaseConfig<'array point'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
+	readonly mode = 'tuple';
+
 	getSQLType(): string {
 		return 'point';
 	}
@@ -47,7 +47,6 @@ export class PgPointTuple<T extends ColumnBaseConfig<'array point'>> extends PgC
 }
 
 export class PgPointObjectBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'object point';
 	data: { x: number; y: number };
 	driverParam: string;
@@ -69,6 +68,8 @@ export class PgPointObjectBuilder extends PgColumnBuilder<{
 
 export class PgPointObject<T extends ColumnBaseConfig<'object point'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointObject';
+
+	readonly mode = 'xy';
 
 	getSQLType(): string {
 		return 'point';

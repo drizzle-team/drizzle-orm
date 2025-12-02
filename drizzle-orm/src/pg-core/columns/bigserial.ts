@@ -5,7 +5,6 @@ import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgBigSerial53Builder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
@@ -46,7 +45,6 @@ export class PgBigSerial53<T extends ColumnBaseConfig<'number int53'>> extends P
 }
 
 export class PgBigSerial64Builder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
@@ -58,6 +56,7 @@ export class PgBigSerial64Builder extends PgColumnBuilder<{
 	constructor(name: string) {
 		super(name, 'bigint int64', 'PgBigSerial64');
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 	}
 
 	/** @internal */

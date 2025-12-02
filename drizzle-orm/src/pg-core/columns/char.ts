@@ -7,12 +7,11 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export class PgCharBuilder<
 	TEnum extends [string, ...string[]],
 > extends PgColumnBuilder<{
-	name: string;
 	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
-}, { enumValues?: TEnum; length: number; setLength: boolean; isLengthExact: true }> {
+}, { enumValues?: TEnum; length: number; setLength: boolean }> {
 	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: string, config: PgCharConfig<TEnum>) {
@@ -20,7 +19,6 @@ export class PgCharBuilder<
 		this.config.length = config.length ?? 1;
 		this.config.setLength = config.length !== undefined;
 		this.config.enumValues = config.enum;
-		this.config.isLengthExact = true;
 	}
 
 	/** @internal */

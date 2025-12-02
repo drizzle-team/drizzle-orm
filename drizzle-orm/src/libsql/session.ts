@@ -1,6 +1,6 @@
 import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
 import type * as V1 from '~/_relations.ts';
-import type { BatchItem as BatchItem } from '~/batch.ts';
+import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -232,8 +232,6 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
-		this.customResultMapper = customResultMapper;
-		this.fields = fields;
 	}
 
 	async run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
@@ -399,9 +397,9 @@ function normalizeRow(obj: any) {
 }
 
 function normalizeFieldValue(value: unknown) {
-	if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) { // eslint-disable-line no-instanceof/no-instanceof
+	if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) { // oxlint-disable-line drizzle-internal/no-instanceof
 		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
+			if (!(value instanceof Buffer)) { // oxlint-disable-line drizzle-internal/no-instanceof
 				return Buffer.from(value);
 			}
 			return value;

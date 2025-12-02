@@ -50,7 +50,6 @@ export abstract class SQLiteBaseInteger<
 }
 
 export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
-	name: string;
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
@@ -74,7 +73,6 @@ export class SQLiteInteger<T extends ColumnBaseConfig<'number int53'>> extends S
 }
 
 export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
-	name: string;
 	dataType: 'object date';
 	data: Date;
 	driverParam: number;
@@ -127,7 +125,6 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 }
 
 export class SQLiteBooleanBuilder extends SQLiteBaseIntegerBuilder<{
-	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: number;

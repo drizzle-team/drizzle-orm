@@ -7,7 +7,6 @@ import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'string enum';
 	data: TEnum[number];
 	driverParam: string;

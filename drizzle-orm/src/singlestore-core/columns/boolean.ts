@@ -4,7 +4,6 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreBooleanBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: number | boolean;

@@ -5,7 +5,6 @@ import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;

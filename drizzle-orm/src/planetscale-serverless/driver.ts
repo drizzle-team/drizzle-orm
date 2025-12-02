@@ -7,7 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
@@ -34,7 +34,7 @@ function construct<
 	$client: TClient;
 } {
 	// Client is not Drizzle Object, so we can ignore this rule here
-	// eslint-disable-next-line no-instanceof/no-instanceof
+	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (!(client instanceof Client)) {
 		throw new Error(`Warning: You need to pass an instance of Client:
 
@@ -46,7 +46,7 @@ const client = new Client({
   password: process.env["DATABASE_PASSWORD"],
 });
 
-const db = drizzle(client);
+const db = drizzle({ client });
 		`);
 	}
 
@@ -98,9 +98,9 @@ export function drizzle<
 	TClient extends Client = Client,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
+		string,
 		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
@@ -123,25 +123,21 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: Config | string; client?: TClient }
-			& DrizzleConfig;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: Config | string; client?: TClient }
+		& DrizzleConfig;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? new Client({
-				url: connection,
-			})
-			: new Client(
-				connection!,
-			);
+	const instance = typeof connection === 'string'
+		? new Client({
+			url: connection,
+		})
+		: new Client(
+			connection!,
+		);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

@@ -1,0 +1,17 @@
+{
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"editor.defaultFormatter": "dprint.dprint",
+	"[javascript]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"oxc.enable": true
+}

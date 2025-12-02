@@ -1,130 +1,162 @@
-import { PGlite } from '@electric-sql/pglite';
 import { Name, sql } from 'drizzle-orm';
-import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { skipTests } from '~/common';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
-import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
-import relations from './relations';
+import { describe, expect } from 'vitest';
+import { tests } from './common';
+import { pgliteTest as test } from './instrumentation';
+import { usersMigratorTable, usersTable } from './schema';
 
-const ENABLE_LOGGING = false;
+tests(test, []);
 
-let db: PgliteDatabase<never, typeof relations>;
-let dbGlobalCached: PgliteDatabase;
-let cachedDb: PgliteDatabase;
-let client: PGlite;
+describe('pglite', () => {
+	test('migrator : default migration strategy', async ({ db }) => {
+		await db.execute(sql`drop table if exists all_columns`);
+		await db.execute(
+			sql`drop table if exists users12`,
+		);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-beforeAll(async () => {
-	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestCache(),
+		await migrate(db, { migrationsFolder: './drizzle2/pg' });
+
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+
+		const result = await db.select().from(usersMigratorTable);
+
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+
+		await db.execute(sql`drop table all_columns`);
+		await db.execute(sql`drop table users12`);
+		await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 	});
-	dbGlobalCached = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestGlobalCache(),
+
+	test('insert via db.execute + select via db.execute', async ({ db }) => {
+		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
+
+		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 	});
-});
 
-afterAll(async () => {
-	await client?.close();
-});
+	test('insert via db.execute + returning', async ({ db }) => {
+		const result = await db.execute<{ id: number; name: string }>(
+			sql`insert into ${usersTable} (${new Name(
+				usersTable.name.name,
+			)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		);
+		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
+	});
 
-beforeEach((ctx) => {
-	ctx.pg = {
-		db,
-	};
-	ctx.cachedPg = {
-		db: cachedDb,
-		dbGlobalCached,
-	};
-});
+	test('insert via db.execute w/ query builder', async ({ db }) => {
+		const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
+			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
+		);
+		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
+	});
 
-test('migrator : default migration strategy', async () => {
-	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(
-		sql`drop table if exists users12`,
-	);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+	test('migrator : --init', async ({ db }) => {
+		const migrationsSchema = 'drzl_migrations_init';
+		const migrationsTable = 'drzl_init';
 
-	await migrate(db, { migrationsFolder: './drizzle2/pg' });
+		await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+		await db.execute(sql`drop schema if exists public cascade`);
+		await db.execute(sql`create schema public`);
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const migratorRes = await migrate(db, {
+			migrationsFolder: './drizzle2/pg-init',
+			migrationsTable,
+			migrationsSchema,
+			// @ts-ignore - internal param
+			init: true,
+		});
 
-	const result = await db.select().from(usersMigratorTable);
+		const meta = await db.select({
+			hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+		}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+					SELECT 1
+					FROM pg_tables
+					WHERE schemaname = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND tablename = ${
+			getTableConfig(usersMigratorTable).name
+		}
+				) as ${sql.identifier('tableExists')};`);
 
-	await db.execute(sql`drop table all_columns`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
-});
+		expect(migratorRes).toStrictEqual(undefined);
+		expect(meta.length).toStrictEqual(1);
+		expect(res.rows[0]?.tableExists).toStrictEqual(false);
+	});
 
-test('insert via db.execute + select via db.execute', async () => {
-	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
+	test('migrator : --init - local migrations error', async ({ db }) => {
+		const migrationsSchema = 'drzl_migrations_init';
+		const migrationsTable = 'drzl_init';
 
-	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
-	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
-});
+		await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+		await db.execute(sql`drop schema if exists public cascade`);
+		await db.execute(sql`create schema public`);
 
-test('insert via db.execute + returning', async () => {
-	const result = await db.execute<{ id: number; name: string }>(
-		sql`insert into ${usersTable} (${new Name(
-			usersTable.name.name,
-		)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
-	);
-	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
-});
+		const migratorRes = await migrate(db, {
+			migrationsFolder: './drizzle2/pg',
+			migrationsTable,
+			migrationsSchema,
+			// @ts-ignore - internal param
+			init: true,
+		});
 
-test('insert via db.execute w/ query builder', async () => {
-	const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
-		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
-	);
-	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
-});
+		const meta = await db.select({
+			hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+		}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
 
-skipTests([
-	'migrator : default migration strategy',
-	'migrator : migrate with custom schema',
-	'migrator : migrate with custom table',
-	'migrator : migrate with custom table and custom schema',
-	'insert via db.execute + select via db.execute',
-	'insert via db.execute + returning',
-	'insert via db.execute w/ query builder',
-	'all date and time columns without timezone first case mode string',
-	'all date and time columns without timezone third case mode date',
-	'test mode string for timestamp with timezone',
-	'test mode date for timestamp with timezone',
-	'test mode string for timestamp with timezone in UTC timezone',
-	'test mode string for timestamp with timezone in different timezone',
-	'view',
-	'materialized view',
-	'subquery with view',
-	'mySchema :: materialized view',
-	'select count()',
-	// not working in 0.2.12
-	'select with group by as sql + column',
-	'select with group by as column + sql',
-	'mySchema :: select with group by as column + sql',
-]);
+		const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+					SELECT 1
+					FROM pg_tables
+					WHERE schemaname = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND tablename = ${
+			getTableConfig(usersMigratorTable).name
+		}
+				) as ${sql.identifier('tableExists')};`);
 
-tests();
-cacheTests();
+		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+		expect(meta.length).toStrictEqual(0);
+		expect(res.rows[0]?.tableExists).toStrictEqual(false);
+	});
 
-beforeEach(async () => {
-	await db.execute(sql`drop schema if exists public cascade`);
-	await db.execute(sql`create schema public`);
-	await db.execute(
-		sql`
-			create table users (
-				id serial primary key,
-				name text not null,
-				verified boolean not null default false,
-				jsonb jsonb,
-				created_at timestamptz not null default now()
-			)
-		`,
-	);
+	test('migrator : --init - db migrations error', async ({ db }) => {
+		const migrationsSchema = 'drzl_migrations_init';
+		const migrationsTable = 'drzl_init';
+
+		await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade;`);
+		await db.execute(sql`drop schema if exists public cascade`);
+		await db.execute(sql`create schema public`);
+
+		await migrate(db, {
+			migrationsFolder: './drizzle2/pg-init',
+			migrationsSchema,
+			migrationsTable,
+		});
+
+		const migratorRes = await migrate(db, {
+			migrationsFolder: './drizzle2/pg',
+			migrationsTable,
+			migrationsSchema,
+			// @ts-ignore - internal param
+			init: true,
+		});
+
+		const meta = await db.select({
+			hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+			createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+		}).from(sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`);
+
+		const res = await db.execute<{ tableExists: boolean }>(sql`SELECT EXISTS (
+					SELECT 1
+					FROM pg_tables
+					WHERE schemaname = ${getTableConfig(usersMigratorTable).schema ?? 'public'} AND tablename = ${
+			getTableConfig(usersMigratorTable).name
+		}
+				) as ${sql.identifier('tableExists')};`);
+
+		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+		expect(meta.length).toStrictEqual(1);
+		expect(res.rows[0]?.tableExists).toStrictEqual(true);
+	});
 });

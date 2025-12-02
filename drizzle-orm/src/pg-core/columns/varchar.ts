@@ -8,7 +8,6 @@ export class PgVarcharBuilder<
 	TEnum extends [string, ...string[]],
 > extends PgColumnBuilder<
 	{
-		name: string;
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;

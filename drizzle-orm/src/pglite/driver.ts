@@ -7,7 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -110,10 +110,10 @@ export function drizzle<
 	...params:
 		| []
 		| [
-			TClient | string,
+			string,
 		]
 		| [
-			TClient | string,
+			string,
 			DrizzleConfig<TSchema, TRelations>,
 		]
 		| [
@@ -134,28 +134,24 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as {
-			connection?: PGliteOptions & { dataDir: string };
-			client?: TClient;
-		} & DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as {
+		connection?: PGliteOptions & { dataDir: string };
+		client?: TClient;
+	} & DrizzleConfig<TSchema, TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		if (typeof connection === 'object') {
-			const { dataDir, ...options } = connection;
+	if (typeof connection === 'object') {
+		const { dataDir, ...options } = connection;
 
-			const instance = new PGlite(dataDir, options);
-
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = new PGlite(connection);
+		const instance = new PGlite(dataDir, options);
 
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	const instance = new PGlite(connection);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {

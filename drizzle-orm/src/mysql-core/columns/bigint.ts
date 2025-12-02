@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export class MySqlBigInt53Builder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: Equal<TUnsigned, true> extends true ? 'number uint53' : 'number int53';
 	data: number;
 	driverParam: number | string;
@@ -44,7 +43,6 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53' | 'number u
 }
 
 export class MySqlBigInt64Builder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
 	data: bigint;
 	driverParam: string;
@@ -88,7 +86,6 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint u
 
 export class MySqlBigIntStringBuilder<TUnsigned extends boolean | undefined>
 	extends MySqlColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'string uint64' : 'string int64';
 		data: string;
 		driverParam: number | string;

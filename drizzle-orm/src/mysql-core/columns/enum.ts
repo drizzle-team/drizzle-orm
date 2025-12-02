@@ -2,10 +2,9 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { NonArray, Writable } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { MySqlStringBaseColumn, MySqlStringColumnBaseBuilder } from './string.common.ts';
 
-export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<{
-	name: string;
+export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends MySqlStringColumnBaseBuilder<{
 	dataType: 'string enum';
 	data: TEnum[number];
 	driverParam: string;
@@ -28,7 +27,7 @@ export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends
 }
 
 export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
-	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
+	extends MySqlStringBaseColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumn';
 
@@ -40,8 +39,7 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 }
 
 // enum as ts enum
-export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlColumnBuilder<{
-	name: string;
+export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlStringColumnBaseBuilder<{
 	dataType: 'string enum';
 	data: TEnum[keyof TEnum];
 	driverParam: string;
@@ -64,7 +62,7 @@ export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlCol
 }
 
 export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string enum'>>
-	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
+	extends MySqlStringBaseColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumn';
 

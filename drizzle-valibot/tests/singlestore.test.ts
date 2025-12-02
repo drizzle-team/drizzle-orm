@@ -3,7 +3,7 @@ import { customType, int, json, serial, singlestoreSchema, singlestoreTable, tex
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -14,13 +14,28 @@ const intSchema = v.pipe(
 	v.maxValue(CONSTANTS.INT32_MAX as number),
 	v.integer(),
 );
-const serialNumberModeSchema = v.pipe(
+const intNullableSchema = v.nullable(intSchema);
+const intOptionalSchema = v.optional(intSchema);
+const intNullableOptionalSchema = v.optional(v.nullable(intSchema));
+
+const serialSchema = v.pipe(
 	v.number(),
 	v.minValue(0 as number),
 	v.maxValue(Number.MAX_SAFE_INTEGER as number),
 	v.integer(),
 );
+const serialOptionalSchema = v.optional(serialSchema);
+
 const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX as number));
+const textOptionalSchema = v.optional(textSchema);
+
+// const anySchema = v.any();
+
+const extendedSchema = v.pipe(intSchema, v.maxValue(1000));
+// const extendedNullableSchema = v.nullable(extendedSchema);
+const extendedOptionalSchema = v.optional(extendedSchema);
+
+const customSchema = v.pipe(v.string(), v.transform(Number));
 
 test('table - select', (t) => {
 	const table = singlestoreTable('test', {
@@ -29,7 +44,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = v.object({ id: serialSchema, name: textSchema });
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);
 	// @ts-ignore - TODO: Remake type checks for new columns
@@ -44,7 +59,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = v.object({ id: serialSchema, name: textSchema });
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(tc, expected).from(result);
 	// @ts-ignore - TODO: Remake type checks for new columns
@@ -60,9 +75,9 @@ test('table - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = v.object({
-		id: v.optional(serialNumberModeSchema),
+		id: serialOptionalSchema,
 		name: textSchema,
-		age: v.optional(v.nullable(intSchema)),
+		age: intNullableOptionalSchema,
 	});
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);
@@ -79,9 +94,9 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = v.object({
-		id: v.optional(serialNumberModeSchema),
-		name: v.optional(textSchema),
-		age: v.optional(v.nullable(intSchema)),
+		id: serialOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);
@@ -99,7 +114,7 @@ test('table - update', (t) => {
 // 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 // 	const result = createSelectSchema(view);
-// 	const expected = v.object({ id: serialNumberModeSchema, age: v.any() });
+// 	const expected = v.object({ id: serialSchema, age: anySchema });
 // 	expectSchemaShape(t, expected).from(result);
 // 	Expect<Equal<typeof result, typeof expected>>();
 // });
@@ -111,7 +126,7 @@ test('table - update', (t) => {
 // 	}).as(sql``);
 
 // 	const result = createSelectSchema(view);
-// 	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+// 	const expected = v.object({ id: serialSchema, name: textSchema });
 // 	expectSchemaShape(t, expected).from(result);
 // 	Expect<Equal<typeof result, typeof expected>>();
 // });
@@ -134,9 +149,9 @@ test('table - update', (t) => {
 
 // 	const result = createSelectSchema(view);
 // 	const expected = v.object({
-// 		id: serialNumberModeSchema,
-// 		nested: v.object({ name: textSchema, age: v.any() }),
-// 		table: v.object({ id: serialNumberModeSchema, name: textSchema }),
+// 		id: serialSchema,
+// 		nested: v.object({ name: textSchema, age: anySchema }),
+// 		table: v.object({ id: serialSchema, name: textSchema }),
 // 	});
 // 	expectSchemaShape(t, expected).from(result);
 // 	Expect<Equal<typeof result, typeof expected>>();
@@ -152,9 +167,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = v.object({
-		c1: v.nullable(intSchema),
+		c1: intNullableSchema,
 		c2: intSchema,
-		c3: v.nullable(intSchema),
+		c3: intNullableSchema,
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -172,10 +187,10 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -192,10 +207,10 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(intSchema),
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -213,9 +228,9 @@ test('refine table - select', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -237,9 +252,9 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -260,9 +275,9 @@ test('refine table - insert', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -281,9 +296,9 @@ test('refine table - update', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -325,21 +340,21 @@ test('refine table - update', (t) => {
 // 		},
 // 	});
 // 	const expected = v.object({
-// 		c1: v.nullable(intSchema),
-// 		c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 		c3: v.pipe(v.string(), v.transform(Number)),
+// 		c1: intNullableSchema,
+// 		c2: extendedNullableSchema,
+// 		c3: customSchema,
 // 		nested: v.object({
-// 			c4: v.nullable(intSchema),
-// 			c5: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 			c6: v.pipe(v.string(), v.transform(Number)),
+// 			c4: intNullableSchema,
+// 			c5: extendedNullableSchema,
+// 			c6: customSchema,
 // 		}),
 // 		table: v.object({
-// 			c1: v.nullable(intSchema),
-// 			c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-// 			c3: v.pipe(v.string(), v.transform(Number)),
-// 			c4: v.nullable(intSchema),
-// 			c5: v.nullable(intSchema),
-// 			c6: v.nullable(intSchema),
+// 			c1: intNullableSchema,
+// 			c2: extendedNullableSchema,
+// 			c3: customSchema,
+// 			c4: intNullableSchema,
+// 			c5: intNullableSchema,
+// 			c6: intNullableSchema,
 // 		}),
 // 	});
 // 	expectSchemaShape(t, expected).from(result);
@@ -374,6 +389,7 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		vector,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -389,8 +405,12 @@ test('all data types', (t) => {
 		date2: date({ mode: 'string' }).notNull(),
 		datetime1: datetime({ mode: 'date' }).notNull(),
 		datetime2: datetime({ mode: 'string' }).notNull(),
-		decimal1: decimal().notNull(),
-		decimal2: decimal({ unsigned: true }).notNull(),
+		decimal1: decimal({ mode: 'number' }).notNull(),
+		decimal2: decimal({ mode: 'number', unsigned: true }).notNull(),
+		decimal3: decimal({ mode: 'bigint' }).notNull(),
+		decimal4: decimal({ mode: 'bigint', unsigned: true }).notNull(),
+		decimal5: decimal({ mode: 'string' }).notNull(),
+		decimal6: decimal({ mode: 'string', unsigned: true }).notNull(),
 		double1: double().notNull(),
 		double2: double({ unsigned: true }).notNull(),
 		float1: float().notNull(),
@@ -422,6 +442,14 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		vector: vector({
+			dimensions: 3,
+			elementType: 'F32',
+		}).notNull(),
+		vector2: vector({
+			dimensions: 2,
+			elementType: 'I64',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -430,18 +458,22 @@ test('all data types', (t) => {
 		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
 		bigint3: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
 		bigint4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
-		bigint5: v.string(),
-		bigint6: v.string(),
-		binary: v.pipe(v.string(), v.regex(/^[01]*$/), v.length(10 as number)),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
+		binary: v.pipe(v.string(), v.regex(/^[01]*$/), v.maxLength(10 as number)),
 		boolean: v.boolean(),
-		char1: v.pipe(v.string(), v.length(10 as number)),
+		char1: v.pipe(v.string(), v.maxLength(10 as number)),
 		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		date1: v.date(),
 		date2: v.string(),
 		datetime1: v.date(),
 		datetime2: v.string(),
-		decimal1: v.string(),
-		decimal2: v.string(),
+		decimal1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		decimal2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		decimal3: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		decimal4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
+		decimal5: v.string(),
+		decimal6: v.string(),
 		double1: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
 		double2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT48_UNSIGNED_MAX)),
 		float1: v.pipe(v.number(), v.minValue(CONSTANTS.INT24_MIN), v.maxValue(CONSTANTS.INT24_MAX)),
@@ -473,6 +505,11 @@ test('all data types', (t) => {
 		mediumtext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		tinytext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT8_UNSIGNED_MAX)),
 		tinytext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		vector: v.pipe(v.array(v.number()), v.length(3 as number)),
+		vector2: v.pipe(
+			v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX))),
+			v.length(2),
+		),
 	});
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);

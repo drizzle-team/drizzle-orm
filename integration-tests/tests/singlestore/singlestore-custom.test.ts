@@ -1,5 +1,4 @@
 import retry from 'async-retry';
-import type Docker from 'dockerode';
 import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { drizzle } from 'drizzle-orm/singlestore';
@@ -24,23 +23,21 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
 import relations from './relations';
-import { createDockerDB } from './singlestore-common';
 
-const ENABLE_LOGGING = false;
+type TestSingleStoreDB = SingleStoreDriverDatabase<any, typeof relations>;
+declare module 'vitest' {
+	interface TestContext {
+		singlestore: {
+			db: TestSingleStoreDB;
+		};
+	}
+}
 
 let db: SingleStoreDriverDatabase<never, typeof relations>;
 let client: mysql2.Connection;
-let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
+	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
 	client = await retry(async () => {
 		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
@@ -57,12 +54,11 @@ beforeAll(async () => {
 	});
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client, relations });
 });
 
 afterAll(async () => {
 	await client?.end();
-	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {

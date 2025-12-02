@@ -1,91 +1,7 @@
-import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import { alias, type BaseSQLiteDatabase, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import Keyv from 'keyv';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
-import type relations from './relations';
-
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestGlobalCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return 'all';
-	}
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
-
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestCache extends TestGlobalCache {
-	override strategy(): 'explicit' | 'all' {
-		return 'explicit';
-	}
-}
-
-declare module 'vitest' {
-	interface TestContext {
-		cachedSqlite: {
-			db: BaseSQLiteDatabase<any, any>;
-			dbGlobalCached: BaseSQLiteDatabase<any, any>;
-		};
-		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
-		};
-	}
-}
+import { eq, sql } from 'drizzle-orm';
+import { alias, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { describe, expect, vi } from 'vitest';
+import { Test } from './instrumentation';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -101,16 +17,19 @@ const postsTable = sqliteTable('posts', {
 	userId: integer('user_id').references(() => usersTable.id),
 });
 
-export function tests() {
+export function tests(test: Test, exclude: string[] = []) {
+	test.beforeEach(({ task, skip }) => {
+		if (exclude.includes(task.name)) skip();
+	});
 	describe('common_cache', () => {
-		beforeEach(async (ctx) => {
-			const { db, dbGlobalCached } = ctx.cachedSqlite;
-			await db.run(sql`drop table if exists users`);
-			await db.run(sql`drop table if exists posts`);
-			await db.$cache?.invalidate({ tables: 'users' });
-			await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
+		test.beforeEach(async ({ caches }) => {
+			const { explicit, all } = caches;
+			await explicit.run(sql`drop table if exists users`);
+			await explicit.run(sql`drop table if exists posts`);
+			await explicit.$cache?.invalidate({ tables: 'users' });
+			await all.$cache?.invalidate({ tables: 'users' });
 			// public users
-			await db.run(
+			await explicit.run(
 				sql`
 					create table users (
 						id integer primary key AUTOINCREMENT,
@@ -121,7 +40,7 @@ export function tests() {
 					)
 				`,
 			);
-			await db.run(
+			await explicit.run(
 				sql`
 					create table posts (
 						id integer primary key AUTOINCREMENT,
@@ -132,23 +51,23 @@ export function tests() {
 			);
 		});
 
-		test('test force invalidate', async (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('test force invalidate', async ({ caches }) => {
+			const { explicit: db } = caches;
 
-			const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 			await db.$cache?.invalidate({ tables: 'users' });
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('default global config - no cache should be hit', async (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('default global config - no cache should be hit', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable);
 
@@ -157,15 +76,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('default global config + enable cache on select: get, put', async (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('default global config + enable cache on select: get, put', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache();
 
@@ -174,15 +93,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('default global config + enable cache on select + write: get, put, onMutate', async (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('default global config + enable cache on select + write: get, put, onMutate', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache({ config: { ex: 1 } });
 
@@ -201,15 +120,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('default global config + enable cache on select + disable invalidate: get, put', async ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
 
@@ -223,15 +142,15 @@ export function tests() {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
-		test('global: true + disable cache', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedSqlite;
+		test('global: true + disable cache', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache(false);
 
@@ -240,15 +159,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - cache should be hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedSqlite;
+		test('global: true - cache should be hit', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable);
 
@@ -257,15 +176,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - cache: false on select - no cache hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedSqlite;
+		test('global: true - cache: false on select - no cache hit', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache(false);
 
@@ -274,15 +193,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
-		test('global: true - disable invalidate - cache hit + no invalidate', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedSqlite;
+		test('global: true - disable invalidate - cache hit + no invalidate', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache({ autoInvalidate: false });
 
@@ -301,15 +220,15 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
-		test('global: true - with custom tag', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedSqlite;
+		test('global: true - with custom tag', async ({ caches }) => {
+			const { all: db } = caches;
 
 			// @ts-expect-error
-			const spyPut = vi.spyOn(db.$cache, 'put');
+			using spyPut = vi.spyOn(db.$cache, 'put');
 			// @ts-expect-error
-			const spyGet = vi.spyOn(db.$cache, 'get');
+			using spyGet = vi.spyOn(db.$cache, 'get');
 			// @ts-expect-error
-			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 			await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false });
 
@@ -324,8 +243,8 @@ export function tests() {
 		});
 
 		// check select used tables
-		test('check simple select used tables', (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('check simple select used tables', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
@@ -333,8 +252,8 @@ export function tests() {
 			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
 		});
 		// check select+join used tables
-		test('select+join', (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('select+join', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
@@ -345,8 +264,8 @@ export function tests() {
 			).toStrictEqual(['users', 'posts']);
 		});
 		// check select+2join used tables
-		test('select+2joins', (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('select+2joins', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			expect(
 				db.select().from(usersTable).leftJoin(
@@ -369,8 +288,8 @@ export function tests() {
 			).toStrictEqual(['users', 'posts']);
 		});
 		// select subquery used tables
-		test('select+join', (ctx) => {
-			const { db } = ctx.cachedSqlite;
+		test('select+join', ({ caches }) => {
+			const { explicit: db } = caches;
 
 			const sq = db.select().from(usersTable).where(eq(usersTable.id, 42)).as('sq');
 

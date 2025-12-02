@@ -1,0 +1,6 @@
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm lint-staged
+else
+  echo "pnpm unavailable, trying via docker..."
+  sh ./compose/lint.sh
+fi

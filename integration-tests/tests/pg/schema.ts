@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { integer, type PgDatabase, type PgQueryResultHKT, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	integer,
+	jsonb,
+	type PgDatabase,
+	pgSchema,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 
 export const rqbUser = pgTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
@@ -20,7 +30,37 @@ export const rqbPost = pgTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const init = async (db: PgDatabase<PgQueryResultHKT, any, any, any>) => {
+export const postsTable = pgTable('posts', {
+	id: serial().primaryKey(),
+	description: text().notNull(),
+	userId: integer('city_id').references(() => usersTable.id),
+});
+
+export const usersMigratorTable = pgTable('users12', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+});
+
+export const usersTable = pgTable('users', {
+	id: serial('id' as string).primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: jsonb('jsonb').$type<string[]>(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const mySchema = pgSchema('mySchema');
+
+export const usersMySchemaTable = mySchema.table('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: jsonb('jsonb').$type<string[]>(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const init = async (db: PgDatabase<any, any>) => {
 	await db.execute(sql`
 		CREATE TABLE ${rqbUser} (
 		        "id" SERIAL PRIMARY KEY NOT NULL,
@@ -38,7 +78,7 @@ export const init = async (db: PgDatabase<PgQueryResultHKT, any, any, any>) => {
 	`);
 };
 
-export const clear = async (db: PgDatabase<PgQueryResultHKT, any, any, any>) => {
+export const clear = async (db: PgDatabase<any, any>) => {
 	await db.execute(sql`DROP TABLE IF EXISTS ${rqbUser} CASCADE;`).catch(() => null);
 	await db.execute(sql`DROP TABLE IF EXISTS ${rqbPost} CASCADE;`).catch(() => null);
 };

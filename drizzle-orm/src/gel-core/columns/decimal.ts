@@ -5,7 +5,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelDecimalBuilder extends GelColumnBuilder<
 	{
-		name: string;
 		dataType: 'string numeric';
 		data: string;
 		driverParam: string;

@@ -4,7 +4,6 @@ import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgCidrBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string cidr';
 	data: string;
 	driverParam: string;

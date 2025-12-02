@@ -305,7 +305,7 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) // eslint-disable-line no-instanceof/no-instanceof
+		const session = (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) // oxlint-disable-line drizzle-internal/no-instanceof
 			? new NodePgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
@@ -323,7 +323,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) { // eslint-disable-line no-instanceof/no-instanceof
+			if (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as PoolClient).release();
 			}
 		}

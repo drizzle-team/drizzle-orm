@@ -7,7 +7,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'array vector';
 	data: Array<number>;
 	driverParam: string | Buffer;
@@ -95,7 +94,6 @@ export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
 }
 
 export class SingleStoreBigIntVectorBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'array int64vector';
 	data: Array<bigint>;
 	driverParam: string | Buffer;

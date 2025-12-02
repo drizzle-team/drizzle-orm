@@ -6,7 +6,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	{
-		name: string;
 		dataType: 'number double';
 		data: number;
 		driverParam: number | string;

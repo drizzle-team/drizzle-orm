@@ -5,7 +5,6 @@ import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'string binary';
 	data: string;
 	driverParam: string;

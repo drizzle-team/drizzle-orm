@@ -50,10 +50,12 @@ export class PrimaryKey {
 
 	readonly columns: AnyPgColumn<{}>[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: PgTable, columns: AnyPgColumn<{}>[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {

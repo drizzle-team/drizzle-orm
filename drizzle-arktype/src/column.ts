@@ -14,7 +14,7 @@ import { CONSTANTS } from './constants.ts';
 
 export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
-export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // eslint-disable-line no-instanceof/no-instanceof
+export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe(
 	'a Buffer instance',
 );
 
@@ -151,6 +151,11 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 			integer = true;
 			break;
 		}
+		case 'unsigned': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 		default: {
 			min = Number.MIN_SAFE_INTEGER;
 			max = Number.MAX_SAFE_INTEGER;
@@ -177,6 +182,11 @@ function arrayColumnToSchema(
 		case 'halfvector': {
 			const length = column.length;
 			return length ? type.number.array().exactlyLength(length) : type.number.array();
+		}
+		case 'int64vector': {
+			const length = column.length;
+			// TODO - INT64 number range
+			return length ? type.bigint.array().exactlyLength(length) : type.bigint.array();
 		}
 		case 'basecolumn': {
 			const length = column.length;
@@ -234,6 +244,46 @@ export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string
 export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
+/** @internal */
+export const bigintStringModeSchema = type.string.narrow((v, ctx) => {
+	if (typeof v !== 'string') {
+		return ctx.mustBe('a string');
+	}
+	if (!(/^-?\d+$/.test(v))) {
+		return ctx.mustBe('a string representing a number');
+	}
+
+	const bigint = BigInt(v);
+	if (bigint < CONSTANTS.INT64_MIN) {
+		return ctx.mustBe('greater than');
+	}
+	if (bigint > CONSTANTS.INT64_MAX) {
+		return ctx.mustBe('less than');
+	}
+
+	return true;
+});
+
+/** @internal */
+export const unsignedBigintStringModeSchema = type.string.narrow((v, ctx) => {
+	if (typeof v !== 'string') {
+		return ctx.mustBe('a string');
+	}
+	if (!(/^\d+$/.test(v))) {
+		return ctx.mustBe('a string representing a number');
+	}
+
+	const bigint = BigInt(v);
+	if (bigint < 0) {
+		return ctx.mustBe('greater than');
+	}
+	if (bigint > CONSTANTS.INT64_MAX) {
+		return ctx.mustBe('less than');
+	}
+
+	return true;
+});
+
 function bigintColumnToSchema(column: Column, constraint?: ColumnDataBigIntConstraint | undefined): Type {
 	switch (constraint) {
 		case 'int64': {
@@ -268,6 +318,12 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstr
 			);
 		}
 		return type.enumerated(...enumValues);
+	}
+	if (constraint === 'int64') {
+		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	return length && isLengthExact

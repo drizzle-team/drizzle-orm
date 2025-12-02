@@ -4,7 +4,6 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
-	name: string;
 	dataType: 'number double';
 	data: number;
 	driverParam: number;

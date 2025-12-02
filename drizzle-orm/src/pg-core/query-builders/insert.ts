@@ -39,10 +39,14 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	overridingSystemValue_?: boolean;
 }
 
-export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
+export type PgInsertValue<
+	TTable extends PgTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+> =
 	& {
-		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
-			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+		[Key in keyof TModel]:
+			| TModel[Key]
 			| SQL
 			| Placeholder;
 	}
@@ -50,7 +54,7 @@ export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends
 
 export type PgInsertSelectQueryBuilder<
 	TTable extends PgTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > = TypedQueryBuilder<
 	{ [K in keyof TModel]: AnyPgColumn | SQL | SQL.Aliased | TModel[K] }
 >;

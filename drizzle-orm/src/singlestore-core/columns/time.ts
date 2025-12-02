@@ -5,7 +5,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
 	{
-		name: string;
 		dataType: 'string time';
 		data: string;
 		driverParam: string | number;

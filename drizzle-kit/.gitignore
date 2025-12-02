@@ -3,22 +3,26 @@
 
 !src
 !imports-checker
+
 !tests
+tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md
-!schema.ts
 
 !.eslint
 !.gitignore
 !package.json
 !tsconfig.json
+!tsconfig.typetest.json
 !tsconfig.cli-types.json
 !tsconfig.build.json
 !pnpm-lock.yaml
 !.github
 !build.ts
 !build.dev.ts
+!build.ext.ts
+!build.cli.ts
 
 tests/test.ts
 

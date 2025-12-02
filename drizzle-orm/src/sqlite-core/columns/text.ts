@@ -8,7 +8,6 @@ export class SQLiteTextBuilder<
 	TEnum extends [string, ...string[]],
 > extends SQLiteColumnBuilder<
 	{
-		name: string;
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;
@@ -53,7 +52,6 @@ export class SQLiteText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 }
 
 export class SQLiteTextJsonBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
