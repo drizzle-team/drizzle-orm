@@ -5,7 +5,6 @@ import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;

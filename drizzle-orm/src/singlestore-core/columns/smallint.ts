@@ -7,7 +7,6 @@ import type { SingleStoreIntConfig } from './int.ts';
 
 export class SingleStoreSmallIntBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'number uint16' : 'number int16';
 		data: number;
 		driverParam: number | string;

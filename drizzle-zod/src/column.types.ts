@@ -1,5 +1,6 @@
 import type { Assume, Column, ColumnTypeData, ExtractColumnTypeData } from 'drizzle-orm';
 import type { z } from 'zod/v4';
+import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './column.ts';
 import type { CoerceOptions } from './schema.types.ts';
 import type { Json } from './utils.ts';
 
@@ -12,6 +13,7 @@ export type GetZodType<
 	? TType['constraint'] extends 'geometry' | 'point' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
 	: TType['constraint'] extends 'line' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? z.ZodArray<z.ZodNumber>
+	: TType['constraint'] extends 'int64vector' ? z.ZodArray<z.ZodBigInt>
 	: TType['constraint'] extends 'basecolumn'
 		? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column<any> }>['baseColumn'], TCoerce>>
 	: z.ZodArray<z.ZodAny>
@@ -38,6 +40,8 @@ export type GetZodType<
 	: TType['type'] extends 'string'
 		? TType['constraint'] extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString
 		: TType['constraint'] extends 'enum' ? z.ZodEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
+		: TType['constraint'] extends 'int64' ? typeof bigintStringModeSchema
+		: TType['constraint'] extends 'uint64' ? typeof unsignedBigintStringModeSchema
 		: z.ZodString
 	: z.ZodType;
 

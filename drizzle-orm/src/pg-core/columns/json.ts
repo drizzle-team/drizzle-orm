@@ -5,7 +5,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgJsonBuilder extends PgColumnBuilder<
 	{
-		name: string;
 		dataType: 'object json';
 		data: unknown;
 		driverParam: unknown;

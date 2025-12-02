@@ -6,7 +6,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreRealBuilder extends SingleStoreColumnBuilderWithAutoIncrement<
 	{
-		name: string;
 		dataType: 'number double';
 		data: number;
 		driverParam: number | string;

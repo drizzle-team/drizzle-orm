@@ -5,7 +5,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelRealBuilder extends GelColumnBuilder<
 	{
-		name: string;
 		dataType: 'number float';
 		data: number;
 		driverParam: number;

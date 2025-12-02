@@ -6,7 +6,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
 
 export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilder<{
-	name: string;
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
@@ -49,7 +48,6 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 }
 
 export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBaseBuilder<{
-	name: string;
 	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;

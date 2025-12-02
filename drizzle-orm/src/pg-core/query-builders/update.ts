@@ -62,7 +62,7 @@ export interface PgUpdateConfig {
 
 export type PgUpdateSetSource<
 	TTable extends PgTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel & string]?:

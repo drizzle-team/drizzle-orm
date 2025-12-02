@@ -6,7 +6,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 import type { MySqlIntConfig } from './int.ts';
 
 export class MySqlMediumIntBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: Equal<TUnsigned, true> extends true ? 'number uint24' : 'number int24';
 	data: number;
 	driverParam: number | string;

@@ -7,11 +7,8 @@
 		},
 		"declaration": true,
 		"outDir": "dist",
-		"noEmit": true
+		"noEmit": true,
+		"allowImportingTsExtensions": true
 	},
-	"include": [
-		"src",
-		"scripts",
-		"types-bench.ts"
-	]
+	"include": ["src", "scripts", "types-bench.ts"]
 }

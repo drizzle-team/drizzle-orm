@@ -3,14 +3,29 @@ import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const serialNumberModeSchema = z.int().gte(0).lte(Number.MAX_SAFE_INTEGER);
+const intNullableSchema = intSchema.nullable();
+const intOptionalSchema = intSchema.optional();
+const intNullableOptionalSchema = intSchema.nullable().optional();
+
+const serialSchema = z.int().gte(0).lte(Number.MAX_SAFE_INTEGER);
+const serialOptionalSchema = serialSchema.optional();
+
 const textSchema = z.string().max(CONSTANTS.INT16_UNSIGNED_MAX);
+const textOptionalSchema = textSchema.optional();
+
+const anySchema = z.any();
+
+const extendedSchema = intSchema.lte(1000);
+const extendedNullableSchema = extendedSchema.nullable();
+const extendedOptionalSchema = extendedSchema.optional();
+
+const customSchema = z.string().transform(Number);
 
 test('table - select', (t) => {
 	const table = mysqlTable('test', {
@@ -20,7 +35,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema, generated: intSchema, name: textSchema });
+	const expected = z.object({ id: serialSchema, generated: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -33,7 +48,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = z.object({ id: serialSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -47,9 +62,9 @@ test('table - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		id: serialNumberModeSchema.optional(),
+		id: serialOptionalSchema,
 		name: textSchema,
-		age: intSchema.nullable().optional(),
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -64,9 +79,9 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		id: serialNumberModeSchema.optional(),
-		name: textSchema.optional(),
-		age: intSchema.nullable().optional(),
+		id: serialOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -80,7 +95,7 @@ test('view qb - select', (t) => {
 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: serialNumberModeSchema, age: z.any() });
+	const expected = z.object({ id: serialSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -92,7 +107,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = z.object({ id: serialSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -115,9 +130,9 @@ test('view with nested fields - select', (t) => {
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
-		id: serialNumberModeSchema,
-		nested: z.object({ name: textSchema, age: z.any() }),
-		table: z.object({ id: serialNumberModeSchema, name: textSchema }),
+		id: serialSchema,
+		nested: z.object({ name: textSchema, age: anySchema }),
+		table: z.object({ id: serialSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -153,10 +168,10 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: intSchema.nullable().optional(),
-		c4: intSchema.optional(),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -173,10 +188,10 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
-		c2: intSchema.optional(),
-		c3: intSchema.nullable().optional(),
-		c4: intSchema.optional(),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -194,9 +209,9 @@ test('refine table - select', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable(),
-		c2: intSchema.lte(1000),
-		c3: z.string().transform(Number),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 
 	expectSchemaShape(t, expected).from(result);
@@ -219,9 +234,9 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = z.object({
-		c1: intSchema.nullable(),
-		c2: intSchema.lte(1000),
-		c3: z.string().transform(Number),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -242,9 +257,9 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
-		c2: intSchema.lte(1000),
-		c3: z.string().transform(Number),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -263,9 +278,9 @@ test('refine table - update', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
-		c2: intSchema.lte(1000).optional(),
-		c3: z.string().transform(Number),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -307,21 +322,21 @@ test('refine view - select', (t) => {
 		},
 	});
 	const expected = z.object({
-		c1: intSchema.nullable(),
-		c2: intSchema.lte(1000).nullable(),
-		c3: z.string().transform(Number),
+		c1: intNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: z.object({
-			c4: intSchema.nullable(),
-			c5: intSchema.lte(1000).nullable(),
-			c6: z.string().transform(Number),
+			c4: intNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: z.object({
-			c1: intSchema.nullable(),
-			c2: intSchema.lte(1000).nullable(),
-			c3: z.string().transform(Number),
-			c4: intSchema.nullable(),
-			c5: intSchema.nullable(),
-			c6: intSchema.nullable(),
+			c1: intNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: intNullableSchema,
+			c5: intNullableSchema,
+			c6: intNullableSchema,
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -371,8 +386,12 @@ test('all data types', (t) => {
 		date2: date({ mode: 'string' }).notNull(),
 		datetime1: datetime({ mode: 'date' }).notNull(),
 		datetime2: datetime({ mode: 'string' }).notNull(),
-		decimal1: decimal().notNull(),
-		decimal2: decimal({ unsigned: true }).notNull(),
+		decimal1: decimal({ mode: 'number' }).notNull(),
+		decimal2: decimal({ mode: 'number', unsigned: true }).notNull(),
+		decimal3: decimal({ mode: 'bigint' }).notNull(),
+		decimal4: decimal({ mode: 'bigint', unsigned: true }).notNull(),
+		decimal5: decimal({ mode: 'string' }).notNull(),
+		decimal6: decimal({ mode: 'string', unsigned: true }).notNull(),
 		double1: double().notNull(),
 		double2: double({ unsigned: true }).notNull(),
 		float1: float().notNull(),
@@ -412,18 +431,22 @@ test('all data types', (t) => {
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bigint3: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
 		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
-		bigint5: z.string(),
-		bigint6: z.string(),
-		binary: z.string().regex(/^[01]*$/).length(10),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
+		binary: z.string().regex(/^[01]*$/).max(10),
 		boolean: z.boolean(),
-		char1: z.string().length(10),
+		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		date1: z.date(),
 		date2: z.string(),
 		datetime1: z.date(),
 		datetime2: z.string(),
-		decimal1: z.string(),
-		decimal2: z.string(),
+		decimal1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		decimal2: z.number().gte(0).lte(Number.MAX_SAFE_INTEGER),
+		decimal3: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		decimal4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
+		decimal5: z.string(),
+		decimal6: z.string(),
 		double1: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
 		double2: z.number().gte(0).lte(CONSTANTS.INT48_UNSIGNED_MAX),
 		float1: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
@@ -483,7 +506,7 @@ test('type coercion - all', (t) => {
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		int: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
+		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);

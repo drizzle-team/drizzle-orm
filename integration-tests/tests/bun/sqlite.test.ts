@@ -21,7 +21,7 @@ beforeAll(async () => {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 		const client = new Database(dbPath);
-		db = drizzle(client);
+		db = drizzle({ client });
 	} catch (e) {
 		console.error(e);
 	}

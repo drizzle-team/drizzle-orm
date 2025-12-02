@@ -19,7 +19,7 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.array(v.any()),
 	v.record(v.string(), v.any()),
 ]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -158,6 +158,11 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 			integer = true;
 			break;
 		}
+		case 'unsigned': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 		default: {
 			min = Number.MIN_SAFE_INTEGER;
 			max = Number.MAX_SAFE_INTEGER;
@@ -171,6 +176,28 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 	}
 	return v.pipe(v.number(), ...actions);
 }
+
+/** @internal */
+export const bigintStringModeSchema = v.pipe(
+	v.string(),
+	v.regex(/^-?\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	v.transform((v) => BigInt(v)),
+	v.minValue(CONSTANTS.INT64_MIN),
+	v.maxValue(CONSTANTS.INT64_MAX),
+	v.transform((v) => v.toString()),
+);
+
+/** @internal */
+export const unsignedBigintStringModeSchema = v.pipe(
+	v.string(),
+	v.regex(/^\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	v.transform((v) => BigInt(v)),
+	v.minValue(0n),
+	v.maxValue(CONSTANTS.INT64_MAX),
+	v.transform((v) => v.toString()),
+);
 
 function bigintColumnToSchema(column: Column, constraint: ColumnDataBigIntConstraint | undefined): v.GenericSchema {
 	let min!: bigint | undefined;
@@ -211,6 +238,15 @@ function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstrai
 			return length
 				? v.pipe(v.array(v.number()), v.length(length))
 				: v.array(v.number());
+		}
+		case 'int64vector': {
+			const length = column.length;
+			return length
+				? v.pipe(
+					v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX))),
+					v.length(length),
+				)
+				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
 		}
 		case 'basecolumn': {
 			const { length } = column;
@@ -273,6 +309,12 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstr
 			);
 		}
 		return v.enum(mapEnumValues(enumValues));
+	}
+	if (constraint === 'int64') {
+		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	const actions: any[] = [];

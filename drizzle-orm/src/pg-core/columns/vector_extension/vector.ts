@@ -6,7 +6,6 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export class PgVectorBuilder extends PgColumnBuilder<
 	{
-		name: string;
 		dataType: 'array vector';
 		data: number[];
 		driverParam: string;

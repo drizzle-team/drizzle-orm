@@ -63,9 +63,11 @@ export class Index {
 	};
 
 	readonly config: IndexConfig & { table: SQLiteTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: SQLiteTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

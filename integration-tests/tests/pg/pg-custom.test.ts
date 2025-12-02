@@ -1,58 +1,9 @@
-import retry from 'async-retry';
-import type Docker from 'dockerode';
 import { asc, eq, sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { alias, customType, pgTable, pgTableCreator, serial, text } from 'drizzle-orm/pg-core';
-import { Client } from 'pg';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { randomString } from '~/utils';
-import { createDockerDB } from './pg-common';
-import relations from './relations';
-
-const ENABLE_LOGGING = false;
-
-let db: NodePgDatabase<never, typeof relations>;
-let client: Client;
-let container: Docker.Container | undefined;
-
-beforeAll(async () => {
-	let connectionString;
-	if (process.env['PG_CONNECTION_STRING']) {
-		connectionString = process.env['PG_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	client = await retry(async () => {
-		client = new Client(connectionString);
-		await client.connect();
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-});
-
-afterAll(async () => {
-	await client?.end();
-	await container?.stop().catch(console.error);
-});
-
-beforeEach((ctx) => {
-	ctx.pg = {
-		db,
-	};
-});
+import { nodePostgresTest as test } from './instrumentation';
 
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
 	dataType() {
@@ -108,8 +59,7 @@ const usersMigratorTable = pgTable('users12', {
 	email: text('email').notNull(),
 });
 
-beforeEach(async (ctx) => {
-	const { db } = ctx.pg;
+test.beforeEach(async ({ db }) => {
 	await db.execute(sql`drop schema if exists public cascade`);
 	await db.execute(sql`create schema public`);
 	await db.execute(
@@ -125,9 +75,7 @@ beforeEach(async (ctx) => {
 	);
 });
 
-test('select all fields', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select all fields', async ({ db }) => {
 	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
@@ -138,9 +86,7 @@ test('select all fields', async (ctx) => {
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('select sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select sql', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
 		name: sql`upper(${usersTable.name})`,
@@ -149,9 +95,7 @@ test('select sql', async (ctx) => {
 	expect(users).toEqual([{ name: 'JOHN' }]);
 });
 
-test('select typed sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select typed sql', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
 		name: sql<string>`upper(${usersTable.name})`,
@@ -160,9 +104,7 @@ test('select typed sql', async (ctx) => {
 	expect(users).toEqual([{ name: 'JOHN' }]);
 });
 
-test('insert returning sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert returning sql', async ({ db }) => {
 	const users = await db.insert(usersTable).values({ name: 'John' }).returning({
 		name: sql`upper(${usersTable.name})`,
 	});
@@ -170,9 +112,7 @@ test('insert returning sql', async (ctx) => {
 	expect(users).toEqual([{ name: 'JOHN' }]);
 });
 
-test('delete returning sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('delete returning sql', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
 		name: sql`upper(${usersTable.name})`,
@@ -181,9 +121,7 @@ test('delete returning sql', async (ctx) => {
 	expect(users).toEqual([{ name: 'JOHN' }]);
 });
 
-test('update returning sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('update returning sql', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
 		name: sql`upper(${usersTable.name})`,
@@ -192,9 +130,7 @@ test('update returning sql', async (ctx) => {
 	expect(users).toEqual([{ name: 'JANE' }]);
 });
 
-test('update with returning all fields', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('update with returning all fields', async ({ db }) => {
 	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
@@ -205,9 +141,7 @@ test('update with returning all fields', async (ctx) => {
 	expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
-test('update with returning partial', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('update with returning partial', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
 		id: usersTable.id,
@@ -217,9 +151,7 @@ test('update with returning partial', async (ctx) => {
 	expect(users).toEqual([{ id: 1, name: 'Jane' }]);
 });
 
-test('delete with returning all fields', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('delete with returning all fields', async ({ db }) => {
 	const now = Date.now();
 
 	await db.insert(usersTable).values({ name: 'John' });
@@ -230,9 +162,7 @@ test('delete with returning all fields', async (ctx) => {
 	expect(users).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 });
 
-test('delete with returning partial', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('delete with returning partial', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
 		id: usersTable.id,
@@ -242,9 +172,7 @@ test('delete with returning partial', async (ctx) => {
 	expect(users).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert + select', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert + select', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -257,9 +185,7 @@ test('insert + select', async (ctx) => {
 	]);
 });
 
-test('json insert', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('json insert', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
 	const result = await db.select({
 		id: usersTable.id,
@@ -270,18 +196,14 @@ test('json insert', async (ctx) => {
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
-test('insert with overridden default values', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert with overridden default values', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John', verified: true });
 	const result = await db.select().from(usersTable);
 
 	expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 });
 
-test('insert many', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert many', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
@@ -303,9 +225,7 @@ test('insert many', async (ctx) => {
 	]);
 });
 
-test('insert many with returning', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert many with returning', async ({ db }) => {
 	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
 		{ name: 'Bruce', jsonb: ['foo', 'bar'] },
@@ -327,9 +247,7 @@ test('insert many with returning', async (ctx) => {
 	]);
 });
 
-test('select with group by as field', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select with group by as field', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -338,9 +256,7 @@ test('select with group by as field', async (ctx) => {
 	expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 });
 
-test('select with group by as sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select with group by as sql', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -349,9 +265,7 @@ test('select with group by as sql', async (ctx) => {
 	expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 });
 
-test('select with group by as sql + column', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select with group by as sql + column', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -360,9 +274,7 @@ test('select with group by as sql + column', async (ctx) => {
 	expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
 });
 
-test('select with group by as column + sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select with group by as column + sql', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -371,9 +283,7 @@ test('select with group by as column + sql', async (ctx) => {
 	expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
 });
 
-test('select with group by complex query', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('select with group by complex query', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 	const result = await db.select({ name: usersTable.name }).from(usersTable)
@@ -384,9 +294,7 @@ test('select with group by complex query', async (ctx) => {
 	expect(result).toEqual([{ name: 'Jane' }]);
 });
 
-test('build query', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('build query', async ({ db }) => {
 	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, usersTable.name)
 		.toSQL();
@@ -397,16 +305,13 @@ test('build query', async (ctx) => {
 	});
 });
 
-test('insert sql', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert sql', async ({ db }) => {
 	await db.insert(usersTable).values({ name: sql`${'John'}` });
 	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('partial join with alias', async (ctx) => {
-	const { db } = ctx.pg;
+test('partial join with alias', async ({ db }) => {
 	const customerAlias = alias(usersTable, 'customer');
 
 	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -430,9 +335,7 @@ test('partial join with alias', async (ctx) => {
 	}]);
 });
 
-test('full join with alias', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('full join with alias', async ({ db }) => {
 	const pgTable = pgTableCreator((name) => `prefixed_${name}`);
 
 	const users = pgTable('users', {
@@ -465,18 +368,14 @@ test('full join with alias', async (ctx) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
-test('insert with spaces', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert with spaces', async ({ db }) => {
 	await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
 	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
 
 	expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 });
 
-test('prepared statement', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('prepared statement', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const statement = db.select({
 		id: usersTable.id,
@@ -488,9 +387,7 @@ test('prepared statement', async (ctx) => {
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('prepared statement reuse', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('prepared statement reuse', async ({ db }) => {
 	const stmt = db.insert(usersTable).values({
 		verified: true,
 		name: sql.placeholder('name'),
@@ -520,9 +417,7 @@ test('prepared statement reuse', async (ctx) => {
 	]);
 });
 
-test('prepared statement with placeholder in .where', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('prepared statement with placeholder in .where', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const stmt = db.select({
 		id: usersTable.id,
@@ -535,9 +430,7 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 	expect(result).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('prepared statement with placeholder in .limit', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('prepared statement with placeholder in .limit', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const stmt = db
 		.select({
@@ -555,9 +448,7 @@ test('prepared statement with placeholder in .limit', async (ctx) => {
 	expect(result).toHaveLength(1);
 });
 
-test('prepared statement with placeholder in .offset', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('prepared statement with placeholder in .offset', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 	const stmt = db
 		.select({
@@ -573,7 +464,7 @@ test('prepared statement with placeholder in .offset', async (ctx) => {
 	expect(result).toEqual([{ id: 2, name: 'John1' }]);
 });
 
-test('migrator : default migration strategy', async () => {
+test('migrator : default migration strategy', async ({ db }) => {
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
@@ -591,7 +482,7 @@ test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
-test('migrator : migrate with custom schema', async () => {
+test('migrator : migrate with custom schema', async ({ db }) => {
 	const customSchema = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
@@ -613,7 +504,7 @@ test('migrator : migrate with custom schema', async () => {
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
 });
 
-test('migrator : migrate with custom table', async () => {
+test('migrator : migrate with custom table', async ({ db }) => {
 	const customTable = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
@@ -635,7 +526,7 @@ test('migrator : migrate with custom table', async () => {
 	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
 });
 
-test('migrator : migrate with custom table and custom schema', async () => {
+test('migrator : migrate with custom table and custom schema', async ({ db }) => {
 	const customTable = randomString();
 	const customSchema = randomString();
 	await db.execute(sql`drop table if exists all_columns`);
@@ -664,14 +555,14 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
-test('insert via db.execute + select via db.execute', async () => {
+test('insert via db.execute + select via db.execute', async ({ db }) => {
 	await db.execute(sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`);
 
 	const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
 	expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert via db.execute + returning', async () => {
+test('insert via db.execute + returning', async ({ db }) => {
 	const inserted = await db.execute<{ id: number; name: string }>(
 		sql`insert into ${usersTable} (${
 			sql.identifier(usersTable.name.name)
@@ -680,16 +571,14 @@ test('insert via db.execute + returning', async () => {
 	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert via db.execute w/ query builder', async () => {
+test('insert via db.execute w/ query builder', async ({ db }) => {
 	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('build query insert with onConflict do update', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('build query insert with onConflict do update', async ({ db }) => {
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } })
@@ -702,9 +591,7 @@ test('build query insert with onConflict do update', async (ctx) => {
 	});
 });
 
-test('build query insert with onConflict do update / multiple columns', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('build query insert with onConflict do update / multiple columns', async ({ db }) => {
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoUpdate({ target: [usersTable.id, usersTable.name], set: { name: 'John1' } })
@@ -717,9 +604,7 @@ test('build query insert with onConflict do update / multiple columns', async (c
 	});
 });
 
-test('build query insert with onConflict do nothing', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('build query insert with onConflict do nothing', async ({ db }) => {
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoNothing()
@@ -732,9 +617,7 @@ test('build query insert with onConflict do nothing', async (ctx) => {
 	});
 });
 
-test('build query insert with onConflict do nothing + target', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('build query insert with onConflict do nothing + target', async ({ db }) => {
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
 		.onConflictDoNothing({ target: usersTable.id })
@@ -747,9 +630,7 @@ test('build query insert with onConflict do nothing + target', async (ctx) => {
 	});
 });
 
-test('insert with onConflict do update', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert with onConflict do update', async ({ db }) => {
 	await db.insert(usersTable)
 		.values({ name: 'John' });
 
@@ -764,9 +645,7 @@ test('insert with onConflict do update', async (ctx) => {
 	expect(res).toEqual([{ id: 1, name: 'John1' }]);
 });
 
-test('insert with onConflict do nothing', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert with onConflict do nothing', async ({ db }) => {
 	await db.insert(usersTable)
 		.values({ name: 'John' });
 
@@ -781,9 +660,7 @@ test('insert with onConflict do nothing', async (ctx) => {
 	expect(res).toEqual([{ id: 1, name: 'John' }]);
 });
 
-test('insert with onConflict do nothing + target', async (ctx) => {
-	const { db } = ctx.pg;
-
+test('insert with onConflict do nothing + target', async ({ db }) => {
 	await db.insert(usersTable)
 		.values({ name: 'John' });
 

@@ -5,7 +5,6 @@ import { sql } from '~/sql/sql.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgUUIDBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string uuid';
 	data: string;
 	driverParam: string;

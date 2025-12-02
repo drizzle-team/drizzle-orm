@@ -4,7 +4,6 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelUUIDBuilder extends GelColumnBuilder<{
-	name: string;
 	dataType: 'string uuid';
 	data: string;
 	driverParam: string;

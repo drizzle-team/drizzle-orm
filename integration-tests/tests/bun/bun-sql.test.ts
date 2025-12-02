@@ -1,4 +1,3 @@
-import retry from 'async-retry';
 import { SQL as BunSQL } from 'bun';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 import type Docker from 'dockerode';
@@ -92,9 +91,9 @@ import {
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import relations from '~/pg/relations';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { Expect } from '~/utils';
+import { relations } from '../pg/relations';
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -350,37 +349,20 @@ const allTypesTable = pgTable('all_types', {
 });
 
 // oxlint-disable-next-line no-unassigned-vars
-let pgContainer: Docker.Container | undefined;
+let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
 });
 
 let db: BunSQLDatabase<never, typeof relations>;
-let client: BunSQL;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	client = await retry(async () => {
-		// @ts-expect-error
-		const connClient = new BunSQL(connectionString, { max: 1 });
-		await connClient.unsafe(`select 1`);
-		return connClient;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	db = drizzle(client, { logger: false, relations });
-});
+	const connectionString = process.env['PG_CONNECTION_STRING']!;
+	const connClient = new BunSQL(connectionString, { max: 1 });
+	await connClient.unsafe(`select 1`);
 
-afterAll(async () => {
-	await client?.end();
+	db = drizzle({ client: connClient, logger: false, relations });
 });
 
 beforeEach(async () => {
@@ -592,10 +574,7 @@ test('table configs: unique third param', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: char('state', { length: 2 }),
-	}, (t) => ({
-		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-		f1: unique('custom_name1').on(t.name, t.state),
-	}));
+	}, (t) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)]);
 
 	const tableConfig = getTableConfig(cities1Table);
 
@@ -622,7 +601,7 @@ test('table configs: unique in column', async () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-	expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toBe(undefined);
 	expect(columnName?.isUnique).toBe(true);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -640,9 +619,7 @@ test('table config: foreign keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-	}));
+	}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -655,9 +632,9 @@ test('table config: primary keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-	}));
+	}, (t) => [
+		primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -4441,7 +4418,7 @@ test.skip('proper json and jsonb handling', async () => {
 	]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4465,7 +4442,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the ->> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4489,7 +4466,7 @@ test.todo('set json/jsonb fields with strings and retrieve with the ->> operator
 	}]);
 });
 
-test.todo('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with objects and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4513,7 +4490,7 @@ test.todo('set json/jsonb fields with objects and retrieve with the -> operator'
 	}]);
 });
 
-test.todo('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
+test.skip('set json/jsonb fields with strings and retrieve with the -> operator', async () => {
 	const obj = { string: 'test', number: 123 };
 	const { string: testString, number: testNumber } = obj;
 
@@ -4866,10 +4843,10 @@ test('policy', () => {
 		const table = pgTable('table_with_policy', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
-		}, () => ({
+		}, () => [
 			p1,
 			p2,
-		}));
+		]);
 		const config = getTableConfig(table);
 		expect(config.policies).toHaveLength(2);
 		expect(config.policies[0]).toBe(p1);
@@ -4888,10 +4865,13 @@ test('neon: policy', () => {
 		for (const it of Object.values(policy)) {
 			expect(is(it, PgPolicy)).toBe(true);
 			expect(it?.to).toStrictEqual(authenticatedRole);
-			// oxlint-disable-next-line no-unused-expressions
-			it?.using ? expect(it.using).toStrictEqual(sql`true`) : '';
-			// oxlint-disable-next-line no-unused-expressions
-			it?.withCheck ? expect(it.withCheck).toStrictEqual(sql`true`) : '';
+
+			if (it?.using) {
+				expect(it.using).toStrictEqual(sql`true`);
+			}
+			if (it?.withCheck) {
+				expect(it.withCheck).toStrictEqual(sql`true`);
+			}
 		}
 	}
 
@@ -4930,9 +4910,9 @@ test('neon: neon_auth', () => {
 });
 
 test('Enable RLS function', () => {
-	const usersWithRLS = pgTable('users', {
+	const usersWithRLS = pgTable.withRLS('users', {
 		id: integer(),
-	}).enableRLS();
+	});
 
 	const config1 = getTableConfig(usersWithRLS);
 

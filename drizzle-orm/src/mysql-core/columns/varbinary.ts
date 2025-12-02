@@ -5,7 +5,6 @@ import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'string binary';
 	data: string;
 	driverParam: string;

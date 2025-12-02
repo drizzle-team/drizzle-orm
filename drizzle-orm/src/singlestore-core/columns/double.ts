@@ -6,7 +6,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreDoubleBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'number udouble' : 'number double';
 		data: number;
 		driverParam: number | string;

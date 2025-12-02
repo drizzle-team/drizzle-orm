@@ -63,31 +63,31 @@ export const users = mysqlTable(
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 		enumCol: mysqlEnum('enum_col', ['a', 'b', 'c']).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.lock('default')
 			.algorithm('copy')
 			.using(`btree`),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
-		usersClassComplexFK: foreignKey({
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export const cities = mysqlTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 Expect<
 	// @ts-ignore - TODO: Remake type checks for new columns
@@ -178,9 +178,9 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
@@ -764,12 +764,10 @@ Expect<
 			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
 			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
 		},
-		(table) => {
-			return {
-				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
-				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
-			};
-		},
+		(table) => [
+			primaryKey({ columns: [table.id] }),
+			unique('email_log_message_id_unique').on(table.messageId),
+		],
 	);
 
 	Expect<

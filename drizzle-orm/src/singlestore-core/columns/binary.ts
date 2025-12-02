@@ -6,12 +6,11 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreBinaryBuilder extends SingleStoreColumnBuilder<
 	{
-		name: string;
 		dataType: 'string binary';
 		data: string;
 		driverParam: string;
 	},
-	SingleStoreBinaryConfig & { setLength: boolean; isLengthExact: true }
+	SingleStoreBinaryConfig & { setLength: boolean }
 > {
 	static override readonly [entityKind]: string = 'SingleStoreBinaryBuilder';
 
@@ -19,7 +18,6 @@ export class SingleStoreBinaryBuilder extends SingleStoreColumnBuilder<
 		super(name, 'string binary', 'SingleStoreBinary');
 		this.config.length = length ?? 1;
 		this.config.setLength = length !== undefined;
-		this.config.isLengthExact = true;
 	}
 
 	/** @internal */

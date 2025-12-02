@@ -34,7 +34,7 @@ test.before((ctx) => {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
 		const client = new Database(dbPath);
-		ctx.db = drizzle(client, { logger: new DefaultLogger() });
+		ctx.db = drizzle({ client, logger: new DefaultLogger() });
 	} catch (e) {
 		console.error(e);
 	}

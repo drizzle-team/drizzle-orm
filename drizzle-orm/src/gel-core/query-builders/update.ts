@@ -51,7 +51,7 @@ export interface GelUpdateConfig {
 
 export type GelUpdateSetSource<
 	TTable extends GelTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel & string]?:

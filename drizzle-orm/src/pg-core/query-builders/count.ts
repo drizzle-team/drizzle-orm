@@ -3,6 +3,7 @@ import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
+import type { PgViewBase } from '../view-base.ts';
 
 export class PgCountBuilder<
 	TSession extends PgSession<any, any, any>,
@@ -10,20 +11,20 @@ export class PgCountBuilder<
 	private sql: SQL<number>;
 	private token?: NeonAuthToken;
 
-	static override readonly [entityKind] = 'PgCountBuilder';
+	static override readonly [entityKind]: string = 'PgCountBuilder';
 	[Symbol.toStringTag] = 'PgCountBuilder';
 
 	private session: TSession;
 
 	private static buildEmbeddedCount(
-		source: PgTable | SQL | SQLWrapper,
+		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
 	}
 
 	private static buildCount(
-		source: PgTable | SQL | SQLWrapper,
+		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	): SQL<number> {
 		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
@@ -31,7 +32,7 @@ export class PgCountBuilder<
 
 	constructor(
 		readonly params: {
-			source: PgTable | SQL | SQLWrapper;
+			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			session: TSession;
 		},

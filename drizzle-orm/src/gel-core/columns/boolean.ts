@@ -4,7 +4,6 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelBooleanBuilder extends GelColumnBuilder<{
-	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;

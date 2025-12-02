@@ -4,7 +4,6 @@ import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgMacaddr8Builder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string macaddr8';
 	data: string;
 	driverParam: string;

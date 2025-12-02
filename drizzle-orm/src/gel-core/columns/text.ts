@@ -4,7 +4,6 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelTextBuilder extends GelColumnBuilder<{
-	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;

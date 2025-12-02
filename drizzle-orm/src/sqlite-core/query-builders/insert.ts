@@ -29,7 +29,7 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 
 export type SQLiteInsertValue<
 	TTable extends SQLiteTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > = Simplify<
 	{
 		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
@@ -38,7 +38,7 @@ export type SQLiteInsertValue<
 
 export type SQLiteInsertSelectQueryBuilder<
 	TTable extends SQLiteTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > = TypedQueryBuilder<
 	{ [K in keyof TModel]: AnySQLiteColumn | SQL | SQL.Aliased | TModel[K] }
 >;

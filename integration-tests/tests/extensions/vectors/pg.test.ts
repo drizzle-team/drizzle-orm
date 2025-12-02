@@ -1,19 +1,14 @@
-import Docker from 'dockerode';
 import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
-import getPort from 'get-port';
 import pg from 'pg';
-import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const { Client } = pg;
 
 const ENABLE_LOGGING = false;
 
-let pgContainer: Docker.Container;
-let docker: Docker;
 let client: pg.Client;
 let db: NodePgDatabase<never, typeof relations>;
 
@@ -34,66 +29,19 @@ const relations = defineRelations({ items }, (r) => ({
 	},
 }));
 
-async function createDockerDB(): Promise<string> {
-	const inDocker = (docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'pgvector/pgvector:pg16';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		inDocker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
 beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'] ?? (await createDockerDB());
+	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client(connectionString);
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	client = new Client(connectionString);
+	await client.connect();
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
 });
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
-	await pgContainer?.stop().catch(console.error);
 });
 
 beforeEach(async () => {

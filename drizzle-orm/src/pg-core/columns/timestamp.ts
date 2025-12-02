@@ -7,7 +7,6 @@ import { PgDateColumnBaseBuilder } from './date.common.ts';
 
 export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 	{
-		name: string;
 		dataType: 'object date';
 		data: Date;
 		driverParam: string;
@@ -62,7 +61,6 @@ export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgCo
 
 export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 	{
-		name: string;
 		dataType: 'string timestamp';
 		data: string;
 		driverParam: string;

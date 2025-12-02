@@ -49,22 +49,11 @@ describe('postgres-js', async (it) => {
 		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = pg(process.env['PG_CONNECTION_STRING']);
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.unsafe('SELECT 1;');
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = pg(process.env['PG_CONNECTION_STRING']);
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.unsafe('SELECT 1;');
-
-		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {

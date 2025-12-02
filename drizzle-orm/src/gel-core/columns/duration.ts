@@ -5,7 +5,6 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelDurationBuilder extends GelColumnBuilder<{
-	name: string;
 	dataType: 'object duration';
 	data: Duration;
 	driverParam: Duration;

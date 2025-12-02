@@ -1,25 +1,23 @@
-import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { formatToMillis, type MigrationMeta, type MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
-	journal: {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
 	migrations: Record<string, string>;
 	/** @internal */
 	init?: boolean;
 }
 
-function readMigrationFiles({ journal, migrations }: MigrationConfig): MigrationMeta[] {
+function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 	const migrationQueries: MigrationMeta[] = [];
 
-	for (const journalEntry of journal.entries) {
-		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
+	const sortedMigrations = Object.keys(migrations).sort();
 
+	for (const key of sortedMigrations) {
+		const query = migrations[key];
 		if (!query) {
-			throw new Error(`Missing migration: ${journalEntry.tag}`);
+			throw new Error(`Missing migration: ${key}`);
 		}
 
 		try {
@@ -27,14 +25,16 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 				return it;
 			});
 
+			const migrationDate = formatToMillis(key.slice(0, 14));
+
 			migrationQueries.push({
 				sql: result,
-				bps: journalEntry.breakpoints,
-				folderMillis: journalEntry.when,
+				bps: true,
+				folderMillis: migrationDate,
 				hash: '',
 			});
 		} catch {
-			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
+			throw new Error(`Failed to parse migration: ${key}`);
 		}
 	}
 

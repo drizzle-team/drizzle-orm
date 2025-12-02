@@ -1,5 +1,23 @@
-import type { AbstractGenerator } from '../services/Generators.ts';
+import type { CockroachDatabase, CockroachTable } from 'drizzle-orm/cockroach-core';
+import type { MsSqlDatabase, MsSqlTable } from 'drizzle-orm/mssql-core';
+import type { MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
+import type { PgDatabase, PgTable } from 'drizzle-orm/pg-core';
+import type { SingleStoreDatabase, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { BaseSQLiteDatabase, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { AbstractGenerator } from '../generators/Generators.ts';
 import type { Prettify } from './tables.ts';
+
+export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined;
+
+export type DbType =
+	| PgDatabase<any, any, any>
+	| MySqlDatabase<any, any, any, any>
+	| BaseSQLiteDatabase<any, any, any, any>
+	| MsSqlDatabase<any, any, any, any>
+	| CockroachDatabase<any, any, any>
+	| SingleStoreDatabase<any, any, any, any>;
+
+export type TableType = PgTable | MySqlTable | SQLiteTable | MsSqlTable | CockroachTable | SingleStoreTable;
 
 export type TableGeneratorsType = {
 	[columnName: string]: Prettify<
@@ -18,6 +36,7 @@ export type GeneratePossibleGeneratorsColumnType = {
 	notNull: boolean;
 	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	identity?: boolean;
 	wasRefined: boolean;
 	wasDefinedBefore: boolean;
 	isCyclic: boolean;
@@ -43,7 +62,7 @@ export type GeneratePossibleGeneratorsTableType = Prettify<{
 export type RefinementsType = Prettify<{
 	[tableName: string]: {
 		count?: number;
-		columns: { [columnName: string]: AbstractGenerator<{}> };
+		columns: { [columnName: string]: AbstractGenerator<{}> | false };
 		with?: { [tableName: string]: number | { weight: number; count: number | number[] }[] };
 	};
 }>;

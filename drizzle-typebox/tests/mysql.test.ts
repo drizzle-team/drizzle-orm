@@ -3,7 +3,7 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -12,11 +12,26 @@ const intSchema = t.Integer({
 	minimum: CONSTANTS.INT32_MIN,
 	maximum: CONSTANTS.INT32_MAX,
 });
-const serialNumberModeSchema = t.Integer({
+const intNullableSchema = t.Union([intSchema, t.Null()]);
+const intOptionalSchema = t.Optional(intSchema);
+const intNullableOptionalSchema = t.Optional(t.Union([intSchema, t.Null()]));
+
+const serialSchema = t.Integer({
 	minimum: 0,
 	maximum: Number.MAX_SAFE_INTEGER,
 });
+const serialOptionalSchema = t.Optional(serialSchema);
+
 const textSchema = t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX });
+const textOptionalSchema = t.Optional(textSchema);
+
+const anySchema = t.Any();
+
+const extendedSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 });
+const extendedNullableSchema = t.Union([extendedSchema, t.Null()]);
+const extendedOptionalSchema = t.Optional(extendedSchema);
+
+const customSchema = t.Integer({ minimum: 1, maximum: 10 });
 
 test('table - select', (tc) => {
 	const table = mysqlTable('test', {
@@ -25,7 +40,7 @@ test('table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = t.Object({ id: serialSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -38,7 +53,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = t.Object({ id: serialSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -52,9 +67,9 @@ test('table - insert', (tc) => {
 
 	const result = createInsertSchema(table);
 	const expected = t.Object({
-		id: t.Optional(serialNumberModeSchema),
+		id: serialOptionalSchema,
 		name: textSchema,
-		age: t.Optional(t.Union([intSchema, t.Null()])),
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -69,9 +84,9 @@ test('table - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		id: t.Optional(serialNumberModeSchema),
-		name: t.Optional(textSchema),
-		age: t.Optional(t.Union([intSchema, t.Null()])),
+		id: serialOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -85,7 +100,7 @@ test('view qb - select', (tc) => {
 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: serialNumberModeSchema, age: t.Any() });
+	const expected = t.Object({ id: serialSchema, age: anySchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -97,7 +112,7 @@ test('view columns - select', (tc) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = t.Object({ id: serialSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -120,9 +135,9 @@ test('view with nested fields - select', (tc) => {
 
 	const result = createSelectSchema(view);
 	const expected = t.Object({
-		id: serialNumberModeSchema,
-		nested: t.Object({ name: textSchema, age: t.Any() }),
-		table: t.Object({ id: serialNumberModeSchema, name: textSchema }),
+		id: serialSchema,
+		nested: t.Object({ name: textSchema, age: anySchema }),
+		table: t.Object({ id: serialSchema, name: textSchema }),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -138,9 +153,9 @@ test('nullability - select', (tc) => {
 
 	const result = createSelectSchema(table);
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
+		c1: intNullableSchema,
 		c2: intSchema,
-		c3: t.Union([intSchema, t.Null()]),
+		c3: intNullableSchema,
 		c4: intSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -158,10 +173,10 @@ test('nullability - insert', (tc) => {
 
 	const result = createInsertSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: t.Optional(t.Union([intSchema, t.Null()])),
-		c4: t.Optional(intSchema),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -178,10 +193,10 @@ test('nullability - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Optional(intSchema),
-		c3: t.Optional(t.Union([intSchema, t.Null()])),
-		c4: t.Optional(intSchema),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -199,9 +214,9 @@ test('refine table - select', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 
 	expectSchemaShape(tc, expected).from(result);
@@ -224,9 +239,9 @@ test('refine table - select with custom data type', (tc) => {
 		c4: customTextSchema,
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -247,9 +262,9 @@ test('refine table - insert', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -268,9 +283,9 @@ test('refine table - update', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Optional(t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 })),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -312,21 +327,21 @@ test('refine view - select', (tc) => {
 		},
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: t.Object({
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
+			c4: intNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: t.Object({
-			c1: t.Union([intSchema, t.Null()]),
-			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([intSchema, t.Null()]),
-			c6: t.Union([intSchema, t.Null()]),
+			c1: intNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: intNullableSchema,
+			c5: intNullableSchema,
+			c6: intNullableSchema,
 		}),
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -376,8 +391,12 @@ test('all data types', (tc) => {
 		date2: date({ mode: 'string' }).notNull(),
 		datetime1: datetime({ mode: 'date' }).notNull(),
 		datetime2: datetime({ mode: 'string' }).notNull(),
-		decimal1: decimal().notNull(),
-		decimal2: decimal({ unsigned: true }).notNull(),
+		decimal1: decimal({ mode: 'number' }).notNull(),
+		decimal2: decimal({ mode: 'number', unsigned: true }).notNull(),
+		decimal3: decimal({ mode: 'bigint' }).notNull(),
+		decimal4: decimal({ mode: 'bigint', unsigned: true }).notNull(),
+		decimal5: decimal({ mode: 'string' }).notNull(),
+		decimal6: decimal({ mode: 'string', unsigned: true }).notNull(),
 		double1: double().notNull(),
 		double2: double({ unsigned: true }).notNull(),
 		float1: float().notNull(),
@@ -417,18 +436,22 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
-		bigint5: t.String(),
-		bigint6: t.String(),
-		binary: t.RegExp(/^[01]*$/, { minLength: 10, maxLength: 10 }),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
+		binary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		boolean: t.Boolean(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		date1: t.Date(),
 		date2: t.String(),
 		datetime1: t.Date(),
 		datetime2: t.String(),
-		decimal1: t.String(),
-		decimal2: t.String(),
+		decimal1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		decimal2: t.Number({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
+		decimal3: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		decimal4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
+		decimal5: t.String(),
+		decimal6: t.String(),
 		double1: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		double2: t.Number({ minimum: 0, maximum: CONSTANTS.INT48_UNSIGNED_MAX }),
 		float1: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),

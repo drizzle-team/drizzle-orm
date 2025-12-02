@@ -12,11 +12,11 @@ import {
 	getTableName,
 } from 'drizzle-orm';
 import { CONSTANTS } from './constants.ts';
-import type { BufferSchema, JsonSchema } from './utils.ts';
+import type { BigIntStringModeSchema, BufferSchema, JsonSchema } from './utils.ts';
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
-TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {
@@ -161,6 +161,11 @@ function numberColumnToSchema(
 			integer = true;
 			break;
 		}
+		case 'unsigned': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 		default: {
 			min = Number.MIN_SAFE_INTEGER;
 			max = Number.MAX_SAFE_INTEGER;
@@ -174,6 +179,43 @@ function numberColumnToSchema(
 		maximum: max,
 	});
 }
+
+TypeRegistry.Set('BigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
+		return false;
+	}
+
+	const bigint = BigInt(value);
+	if (bigint < CONSTANTS.INT64_MIN || bigint > CONSTANTS.INT64_MAX) {
+		return false;
+	}
+
+	return true;
+});
+
+TypeRegistry.Set('UnsignedBigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
+		return false;
+	}
+
+	const bigint = BigInt(value);
+	if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
+		return false;
+	}
+
+	return true;
+});
+/** @internal */
+export const bigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'BigIntStringMode',
+	type: 'string',
+} as any;
+
+/** @internal */
+export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'UnsignedBigIntStringMode',
+	type: 'string',
+} as any;
 
 function arrayColumnToSchema(
 	column: Column,
@@ -198,6 +240,22 @@ function arrayColumnToSchema(
 				}
 				: undefined;
 			return t.Array(t.Number(), sizeParam);
+		}
+		case 'int64vector': {
+			const length = column.length;
+			const sizeParam = length
+				? {
+					minItems: length,
+					maxItems: length,
+				}
+				: undefined;
+			return t.Array(
+				t.BigInt({
+					minimum: CONSTANTS.INT64_MIN,
+					maximum: CONSTANTS.INT64_MAX,
+				}),
+				sizeParam,
+			);
 		}
 		case 'basecolumn': {
 			const size = column.length;
@@ -315,6 +373,12 @@ function stringColumnToSchema(
 			);
 		}
 		return t.Enum(mapEnumValues(enumValues));
+	}
+	if (constraint === 'int64') {
+		return bigintStringModeSchema;
+	}
+	if (constraint === 'uint64') {
+		return unsignedBigintStringModeSchema;
 	}
 
 	const options: Partial<StringOptions> = {};

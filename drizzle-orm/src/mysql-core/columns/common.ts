@@ -16,7 +16,6 @@ import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 
 export type MySqlColumns = Record<string, MySqlColumn<any>>;
 
@@ -102,9 +101,6 @@ export abstract class MySqlColumn<
 		table: MySqlTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}
@@ -125,7 +121,7 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: string) {
+	constructor(name: string, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}

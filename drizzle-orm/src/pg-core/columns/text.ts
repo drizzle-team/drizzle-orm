@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<{
-	name: string;
 	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	enumValues: TEnum;

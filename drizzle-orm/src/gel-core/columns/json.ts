@@ -5,7 +5,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelJsonBuilder extends GelColumnBuilder<
 	{
-		name: string;
 		dataType: 'object json';
 		data: unknown;
 		driverParam: unknown;

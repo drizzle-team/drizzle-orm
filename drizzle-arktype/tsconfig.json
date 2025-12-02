@@ -5,6 +5,7 @@
 		"baseUrl": ".",
 		"declaration": true,
 		"noEmit": true,
+		"allowImportingTsExtensions": true,
 		"paths": {
 			"~/*": ["src/*"]
 		}

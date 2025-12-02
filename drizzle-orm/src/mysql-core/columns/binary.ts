@@ -6,12 +6,11 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlBinaryBuilder extends MySqlColumnBuilder<
 	{
-		name: string;
 		dataType: 'string binary';
 		data: string;
 		driverParam: string;
 	},
-	MySqlBinaryConfig & { setLength: boolean; isLengthExact: true }
+	MySqlBinaryConfig & { setLength: boolean }
 > {
 	static override readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
@@ -19,7 +18,6 @@ export class MySqlBinaryBuilder extends MySqlColumnBuilder<
 		super(name, 'string binary', 'MySqlBinary');
 		this.config.length = length ?? 1;
 		this.config.setLength = length !== undefined;
-		this.config.isLengthExact = true;
 	}
 
 	/** @internal */

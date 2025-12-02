@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export class MySqlDecimalBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: Equal<TUnsigned, true> extends true ? 'string unumeric' : 'string numeric';
 	data: string;
 	driverParam: string;
@@ -59,7 +58,6 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string numeric' | 'string 
 
 export class MySqlDecimalNumberBuilder<TUnsigned extends boolean | undefined>
 	extends MySqlColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'number unsigned' : 'number';
 		data: number;
 		driverParam: string;
@@ -115,7 +113,6 @@ export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number' | 'number un
 }
 export class MySqlDecimalBigIntBuilder<TUnsigned extends boolean | undefined>
 	extends MySqlColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
 		data: bigint;
 		driverParam: string;

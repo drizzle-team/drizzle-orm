@@ -25,6 +25,11 @@ export interface BufferSchema extends TSchema {
 	static: Buffer;
 	type: 'buffer';
 }
+export interface BigIntStringModeSchema extends TSchema {
+	[Kind]: 'BigIntStringMode';
+	static: string;
+	type: 'string';
+}
 
 export type IsNever<T> = [T] extends [never] ? true : false;
 

@@ -4,7 +4,6 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreJsonBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'object json';
 	data: unknown;
 	driverParam: string;

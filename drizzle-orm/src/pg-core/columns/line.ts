@@ -1,12 +1,10 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgLineBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'array line';
 	data: [number, number, number];
 	driverParam: number | string;
@@ -29,6 +27,8 @@ export class PgLineBuilder extends PgColumnBuilder<{
 export class PgLineTuple<T extends ColumnBaseConfig<'array line'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLine';
 
+	readonly mode = 'tuple';
+
 	getSQLType(): string {
 		return 'line';
 	}
@@ -44,7 +44,6 @@ export class PgLineTuple<T extends ColumnBaseConfig<'array line'>> extends PgCol
 }
 
 export class PgLineABCBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'object line';
 	data: { a: number; b: number; c: number };
 	driverParam: string;
@@ -66,6 +65,8 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 
 export class PgLineABC<T extends ColumnBaseConfig<'object line'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLineABC';
+
+	readonly mode = 'abc';
 
 	getSQLType(): string {
 		return 'line';

@@ -5,7 +5,6 @@ import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
 export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'number int32';
 	data: number;
 	driverParam: number;

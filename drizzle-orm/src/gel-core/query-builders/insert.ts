@@ -36,10 +36,14 @@ export interface GelInsertConfig<TTable extends GelTable = GelTable> {
 	overridingSystemValue_?: boolean;
 }
 
-export type GelInsertValue<TTable extends GelTable<TableConfig>, OverrideT extends boolean = false> =
+export type GelInsertValue<
+	TTable extends GelTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+> =
 	& {
-		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
-			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+		[Key in keyof TModel]:
+			| TModel[Key]
 			| SQL
 			| Placeholder;
 	}
@@ -47,7 +51,7 @@ export type GelInsertValue<TTable extends GelTable<TableConfig>, OverrideT exten
 
 export type GelInsertSelectQueryBuilder<
 	TTable extends GelTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > = TypedQueryBuilder<
 	{ [K in keyof TModel]: AnyGelColumn | SQL | SQL.Aliased | TModel[K] }
 >;

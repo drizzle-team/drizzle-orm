@@ -3,11 +3,11 @@ import { drizzle } from '~/singlestore/index.ts';
 
 const pool = createPool({});
 
-export const db = drizzle(pool);
+export const db = drizzle({ client: pool });
 
 {
-	drizzle(pool);
-	drizzle(pool, { schema: {} });
-	drizzle(pool, { schema: {} });
-	drizzle(pool, {});
+	drizzle({ client: pool });
+	drizzle({ client: pool, schema: {} });
+	drizzle({ client: pool, schema: {} });
+	drizzle({ client: pool });
 }

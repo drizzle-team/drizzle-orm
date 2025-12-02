@@ -1,6 +1,8 @@
 import { entityKind } from '~/entity.ts';
+import type { CockroachColumn, ExtraConfigColumn as CockroachExtraConfigColumn } from './cockroach-core/index.ts';
 import type { Column, ColumnBaseConfig } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
+import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -62,7 +64,6 @@ export type ColumnDataObjectConstraint =
 	| 'relDuration';
 
 export type ColumnDataStringConstraint =
-	| 'text'
 	| 'binary'
 	| 'cidr'
 	| 'date'
@@ -117,9 +118,15 @@ export function extractExtendedColumnType<TColumn extends Column>(
 	return { type, constraint } as any;
 }
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach';
 
-export type GeneratedStorageMode = 'virtual' | 'stored';
+// TODO update description
+// 'virtual' | 'stored'  for postgres
+// 'stored' for mysql
+// 'virtual' | 'persisted' for mssql
+// We should remove this option from common Column and store it per dialect common
+// Was discussed with Andrew
+export type GeneratedStorageMode = 'virtual' | 'stored' | 'persisted';
 
 export type GeneratedType = 'always' | 'byDefault';
 
@@ -136,7 +143,6 @@ export interface GeneratedIdentityConfig {
 }
 
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnType> {
-	name: string;
 	dataType: TDataType;
 	data: unknown;
 	driverParam: unknown;
@@ -229,7 +235,7 @@ export type $Type<T, TType> = T & {
 	};
 };
 
-export type HasGenerated<T, TGenerated> = T & {
+export type HasGenerated<T, TGenerated = {}> = T & {
 	_: {
 		hasDefault: true;
 		generated: TGenerated;
@@ -392,15 +398,18 @@ export type BuildColumn<
 	TBuiltConfig extends ColumnBaseConfig<ColumnType> = MakeColumnConfig<TBuilder['_'], TTableName, TDialect>,
 > = TDialect extends 'pg' ? PgColumn<TBuiltConfig, {}>
 	: TDialect extends 'mysql' ? MySqlColumn<TBuiltConfig, {}>
+	: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
 	: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
-	: TDialect extends 'common' ? Column<TBuiltConfig, {}>
 	: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
 	: TDialect extends 'gel' ? GelColumn<TBuiltConfig, {}>
+	: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
+	: TDialect extends 'common' ? Column<TBuiltConfig, {}>
 	: never;
 
 export type BuildIndexColumn<
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? ExtraConfigColumn
+	: TDialect extends 'cockroach' ? CockroachExtraConfigColumn
 	: TDialect extends 'gel' ? GelExtraConfigColumn
 	: never;
 
@@ -444,4 +453,6 @@ export type ChangeColumnTableName<
 	: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 	: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+	: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+	: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 	: never;

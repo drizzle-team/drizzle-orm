@@ -34,7 +34,7 @@ export interface MySqlUpdateConfig {
 
 export type MySqlUpdateSetSource<
 	TTable extends MySqlTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel & string]?:

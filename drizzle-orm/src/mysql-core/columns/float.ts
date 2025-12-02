@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export class MySqlFloatBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: Equal<TUnsigned, true> extends true ? 'number ufloat' : 'number float';
 	data: number;
 	driverParam: number | string;
