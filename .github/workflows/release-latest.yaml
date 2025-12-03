@@ -7,8 +7,8 @@ on:
         required: true
       NEON_CONNECTION_STRING:
         required: true
-      NEON_HTTP_CONNECTION_STRING:
-        required: true
+      # NEON_HTTP_CONNECTION_STRING:
+      #   required: true
       TIDB_CONNECTION_STRING:
         required: true
       XATA_API_KEY:
