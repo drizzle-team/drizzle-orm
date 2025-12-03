@@ -18,8 +18,12 @@ export abstract class EffectWrapper<Succes = never, Failure = DrizzleQueryError,
 		return this._effect ??= this.toEffect();
 	}
 
+	abstract execute(...args: any[]): Effect.Effect<Succes, Failure, Context>;
+
 	/** @internal */
-	abstract toEffect(): Effect.Effect<Succes, Failure, Context>;
+	toEffect(): Effect.Effect<Succes, Failure, Context> {
+		return Effect.suspend(() => this.execute());
+	}
 
 	/** @internal */
 	get [Effect.EffectTypeId]() {

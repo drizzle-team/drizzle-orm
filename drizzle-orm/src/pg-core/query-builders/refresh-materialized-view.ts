@@ -1,7 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
-	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
 	PreparedQueryConfig,
@@ -13,6 +12,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils';
+import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
@@ -75,7 +75,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<
+	_prepare(name?: string): PromiseLikePgPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}
@@ -85,7 +85,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 		});
 	}
 
-	prepare(name: string): PgPreparedQuery<
+	prepare(name: string): PromiseLikePgPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}

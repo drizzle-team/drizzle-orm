@@ -3,7 +3,6 @@ import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
 import type {
-	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
 	PreparedQueryConfig,
@@ -23,6 +22,7 @@ import { getTableName, Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -187,7 +187,7 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	set: PgUpdateSetSource<T['_']['table']>;
 }
 
-export type PgInsertPrepare<T extends AnyPgInsert> = PgPreparedQuery<
+export type PgInsertPrepare<T extends AnyPgInsert> = PromiseLikePgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];

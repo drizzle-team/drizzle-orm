@@ -62,8 +62,7 @@ export class PgEffectCountBuilder<
 		);
 	}
 
-	/** @internal */
-	toEffect(): Effect.Effect<number, DrizzleQueryError, PgClient> {
+	execute(): Effect.Effect<number, DrizzleQueryError, PgClient> {
 		const query = this.dialect.sqlToQuery(this.sql);
 		return this.session.prepareQuery<{
 			execute: number;

@@ -14,7 +14,7 @@ import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
-import type { PgPreparedQuery, PreparedQueryConfig, PromiseLikePgSession } from '../session.ts';
+import type { PreparedQueryConfig, PromiseLikePgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
@@ -106,7 +106,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PromiseLikePgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

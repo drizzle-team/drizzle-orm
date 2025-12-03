@@ -1,8 +1,12 @@
+import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
+import { applyEffectWrapper, type EffectWrapper } from '~/effect-core/effectable.ts';
+import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PreparedQueryConfig, PromiseLikePgSession } from '~/pg-core/session.ts';
+import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
@@ -17,7 +21,6 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
@@ -26,7 +29,6 @@ import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import {
-	applyMixins,
 	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
@@ -66,7 +68,7 @@ export class PgSelectBuilder<
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
 	private fields: TSelection;
-	private session: PromiseLikePgSession | undefined;
+	private session: EffectPgSession<any, any, any> | undefined;
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | {
@@ -76,7 +78,7 @@ export class PgSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: PromiseLikePgSession | undefined;
+			session: EffectPgSession<any, any, any> | undefined;
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
@@ -146,7 +148,7 @@ export class PgSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-		}).setToken(this.authToken)) as any;
+		})) as any;
 	}
 }
 
@@ -182,7 +184,7 @@ export abstract class PgSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	protected tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: PromiseLikePgSession | undefined;
+	protected session: EffectPgSession<any, any, any> | undefined;
 	protected dialect: PgDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -192,7 +194,7 @@ export abstract class PgSelectQueryBuilderBase<
 			table: PgSelectConfig['table'];
 			fields: PgSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: PromiseLikePgSession | undefined;
+			session: EffectPgSession<any, any, any> | undefined;
 			dialect: PgDialect;
 			withList: Subquery[];
 			distinct: boolean | {
@@ -1047,7 +1049,7 @@ export interface PgSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	QueryPromise<TResult>,
+	EffectWrapper<TResult, DrizzleQueryError, PgClient>,
 	SQLWrapper
 {}
 
@@ -1076,7 +1078,7 @@ export class PgSelectBase<
 
 	/** @internal */
 	_prepare(name?: string): PgSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -1093,7 +1095,7 @@ export class PgSelectBase<
 			}, cacheConfig);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
-			return query.setToken(authToken);
+			return query;
 		});
 	}
 
@@ -1108,21 +1110,12 @@ export class PgSelectBase<
 		return this._prepare(name);
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues, this.authToken);
-		});
+		return this._prepare().execute(placeholderValues);
 	};
 }
 
-applyMixins(PgSelectBase, [QueryPromise]);
+applyEffectWrapper(PgSelectBase);
 
 function createSetOperator(type: SetOperator, isAll: boolean): PgCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {

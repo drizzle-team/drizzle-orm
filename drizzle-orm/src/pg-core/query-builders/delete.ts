@@ -2,7 +2,6 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
-	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
 	PreparedQueryConfig,
@@ -20,6 +19,7 @@ import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -88,7 +88,7 @@ export type PgDeleteReturning<
 	'returning'
 >;
 
-export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgPreparedQuery<
+export type PgDeletePrepare<T extends AnyPgDeleteBase> = PromiseLikePgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];

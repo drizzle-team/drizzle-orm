@@ -1,3 +1,4 @@
+import type { EffectPgPreparedQuery } from '~/effect-postgres/prepared-query.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -24,7 +25,6 @@ import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
-import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 
@@ -264,7 +264,7 @@ export type PgSelectWithout<
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
-export type PgSelectPrepare<T extends AnyPgSelect> = PromiseLikePgPreparedQuery<
+export type PgSelectPrepare<T extends AnyPgSelect> = EffectPgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
 	}

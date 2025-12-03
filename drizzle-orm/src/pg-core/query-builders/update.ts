@@ -3,7 +3,6 @@ import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
-	PgPreparedQuery,
 	PgQueryResultHKT,
 	PgQueryResultKind,
 	PreparedQueryConfig,
@@ -40,6 +39,7 @@ import {
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
@@ -280,7 +280,7 @@ export type PgUpdateReturning<
 	'returning'
 >;
 
-export type PgUpdatePrepare<T extends AnyPgUpdate> = PgPreparedQuery<
+export type PgUpdatePrepare<T extends AnyPgUpdate> = PromiseLikePgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];

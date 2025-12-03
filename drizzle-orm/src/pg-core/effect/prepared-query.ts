@@ -7,7 +7,7 @@ import type { Query } from '~/sql/index.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import type { PreparedQueryConfig } from '../session';
 
-export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
+export abstract class EffectPgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
 	constructor(
 		protected query: Query,
 		// cache instance
