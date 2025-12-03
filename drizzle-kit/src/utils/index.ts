@@ -34,7 +34,7 @@ export type QueryTimings = {
 	dbHandshake: number | null;
 	planning: number | null;
 	execution: number;
-	dataTransfer: number;
+	dataDownload: number;
 	total: number;
 	dataSize: number;
 };
