@@ -1,22 +1,25 @@
 import { Effect } from 'effect';
 import type { Pipeable } from 'effect/Pipeable';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors';
 import { applyMixins } from '~/utils';
 
-export interface EffectWrapper<A = never, B = never, C = never> extends Effect.Effect<A, B, C> {
+export interface EffectWrapper<Succes = never, Failure = DrizzleQueryError, Context = never>
+	extends Effect.Effect<Succes, Failure, Context>
+{
 }
 
-export abstract class EffectWrapper<A = never, B = never, C = never> {
+export abstract class EffectWrapper<Succes = never, Failure = DrizzleQueryError, Context = never> {
 	static readonly [entityKind]: string = 'EffectWrapper';
 
-	protected _effect: Effect.Effect<A, B, C> | undefined;
+	protected _effect: Effect.Effect<Succes, Failure, Context> | undefined;
 
 	protected get effect() {
 		return this._effect ??= this.toEffect();
 	}
 
 	/** @internal */
-	abstract toEffect(): Effect.Effect<A, B, C>;
+	abstract toEffect(): Effect.Effect<Succes, Failure, Context>;
 
 	/** @internal */
 	get [Effect.EffectTypeId]() {
