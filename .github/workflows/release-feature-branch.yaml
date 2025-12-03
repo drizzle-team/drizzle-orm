@@ -342,7 +342,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-      id-token: write
+      id-token: write # for OIDC
     # force empty so npm can use OIDC
     env:
       NODE_AUTH_TOKEN: ""   

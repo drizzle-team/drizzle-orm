@@ -305,8 +305,8 @@ jobs:
 
   release:
     permissions:
-      contents: write
-      id-token: write
+      contents: write # for creating GitHub releases
+      id-token: write # for OIDC
     needs:
       - test
       - attw
