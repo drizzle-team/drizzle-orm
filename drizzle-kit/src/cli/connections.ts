@@ -352,17 +352,18 @@ export const preparePostgresDB = async (
 				dbHandshake: ms(tlsConnectedAt ?? tcpConnectedAt, dbReadyAt),
 				planning: planningTime,
 				execution: executionTime,
-				// execution: ms(querySentAt, firstDataAt),
-				dataTransfer: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime - planningTime,
+				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime - planningTime,
 				total: ms(startAt, lastDataAt),
 				dataSize: bytesReceived,
 			};
 		};
 
 		const benchmarkProxy: BenchmarkProxy = async ({ sql, params }, repeats) => {
-			const results = await Promise.all(
-				Array.from({ length: repeats }, () => benchmarkQuery(sql, params)),
-			);
+			const results = [];
+			for (let i = 0; i < repeats; i++) {
+				const r = await benchmarkQuery(sql, params);
+				results.push(r);
+			}
 			return results;
 		};
 
@@ -1083,9 +1084,9 @@ export const connectToMySQL = async (
 			const timeMatch = stringifiedResult.match(
 				/actual time=([0-9.eE+-]+)\.\.([0-9.eE+-]+)/,
 			)!;
-			const firstRowTime = Number(timeMatch[1]);
+			// const firstRowTime = Number(timeMatch[1]);
 			const lastRowTime = Number(timeMatch[2]);
-			const executionTime = lastRowTime - firstRowTime;
+			const executionTime = lastRowTime;
 
 			let startAt: bigint = 0n;
 			let tcpConnectedAt: bigint = 0n;
@@ -1171,17 +1172,18 @@ export const connectToMySQL = async (
 				dbHandshake: null,
 				planning: null,
 				execution: executionTime,
-				// execution: ms(querySentAt, firstDataAt),
-				dataTransfer: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime,
+				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime,
 				total: ms(startAt, lastDataAt),
 				dataSize: bytesReceived,
 			};
 		};
 
 		const benchmarkProxy: BenchmarkProxy = async ({ sql, params }, repeats) => {
-			const results = await Promise.all(
-				Array.from({ length: repeats }, () => benchmarkQuery(sql, params)),
-			);
+			const results = [];
+			for (let i = 0; i < repeats; i++) {
+				const r = await benchmarkQuery(sql, params);
+				results.push(r);
+			}
 			return results;
 		};
 
