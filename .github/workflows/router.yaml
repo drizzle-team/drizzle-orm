@@ -8,48 +8,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  switch:
-    runs-on: ubuntu-latest
-    outputs:
-      target: ${{ steps.route.outputs.target }}
-    steps:
-      - name: Route release
-        id: route
-        run: |
-          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "target=latest" >> $GITHUB_OUTPUT
-          # only run on all pushes or pull requests from forks
-          elif [[ "$GITHUB_EVENT_NAME" == "push" ]] || [[ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
-            echo "target=feature" >> $GITHUB_OUTPUT
-          else
-            echo "target=skip" >> $GITHUB_OUTPUT
-          fi
-
   run-feature:
-    needs: switch
-    if: needs.switch.outputs.target == 'feature'
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     uses: ./.github/workflows/release-feature-branch.yaml
-    secrets:
-      PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-      NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-      NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-      TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
-      XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
-      XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-      LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-      LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+    secrets: inherit
 
   run-latest:
-    needs: switch
-    if: needs.switch.outputs.target == 'latest'
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main'
     uses: ./.github/workflows/release-latest.yaml
-    secrets:
-      PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-      NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-      NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-      TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
-      XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
-      XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-      LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-      LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+    secrets: inherit
