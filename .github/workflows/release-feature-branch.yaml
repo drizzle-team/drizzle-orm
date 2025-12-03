@@ -1,10 +1,24 @@
 name: Release (feature branch)
 
 on:
-  push:
-    branches-ignore:
-      - main
-  pull_request: {}
+  workflow_call:
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
 
 jobs:
   test:
@@ -329,7 +343,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-       # force empty so npm can use OIDC
+    # force empty so npm can use OIDC
     env:
       NODE_AUTH_TOKEN: ""   
       NPM_TOKEN: ""
