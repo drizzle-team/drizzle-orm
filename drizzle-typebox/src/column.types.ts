@@ -1,4 +1,4 @@
-import type * as t from '@sinclair/typebox';
+import type * as t from 'typebox';
 import type { Assume, Column } from 'drizzle-orm';
 import type { BufferSchema, IsEnumDefined, IsNever, JsonSchema } from './utils.ts';
 

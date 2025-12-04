@@ -1,9 +1,12 @@
-import { type Static, Type as t } from '@sinclair/typebox';
+import { type Static } from 'typebox';
+import Type from 'typebox';
 import { type Equal, sql } from 'drizzle-orm';
+
+const t = Type;
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { bufferSchema, jsonSchema } from '~/column.ts';
+import { bufferSchema, jsonSchema, TDate } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -342,8 +345,8 @@ test('all data types', (tc) => {
 		blob3: jsonSchema,
 		integer1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		integer2: t.Boolean(),
-		integer3: t.Date(),
-		integer4: t.Date(),
+		integer3: new TDate(),
+		integer4: new TDate(),
 		numeric: t.String(),
 		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		text1: t.String(),

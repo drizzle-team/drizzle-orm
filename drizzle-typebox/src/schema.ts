@@ -1,6 +1,8 @@
-import { Type as t } from '@sinclair/typebox';
-import type { TSchema } from '@sinclair/typebox';
+import Type from 'typebox';
+import type { TSchema } from 'typebox';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
+
+const t = Type;
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import { columnToSchema, mapEnumValues } from './column.ts';
