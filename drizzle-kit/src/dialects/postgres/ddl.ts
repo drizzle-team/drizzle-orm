@@ -1,3 +1,4 @@
+import type { SchemaForPull } from 'src/cli/commands/pull-common';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
@@ -16,10 +17,7 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',
-			default: {
-				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'func', 'unknown'],
-			},
+			default: 'string?',
 			generated: {
 				type: ['stored'],
 				as: 'string',
@@ -180,6 +178,7 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
+
 export type ViewColumn = {
 	schema: string;
 	view: string;
@@ -234,6 +233,28 @@ export interface InterimSchema {
 	policies: Policy[];
 	views: View[];
 	viewColumns: ViewColumn[];
+}
+
+export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
+	return Object.values(schema.tables.list()).map((table) => {
+		const rawTable = tableFromDDL(table, schema);
+		return {
+			schema: rawTable.schema,
+			foreignKeys: rawTable.fks,
+			uniques: [
+				...Object.values(rawTable.uniques).map((unq) => ({
+					columns: unq.columns,
+				})),
+				...Object.values(rawTable.indexes).map((idx) => ({
+					columns: idx.columns.map((idxc) => {
+						if (!idxc.isExpression && idx.isUnique) {
+							return idxc.value;
+						}
+					}).filter((item) => item !== undefined),
+				})),
+			],
+		};
+	});
 }
 
 export const tableFromDDL = (

@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
@@ -31,7 +32,6 @@ import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../vie
 export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
-	strict: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
@@ -44,7 +44,10 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
+	const existing = extractCrdbExisting(res.schemas, res.views, res.matViews);
+	const filter = prepareEntityFilter('cockroach', filters, existing);
+
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, filter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -55,8 +58,6 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const drizzleSchemas = res.schemas.map((x) => x.schemaName).filter((x) => x !== 'public');
-	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas });
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await cockroachPushIntrospect(db, filter, progress);
 
@@ -102,7 +103,7 @@ export const handle = async (
 		console.log();
 	}
 
-	if (!force && strict && hints.length === 0) {
+	if (!force && hints.length === 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -257,7 +258,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			continue;
 		}
 
-		if (statement.type === 'create_index' && statement.index.isUnique) {
+		if (statement.type === 'create_index' && statement.index.isUnique && !statement.newTable) {
 			const unique = statement.index;
 			const id = identifier({ schema: unique.schema, name: unique.table });
 

@@ -191,7 +191,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, truncates } = await suggestions(db, statements);
+	const res = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -223,7 +223,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, truncates };
+	return { sqlStatements, statements, hints: res };
 };
 
 export const diffDefault = async <T extends MySqlColumnBuilder>(
@@ -435,3 +435,46 @@ export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema, oldSchema: Mys
 		all: [...st, ...pst, ...st1, ...pst1],
 	};
 };
+
+type SchemaShape = {
+	id: string;
+	prevId?: string;
+	schema: Record<string, MySqlTable>;
+};
+
+export async function conflictsFromSchema(
+	{ parent, child1, child2 }: {
+		parent: SchemaShape;
+		child1: SchemaShape;
+		child2: SchemaShape;
+	},
+) {
+	const child1Interim = fromDrizzleSchema(Object.values(child1.schema), [], undefined);
+
+	const child1Snapshot = {
+		version: '6',
+		dialect: 'mysql',
+		id: child1.id,
+		prevIds: child1.prevId ? [child1.prevId] : [],
+		ddl: interimToDDL(child1Interim).ddl.entities.list(),
+		renames: [],
+	} as any;
+
+	const child2Interim = fromDrizzleSchema(Object.values(child2.schema), [], undefined);
+
+	const child2Snapshot = {
+		version: '6',
+		dialect: 'mysql',
+		id: child2.id,
+		prevIds: child2.prevId ? [child2.prevId] : [],
+		ddl: interimToDDL(child2Interim).ddl.entities.list(),
+		renames: [],
+	} as any;
+
+	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
+	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
+
+	const { getReasonsFromStatements } = await import('src/dialects/mysql/commutativity');
+	const r = await getReasonsFromStatements(st1, st2, child1Snapshot, child2Snapshot);
+	return r;
+}

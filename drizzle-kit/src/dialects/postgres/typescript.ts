@@ -230,7 +230,7 @@ function generateIdentityParams(column: Column) {
 	return `.generatedByDefaultAsIdentity(${params})`;
 }
 
-export const paramNameFor = (name: string, schema: string | null) => {
+export const paramNameFor = (name: string, schema?: string | null) => {
 	const schemaSuffix = schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
 	return `${name}${schemaSuffix}`;
 };
@@ -317,16 +317,16 @@ export const ddlToTypeScript = (
 		const func = seqSchema ? `${seqSchema}.sequence` : 'pgSequence';
 
 		let params = '';
-		if (it.startWith) params += `, startWith: "${it.startWith}"`;
-		if (it.incrementBy) params += `, increment: "${it.incrementBy}"`;
-		if (it.minValue) params += `, minValue: "${it.minValue}"`;
-		if (it.maxValue) params += `, maxValue: "${it.maxValue}"`;
-		if (it.cacheSize) params += `, cache: "${it.cacheSize}"`;
+		if (it.startWith) params += `startWith: "${it.startWith}", `;
+		if (it.incrementBy) params += `increment: "${it.incrementBy}", `;
+		if (it.minValue) params += `minValue: "${it.minValue}", `;
+		if (it.maxValue) params += `maxValue: "${it.maxValue}", `;
+		if (it.cacheSize) params += `cache: "${it.cacheSize}", `;
 
-		if (it.cycle) params += `, cycle: true`;
-		else params += `, cycle: false`;
+		if (it.cycle) params += `cycle: true, `;
+		else params += `cycle: false, `;
 
-		params = params ? `, { ${trimChar(params, ',')} }` : '';
+		params = params ? `, { ${trimChar(params.trim(), ',')} }` : '';
 
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
 	})
@@ -360,7 +360,9 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : tableFn;
+		let func = tableSchema ? `${tableSchema}.table` : tableFn;
+		func += table.isRlsEnabled ? '.withRLS' : '';
+
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
@@ -396,7 +398,7 @@ export const ddlToTypeScript = (
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
+		statement += ');';
 		return statement;
 	});
 
@@ -489,8 +491,8 @@ const column = (
 	const grammarType = typeFor(type, isEnum);
 
 	const { options, default: defaultValue, customType } = dimensions > 0
-		? grammarType.toArrayTs(type, def?.value ?? null)
-		: grammarType.toTs(type, def?.value ?? null);
+		? grammarType.toArrayTs(type, def ?? null)
+		: grammarType.toTs(type, def ?? null);
 
 	const dbName = dbColumnName({ name, casing });
 	const opts = inspect(options);
@@ -826,8 +828,8 @@ const createTableColumns = (
 		const grammarType = typeFor(stripped, isEnum);
 
 		const { options, default: defaultValue, customType } = dimensions > 0
-			? grammarType.toArrayTs(type, def?.value ?? null)
-			: grammarType.toTs(type, def?.value ?? null);
+			? grammarType.toArrayTs(type, def ?? null)
+			: grammarType.toTs(type, def ?? null);
 
 		const dbName = dbColumnName({ name, casing });
 		const opts = inspect(options);
@@ -965,7 +967,7 @@ const createTablePolicies = (
 		});
 
 		const tuples = [];
-		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase}"`]);
+		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase()}"`]);
 		if (it.for !== 'ALL') tuples.push(['for', `"${it.for.toLowerCase()}"`]);
 		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
 			tuples.push([
@@ -976,7 +978,7 @@ const createTablePolicies = (
 		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
 		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
-		statement += `\tpgPolicy("${it.name}"${opts}),\n`;
+		statement += `\n\tpgPolicy("${it.name}"${opts}),\n`;
 	});
 
 	return statement;

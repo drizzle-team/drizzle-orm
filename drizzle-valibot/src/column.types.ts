@@ -7,6 +7,7 @@ import type {
 	ExtractColumnTypeData,
 } from 'drizzle-orm';
 import type * as v from 'valibot';
+import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './column.ts';
 import type { IsNever, Json, RemoveNeverElements } from './utils.ts';
 
 export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
@@ -117,16 +118,8 @@ export type GetValibotType<
 				{ readonly [K in Assume<TEnum, string[]>[number]]: K },
 				undefined
 			>
-		: TConstraint extends 'int64' ? v.SchemaWithPipe<
-				[
-					v.StringSchema<undefined>,
-					v.RegexAction<string, undefined>,
-					v.TransformAction<string, bigint>,
-					v.MinValueAction<bigint, bigint, undefined>,
-					v.MaxValueAction<bigint, bigint, undefined>,
-					v.TransformAction<bigint, string>,
-				]
-			>
+		: TConstraint extends 'int64' ? typeof bigintStringModeSchema
+		: TConstraint extends 'uint64' ? typeof unsignedBigintStringModeSchema
 		: TConstraint extends 'binary' ? v.SchemaWithPipe<
 				RemoveNeverElements<[
 					v.StringSchema<undefined>,

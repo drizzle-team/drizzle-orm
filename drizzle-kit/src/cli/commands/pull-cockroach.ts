@@ -19,13 +19,14 @@ import type {
 	Sequence,
 	View,
 } from '../../dialects/cockroach/ddl';
-import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
+import { cockroachToRelationsPull, createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { prepareCockroach } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
@@ -41,11 +42,14 @@ export const handle = async (
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
-	const { prepareCockroach } = await import('../connections');
-	const db = await prepareCockroach(credentials);
+	if (!db) {
+		const { prepareCockroach } = await import('../connections');
+		db = await prepareCockroach(credentials);
+	}
 
-	const filter = prepareEntityFilter('cockroach', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
 	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
@@ -62,7 +66,7 @@ export const handle = async (
 	}
 
 	const ts = cockroachSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(cockroachToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -127,7 +131,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (

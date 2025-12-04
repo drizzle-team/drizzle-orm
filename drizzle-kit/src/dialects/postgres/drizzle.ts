@@ -1,4 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import type {
 	AnyPgColumn,
@@ -178,14 +179,10 @@ export const defaultFromColumn = (
 		sql = trimDefaultValueSuffix(sql);
 
 		// TODO: check if needed
-
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
-		return {
-			value: sql,
-			type: 'unknown',
-		};
+		return sql;
 	}
 
 	const { baseColumn, isEnum } = unwrapColumn(base);
@@ -193,26 +190,26 @@ export const defaultFromColumn = (
 	if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Point.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Point.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: Line.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
 			: Line.defaultFromDrizzle(def, baseColumn.mode);
 	}
 	if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
 		return dimensions > 0 && Array.isArray(def)
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: GeometryPoint.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode, baseColumn.srid)
 			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 	if (dimensions > 0 && Array.isArray(def)) {
-		if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+		if (def.flat(5).length === 0) return "'{}'";
 
 		return grammarType.defaultArrayFromDrizzle(def, dimensions);
 	}
@@ -667,7 +664,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
-		if (view.isExisting) continue;
+		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const {
 			name: viewName,
@@ -787,6 +784,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const policies: PgPolicy[] = [];
 	const views: PgView[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -821,6 +819,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		if (is(t, PgPolicy)) {
 			policies.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
@@ -832,6 +834,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };
 
@@ -844,6 +847,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const roles: PgRole[] = [];
 	const policies: PgPolicy[] = [];
 	const matViews: PgMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -860,6 +864,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			matViews.push(...prepared.matViews);
 			roles.push(...prepared.roles);
 			policies.push(...prepared.policies);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -872,5 +877,6 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };

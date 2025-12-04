@@ -6,7 +6,7 @@ import { render } from 'hanji';
 import { join } from 'path';
 import type { EntityFilter } from 'src/dialects/pull-utils';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
+import { createDDL, interimToDDL, mysqlToRelationsPull } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
 import { toJsonSnapshot } from '../../dialects/mysql/snapshot';
@@ -14,6 +14,7 @@ import { ddlToTypeScript } from '../../dialects/mysql/typescript';
 import type { DB } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { connectToMySQL } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -29,15 +30,18 @@ export const handle = async (
 	credentials: MysqlCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof connectToMySQL>>,
 ) => {
-	const { connectToMySQL } = await import('../connections');
-	const { db, database } = await connectToMySQL(credentials);
+	if (!db) {
+		const { connectToMySQL } = await import('../connections');
+		db = await connectToMySQL(credentials);
+	}
 
-	const filter = prepareEntityFilter('mysql', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('mysql', filters, []);
 	const progress = new IntrospectProgress();
 	const { schema } = await introspect({
-		db,
-		database,
+		db: db.db,
+		database: db.database,
 		progress,
 		progressCallback: (stage, count, status) => {
 			progress.update(stage, count, status);
@@ -47,7 +51,7 @@ export const handle = async (
 	const { ddl } = interimToDDL(schema);
 
 	const ts = ddlToTypeScript(ddl, schema.viewColumns, casing, 'mysql');
-	const relations = relationsToTypeScript(ddl.fks.list(), casing);
+	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -106,7 +110,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (props: {

@@ -22,13 +22,14 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { preparePostgresDB } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
@@ -45,12 +46,15 @@ export const handle = async (
 	credentials: PostgresCredentials,
 	filtersConfig: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
-	const { preparePostgresDB } = await import('../connections');
-	const db = await preparePostgresDB(credentials);
+	if (!db) {
+		const { preparePostgresDB } = await import('../connections');
+		db = await preparePostgresDB(credentials);
+	}
 
 	const progress = new IntrospectProgress(true);
-	const entityFilter = prepareEntityFilter('postgresql', { ...filtersConfig, drizzleSchemas: [] });
+	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
 
 	const { schema: res } = await renderWithTask(
 		progress,
@@ -68,7 +72,7 @@ export const handle = async (
 	}
 
 	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -137,7 +141,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (

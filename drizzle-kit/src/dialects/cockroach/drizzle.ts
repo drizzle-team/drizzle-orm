@@ -1,4 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type {
 	AnyCockroachColumn,
 	AnyCockroachTable,
@@ -31,6 +32,7 @@ import type { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
+import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -159,10 +161,7 @@ export const defaultFromColumn = (
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
-		return {
-			value: sql,
-			type: 'unknown',
-		};
+		return sql;
 	}
 	const { baseColumn, isEnum } = unwrapColumn(base);
 	const grammarType = typeFor(base.getSQLType(), isEnum);
@@ -170,14 +169,14 @@ export const defaultFromColumn = (
 	if (is(baseColumn, CockroachGeometry) || is(baseColumn, CockroachGeometryObject)) {
 		return (dimensions > 0 && Array.isArray(def))
 			? def.flat(5).length === 0
-				? { value: "'{}'", type: 'unknown' }
+				? "'{}'"
 				: GeometryPoint.defaultArrayFromDrizzle(def, baseColumn.mode, baseColumn.srid)
 			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 
 	if (grammarType) {
 		if (dimensions > 0 && Array.isArray(def)) {
-			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+			if (def.flat(5).length === 0) return "'{}'";
 
 			return grammarType.defaultArrayFromDrizzle(def);
 		}
@@ -209,7 +208,7 @@ export const fromDrizzleSchema = (
 		matViews: CockroachMaterializedView[];
 	},
 	casing: CasingType | undefined,
-	schemaFilter?: string[],
+	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
@@ -236,20 +235,18 @@ export const fromDrizzleSchema = (
 	};
 
 	res.schemas = schema.schemas
+		.filter((x) => {
+			return !x.isExisting && x.schemaName !== 'public' && filter({ type: 'schema', name: x.schemaName });
+		})
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
-		}))
-		.filter((it) => {
-			if (schemaFilter) {
-				return schemaFilter.includes(it.name) && it.name !== 'public';
-			} else {
-				return it.name !== 'public';
-			}
-		});
+		}));
 
 	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
+	}).filter((it) => {
+		return filter({ type: 'table', schema: it.config.schema ?? 'public', name: it.config.name });
 	});
 
 	for (const policy of schema.policies) {
@@ -303,9 +300,6 @@ export const fromDrizzleSchema = (
 		} = config;
 
 		const schema = drizzleSchema || 'public';
-		if (schemaFilter && !schemaFilter.includes(schema)) {
-			continue;
-		}
 
 		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
@@ -598,6 +592,7 @@ export const fromDrizzleSchema = (
 
 	for (const view of combinedViews) {
 		if (view.isExisting) continue;
+		if (!filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
 		const { name: viewName, schema, query, withNoData, materialized } = view;
 
@@ -638,6 +633,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const policies: CockroachPolicy[] = [];
 	const views: CockroachView[] = [];
 	const matViews: CockroachMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -672,6 +668,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		if (is(t, CockroachPolicy)) {
 			policies.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
 	return {
@@ -683,6 +683,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };
 
@@ -695,6 +696,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const roles: CockroachRole[] = [];
 	const policies: CockroachPolicy[] = [];
 	const matViews: CockroachMaterializedView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -711,6 +713,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 			matViews.push(...prepared.matViews);
 			roles.push(...prepared.roles);
 			policies.push(...prepared.policies);
+			relations.push(...prepared.relations);
 		}
 	});
 
@@ -723,5 +726,6 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		matViews,
 		roles,
 		policies,
+		relations,
 	};
 };

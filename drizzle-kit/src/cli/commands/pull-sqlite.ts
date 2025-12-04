@@ -5,7 +5,7 @@ import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import type { EntityFilter } from 'src/dialects/pull-utils';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { createDDL, interimToDDL } from 'src/dialects/sqlite/ddl';
+import { createDDL, interimToDDL, sqliteToRelationsPull } from 'src/dialects/sqlite/ddl';
 import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
 import { ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/sqlite/introspect';
@@ -13,6 +13,7 @@ import { ddlToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../utils';
 import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { connectToSQLite } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
@@ -28,18 +29,21 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
 	type: 'sqlite' | 'libsql' = 'sqlite',
+	db?: Awaited<ReturnType<typeof connectToSQLite>>,
 ) => {
-	const { connectToSQLite } = await import('../connections');
-	const db = await connectToSQLite(credentials);
+	if (!db) {
+		const { connectToSQLite } = await import('../connections');
+		db = await connectToSQLite(credentials);
+	}
 
 	const progress = new IntrospectProgress();
-	const filter = prepareEntityFilter('sqlite', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('sqlite', filters, []);
 	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
 
 	const ts = ddlToTypeScript(ddl, casing, viewColumns, type);
-	const relationsTs = relationsToTypeScript(ddl.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(ddl), casing);
 
 	// check orm and orm-pg api version
 	const schemaFile = join(out, 'schema.ts');
@@ -92,7 +96,6 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };
 
 export const introspect = async (

@@ -2,10 +2,11 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
+import type { prepareGelDB } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { GelCredentials } from '../validations/gel';
@@ -19,12 +20,15 @@ export const handle = async (
 	credentials: GelCredentials | undefined,
 	filters: EntitiesFilterConfig,
 	_prefix: Prefix,
+	db?: Awaited<ReturnType<typeof prepareGelDB>>,
 ) => {
-	const { prepareGelDB } = await import('../connections');
-	const db = await prepareGelDB(credentials);
+	if (!db) {
+		const { prepareGelDB } = await import('../connections');
+		db = await prepareGelDB(credentials);
+	}
 
 	const progress = new IntrospectProgress(true);
-	const entityFilter = prepareEntityFilter('gel', { ...filters, drizzleSchemas: [] });
+	const entityFilter = prepareEntityFilter('gel', filters, []);
 
 	const task = fromDatabase(db, entityFilter, (stage, count, status) => {
 		progress.update(stage, count, status);
@@ -40,7 +44,7 @@ export const handle = async (
 	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing, 'gel');
-	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
+	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -66,5 +70,4 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };

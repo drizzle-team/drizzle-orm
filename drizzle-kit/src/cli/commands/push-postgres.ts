@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
@@ -23,22 +24,22 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
-import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
+import { explain, postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
-	strict: boolean,
 	credentials: PostgresCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
+	explainFlag: boolean,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -47,8 +48,10 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const drizzleFilters = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas: [] });
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, drizzleFilters);
+	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
+	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
+
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, entityFilter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -60,9 +63,6 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-
-	const drizzleSchemas = res.schemas.map((it) => it.schemaName).filter((it) => it !== 'public');
-	const entityFilter = prepareEntityFilter('postgresql', { ...filters, drizzleSchemas });
 
 	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
 
@@ -76,7 +76,7 @@ export const handle = async (
 	}
 
 	// const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
@@ -101,17 +101,13 @@ export const handle = async (
 		return;
 	}
 
-	const { losses, hints } = await suggestions(db, jsonStatements);
+	const hints = await suggestions(db, jsonStatements);
+	const explainMessage = explain('postgres', groupedStatements, explainFlag, hints);
 
-	if (verbose) {
-		console.log();
-		console.log(withStyle.warning('You are about to execute these statements:'));
-		console.log();
-		console.log(losses.map((s) => chalk.blue(s)).join('\n'));
-		console.log();
-	}
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
 
-	if (!force && strict && hints.length === 0) {
+	if (!force && hints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -120,26 +116,11 @@ export const handle = async (
 		}
 	}
 
-	if (!force && hints.length > 0) {
-		console.log(withStyle.warning('Found data-loss statements:'));
-		console.log(hints.join('\n'));
-		console.log();
-		console.log(
-			chalk.red.bold(
-				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-			),
-		);
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
-		console.log(chalk.white('Do you still want to push changes?'));
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) console.log(highlightSQL(statement));
 
-		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
-		if (data?.index === 0) {
-			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
-		}
-	}
-
-	for (const statement of [...losses, ...sqlStatements]) {
 		await db.query(statement);
 	}
 
@@ -153,8 +134,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
-	const statements: string[] = [];
-	const hints = [] as string[];
+	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
 		// discussion -
@@ -186,7 +166,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		if (statement.type === 'drop_table') {
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${statement.key} table`);
+			if (res.length > 0) {
+				grouped.push({ hint: `· You're about to delete non-empty ${statement.key} table` });
+			}
 			continue;
 		}
 
@@ -195,7 +177,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${id} materialized view`);
+			grouped.push({ hint: `· You're about to delete non-empty ${id} materialized view` });
 			continue;
 		}
 
@@ -205,7 +187,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${column.name} column in ${id} table`);
+			grouped.push({ hint: `· You're about to delete non-empty ${column.name} column in ${id} table` });
 			continue;
 		}
 
@@ -217,7 +199,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			hints.push(`· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`);
+			grouped.push({ hint: `· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
 			continue;
 		}
 
@@ -230,12 +212,15 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 				`select 1 from ${id} limit 1`,
 			);
 
-			if (res.length > 0) {
-				hints.push(
-					`· You're about to drop ${
-						chalk.underline(id)
-					} primary key, this statements may fail and your table may loose primary key`,
-				);
+			if (res.length === 0) continue;
+
+			const hint = `· You're about to drop ${
+				chalk.underline(id)
+			} primary key, this statements may fail and your table may loose primary key`;
+
+			if (statement.pk.nameExplicit) {
+				grouped.push({ hint });
+				continue;
 			}
 
 			const [{ name: pkName }] = await db.query<{ name: string }>(`
@@ -246,23 +231,25 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
           AND table_name = '${table}'
           AND constraint_type = 'PRIMARY KEY';`);
 
-			statements.push(`ALTER TABLE ${id} DROP CONSTRAINT "${pkName}"`);
+			grouped.push({ hint, statement: `ALTER TABLE ${id} DROP CONSTRAINT "${pkName}"` });
 			continue;
 		}
 
 		// todo: alter column to not null no default
-		if (statement.type === 'add_column' && statement.column.notNull && statement.column.default === null) {
+		if (
+			statement.type === 'add_column' && statement.column.notNull && statement.column.default === null
+			&& !statement.column.generated && !statement.column.identity
+		) {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			hints.push(
-				`· You're about to add not-null ${
-					chalk.underline(statement.column.name)
-				} column without default value to a non-empty ${id} table`,
-			);
+			const hint = `· You're about to add not-null ${
+				chalk.underline(statement.column.name)
+			} column without default value to a non-empty ${id} table`;
 
+			grouped.push({ hint });
 			// statementsToExecute.push(`truncate table ${id} cascade;`);
 			continue;
 		}
@@ -274,11 +261,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			console.log(
-				`· You're about to add ${
+			grouped.push({
+				hint: `· You're about to add ${
 					chalk.underline(unique.name)
 				} unique constraint to a non-empty ${id} table which may fail`,
-			);
+			});
 			// const { status, data } = await render(
 			// 	new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
 			// );
@@ -293,8 +280,5 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		}
 	}
 
-	return {
-		losses: statements,
-		hints,
-	};
+	return grouped;
 };

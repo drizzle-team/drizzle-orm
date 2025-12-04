@@ -1,5 +1,6 @@
 import type { Casing } from 'drizzle-orm';
 import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlColumn, AnyMySqlTable } from 'drizzle-orm/mysql-core';
 import {
 	getTableConfig,
@@ -227,7 +228,7 @@ export const fromDrizzleSchema = (
 						return { value: `${getColumnCasing(it, casing)}`, isExpression: false };
 					}
 				}),
-				algorithm: index.config.algorythm ?? null,
+				algorithm: index.config.algorithm ?? null,
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
@@ -292,6 +293,7 @@ export const fromDrizzleSchema = (
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyMySqlTable[] = [];
 	const views: MySqlView[] = [];
+	const relations: Relations[] = [];
 
 	await safeRegister(async () => {
 		for (let i = 0; i < imports.length; i++) {
@@ -301,14 +303,16 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 
 			tables.push(...prepared.tables);
 			views.push(...prepared.views);
+			relations.push(...prepared.relations);
 		}
 	});
-	return { tables: Array.from(new Set(tables)), views };
+	return { tables: Array.from(new Set(tables)), views, relations };
 };
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyMySqlTable[] = [];
 	const views: MySqlView[] = [];
+	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
@@ -319,7 +323,11 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 		if (is(t, MySqlView)) {
 			views.push(t);
 		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
 	});
 
-	return { tables, views };
+	return { tables, views, relations };
 };

@@ -1,3 +1,4 @@
+import type { SchemaForPull } from 'src/cli/commands/pull-common';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 import { defaults } from './grammar';
@@ -17,10 +18,7 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',
-			default: {
-				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'func', 'unknown'],
-			},
+			default: 'string?',
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',
@@ -484,3 +482,20 @@ export const interimToDDL = (
 
 	return { ddl, errors };
 };
+
+export function cockroachToRelationsPull(schema: CockroachDDL): SchemaForPull {
+	return Object.values(schema.tables.list()).map((table) => {
+		const rawTable = tableFromDDL(table, schema);
+		return {
+			schema: rawTable.schema,
+			foreignKeys: rawTable.fks,
+			uniques: Object.values(rawTable.indexes).map((idx) => ({
+				columns: idx.columns.map((idxc) => {
+					if (!idxc.isExpression && idx.isUnique) {
+						return idxc.value;
+					}
+				}).filter((item) => item !== undefined),
+			})),
+		};
+	});
+}

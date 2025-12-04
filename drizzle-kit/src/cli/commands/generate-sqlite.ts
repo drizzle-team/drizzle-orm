@@ -20,7 +20,6 @@ export const handle = async (config: GenerateConfig) => {
 			schemaPath,
 			casing,
 		);
-
 		if (config.custom) {
 			writeResult({
 				snapshot: custom,
@@ -36,7 +35,6 @@ export const handle = async (config: GenerateConfig) => {
 			});
 			return;
 		}
-
 		const { sqlStatements, warnings, renames } = await ddlDiff(
 			ddlPrev,
 			ddlCur,
@@ -44,6 +42,12 @@ export const handle = async (config: GenerateConfig) => {
 			resolver<Column>('column'),
 			'default',
 		);
+
+		// for (const { jsonStatement } of groupedStatements) {
+		// 	const msg = sqliteExplain(jsonStatement);
+		// 	console.log(msg?.title);
+		// 	console.log(msg?.cause);
+		// }
 
 		for (const w of warnings) {
 			warning(w);

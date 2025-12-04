@@ -83,7 +83,8 @@ export const fromDatabase = async (
 FROM 
     sys.tables
 WHERE 
-    schema_id IN (${filteredSchemaIds.join(', ')})
+	schema_id IN (${filteredSchemaIds.join(', ')})
+	AND sys.tables.is_ms_shipped = 0
 ORDER BY lower(name);
 `).then((rows) => {
 			queryCallback('tables', rows, null);
@@ -112,6 +113,7 @@ FROM
 sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
 WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
+	  AND views.is_ms_shipped = 0
 ORDER BY lower(views.name);
 `).then((rows) => {
 			queryCallback('views', rows, null);
@@ -126,18 +128,35 @@ ORDER BY lower(views.name);
 
 		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
 		return true;
-	}).map((it) => {
-		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+	})
+		.map((it) => {
+			const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
 
-		return {
-			...it,
-			schema: schema.schema_name,
-		};
-	});
+			return {
+				...it,
+				schema: schema.schema_name,
+			};
+		});
 
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
-	const viewsIds = viewsList.map((it) => it.object_id);
-	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
+	const filteredViewIds = viewsList.map((it) => it.object_id);
+	const filteredViewsAndTableIds = [...filteredTableIds, ...filteredViewIds];
+
+	if (filteredViewIds.length === 0 && filteredTableIds.length === 0) {
+		return {
+			schemas,
+			tables: [],
+			columns: [],
+			pks: [],
+			fks: [],
+			indexes: [],
+			uniques: [],
+			defaults: [],
+			checks: [],
+			views: [],
+			viewColumns: [],
+		};
+	}
 
 	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
 	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0 ? `(${filteredViewsAndTableIds.join(',')})` : '';
@@ -247,30 +266,31 @@ ORDER BY lower(fk.name);
 		filter_definition: string;
 		column_id: number;
 	};
+
 	const pksUniquesAndIdxsQuery = await db.query<RawIdxsAndConstraints>(`
-SELECT 
-	i.object_id as table_id,
-	i.index_id as index_id,
-    i.name AS name,
-    i.is_unique as is_unique,
-    i.is_primary_key as is_primary_key,
-    i.is_unique_constraint as is_unique_constraint,
-    i.has_filter as has_filter,
-    i.filter_definition as filter_definition,
-    ic.column_id as column_id
-FROM sys.indexes i
-INNER JOIN sys.index_columns ic 
-    ON i.object_id = ic.object_id
-   AND i.index_id = ic.index_id
-${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
-ORDER BY lower(i.name)
-;`).then((rows) => {
-		queryCallback('indexes', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('indexes', [], error);
-		throw error;
-	});
+		SELECT 
+			i.object_id as table_id,
+			i.index_id as index_id,
+			i.name AS name,
+			i.is_unique as is_unique,
+			i.is_primary_key as is_primary_key,
+			i.is_unique_constraint as is_unique_constraint,
+			i.has_filter as has_filter,
+			i.filter_definition as filter_definition,
+			ic.column_id as column_id
+		FROM sys.indexes i
+		INNER JOIN sys.index_columns ic 
+			ON i.object_id = ic.object_id
+			AND i.index_id = ic.index_id
+		${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
+		ORDER BY lower(i.name);`)
+		.then((rows) => {
+			queryCallback('indexes', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('indexes', [], error);
+			throw error;
+		});
 
 	const columnsQuery = await db.query<{
 		column_id: number;
@@ -320,7 +340,7 @@ LEFT JOIN sys.computed_columns computed
 LEFT JOIN sys.objects obj 
   ON obj.object_id = col.object_id
 WHERE obj.type in ('U', 'V')
-${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};
+	AND col.object_id IN ${filterByTableAndViewIds};
 `).then((rows) => {
 			queryCallback('columns', rows, null);
 			return rows;
@@ -353,10 +373,10 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		]);
 
 	columnsCount = columnsList.length;
-	tableCount = tablesList.length;
+	tableCount = filteredTables.length;
 
 	for (const column of columnsList.filter((it) => it.rel_kind.trim() === 'U')) {
-		const table = tablesList.find((it) => it.object_id === column.table_object_id);
+		const table = filteredTables.find((it) => it.object_id === column.table_object_id);
 		if (!table) continue; // skip if no table found
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
@@ -436,7 +456,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	};
 	const groupedIdxsAndContraints: GroupedIdxsAndContraints[] = Object.values(
 		pksUniquesAndIdxsList.reduce((acc: Record<string, GroupedIdxsAndContraints>, row: RawIdxsAndConstraints) => {
-			const table = tablesList.find((it) => it.object_id === row.table_id);
+			const table = filteredTables.find((it) => it.object_id === row.table_id);
 			if (!table) return acc;
 
 			const key = `${row.table_id}_${row.index_id}`;
@@ -462,7 +482,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	});
 
 	for (const unique of groupedUniqueConstraints) {
-		const table = tablesList.find((it) => it.object_id === unique.table_id);
+		const table = filteredTables.find((it) => it.object_id === unique.table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
@@ -485,7 +505,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const pk of groupedPrimaryKeys) {
-		const table = tablesList.find((it) => it.object_id === pk.table_id);
+		const table = filteredTables.find((it) => it.object_id === pk.table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
@@ -506,7 +526,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const index of groupedIndexes) {
-		const table = tablesList.find((it) => it.object_id === index.table_id);
+		const table = filteredTables.find((it) => it.object_id === index.table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
@@ -559,11 +579,11 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 	foreignKeysCount = groupedFkCostraints.length;
 	for (const fk of groupedFkCostraints) {
-		const tableFrom = tablesList.find((it) => it.object_id === fk.parent_table_id);
+		const tableFrom = filteredTables.find((it) => it.object_id === fk.parent_table_id);
 		if (!tableFrom) continue;
 		const schemaFrom = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
 
-		const tableTo = tablesList.find((it) => it.object_id === fk.reference_table_id)!;
+		const tableTo = filteredTables.find((it) => it.object_id === fk.reference_table_id)!;
 		const schemaTo = filteredSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
@@ -597,7 +617,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 	checksCount = checkConstraintList.length;
 	for (const check of checkConstraintList) {
-		const table = tablesList.find((it) => it.object_id === check.parent_table_id);
+		const table = filteredTables.find((it) => it.object_id === check.parent_table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === check.schema_id)!;
@@ -612,7 +632,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const defaultConstraint of defaultsConstraintList) {
-		const table = tablesList.find((it) => it.object_id === defaultConstraint.parent_table_id);
+		const table = filteredTables.find((it) => it.object_id === defaultConstraint.parent_table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === defaultConstraint.schema_id)!;

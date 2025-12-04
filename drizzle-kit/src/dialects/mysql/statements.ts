@@ -40,12 +40,17 @@ export interface AlterColumn {
 	column: Column;
 	isPK: boolean;
 	wasPK: boolean;
+	origin: {
+		column: string;
+		table: string;
+	};
 }
 
 export interface RecreateColumn {
 	type: 'recreate_column';
 	column: Column;
 	isPK: boolean;
+	diff: DiffEntities['columns'];
 }
 
 export interface CreateIndex {
@@ -75,11 +80,6 @@ export interface CreatePK {
 
 export interface DropPK {
 	type: 'drop_pk';
-	pk: PrimaryKey;
-}
-
-export interface RecreatePK {
-	type: 'recreate_pk';
 	pk: PrimaryKey;
 }
 
@@ -132,7 +132,6 @@ export type JsonStatement =
 	| CreateFK
 	| CreatePK
 	| DropPK
-	| RecreatePK
 	| CreateView
 	| DropView
 	| RenameView

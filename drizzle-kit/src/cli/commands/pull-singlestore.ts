@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
+import { createDDL, interimToDDL, mysqlToRelationsPull } from 'src/dialects/mysql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -10,6 +10,7 @@ import { ddlDiff } from 'src/dialects/singlestore/diff';
 import { toJsonSnapshot } from 'src/dialects/singlestore/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
+import type { connectToSingleStore } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
@@ -24,14 +25,17 @@ export const handle = async (
 	credentials: SingleStoreCredentials,
 	filters: EntitiesFilterConfig,
 	prefix: Prefix,
+	db?: Awaited<ReturnType<typeof connectToSingleStore>>,
 ) => {
-	const { connectToSingleStore } = await import('../connections');
-	const { db, database } = await connectToSingleStore(credentials);
+	if (!db) {
+		const { connectToSingleStore } = await import('../connections');
+		db = await connectToSingleStore(credentials);
+	}
 
-	const filter = prepareEntityFilter('singlestore', { ...filters, drizzleSchemas: [] });
+	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const progress = new IntrospectProgress();
-	const task = fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
+	const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
 	const res = await renderWithTask(progress, task);
@@ -39,7 +43,7 @@ export const handle = async (
 	const { ddl } = interimToDDL(res);
 
 	const ts = ddlToTypeScript(ddl, res.viewColumns, casing, 'singlestore');
-	const relations = relationsToTypeScript(ddl.fks.list(), casing);
+	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -98,5 +102,4 @@ export const handle = async (
 			)
 		} 🚀`,
 	);
-	process.exit(0);
 };

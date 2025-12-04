@@ -24,6 +24,7 @@
 		"bun-types": "^1.2.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
+		"drizzle-kit": "workspace:./drizzle-kit/dist",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"drizzle-orm-old": "npm:drizzle-orm@^0.27.2",
 		"eslint-plugin-drizzle-internal": "link:eslint/eslint-plugin-drizzle-internal",
@@ -43,7 +44,7 @@
 		"turbo": "^2.2.3",
 		"typescript": "5.9.2",
 		"vite-tsconfig-paths": "^4.3.2",
-		"vitest": "4.0.0-beta.19"
+		"vitest": "4.0.13"
 	},
 	"packageManager": "pnpm@10.15.0",
 	"engines": {

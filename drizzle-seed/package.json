@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "0.4.0",
+	"version": "1.0.0-beta.2",
 	"type": "module",
 	"scripts": {
 		"build": "bun scripts/build.ts",
@@ -67,7 +67,7 @@
 	"sideEffects": false,
 	"description": "A package to seed your database using Drizzle ORM",
 	"peerDependencies": {
-		"drizzle-orm": ">=1.0.0-beta.1"
+		"drizzle-orm": ">=1.0.0-beta.2"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {

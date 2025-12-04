@@ -568,7 +568,7 @@ export const Datetime: SqlType = {
 	is: (type) => type === 'datetime' || type.startsWith('datetime('),
 	drizzleImport: () => 'datetime',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `('${value.toISOString().replace('T', ' ').replace('Z', '')}')`;
 		}
 
@@ -599,7 +599,7 @@ export const DateType: SqlType = {
 	is: (type) => type === 'date' || type.startsWith('date('),
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `('${value.toISOString().split('T')[0]}')`;
 		}
 
@@ -639,7 +639,7 @@ export const Datetimeoffset: SqlType = {
 	is: (type) => type === 'datetimeoffset' || type.startsWith('datetimeoffset('),
 	drizzleImport: () => 'datetimeoffset',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `('${value.toISOString()}')`;
 		}
 
@@ -674,7 +674,7 @@ export const Time: SqlType = {
 	is: (type) => type === 'time' || type.startsWith('time('),
 	drizzleImport: () => 'time',
 	defaultFromDrizzle: (value: unknown) => {
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			return `('${value.toISOString().split('T')[1].replace('Z', '')}')`;
 		}
 

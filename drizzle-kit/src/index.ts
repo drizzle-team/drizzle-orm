@@ -213,6 +213,10 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'durable-sqlite'>;
 		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'sqlite-cloud'>;
+		}
 		| {}
 		| {
 			dialect: Verify<Dialect, 'singlestore'>;

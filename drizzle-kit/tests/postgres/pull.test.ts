@@ -24,6 +24,7 @@ import {
 	pgPolicy,
 	pgRole,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgView,
 	real,
@@ -33,6 +34,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -1070,6 +1072,43 @@ test('introspect partitioned tables', async () => {
 			isRlsEnabled: false,
 		} satisfies typeof tables[number],
 	]);
+});
+
+test('default sequence nextval', async () => {
+	const seqOrgCode = pgSequence('seq_org_code', {
+		startWith: '1000',
+		increment: '1',
+		minValue: '1',
+		maxValue: '9223372036854775807',
+		cache: '1',
+		cycle: false,
+	});
+
+	const organizations = pgTable('organizations', {
+		code: bigint({ mode: 'number' }).default(sql`nextval('seq_org_code'::regclass)`).notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(db, { seqOrgCode, organizations }, 'default_sequence_nextval');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('policy', async () => {
+	const organizationsInCore = pgTable('organizations', {
+		domain: text(),
+	}, (table) => [
+		unique('organizations_domain_key').on(table.domain),
+	]);
+
+	const policy = pgPolicy('new_policy', {
+		as: 'restrictive',
+		to: 'postgres',
+		withCheck: sql`1 = 1`,
+		for: 'all',
+	}).link(organizationsInCore);
+
+	const { sqlStatements } = await diffIntrospect(db, { organizationsInCore, policy }, 'policy');
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // test('introspect foreign tables', async () => {

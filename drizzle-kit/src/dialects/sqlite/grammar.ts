@@ -53,7 +53,7 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 			return `'${value.toString()}'`;
 		}
 
-		if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+		if (value instanceof Date) {
 			const v = mode === 'timestamp' ? value.getTime() / 1000 : value.getTime();
 			return v.toFixed(0);
 		}
@@ -231,7 +231,7 @@ export const Blob: SqlType = {
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
 			const parsed = Buffer.from(value.slice(2, value.length - 1), 'hex').toString('utf-8');
-			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
+			const escaped = parsed.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 			return `Buffer.from("${escaped}")`;
 		}
 

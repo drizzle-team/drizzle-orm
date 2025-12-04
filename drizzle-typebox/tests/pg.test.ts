@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
@@ -420,6 +420,7 @@ test('all data types', (tc) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigint3: bigint({ mode: 'string' }).notNull(),
 		bigserial1: bigserial({ mode: 'number' }).notNull(),
 		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
 		bit: bit({ dimensions: 5 }).notNull(),
@@ -470,6 +471,7 @@ test('all data types', (tc) => {
 	const expected = t.Object({
 		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		bigint3: bigintStringModeSchema,
 		bigserial1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigserial2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),
