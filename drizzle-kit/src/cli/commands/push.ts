@@ -68,18 +68,8 @@ export const mysqlPush = async (
 
 			const filteredSqlStatements = fromJson(filteredStatements, 'mysql');
 
-			const uniqueSqlStatementsToExecute: string[] = [];
-			statementsToExecute.forEach((ss) => {
-				if (!uniqueSqlStatementsToExecute.includes(ss)) {
-					uniqueSqlStatementsToExecute.push(ss);
-				}
-			});
-			const uniqueFilteredSqlStatements: string[] = [];
-			filteredSqlStatements.forEach((ss) => {
-				if (!uniqueFilteredSqlStatements.includes(ss)) {
-					uniqueFilteredSqlStatements.push(ss);
-				}
-			});
+			const uniqueSqlStatementsToExecute = Array.from(new Set(statementsToExecute));
+			const uniqueFilteredSqlStatements = Array.from(new Set(filteredSqlStatements));
 
 			if (verbose) {
 				console.log();
@@ -211,13 +201,15 @@ export const singlestorePush = async (
 				statements.validatedPrev,
 			);
 
+			const uniqueSqlStatementsToExecute = Array.from(new Set(statementsToExecute));
+
 			if (verbose) {
 				console.log();
 				console.log(
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
-				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+				console.log(uniqueSqlStatementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
 			}
 
@@ -271,7 +263,7 @@ export const singlestorePush = async (
 				}
 			}
 
-			for (const dStmnt of statementsToExecute) {
+			for (const dStmnt of uniqueSqlStatementsToExecute) {
 				await db.query(dStmnt);
 			}
 
@@ -328,6 +320,8 @@ export const pgPush = async (
 				schemasToRemove,
 			} = await pgSuggestions(db, statements.statements);
 
+			const uniqueSqlStatementsToExecute = Array.from(new Set(statementsToExecute));
+
 			if (verbose) {
 				console.log();
 				// console.log(chalk.gray('Verbose logs:'));
@@ -335,7 +329,7 @@ export const pgPush = async (
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
-				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+				console.log(uniqueSqlStatementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
 			}
 
@@ -395,7 +389,7 @@ export const pgPush = async (
 				}
 			}
 
-			for (const dStmnt of statementsToExecute) {
+			for (const dStmnt of uniqueSqlStatementsToExecute) {
 				await db.query(dStmnt);
 			}
 
@@ -447,13 +441,15 @@ export const sqlitePush = async (
 			statements.meta!,
 		);
 
+		const uniqueSqlStatementsToExecute = Array.from(new Set(statementsToExecute));
+
 		if (verbose && statementsToExecute.length > 0) {
 			console.log();
 			console.log(
 				withStyle.warning('You are about to execute current statements:'),
 			);
 			console.log();
-			console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+			console.log(uniqueSqlStatementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 			console.log();
 		}
 
@@ -517,7 +513,7 @@ export const sqlitePush = async (
 			const isNotD1 = !('driver' in credentials && credentials.driver === 'd1-http');
 			isNotD1 ?? await db.run('begin');
 			try {
-				for (const dStmnt of statementsToExecute) {
+				for (const dStmnt of uniqueSqlStatementsToExecute) {
 					await db.run(dStmnt);
 				}
 				isNotD1 ?? await db.run('commit');
@@ -568,13 +564,15 @@ export const libSQLPush = async (
 			statements.meta!,
 		);
 
+		const uniqueSqlStatementsToExecute = Array.from(new Set(statementsToExecute));
+
 		if (verbose && statementsToExecute.length > 0) {
 			console.log();
 			console.log(
 				withStyle.warning('You are about to execute current statements:'),
 			);
 			console.log();
-			console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+			console.log(uniqueSqlStatementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 			console.log();
 		}
 
@@ -632,7 +630,7 @@ export const libSQLPush = async (
 		if (statementsToExecute.length === 0) {
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
-			await db.batchWithPragma!(statementsToExecute);
+			await db.batchWithPragma!(uniqueSqlStatementsToExecute);
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
 	}
