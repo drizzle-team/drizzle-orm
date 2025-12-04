@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { integer, pgPolicy, pgRole, pgSchema, pgTable } from 'drizzle-orm/pg-core';
+import { authUid, crudPolicy } from 'drizzle-orm/neon';
+import { integer, pgPolicy, pgRole, pgSchema, pgTable, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from '../postgres/mocks';
 
@@ -1780,4 +1781,70 @@ test('create/alter policy with comments', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	await db.query(`RESET auth.uid;`);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4279
+test('create policy for neon', async () => {
+	const authenticatedRole = pgRole('authenticated');
+	const projectsTable = pgTable(
+		'projects',
+		{
+			id: integer('id').primaryKey(),
+			name: text('name').notNull(),
+			owner: text('owner').notNull(),
+		},
+		(table) => [
+			crudPolicy({
+				role: authenticatedRole,
+				read: true,
+				modify: authUid(table.owner),
+			}),
+		],
+	);
+
+	const schema1 = {
+		authenticatedRole,
+		projectsTable,
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+
+	await db.query(`create schema auth;`);
+	await db.query(`create or replace function auth.user_id()
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN 'some_user_id';
+END;
+$$;`);
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema1,
+		schemas: ['public'],
+		entities: { roles: { include: [authenticatedRole.name] } },
+	});
+	const expectedSt1 = [
+		'CREATE ROLE "authenticated";',
+		'CREATE TABLE "projects" (\n\t"id" integer PRIMARY KEY,\n\t"name" text NOT NULL,\n\t"owner" text NOT NULL\n);\n',
+		'ALTER TABLE "projects" ENABLE ROW LEVEL SECURITY;',
+		'CREATE POLICY "crud-authenticated-policy-select" ON "projects" AS PERMISSIVE FOR SELECT TO "authenticated" USING (true);',
+		'CREATE POLICY "crud-authenticated-policy-insert" ON "projects" AS PERMISSIVE FOR INSERT TO "authenticated" WITH CHECK ((select auth.user_id() = "projects"."owner"));',
+		'CREATE POLICY "crud-authenticated-policy-update" ON "projects" AS PERMISSIVE FOR UPDATE TO "authenticated" USING ((select auth.user_id() = "projects"."owner")) WITH CHECK ((select auth.user_id() = "projects"."owner"));',
+		'CREATE POLICY "crud-authenticated-policy-delete" ON "projects" AS PERMISSIVE FOR DELETE TO "authenticated" USING ((select auth.user_id() = "projects"."owner"));',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to: schema1,
+		schemas: ['public'],
+		entities: { roles: { include: [authenticatedRole.name] } },
+	});
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
