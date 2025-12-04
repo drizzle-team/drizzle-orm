@@ -22,7 +22,7 @@ import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelation
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
+import type { Casing, DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
 import type { PgColumn } from './columns/index.ts';
 import { PgCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -46,6 +46,8 @@ export class PgDatabase<
 		readonly tableNamesMap: Record<string, string>;
 		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
 	};
+
+	readonly casing: Casing | undefined;
 
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
@@ -88,6 +90,7 @@ export class PgDatabase<
 			}
 		}
 		this.$cache = { invalidate: async (_params: any) => {} };
+		this.casing = dialect.casing.casing;
 	}
 
 	/**
