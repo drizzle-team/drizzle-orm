@@ -65,13 +65,21 @@ export const printConfigConnectionIssues = (
 
 	if ('host' in options || 'database' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
+		const portHint = typeof options.port === 'number'
+			? ''
+			: `\t(port should be a number)`;
+		const sslHint = typeof options.ssl === 'boolean'
+				|| (typeof options.ssl === 'string' && ['require', 'allow', 'prefer', 'verify-full'].includes(options.ssl))
+				|| (typeof options.ssl === 'object' && options.ssl !== null)
+			? ''
+			: `\t(ssl should be of type boolean | "require" | "allow" | "prefer" | "verify-full" | options from node:tls)`;
 		console.log(error(text));
 		console.log(wrapParam('host', options.host));
-		console.log(wrapParam('port', options.port, true));
+		console.log(wrapParam('port', options.port, true, undefined, portHint === '' ? true : false) + portHint);
 		console.log(wrapParam('user', options.user, true));
 		console.log(wrapParam('password', options.password, true, 'secret'));
 		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('ssl', options.ssl, true));
+		console.log(wrapParam('ssl', options.ssl, true, undefined, sslHint === '' ? true : false) + sslHint);
 		process.exit(1);
 	}
 
