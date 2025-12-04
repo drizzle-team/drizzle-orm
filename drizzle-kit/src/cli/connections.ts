@@ -4,11 +4,12 @@ import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import type { config } from 'mssql';
-import type { ConnectionConfig, FieldPacket } from 'mysql2';
+import type { Connection, ConnectionConfig, FieldPacket } from 'mysql2';
 import net from 'net';
 import fetch from 'node-fetch';
+import type { Client as PgClient } from 'pg';
 import ws from 'ws';
-import type { BenchmarkProxy, QueryTimings, TransactionProxy } from '../utils';
+import type { BenchmarkProxy, QueriesTimings, TransactionProxy } from '../utils';
 import { assertUnreachable } from '../utils';
 import type { LibSQLDB } from '../utils';
 import type { DB, Proxy, SQLiteDB } from '../utils';
@@ -292,7 +293,11 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		const benchmarkQuery = async (sql: string, params?: any[]): Promise<QueryTimings> => {
+		const benchmarkQuery = async (
+			client: PgClient,
+			sql: string,
+			params?: any[],
+		): Promise<QueriesTimings['queries'][number]> => {
 			const explainResult = await pool.query({
 				text: `EXPLAIN ANALYZE ${sql}`,
 				values: params ?? [],
@@ -305,14 +310,45 @@ export const preparePostgresDB = async (
 			const planningTime = Number(planningMatch[1]);
 			const executionTime = Number(executionMatch[1]);
 
-			let startAt: bigint = 0n;
-			let tcpConnectedAt: bigint = 0n;
-			let tlsConnectedAt: bigint | null = null;
-			let dbReadyAt: bigint = 0n;
 			let querySentAt: bigint = 0n;
 			let firstDataAt: bigint = 0n;
 			let lastDataAt: bigint = 0n;
 			let bytesReceived = 0;
+
+			client.connection.addListener('rowDescription', (data: { length: number }) => {
+				if (firstDataAt === 0n) {
+					firstDataAt = process.hrtime.bigint();
+				}
+				bytesReceived += data.length;
+			});
+			client.connection.addListener('dataRow', (data: { length: number }) => {
+				bytesReceived += data.length;
+			});
+			client.connection.addListener('commandComplete', () => {
+				lastDataAt = process.hrtime.bigint();
+			});
+
+			querySentAt = process.hrtime.bigint();
+			await client.query(sql, params);
+
+			client.connection.removeAllListeners('rowDescription');
+			client.connection.removeAllListeners('dataRow');
+			client.connection.removeAllListeners('commandComplete');
+
+			return {
+				planning: planningTime,
+				execution: executionTime,
+				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime - planningTime,
+				total: ms(querySentAt, lastDataAt),
+				dataSize: bytesReceived,
+			};
+		};
+
+		const benchmarkProxy: BenchmarkProxy = async ({ sql, params }, repeats) => {
+			let startAt: bigint = 0n;
+			let tcpConnectedAt: bigint = 0n;
+			let tlsConnectedAt: bigint | null = null;
+			let dbReadyAt: bigint = 0n;
 
 			const client = 'url' in credentials
 				? new pg.Client({ connectionString: credentials.url })
@@ -327,44 +363,23 @@ export const preparePostgresDB = async (
 			client.connection.prependOnceListener('readyForQuery', () => {
 				dbReadyAt = process.hrtime.bigint();
 			});
-			client.connection.addListener('rowDescription', (data: { length: number }) => {
-				if (firstDataAt === 0n) {
-					firstDataAt = process.hrtime.bigint();
-				}
-				bytesReceived += data.length;
-			});
-			client.connection.addListener('dataRow', (data: { length: number }) => {
-				bytesReceived += data.length;
-			});
-			client.connection.addListener('commandComplete', () => {
-				lastDataAt = process.hrtime.bigint();
-			});
 
 			startAt = process.hrtime.bigint();
 			await client.connect();
-			querySentAt = process.hrtime.bigint();
-			await client.query(sql, params);
+
+			const results = [];
+			for (let i = 0; i < repeats; i++) {
+				const r = await benchmarkQuery(client, sql, params);
+				results.push(r);
+			}
 			await client.end();
 
 			return {
 				tcpHandshake: ms(startAt, tcpConnectedAt),
 				tlsHandshake: tlsConnectedAt ? ms(tcpConnectedAt, tlsConnectedAt) : null,
 				dbHandshake: ms(tlsConnectedAt ?? tcpConnectedAt, dbReadyAt),
-				planning: planningTime,
-				execution: executionTime,
-				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime - planningTime,
-				total: ms(startAt, lastDataAt),
-				dataSize: bytesReceived,
+				queries: results,
 			};
-		};
-
-		const benchmarkProxy: BenchmarkProxy = async ({ sql, params }, repeats) => {
-			const results = [];
-			for (let i = 0; i < repeats; i++) {
-				const r = await benchmarkQuery(sql, params);
-				results.push(r);
-			}
-			return results;
 		};
 
 		return { packageName: 'pg', query, proxy, transactionProxy, benchmarkProxy, migrate: migrateFn };
@@ -1073,8 +1088,11 @@ export const connectToMySQL = async (
 			return results;
 		};
 
-		const benchmarkQuery = async (sql: string, params?: any[]): Promise<QueryTimings> => {
-			const { createConnection } = await import('mysql2');
+		const benchmarkQuery = async (
+			newConnection: Connection,
+			sql: string,
+			params?: any[],
+		): Promise<QueriesTimings['queries'][number]> => {
 			const explainResult = await connection.query({
 				sql: `EXPLAIN ANALYZE ${sql}`,
 				values: params ?? [],
@@ -1088,54 +1106,11 @@ export const connectToMySQL = async (
 			const lastRowTime = Number(timeMatch[2]);
 			const executionTime = lastRowTime;
 
-			let startAt: bigint = 0n;
-			let tcpConnectedAt: bigint = 0n;
-			let tlsConnectedAt: bigint | null = null;
 			let querySentAt: bigint = 0n;
 			let firstDataAt: bigint = 0n;
 			let lastDataAt: bigint = 0n;
 			let bytesReceived = 0;
 
-			const createStream = ({ config }: { config: ConnectionConfig }) => {
-				let stream: net.Socket;
-				if (config.socketPath) {
-					stream = net.connect(config.socketPath);
-				} else {
-					stream = net.connect(config.port!, config.host);
-				}
-				if (config.enableKeepAlive) {
-					stream.on('connect', () => {
-						stream.setKeepAlive(true, config.keepAliveInitialDelay);
-					});
-				}
-				stream.setNoDelay(true);
-				stream.once('connect', () => {
-					tcpConnectedAt = process.hrtime.bigint();
-				});
-				return stream;
-			};
-
-			startAt = process.hrtime.bigint();
-			const newConnection = result.url
-				? createConnection({
-					// debug: true,
-					uri: result.url,
-					stream: createStream,
-				})
-				: createConnection({
-					...result.credentials!,
-					stream: createStream,
-				});
-			await new Promise<void>((resolve, reject) => {
-				newConnection.connect((err) => {
-					tlsConnectedAt = process.hrtime.bigint();
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				});
-			});
 			querySentAt = process.hrtime.bigint();
 			await new Promise<void>((resolve, reject) => {
 				const query = newConnection.query({
@@ -1162,29 +1137,78 @@ export const connectToMySQL = async (
 				query.on('end', () => {
 					lastDataAt = process.hrtime.bigint();
 					resolve();
-					newConnection.end();
 				});
 			});
 
 			return {
-				tcpHandshake: ms(startAt, tcpConnectedAt),
-				tlsHandshake: tlsConnectedAt ? ms(tcpConnectedAt, tlsConnectedAt) : null,
-				dbHandshake: null,
 				planning: null,
 				execution: executionTime,
 				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime,
-				total: ms(startAt, lastDataAt),
+				total: ms(querySentAt, lastDataAt),
 				dataSize: bytesReceived,
 			};
 		};
 
 		const benchmarkProxy: BenchmarkProxy = async ({ sql, params }, repeats) => {
+			const { createConnection } = await import('mysql2');
+
+			let startAt: bigint = 0n;
+			let tcpConnectedAt: bigint = 0n;
+			let tlsConnectedAt: bigint | null = null;
+
+			const createStream = ({ config }: { config: ConnectionConfig }) => {
+				let stream: net.Socket;
+				if (config.socketPath) {
+					stream = net.connect(config.socketPath);
+				} else {
+					stream = net.connect(config.port!, config.host);
+				}
+				if (config.enableKeepAlive) {
+					stream.on('connect', () => {
+						stream.setKeepAlive(true, config.keepAliveInitialDelay);
+					});
+				}
+				stream.setNoDelay(true);
+				stream.once('connect', () => {
+					tcpConnectedAt = process.hrtime.bigint();
+				});
+				return stream;
+			};
+
+			startAt = process.hrtime.bigint();
+			const connection = result.url
+				? createConnection({
+					uri: result.url,
+					stream: createStream,
+				})
+				: createConnection({
+					...result.credentials!,
+					stream: createStream,
+				});
+			await new Promise<void>((resolve, reject) => {
+				connection.connect((err) => {
+					tlsConnectedAt = process.hrtime.bigint();
+					if (err) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
+			});
+
 			const results = [];
 			for (let i = 0; i < repeats; i++) {
-				const r = await benchmarkQuery(sql, params);
+				const r = await benchmarkQuery(connection, sql, params);
 				results.push(r);
 			}
-			return results;
+			connection.end();
+
+			return {
+				tcpHandshake: ms(startAt, tcpConnectedAt),
+				tlsHandshake: tlsConnectedAt ? ms(tcpConnectedAt, tlsConnectedAt) : null,
+				dbHandshake: null,
+				queries: results,
+			};
 		};
 
 		return {

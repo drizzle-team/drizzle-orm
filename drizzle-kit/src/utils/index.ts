@@ -28,20 +28,22 @@ export const mapEntries = <T>(
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
-export type QueryTimings = {
+export type QueriesTimings = {
 	tcpHandshake: number;
 	tlsHandshake: number | null;
 	dbHandshake: number | null;
-	planning: number | null;
-	execution: number;
-	dataDownload: number;
-	total: number;
-	dataSize: number;
+	queries: {
+		planning: number | null;
+		execution: number;
+		dataDownload: number;
+		total: number;
+		dataSize: number;
+	}[];
 };
 export type BenchmarkProxy = (
 	query: { sql: string; params?: any[]; method?: ProxyParams['method'] },
 	repeats: number,
-) => Promise<QueryTimings[]>;
+) => Promise<QueriesTimings>;
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
