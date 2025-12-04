@@ -4,6 +4,7 @@ import pkg from './package.json';
 
 const external = [
 	...Object.keys(pkg.devDependencies),
+	...Object.keys(pkg.dependencies),
 	/^drizzle-orm\/?/,
 	'bun:sqlite',
 	'zlib',
@@ -19,6 +20,10 @@ const external = [
 	'net',
 	'module',
 	'url',
+	'node:https',
+	'bun',
+	'mysql2/promise',
+	/^hono\/?/,
 ];
 
 export default defineConfig([
@@ -38,7 +43,6 @@ export default defineConfig([
 				chunkFileNames: '[name]-[hash].js',
 				preserveModules: true,
 				sourcemap: true,
-				banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 			},
 		],
 		tsconfig: 'tsconfig.build.json',

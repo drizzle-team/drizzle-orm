@@ -1,6 +1,7 @@
 {
 	"name": "drizzle-kit",
 	"version": "1.0.0-beta.2",
+	"type": "module",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -122,6 +123,9 @@
 		"zod": "^3.20.2",
 		"zx": "^8.3.2"
 	},
+	"main": "./index.cjs",
+	"module": "./index.js",
+	"types": "./index.d.ts",
 	"exports": {
 		".": {
 			"import": {
@@ -135,12 +139,32 @@
 		},
 		"./api-postgres": {
 			"import": {
-				"types": "./api-postgres.d.js",
+				"types": "./api-postgres.d.ts",
 				"default": "./api-postgres.js"
 			},
 			"require": {
 				"types": "./api-postgres.d.cts",
 				"default": "./api-postgres.cjs"
+			}
+		},
+		"./api-mysql": {
+			"import": {
+				"types": "./api-mysql.d.ts",
+				"default": "./api-mysql.js"
+			},
+			"require": {
+				"types": "./api-mysql.d.cts",
+				"default": "./api-mysql.cjs"
+			}
+		},
+		"./api-sqlite": {
+			"import": {
+				"types": "./api-sqlite.d.ts",
+				"default": "./api-sqlite.js"
+			},
+			"require": {
+				"types": "./api-sqlite.d.cts",
+				"default": "./api-sqlite.cjs"
 			}
 		}
 	}

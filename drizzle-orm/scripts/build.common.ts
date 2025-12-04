@@ -41,6 +41,7 @@ export const drivers = [
 	'tursodatabase',
 	'vercel-postgres',
 	'xata-http',
+	'sqlite-cloud',
 ];
 
 export const misc = [
