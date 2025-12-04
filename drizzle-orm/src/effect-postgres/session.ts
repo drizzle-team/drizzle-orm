@@ -5,6 +5,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
+import { EffectPgCoreSession } from '~/pg-core/effect/session';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -20,19 +21,20 @@ export class EffectPgSession<
 	_TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> {
-	static readonly [entityKind]: string = 'EffectPgSession';
+> extends EffectPgCoreSession {
+	static override readonly [entityKind]: string = 'EffectPgSession';
 
 	private logger: Logger;
 	private cache: EffectCache | undefined;
 
 	constructor(
 		private client: PgClient.PgClient,
-		private dialect: PgDialect,
-		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private options: { logger?: Logger; cache?: EffectCache } = {},
+		dialect: PgDialect,
+		relations: TRelations,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		options: { logger?: Logger; cache?: EffectCache } = {},
 	) {
+		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache;
 	}

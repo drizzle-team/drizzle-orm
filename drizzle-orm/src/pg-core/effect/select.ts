@@ -1,7 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { applyEffectWrapper, type EffectWrapper } from '~/effect-core/effectable.ts';
-import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
@@ -27,48 +26,49 @@ import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { tracer } from '~/tracing.ts';
 import {
 	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelect,
-	CreatePgSelectFromBuilderMode,
 	GetPgSetOperators,
 	LockConfig,
 	LockStrength,
 	PgCreateSetOperatorFn,
 	PgSelectConfig,
-	PgSelectCrossJoinFn,
-	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
-	PgSelectJoinFn,
-	PgSelectPrepare,
-	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
 	TableLikeHasEmptySelection,
+} from '../query-builders/select.types.ts';
+import { extractUsedTable } from '../utils.ts';
+import type {
+	CreateEffectPgSelectFromBuilderMode,
+	EffectPgSelectCrossJoinFn,
+	EffectPgSelectDynamic,
+	EffectPgSelectJoinFn,
+	EffectPgSelectPrepare,
+	EffectPgSelectWithout,
 } from './select.types.ts';
+import type { EffectPgCoreSession } from './session.ts';
 
-export class PgSelectBuilder<
+export class EffectPgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
 	private fields: TSelection;
-	private session: EffectPgSession<any, any, any> | undefined;
+	private session: EffectPgCoreSession<any, any, any> | undefined;
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | {
@@ -78,7 +78,7 @@ export class PgSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: EffectPgSession<any, any, any> | undefined;
+			session: EffectPgCoreSession<any, any, any> | undefined;
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
@@ -95,13 +95,6 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -113,7 +106,7 @@ export class PgSelectBuilder<
 				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
 			>
 			: TFrom,
-	): CreatePgSelectFromBuilderMode<
+	): CreateEffectPgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
@@ -140,7 +133,7 @@ export class PgSelectBuilder<
 			fields = getTableColumns<PgTable>(src);
 		}
 
-		return (new PgSelectBase({
+		return (new EffectPgSelectBase({
 			table: src,
 			fields,
 			isPartialSelect,
@@ -152,7 +145,7 @@ export class PgSelectBuilder<
 	}
 }
 
-export abstract class PgSelectQueryBuilderBase<
+export abstract class EffectPgSelectQueryBuilderBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -184,7 +177,7 @@ export abstract class PgSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	protected tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: EffectPgSession<any, any, any> | undefined;
+	protected session: EffectPgCoreSession<any, any, any> | undefined;
 	protected dialect: PgDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -194,7 +187,7 @@ export abstract class PgSelectQueryBuilderBase<
 			table: PgSelectConfig['table'];
 			fields: PgSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: EffectPgSession<any, any, any> | undefined;
+			session: EffectPgCoreSession<any, any, any> | undefined;
 			dialect: PgDialect;
 			withList: Subquery[];
 			distinct: boolean | {
@@ -234,8 +227,8 @@ export abstract class PgSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): 'cross' extends TJoinType ? PgSelectCrossJoinFn<this, TDynamic, TIsLateral>
-		: PgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	): 'cross' extends TJoinType ? EffectPgSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: EffectPgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
 	{
 		return ((
 			table: TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL,
@@ -507,7 +500,7 @@ export abstract class PgSelectQueryBuilderBase<
 		rightSelection:
 			| ((setOperators: GetPgSetOperators) => SetOperatorRightSelect<TValue, TResult>)
 			| SetOperatorRightSelect<TValue, TResult>,
-	) => PgSelectWithout<
+	) => EffectPgSelectWithout<
 		this,
 		TDynamic,
 		PgSetOperatorExcludedMethods,
@@ -725,7 +718,7 @@ export abstract class PgSelectQueryBuilderBase<
 	exceptAll = this.createSetOperator('except', true);
 
 	/** @internal */
-	addSetOperators(setOperators: PgSelectConfig['setOperators']): PgSelectWithout<
+	addSetOperators(setOperators: PgSelectConfig['setOperators']): EffectPgSelectWithout<
 		this,
 		TDynamic,
 		PgSetOperatorExcludedMethods,
@@ -766,7 +759,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 */
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): PgSelectWithout<this, TDynamic, 'where'> {
+	): EffectPgSelectWithout<this, TDynamic, 'where'> {
 		if (typeof where === 'function') {
 			where = where(
 				new Proxy(
@@ -803,7 +796,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 */
 	having(
 		having: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
-	): PgSelectWithout<this, TDynamic, 'having'> {
+	): EffectPgSelectWithout<this, TDynamic, 'having'> {
 		if (typeof having === 'function') {
 			having = having(
 				new Proxy(
@@ -837,13 +830,13 @@ export abstract class PgSelectQueryBuilderBase<
 	 */
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>,
-	): PgSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): PgSelectWithout<this, TDynamic, 'groupBy'>;
+	): EffectPgSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): EffectPgSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>]
 			| (PgColumn | SQL | SQL.Aliased)[]
-	): PgSelectWithout<this, TDynamic, 'groupBy'> {
+	): EffectPgSelectWithout<this, TDynamic, 'groupBy'> {
 		if (typeof columns[0] === 'function') {
 			const groupBy = columns[0](
 				new Proxy(
@@ -884,13 +877,13 @@ export abstract class PgSelectQueryBuilderBase<
 	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>,
-	): PgSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): PgSelectWithout<this, TDynamic, 'orderBy'>;
+	): EffectPgSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (PgColumn | SQL | SQL.Aliased)[]): EffectPgSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<PgColumn | SQL | SQL.Aliased>]
 			| (PgColumn | SQL | SQL.Aliased)[]
-	): PgSelectWithout<this, TDynamic, 'orderBy'> {
+	): EffectPgSelectWithout<this, TDynamic, 'orderBy'> {
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -934,7 +927,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number | Placeholder): PgSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): EffectPgSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -959,7 +952,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number | Placeholder): PgSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number | Placeholder): EffectPgSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -978,7 +971,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * @param strength the lock strength.
 	 * @param config the lock configuration.
 	 */
-	for(strength: LockStrength, config: LockConfig = {}): PgSelectWithout<this, TDynamic, 'for'> {
+	for(strength: LockStrength, config: LockConfig = {}): EffectPgSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
 		return this as any;
 	}
@@ -1013,7 +1006,7 @@ export abstract class PgSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
-	$dynamic(): PgSelectDynamic<this> {
+	$dynamic(): EffectPgSelectDynamic<this> {
 		return this;
 	}
 
@@ -1027,7 +1020,7 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 }
 
-export interface PgSelectBase<
+export interface EffectPgSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -1038,7 +1031,7 @@ export interface PgSelectBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	PgSelectQueryBuilderBase<
+	EffectPgSelectQueryBuilderBase<
 		PgSelectHKT,
 		TTableName,
 		TSelection,
@@ -1053,7 +1046,7 @@ export interface PgSelectBase<
 	SQLWrapper
 {}
 
-export class PgSelectBase<
+export class EffectPgSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -1063,7 +1056,7 @@ export class PgSelectBase<
 	TExcludedMethods extends string = never,
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends PgSelectQueryBuilderBase<
+> extends EffectPgSelectQueryBuilderBase<
 	PgSelectHKT,
 	TTableName,
 	TSelection,
@@ -1077,7 +1070,7 @@ export class PgSelectBase<
 	static override readonly [entityKind]: string = 'PgSelect';
 
 	/** @internal */
-	_prepare(name?: string): PgSelectPrepare<this> {
+	_prepare(name?: string): EffectPgSelectPrepare<this> {
 		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
@@ -1085,18 +1078,16 @@ export class PgSelectBase<
 
 		const { fields } = config;
 
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<PgColumn>(fields);
-			const query = session.prepareQuery<
-				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-				type: 'select',
-				tables: [...usedTables],
-			}, cacheConfig);
-			query.joinsNotNullableMap = joinsNotNullableMap;
+		const fieldsList = orderSelectedFields<PgColumn>(fields);
+		const query = session.prepareQuery<
+			PreparedQueryConfig & { execute: TResult }
+		>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
+			type: 'select',
+			tables: [...usedTables],
+		}, cacheConfig);
+		query.joinsNotNullableMap = joinsNotNullableMap;
 
-			return query;
-		});
+		return query;
 	}
 
 	/**
@@ -1106,7 +1097,7 @@ export class PgSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): PgSelectPrepare<this> {
+	prepare(name: string): EffectPgSelectPrepare<this> {
 		return this._prepare(name);
 	}
 
@@ -1115,7 +1106,7 @@ export class PgSelectBase<
 	};
 }
 
-applyEffectWrapper(PgSelectBase);
+applyEffectWrapper(EffectPgSelectBase);
 
 function createSetOperator(type: SetOperator, isAll: boolean): PgCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {

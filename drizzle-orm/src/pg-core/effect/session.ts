@@ -1,17 +1,19 @@
+import type * as V1 from '~/_relations.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import type { EffectPgPreparedQuery } from '~/effect-postgres/prepared-query.ts';
 import { entityKind } from '~/entity.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/index.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
+import type { EffectPgCorePreparedQuery } from './prepared-query.ts';
 
 // TODO: implement??
-export abstract class PgEffectSession // TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-// TFullSchema extends Record<string, unknown> = Record<string, never>,
-// TRelations extends AnyRelations = EmptyRelations,
-// TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-{
+export abstract class EffectPgCoreSession<
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	_TRelations extends AnyRelations = EmptyRelations,
+	_TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+> {
 	static readonly [entityKind]: string = 'PgSession';
 
 	constructor(protected dialect: PgDialect) {}
@@ -27,7 +29,7 @@ export abstract class PgEffectSession // TQueryResult extends PgQueryResultHKT =
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): EffectPgPreparedQuery<T>;
+	): EffectPgCorePreparedQuery<T>;
 
 	abstract prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -37,5 +39,5 @@ export abstract class PgEffectSession // TQueryResult extends PgQueryResultHKT =
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
-	): EffectPgPreparedQuery<T>;
+	): EffectPgCorePreparedQuery<T>;
 }

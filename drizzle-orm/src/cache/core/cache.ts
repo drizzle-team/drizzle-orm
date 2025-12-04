@@ -65,7 +65,7 @@ export class NoopCache extends Cache {
 }
 
 // TODO: one place for all dialects
-export const stragegyFor = async (
+export const strategyFor = async (
 	query: string,
 	params: any[] | undefined,
 	queryMetadata: {

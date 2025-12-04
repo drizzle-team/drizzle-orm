@@ -2,6 +2,8 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
+import { EffectPgSelectBuilder } from '~/pg-core/effect/select.ts';
+import type { SelectedFields } from '~/pg-core/index.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import type { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -106,5 +108,51 @@ export class EffectPgDatabase<
 		filters?: SQL<unknown>,
 	) {
 		return new PgEffectCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
+	}
+
+	/**
+	 * Creates a select query.
+	 *
+	 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
+	 *
+	 * Use `.from()` method to specify which table to select from.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select}
+	 *
+	 * @param fields The selection object.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all columns and all rows from the 'cars' table
+	 * const allCars: Car[] = yield* db.select().from(cars);
+	 *
+	 * // Select specific columns and all rows from the 'cars' table
+	 * const carsIdsAndBrands: { id: number; brand: string }[] = yield* db.select({
+	 *   id: cars.id,
+	 *   brand: cars.brand
+	 * })
+	 *   .from(cars);
+	 * ```
+	 *
+	 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
+	 *
+	 * ```ts
+	 * // Select specific columns along with expression and all rows from the 'cars' table
+	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = yield* db.select({
+	 *   id: cars.id,
+	 *   lowerBrand: sql<string>`lower(${cars.brand})`,
+	 * })
+	 *   .from(cars);
+	 * ```
+	 */
+	select(): EffectPgSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): EffectPgSelectBuilder<TSelection>;
+	select<TSelection extends SelectedFields>(fields?: TSelection): EffectPgSelectBuilder<TSelection | undefined> {
+		return new EffectPgSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+		});
 	}
 }

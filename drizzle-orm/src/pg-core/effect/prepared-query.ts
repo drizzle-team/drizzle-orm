@@ -1,17 +1,18 @@
-import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
+import type { SqlError } from '@effect/sql/SqlError';
+import { Effect } from 'effect';
+import type { EffectCache } from '~/cache/core/cache-effect';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/index.ts';
-import type { NeonAuthToken } from '~/utils.ts';
 import type { PreparedQueryConfig } from '../session';
 
-export abstract class EffectPgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
+export abstract class EffectPgCorePreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
 	constructor(
 		protected query: Query,
 		// cache instance
-		private cache: Cache | undefined,
+		private cache: EffectCache | undefined,
 		// per query related metadata
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -21,15 +22,13 @@ export abstract class EffectPgPreparedQuery<T extends PreparedQueryConfig> imple
 		private cacheConfig?: WithCacheConfig,
 	) {
 		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
+		// if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
+		// 	this.cacheConfig = { enabled: true, autoInvalidate: true };
+		// }
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
 	}
-
-	protected authToken?: NeonAuthToken;
 
 	getQuery(): Query {
 		return this.query;
@@ -39,109 +38,87 @@ export abstract class EffectPgPreparedQuery<T extends PreparedQueryConfig> imple
 		return response;
 	}
 
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	static readonly [entityKind]: string = 'PgPreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
-	/** @internal */
-	protected async queryWithCache<T>(
+	private queryWithCache<T>(
 		queryString: string,
 		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// don't do any mutations, if globally is false
-		if (this.cacheConfig && !this.cacheConfig.enabled) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
-		if (
-			(
-				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
-				|| this.queryMetadata.type === 'delete'
-			) && this.queryMetadata.tables.length > 0
-		) {
-			try {
-				const [res] = await Promise.all([
-					query(),
-					this.cache.onMutate({ tables: this.queryMetadata.tables }),
-				]);
-				return res;
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// don't do any reads if globally disabled
-		if (!this.cacheConfig) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
-				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
-				});
-				// put actual key
-				await this.cache.put(
-					this.cacheConfig.tag ?? await hashQuery(queryString, params),
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-					this.cacheConfig.tag !== undefined,
-					this.cacheConfig.config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-
-		return query().catch((e) => {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+		query: Effect.Effect<T, SqlError>,
+	): Effect.Effect<T, DrizzleQueryError> {
+		return Effect.gen(function*() {
+			return yield* query.pipe(Effect.catchAll((e) => {
+				// eslint-disable-next-line @drizzle-internal/no-instanceof
+				return Effect.fail(new DrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+			}));
 		});
+		// const thisArg = this;
+		// return Effect.gen(function*() {
+
+		// 	const cacheStrat = thisArg.cache !== undefined
+		// 		? yield* Effect.tryPromise({
+		// 			try: () => strategyFor(queryString, params, thisArg.queryMetadata, thisArg.cacheConfig),
+		// 			catch: (e) => e,
+		// 		})
+		// 		: { type: 'skip' as const };
+
+		// 	if (cacheStrat.type === 'skip') {
+		// 		yield* query.pipe(Effect.catchAll((e) => {
+		// 			// eslint-disable-next-line @drizzle-internal/no-instanceof
+		// 			return Effect.fail(new DrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+		// 		}));
+		// 	}
+
+		// 	const cache = thisArg.cache!;
+
+		// 	// For mutate queries, we should query the database, wait for a response, and then perform invalidation
+		// 	if (cacheStrat.type === 'invalidate') {
+		// 		yield*
+		// 			query.pipe(Effect.catchAll((e) => {
+		// 			// eslint-disable-next-line @drizzle-internal/no-instanceof
+		// 			return Effect.fail(new DrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+		// 		}))
+		// 		yield* cache.onMutate({ tables: cacheStrat.tables }),
+		// 	}
+
+		// 	if (cacheStrat.type === 'try') {
+		// 		const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+		// 		const fromCache = yield* cache.get(
+		// 			key,
+		// 			tables,
+		// 			isTag,
+		// 			autoInvalidate,
+		// 		);
+
+		// 		if (typeof fromCache !== 'undefined') return fromCache as unknown as T;
+
+		// 		const result = yield* query.pipe(Effect.catchAll((e) => {
+		// 			// eslint-disable-next-line @drizzle-internal/no-instanceof
+		// 			return Effect.fail(new DrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+		// 		}));
+
+		// 		yield* cache.put(
+		// 			key,
+		// 			result,
+		// 			// make sure we send tables that were used in a query only if user wants to invalidate it on each write
+		// 			autoInvalidate ? tables : [],
+		// 			isTag,
+		// 			config,
+		// 		);
+		// 		// put flag if we should invalidate or not
+		// 		return Effect.succeed(result);
+		// 	}
+
+		// 	assertUnreachable(cacheStrat);
+		// });
 	}
 
-	// TODO: why execute and all?
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
+	abstract execute(placeholderValues?: Record<string, unknown>): Effect.Effect<T['execute'], DrizzleQueryError>;
 
 	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+	abstract all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], SqlError>;
 
 	/** @internal */
 	abstract isResponseInArrayMode(): boolean;

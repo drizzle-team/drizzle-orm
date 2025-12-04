@@ -1,4 +1,4 @@
-import { type Cache, NoopCache, stragegyFor } from '~/cache/core/cache.ts';
+import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
@@ -47,7 +47,7 @@ export abstract class PromiseLikePgPreparedQuery<T extends PreparedQueryConfig> 
 		query: () => Promise<T>,
 	): Promise<T> {
 		const cacheStrat = this.cache !== undefined || is(this.cache, NoopCache)
-			? await stragegyFor(queryString, params, this.queryMetadata, this.cacheConfig)
+			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
 			: { type: 'skip' as const };
 
 		if (cacheStrat.type === 'skip') {
