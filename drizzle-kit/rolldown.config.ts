@@ -26,6 +26,8 @@ export default defineConfig([
 		input: {
 			index: './src/index.ts',
 			'api-postgres': './src/ext/api-postgres.ts',
+			'api-mysql': './src/ext/api-mysql.ts',
+			'api-sqlite': './src/ext/api-sqlite.ts',
 		},
 		external,
 		output: [
@@ -36,6 +38,7 @@ export default defineConfig([
 				chunkFileNames: '[name]-[hash].js',
 				preserveModules: true,
 				sourcemap: true,
+				banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 			},
 		],
 		tsconfig: 'tsconfig.build.json',
@@ -47,6 +50,8 @@ export default defineConfig([
 		input: {
 			index: './src/index.ts',
 			'api-postgres': './src/ext/api-postgres.ts',
+			'api-mysql': './src/ext/api-mysql.ts',
+			'api-sqlite': './src/ext/api-sqlite.ts',
 		},
 		external,
 		output: [

@@ -10,6 +10,7 @@ export default defineConfig([
 			...Object.keys(pkg.devDependencies),
 			/^drizzle-orm\/?/,
 			'bun:sqlite',
+			'bun',
 		],
 		output: [
 			{
@@ -30,6 +31,7 @@ export default defineConfig([
 			...Object.keys(pkg.devDependencies),
 			/^drizzle-orm\/?/,
 			'bun:sqlite',
+			'bun',
 		],
 		output: [
 			{
