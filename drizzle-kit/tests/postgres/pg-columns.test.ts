@@ -210,6 +210,41 @@ test('alter column type to custom type', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4245
+test('alter text type to jsonb type', async (t) => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('{"b":2}');`);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			column1: jsonb(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE jsonb USING column1::jsonb;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0]).toBeDefined();
+});
+
 test('alter table add composite pk', async (t) => {
 	const schema1 = {
 		table: pgTable('table', {
