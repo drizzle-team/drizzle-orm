@@ -127,6 +127,7 @@ export const pushSchema = async (
 	schemaFilters?: string[],
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
+	casing?: CasingType,
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
@@ -141,7 +142,7 @@ export const pushSchema = async (
 		},
 	};
 
-	const cur = generateDrizzleJson(imports);
+	const cur = generateDrizzleJson(imports, undefined, schemaFilters, casing);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
 		filters,
