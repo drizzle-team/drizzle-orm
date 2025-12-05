@@ -1253,3 +1253,72 @@ test('introspect sequences with table filter', async () => {
 	// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
 	// 	);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4215
+test('introspect _text column type as text[]', async () => {
+	await db.query(`CREATE TYPE mood_enum AS ENUM('ok', 'bad', 'good');`);
+	await db.query(`CREATE TABLE "_array_data_types" (
+			integer_array          _int4,
+			smallint_array         _int2,
+			bigint_array           _int8,
+			numeric_array          _numeric,
+			real_array             _float4,
+			double_precision_array double precision[],
+			boolean_array          _bool,
+			char_array             _bpchar,-- char with no length restriction
+			varchar_array          _varchar,
+			text_array             _text,
+			bit_array              _bit,
+			json_array             _json,
+			jsonb_array            _jsonb,
+			time_array             _time,
+			timestamp_array        _timestamp,
+			date_array             _date,
+			interval_array         _interval,
+			point_array            _point,
+			line_array             _line,
+			mood_enum_array        _mood_enum,
+			uuid_array             _uuid,
+			inet_array             _inet
+	);`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { columns } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	);
+
+	const columnTypes = columns.map((col) => col.type);
+	const columnDimensions = columns.map((col) => col.dimensions);
+
+	expect(columnTypes).toStrictEqual([
+		'integer',
+		'smallint',
+		'bigint',
+		'numeric',
+		'real',
+		'double precision',
+		'boolean',
+		'bpchar',
+		'varchar',
+		'text',
+		'bit',
+		'json',
+		'jsonb',
+		'time',
+		'timestamp',
+		'date',
+		'interval',
+		'point',
+		'line',
+		'mood_enum',
+		'uuid',
+		'inet',
+	]);
+	expect(columnDimensions.every((dim) => dim === 1)).toBe(true);
+});

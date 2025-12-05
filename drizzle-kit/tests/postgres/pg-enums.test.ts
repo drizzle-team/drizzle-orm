@@ -2238,3 +2238,20 @@ test('enums ordering', async () => {
 	expect(st4).toStrictEqual([]);
 	expect(pst4).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4345
+test('add duplicate to enum', async () => {
+	const schema1 = {
+		accountStatusList: pgEnum('accountStatusList', ['active', 'banned', 'deleted']),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		accountStatusList: pgEnum('accountStatusList', ['active', 'banned', 'suspended', 'deleted', 'suspended']),
+	};
+
+	await expect(diff(n1, schema2, [])).rejects.toThrowError();
+	await expect(push({ db, to: schema2 })).rejects.toThrowError();
+});
