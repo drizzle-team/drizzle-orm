@@ -42,7 +42,6 @@ import type {
 	LockStrength,
 	PgCreateSetOperatorFn,
 	PgSelectConfig,
-	PgSelectHKT,
 	PgSelectHKTBase,
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
@@ -55,6 +54,7 @@ import type {
 	CreateEffectPgSelectFromBuilderMode,
 	EffectPgSelectCrossJoinFn,
 	EffectPgSelectDynamic,
+	EffectPgSelectHKT,
 	EffectPgSelectJoinFn,
 	EffectPgSelectPrepare,
 	EffectPgSelectWithout,
@@ -1032,7 +1032,7 @@ export interface EffectPgSelectBase<
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
 	EffectPgSelectQueryBuilderBase<
-		PgSelectHKT,
+		EffectPgSelectHKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -1057,7 +1057,7 @@ export class EffectPgSelectBase<
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends EffectPgSelectQueryBuilderBase<
-	PgSelectHKT,
+	EffectPgSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,

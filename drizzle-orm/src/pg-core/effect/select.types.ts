@@ -169,3 +169,30 @@ export type EffectPgSelectKind<
 })['_type'];
 
 export type AnyEffectPgSelectQueryBuilder = EffectPgSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
+
+export interface EffectPgSelectQueryBuilderHKT extends PgSelectHKTBase {
+	_type: EffectPgSelectQueryBuilderBase<
+		EffectPgSelectQueryBuilderHKT,
+		this['tableName'],
+		Assume<this['selection'], ColumnsSelection>,
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
+		this['dynamic'],
+		this['excludedMethods'],
+		Assume<this['result'], any[]>,
+		Assume<this['selectedFields'], ColumnsSelection>
+	>;
+}
+
+export interface EffectPgSelectHKT extends PgSelectHKTBase {
+	_type: EffectPgSelectBase<
+		this['tableName'],
+		Assume<this['selection'], ColumnsSelection>,
+		this['selectMode'],
+		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
+		this['dynamic'],
+		this['excludedMethods'],
+		Assume<this['result'], any[]>,
+		Assume<this['selectedFields'], ColumnsSelection>
+	>;
+}
