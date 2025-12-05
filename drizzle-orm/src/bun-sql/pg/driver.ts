@@ -13,19 +13,19 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import type { BunSQLQueryResultHKT } from './session.ts';
-import { BunSQLSession } from './session.ts';
+import type { BunSQLPGQueryResultHKT } from './session.ts';
+import { BunSQLPGSession } from './session.ts';
 
-export class BunSQLDatabase<
+export class BunSQLPGDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<BunSQLQueryResultHKT, TSchema> {
-	static override readonly [entityKind]: string = 'BunSQLDatabase';
+> extends PgDatabase<BunSQLPGQueryResultHKT, TSchema> {
+	static override readonly [entityKind]: string = 'BunSQLPGDatabase';
 }
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: SQL,
 	config: DrizzleConfig<TSchema> = {},
-): BunSQLDatabase<TSchema> & {
+): BunSQLPGDatabase<TSchema> & {
 	$client: SQL;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -49,8 +49,8 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new BunSQLSession(client, dialect, schema, { logger, cache: config.cache });
-	const db = new BunSQLDatabase(dialect, session, schema as any) as BunSQLDatabase<TSchema>;
+	const session = new BunSQLPGSession(client, dialect, schema, { logger, cache: config.cache });
+	const db = new BunSQLPGDatabase(dialect, session, schema as any) as BunSQLPGDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -79,7 +79,7 @@ export function drizzle<
 			})
 		),
 	]
-): BunSQLDatabase<TSchema> & {
+): BunSQLPGDatabase<TSchema> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -113,7 +113,7 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
 		config?: DrizzleConfig<TSchema>,
-	): BunSQLDatabase<TSchema> & {
+	): BunSQLPGDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({
