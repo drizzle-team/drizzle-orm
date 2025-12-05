@@ -3,8 +3,8 @@ import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+import { parseEWKB } from './ewkb.ts';
 import type { PgGeometryConfig } from './types.ts';
-import { parseEWKB } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
