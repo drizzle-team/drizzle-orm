@@ -2,7 +2,6 @@ import chalk from 'chalk';
 
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
-	CreateSqliteIndexConvertor,
 	fromJson,
 	SQLiteCreateTableConvertor,
 	SQLiteDropTableConvertor,
@@ -13,11 +12,11 @@ import type { JsonStatement } from '../../jsonStatements';
 import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
 
 export const _moveDataStatements = (
-	tableName: string,
-	json: SQLiteSchemaSquashed,
-	dataLoss: boolean = false,
+    tableName: string,
+    json: SQLiteSchemaSquashed,
+    dataLoss: boolean = false,
 ) => {
-	const statements: string[] = [];
+    const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
 
@@ -73,29 +72,18 @@ export const _moveDataStatements = (
 		}),
 	);
 
-	// rename table
-	statements.push(
-		new SqliteRenameTableConvertor().convert({
-			fromSchema: '',
-			tableNameFrom: newTableName,
-			tableNameTo: tableName,
-			toSchema: '',
-			type: 'rename_table',
-		}),
-	);
+    // rename table
+    statements.push(
+        new SqliteRenameTableConvertor().convert({
+            fromSchema: '',
+            tableNameFrom: newTableName,
+            tableNameTo: tableName,
+            toSchema: '',
+            type: 'rename_table',
+        }),
+    );
 
-	for (const idx of Object.values(json.tables[tableName].indexes)) {
-		statements.push(
-			new CreateSqliteIndexConvertor().convert({
-				type: 'create_index',
-				tableName: tableName,
-				schema: '',
-				data: idx,
-			}),
-		);
-	}
-
-	return statements;
+    return statements;
 };
 
 export const getOldTableName = (
