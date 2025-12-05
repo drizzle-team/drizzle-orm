@@ -16,8 +16,8 @@ import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static override readonly [entityKind]: string = 'BunSQLPreparedQuery';
+export class BunSQLPGPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
+	static override readonly [entityKind]: string = 'BunSQLPGPreparedQuery';
 
 	constructor(
 		private client: SQL,
@@ -102,17 +102,17 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 	}
 }
 
-export interface BunSQLSessionOptions {
+export interface BunSQLPGSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 }
 
-export class BunSQLSession<
+export class BunSQLPGSession<
 	TSQL extends SQL,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends PgSession<BunSQLQueryResultHKT, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'BunSQLSession';
+> extends PgSession<BunSQLPGQueryResultHKT, TFullSchema, TSchema> {
+	static override readonly [entityKind]: string = 'BunSQLPGSession';
 
 	logger: Logger;
 	private cache: Cache;
@@ -122,7 +122,7 @@ export class BunSQLSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
-		readonly options: BunSQLSessionOptions = {},
+		readonly options: BunSQLPGSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -141,7 +141,7 @@ export class BunSQLSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new BunSQLPreparedQuery(
+		return new BunSQLPGPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
@@ -168,17 +168,17 @@ export class BunSQLSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLPGTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new BunSQLSession<TransactionSQL, TFullSchema, TSchema>(
+			const session = new BunSQLPGSession<TransactionSQL, TFullSchema, TSchema>(
 				client,
 				this.dialect,
 				this.schema,
 				this.options,
 			);
-			const tx = new BunSQLTransaction(this.dialect, session, this.schema);
+			const tx = new BunSQLPGTransaction(this.dialect, session, this.schema);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -187,16 +187,16 @@ export class BunSQLSession<
 	}
 }
 
-export class BunSQLTransaction<
+export class BunSQLPGTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<BunSQLQueryResultHKT, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'BunSQLTransaction';
+> extends PgTransaction<BunSQLPGQueryResultHKT, TFullSchema, TSchema> {
+	static override readonly [entityKind]: string = 'BunSQLPGTransaction';
 
 	constructor(
 		dialect: PgDialect,
 		/** @internal */
-		override readonly session: BunSQLSession<TransactionSQL | SavepointSQL, TFullSchema, TSchema>,
+		override readonly session: BunSQLPGSession<TransactionSQL | SavepointSQL, TFullSchema, TSchema>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
@@ -204,21 +204,21 @@ export class BunSQLTransaction<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLPGTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return (this.session.client as TransactionSQL).savepoint((client) => {
-			const session = new BunSQLSession<SavepointSQL, TFullSchema, TSchema>(
+			const session = new BunSQLPGSession<SavepointSQL, TFullSchema, TSchema>(
 				client,
 				this.dialect,
 				this.schema,
 				this.session.options,
 			);
-			const tx = new BunSQLTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+			const tx = new BunSQLPGTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 			return transaction(tx);
 		}) as Promise<T>;
 	}
 }
 
-export interface BunSQLQueryResultHKT extends PgQueryResultHKT {
+export interface BunSQLPGQueryResultHKT extends PgQueryResultHKT {
 	type: Assume<this['row'], Record<string, any>[]>;
 }
