@@ -3,20 +3,8 @@ import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
+import type { PgGeometryConfig } from './types.ts';
 import { parseEWKB } from './utils.ts';
-
-export type PgGeometryMode = 'tuple' | 'xy';
-
-export type PgGeometryType =
-	| 'Point'
-	| 'LineString'
-	| 'Polygon'
-	| 'MultiPoint'
-	| 'MultiLineString'
-	| 'MultiPolygon'
-	| 'GeometryCollection';
-
-export type PgGeometryTypeAnyCase = PgGeometryType | Lowercase<PgGeometryType>;
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
@@ -118,15 +106,6 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> ext
 
 		return wkt;
 	}
-}
-
-export interface PgGeometryConfig<
-	T extends PgGeometryMode = PgGeometryMode,
-	G extends PgGeometryType = PgGeometryType,
-> {
-	mode?: T;
-	type?: G | (string & {});
-	srid?: number;
 }
 
 export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
