@@ -9,3 +9,10 @@ export function mapGeometryToDriverValue(value: [number, number], config: PgGeom
 
 	return wkt;
 }
+
+export function getGeometrySQLType(config: PgGeometryConfig): string {
+	const type = config.type ?? 'Point';
+	const srid = config.srid;
+
+	return `geometry(${type}${srid ? `,${srid}` : ''})`;
+}

@@ -5,7 +5,7 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './ewkb.ts';
 import type { PgGeometryConfig } from './types.ts';
-import { mapGeometryToDriverValue } from './utils.ts';
+import { getGeometrySQLType, mapGeometryToDriverValue } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
@@ -39,10 +39,7 @@ export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends Pg
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
-		const type = this.type ?? 'Point';
-		const srid = this.srid;
-
-		return `geometry(${type}${srid ? `,${srid}` : ''})`;
+		return getGeometrySQLType(this.config);
 	}
 
 	override mapFromDriverValue(value: string | [number, number]): [number, number] {
@@ -87,10 +84,7 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> ext
 	readonly mode = 'object';
 
 	getSQLType(): string {
-		const type = this.type ?? 'Point';
-		const srid = this.srid;
-
-		return `geometry(${type}${srid ? `,${srid}` : ''})`;
+		return getGeometrySQLType(this.config);
 	}
 
 	override mapFromDriverValue(value: string): { x: number; y: number } {
