@@ -5,37 +5,55 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
 
+export type PgGeometryMode = 'tuple' | 'xy';
+
+export type PgGeometryType =
+	| 'Point'
+	| 'LineString'
+	| 'Polygon'
+	| 'MultiPoint'
+	| 'MultiLineString'
+	| 'MultiPolygon'
+	| 'GeometryCollection';
+
+export type PgGeometryTypeAnyCase = PgGeometryType | Lowercase<PgGeometryType>;
+
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
 	data: [number, number];
 	driverParam: string;
-}, { srid: number | undefined }> {
+}, PgGeometryConfig> {
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
-	constructor(name: string, srid?: number) {
+	static readonly defaultConfig: PgGeometryConfig = { type: 'Point' };
+
+	constructor(name: string, config: PgGeometryConfig = PgGeometryBuilder.defaultConfig) {
 		super(name, 'array geometry', 'PgGeometry');
-		this.config.srid = srid;
+		this.config.type = config.type;
+		this.config.srid = config.srid;
 	}
 
 	/** @internal */
 	override build(table: PgTable<any>) {
 		return new PgGeometry(
 			table,
-			this.config as any,
+			this.config,
 		);
 	}
 }
 
-export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>>
-	extends PgColumn<T, { srid: number | undefined }>
-{
+export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends PgColumn<T, PgGeometryConfig> {
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	readonly srid = this.config.srid;
+	readonly type = this.config.type;
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
-		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
+		const type = this.type ?? 'Point';
+		const srid = this.srid;
+
+		return `geometry(${type}${srid ? `,${srid}` : ''})`;
 	}
 
 	override mapFromDriverValue(value: string | [number, number]): [number, number] {
@@ -53,12 +71,14 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	dataType: 'object geometry';
 	data: { x: number; y: number };
 	driverParam: string;
-}, { srid?: number }> {
+}, PgGeometryConfig> {
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
-	constructor(name: string, srid: number | undefined) {
+	constructor(name: string, config: PgGeometryConfig) {
 		super(name, 'object geometry', 'PgGeometryObject');
-		this.config.srid = srid;
+		this.config.type = config.type;
+		this.config.srid = config.srid;
+		this.config.mode = config.mode;
 	}
 
 	/** @internal */
@@ -71,15 +91,19 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 }
 
 export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
-	extends PgColumn<T, { srid: number | undefined }>
+	extends PgColumn<T, PgGeometryConfig>
 {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	readonly srid = this.config.srid;
+	readonly type = this.config.type;
 	readonly mode = 'object';
 
 	getSQLType(): string {
-		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
+		const type = this.type ?? 'Point';
+		const srid = this.srid;
+
+		return `geometry(${type}${srid ? `,${srid}` : ''})`;
 	}
 
 	override mapFromDriverValue(value: string): { x: number; y: number } {
@@ -92,9 +116,12 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
 	}
 }
 
-export interface PgGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {
+export interface PgGeometryConfig<
+	T extends PgGeometryMode = PgGeometryMode,
+	G extends PgGeometryType = PgGeometryType,
+> {
 	mode?: T;
-	type?: 'point' | (string & {});
+	type?: G | (string & {});
 	srid?: number;
 }
 
@@ -108,7 +135,7 @@ export function geometry<TMode extends PgGeometryConfig['mode'] & {}>(
 export function geometry(a?: string | PgGeometryConfig, b?: PgGeometryConfig) {
 	const { name, config } = getColumnNameAndConfig<PgGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
-		return new PgGeometryBuilder(name, config?.srid);
+		return new PgGeometryBuilder(name, config);
 	}
-	return new PgGeometryObjectBuilder(name, config?.srid);
+	return new PgGeometryObjectBuilder(name, config);
 }
