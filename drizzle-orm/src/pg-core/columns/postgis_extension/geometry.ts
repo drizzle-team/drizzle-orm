@@ -90,9 +90,7 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
-	extends PgColumn<T, PgGeometryConfig>
-{
+export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> extends PgColumn<T, PgGeometryConfig> {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	readonly srid = this.config.srid;
@@ -112,7 +110,13 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
 	}
 
 	override mapToDriverValue(value: { x: number; y: number }): string {
-		return `point(${value.x} ${value.y})`;
+		let wkt = `point(${value.x} ${value.y})`;
+
+		if (this.srid) {
+			wkt = `SRID=${this.srid};${wkt}`;
+		}
+
+		return wkt;
 	}
 }
 
