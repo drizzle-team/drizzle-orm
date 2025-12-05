@@ -5,6 +5,7 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './ewkb.ts';
 import type { PgGeometryConfig } from './types.ts';
+import { mapGeometryToDriverValue } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
@@ -51,7 +52,7 @@ export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>> extends Pg
 	}
 
 	override mapToDriverValue(value: [number, number]): string {
-		return `point(${value[0]} ${value[1]})`;
+		return mapGeometryToDriverValue(value, this.config);
 	}
 }
 
@@ -98,13 +99,7 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>> ext
 	}
 
 	override mapToDriverValue(value: { x: number; y: number }): string {
-		let wkt = `point(${value.x} ${value.y})`;
-
-		if (this.srid) {
-			wkt = `SRID=${this.srid};${wkt}`;
-		}
-
-		return wkt;
+		return mapGeometryToDriverValue([value.x, value.y], this.config);
 	}
 }
 
