@@ -19,10 +19,8 @@ tests/**/tmp/
 !tsconfig.build.json
 !pnpm-lock.yaml
 !.github
-!build.ts
-!build.dev.ts
-!build.ext.ts
-!build.cli.ts
+!scripts
+!rolldown*.ts
 
 tests/test.ts
 
