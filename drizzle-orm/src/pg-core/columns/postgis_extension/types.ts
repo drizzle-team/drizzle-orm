@@ -1,6 +1,7 @@
 export type PgGeometryMode = 'tuple' | 'xy';
 
 export type PgGeometryType =
+	| 'Geometry'
 	| 'Point'
 	| 'LineString'
 	| 'Polygon'
