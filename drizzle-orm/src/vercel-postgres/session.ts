@@ -321,7 +321,7 @@ export class VercelPgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (typeof this.client === 'function' || this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as VercelPoolClient).release();
 			}
 		}
