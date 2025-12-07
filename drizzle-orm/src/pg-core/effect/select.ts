@@ -1,4 +1,3 @@
-import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { applyEffectWrapper, type EffectWrapper } from '~/effect-core/effectable.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -322,12 +321,12 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = yield* db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = yield* db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -365,12 +364,12 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = yield* db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = yield* db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -394,12 +393,12 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = yield* db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = yield* db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -437,12 +436,12 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = yield* db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = yield* db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -465,12 +464,12 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users, each user with every pet
-	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = yield* db.select()
 	 *   .from(users)
 	 *   .crossJoin(pets)
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = yield* db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -536,7 +535,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all unique names from customers and users tables
-	 * await db.select({ name: users.name })
+	 * yield* db.select({ name: users.name })
 	 *   .from(users)
 	 *   .union(
 	 *     db.select({ name: customers.name }).from(customers)
@@ -544,7 +543,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { union } from 'drizzle-orm/pg-core'
 	 *
-	 * await union(
+	 * yield* union(
 	 *   db.select({ name: users.name }).from(users),
 	 *   db.select({ name: customers.name }).from(customers)
 	 * );
@@ -563,7 +562,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all transaction ids from both online and in-store sales
-	 * await db.select({ transaction: onlineSales.transactionId })
+	 * yield* db.select({ transaction: onlineSales.transactionId })
 	 *   .from(onlineSales)
 	 *   .unionAll(
 	 *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -571,7 +570,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { unionAll } from 'drizzle-orm/pg-core'
 	 *
-	 * await unionAll(
+	 * yield* unionAll(
 	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
 	 *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
 	 * );
@@ -590,7 +589,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select course names that are offered in both departments A and B
-	 * await db.select({ courseName: depA.courseName })
+	 * yield* db.select({ courseName: depA.courseName })
 	 *   .from(depA)
 	 *   .intersect(
 	 *     db.select({ courseName: depB.courseName }).from(depB)
@@ -598,7 +597,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { intersect } from 'drizzle-orm/pg-core'
 	 *
-	 * await intersect(
+	 * yield* intersect(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
 	 * );
@@ -617,7 +616,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all products and quantities that are ordered by both regular and VIP customers
-	 * await db.select({
+	 * yield* db.select({
 	 *   productId: regularCustomerOrders.productId,
 	 *   quantityOrdered: regularCustomerOrders.quantityOrdered
 	 * })
@@ -632,7 +631,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { intersectAll } from 'drizzle-orm/pg-core'
 	 *
-	 * await intersectAll(
+	 * yield* intersectAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
 	 *     quantityOrdered: regularCustomerOrders.quantityOrdered
@@ -659,7 +658,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all courses offered in department A but not in department B
-	 * await db.select({ courseName: depA.courseName })
+	 * yield* db.select({ courseName: depA.courseName })
 	 *   .from(depA)
 	 *   .except(
 	 *     db.select({ courseName: depB.courseName }).from(depB)
@@ -667,7 +666,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { except } from 'drizzle-orm/pg-core'
 	 *
-	 * await except(
+	 * yield* except(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
 	 * );
@@ -686,7 +685,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all products that are ordered by regular customers but not by VIP customers
-	 * await db.select({
+	 * yield* db.select({
 	 *   productId: regularCustomerOrders.productId,
 	 *   quantityOrdered: regularCustomerOrders.quantityOrdered,
 	 * })
@@ -701,7 +700,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 * // or
 	 * import { exceptAll } from 'drizzle-orm/pg-core'
 	 *
-	 * await exceptAll(
+	 * yield* exceptAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
 	 *     quantityOrdered: regularCustomerOrders.quantityOrdered
@@ -742,19 +741,19 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all cars with green color
-	 * await db.select().from(cars).where(eq(cars.color, 'green'));
+	 * yield* db.select().from(cars).where(eq(cars.color, 'green'));
 	 * // or
-	 * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
+	 * yield* db.select().from(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
 	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
 	 *
 	 * ```ts
 	 * // Select all BMW cars with a green color
-	 * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
+	 * yield* db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
 	 *
 	 * // Select all cars with the green or blue color
-	 * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
+	 * yield* db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
 	where(
@@ -785,7 +784,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all brands with more than one car
-	 * await db.select({
+	 * yield* db.select({
 	 * 	brand: cars.brand,
 	 * 	count: sql<number>`cast(count(${cars.id}) as int)`,
 	 * })
@@ -820,7 +819,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Group and count people by their last names
-	 * await db.select({
+	 * yield* db.select({
 	 *    lastName: people.lastName,
 	 *    count: sql<number>`cast(count(*) as int)`
 	 * })
@@ -862,17 +861,17 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```
 	 * // Select cars ordered by year
-	 * await db.select().from(cars).orderBy(cars.year);
+	 * yield* db.select().from(cars).orderBy(cars.year);
 	 * ```
 	 *
 	 * You can specify whether results are in ascending or descending order with the `asc()` and `desc()` operators.
 	 *
 	 * ```ts
 	 * // Select cars ordered by year in descending order
-	 * await db.select().from(cars).orderBy(desc(cars.year));
+	 * yield* db.select().from(cars).orderBy(desc(cars.year));
 	 *
 	 * // Select cars ordered by year and price
-	 * await db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
+	 * yield* db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
 	 * ```
 	 */
 	orderBy(
@@ -924,7 +923,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Get the first 10 people from this query.
-	 * await db.select().from(people).limit(10);
+	 * yield* db.select().from(people).limit(10);
 	 * ```
 	 */
 	limit(limit: number | Placeholder): EffectPgSelectWithout<this, TDynamic, 'limit'> {
@@ -949,7 +948,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Get the 10th-20th people from this query.
-	 * await db.select().from(people).offset(10).limit(10);
+	 * yield* db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
 	offset(offset: number | Placeholder): EffectPgSelectWithout<this, TDynamic, 'offset'> {
@@ -1042,7 +1041,7 @@ export interface EffectPgSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	EffectWrapper<TResult, DrizzleQueryError, PgClient>,
+	EffectWrapper<TResult, DrizzleQueryError>,
 	SQLWrapper
 {}
 
@@ -1150,12 +1149,12 @@ const getPgSetOperators = () => ({
  * // Select all unique names from customers and users tables
  * import { union } from 'drizzle-orm/pg-core'
  *
- * await union(
+ * yield* union(
  *   db.select({ name: users.name }).from(users),
  *   db.select({ name: customers.name }).from(customers)
  * );
  * // or
- * await db.select({ name: users.name })
+ * yield* db.select({ name: users.name })
  *   .from(users)
  *   .union(
  *     db.select({ name: customers.name }).from(customers)
@@ -1177,12 +1176,12 @@ export const union = createSetOperator('union', false);
  * // Select all transaction ids from both online and in-store sales
  * import { unionAll } from 'drizzle-orm/pg-core'
  *
- * await unionAll(
+ * yield* unionAll(
  *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
  *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
  * );
  * // or
- * await db.select({ transaction: onlineSales.transactionId })
+ * yield* db.select({ transaction: onlineSales.transactionId })
  *   .from(onlineSales)
  *   .unionAll(
  *     db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -1204,12 +1203,12 @@ export const unionAll = createSetOperator('union', true);
  * // Select course names that are offered in both departments A and B
  * import { intersect } from 'drizzle-orm/pg-core'
  *
- * await intersect(
+ * yield* intersect(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
  * );
  * // or
- * await db.select({ courseName: depA.courseName })
+ * yield* db.select({ courseName: depA.courseName })
  *   .from(depA)
  *   .intersect(
  *     db.select({ courseName: depB.courseName }).from(depB)
@@ -1231,7 +1230,7 @@ export const intersect = createSetOperator('intersect', false);
  * // Select all products and quantities that are ordered by both regular and VIP customers
  * import { intersectAll } from 'drizzle-orm/pg-core'
  *
- * await intersectAll(
+ * yield* intersectAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,
  *     quantityOrdered: regularCustomerOrders.quantityOrdered
@@ -1244,7 +1243,7 @@ export const intersect = createSetOperator('intersect', false);
  *   .from(vipCustomerOrders)
  * );
  * // or
- * await db.select({
+ * yield* db.select({
  *   productId: regularCustomerOrders.productId,
  *   quantityOrdered: regularCustomerOrders.quantityOrdered
  * })
@@ -1273,12 +1272,12 @@ export const intersectAll = createSetOperator('intersect', true);
  * // Select all courses offered in department A but not in department B
  * import { except } from 'drizzle-orm/pg-core'
  *
- * await except(
+ * yield* except(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
  * );
  * // or
- * await db.select({ courseName: depA.courseName })
+ * yield* db.select({ courseName: depA.courseName })
  *   .from(depA)
  *   .except(
  *     db.select({ courseName: depB.courseName }).from(depB)
@@ -1300,7 +1299,7 @@ export const except = createSetOperator('except', false);
  * // Select all products that are ordered by regular customers but not by VIP customers
  * import { exceptAll } from 'drizzle-orm/pg-core'
  *
- * await exceptAll(
+ * yield* exceptAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,
  *     quantityOrdered: regularCustomerOrders.quantityOrdered
@@ -1313,7 +1312,7 @@ export const except = createSetOperator('except', false);
  *   .from(vipCustomerOrders)
  * );
  * // or
- * await db.select({
+ * yield* db.select({
  *   productId: regularCustomerOrders.productId,
  *   quantityOrdered: regularCustomerOrders.quantityOrdered,
  * })

@@ -1,13 +1,8 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import type { GetColumnData } from '~/column.ts';
+import { EffectWrapper } from '~/effect-core/effectable.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type {
-	PgQueryResultHKT,
-	PgQueryResultKind,
-	PreparedQueryConfig,
-	PromiseLikePgSession,
-} from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -20,34 +15,35 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, type InferInsertModel, Table } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
-import { extractUsedTable } from '../utils.ts';
-import type { PgViewBase } from '../view-base.ts';
 import type {
 	PgSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
 	TableLikeHasEmptySelection,
-} from './select.types.ts';
+} from '../query-builders/select.types.ts';
+import type { Join, PgUpdateSetSource } from '../query-builders/update.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '../session.ts';
+import { extractUsedTable } from '../utils.ts';
+import type { PgViewBase } from '../view-base.ts';
+import type { EffectPgCorePreparedQuery } from './prepared-query.ts';
+import type { EffectPgCoreSession } from './session.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -60,19 +56,6 @@ export interface PgUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type PgUpdateSetSource<
-	TTable extends PgTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> =
-	& {
-		[Key in keyof TModel & string]?:
-			| GetColumnData<TTable['_']['columns'][Key]>
-			| SQL
-			| PgColumn
-			| undefined;
-	}
-	& {};
-
 export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
 
@@ -82,36 +65,34 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 
 	constructor(
 		private table: TTable,
-		private session: PromiseLikePgSession,
+		private session: EffectPgCoreSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 	) {}
 
-	private authToken?: NeonAuthToken;
-	setToken(token: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	set(
 		values: PgUpdateSetSource<TTable>,
-	): PgUpdateWithout<PgUpdateBase<TTable, TQueryResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
-		return new PgUpdateBase<TTable, TQueryResult>(
+	): EffectPgUpdateWithout<
+		EffectPgUpdateBase<TTable, TQueryResult>,
+		false,
+		'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'
+	> {
+		return new EffectPgUpdateBase<TTable, TQueryResult>(
 			this.table,
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
 			this.withList,
-		).setToken(this.authToken);
+		);
 	}
 }
 
-export type PgUpdateWithout<
-	T extends AnyPgUpdate,
+export type EffectPgUpdateWithout<
+	T extends AnyEffectPgUpdate,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T : Omit<
-	PgUpdateBase<
+	EffectPgUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
@@ -125,12 +106,12 @@ export type PgUpdateWithout<
 	T['_']['excludedMethods'] | K
 >;
 
-export type PgUpdateWithJoins<
-	T extends AnyPgUpdate,
+export type EffectPgUpdateWithJoins<
+	T extends AnyEffectPgUpdate,
 	TDynamic extends boolean,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL,
 > = TDynamic extends true ? T : Omit<
-	PgUpdateBase<
+	EffectPgUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		TFrom,
@@ -148,8 +129,8 @@ export type PgUpdateWithJoins<
 	Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
 >;
 
-export type PgUpdateJoinFn<
-	T extends AnyPgUpdate,
+export type EffectPgUpdateJoinFn<
+	T extends AnyEffectPgUpdate,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
@@ -170,14 +151,14 @@ export type PgUpdateJoinFn<
 		)
 		| SQL
 		| undefined,
-) => PgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>;
+) => EffectPgUpdateJoin<T, TDynamic, TJoinType, TJoinedTable>;
 
-export type PgUpdateJoin<
-	T extends AnyPgUpdate,
+export type EffectPgUpdateJoin<
+	T extends AnyEffectPgUpdate,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
-> = TDynamic extends true ? T : PgUpdateBase<
+> = TDynamic extends true ? T : EffectPgUpdateBase<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['from'],
@@ -192,15 +173,8 @@ export type PgUpdateJoin<
 	TDynamic,
 	T['_']['excludedMethods']
 >;
-
-export type Join = {
-	name: string | undefined;
-	joinType: JoinType;
-	table: PgTable | Subquery | PgViewBase | SQL;
-};
-
 type AccumulateToResult<
-	T extends AnyPgUpdate,
+	T extends AnyEffectPgUpdate,
 	TSelectMode extends SelectMode,
 	TJoins extends Join[],
 	TSelectedFields extends ColumnsSelection,
@@ -220,8 +194,8 @@ type AccumulateToResult<
 	>
 	: TSelectedFields;
 
-export type PgUpdateReturningAll<T extends AnyPgUpdate, TDynamic extends boolean> = PgUpdateWithout<
-	PgUpdateBase<
+export type EffectPgUpdateReturningAll<T extends AnyEffectPgUpdate, TDynamic extends boolean> = EffectPgUpdateWithout<
+	EffectPgUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
@@ -251,12 +225,12 @@ export type PgUpdateReturningAll<T extends AnyPgUpdate, TDynamic extends boolean
 	'returning'
 >;
 
-export type PgUpdateReturning<
-	T extends AnyPgUpdate,
+export type EffectPgUpdateReturning<
+	T extends AnyEffectPgUpdate,
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFields,
-> = PgUpdateWithout<
-	PgUpdateBase<
+> = EffectPgUpdateWithout<
+	EffectPgUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
@@ -280,14 +254,14 @@ export type PgUpdateReturning<
 	'returning'
 >;
 
-export type PgUpdatePrepare<T extends AnyPgUpdate> = PromiseLikePgPreparedQuery<
+export type EffectPgUpdatePrepare<T extends AnyEffectPgUpdate> = EffectPgCorePreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
 	}
 >;
 
-export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdate<
+export type EffectPgUpdateDynamic<T extends AnyEffectPgUpdate> = EffectPgUpdate<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['from'],
@@ -295,7 +269,7 @@ export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdate<
 	T['_']['nullabilityMap']
 >;
 
-export type PgUpdate<
+export type EffectPgUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
@@ -303,11 +277,11 @@ export type PgUpdate<
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
 	TJoins extends Join[] = [],
-> = PgUpdateBase<TTable, TQueryResult, TFrom, TSelectedFields, TReturning, TNullabilityMap, TJoins, true, never>;
+> = EffectPgUpdateBase<TTable, TQueryResult, TFrom, TSelectedFields, TReturning, TNullabilityMap, TJoins, true, never>;
 
-export type AnyPgUpdate = PgUpdateBase<any, any, any, any, any, any, any, any, any>;
+export type AnyEffectPgUpdate = EffectPgUpdateBase<any, any, any, any, any, any, any, any, any>;
 
-export interface PgUpdateBase<
+export interface EffectPgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
@@ -322,7 +296,10 @@ export interface PgUpdateBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
+	EffectWrapper<
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+		DrizzleQueryError
+	>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
@@ -341,7 +318,7 @@ export interface PgUpdateBase<
 	};
 }
 
-export class PgUpdateBase<
+export class EffectPgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
@@ -356,12 +333,14 @@ export class PgUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
-	implements
-		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-		SQLWrapper
+> extends EffectWrapper<
+	TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+	DrizzleQueryError
+> implements
+	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgUpdate';
+	static override readonly [entityKind]: string = 'EffectPgUpdate';
 
 	private config: PgUpdateConfig;
 	private tableName: string | undefined;
@@ -371,7 +350,7 @@ export class PgUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: PromiseLikePgSession,
+		private session: EffectPgCoreSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {
@@ -386,7 +365,7 @@ export class PgUpdateBase<
 				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
 			>
 			: TFrom,
-	): PgUpdateWithJoins<this, TDynamic, TFrom> {
+	): EffectPgUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
 		const tableName = getTableLikeName(src);
 		if (typeof tableName === 'string') {
@@ -407,7 +386,7 @@ export class PgUpdateBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): PgUpdateJoinFn<this, TDynamic, TJoinType> {
+	): EffectPgUpdateJoinFn<this, TDynamic, TJoinType> {
 		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((updateTable: TTable, from: TFrom) => SQL | undefined) | SQL | undefined,
@@ -489,10 +468,10 @@ export class PgUpdateBase<
 	 *
 	 * ```ts
 	 * // Update all cars with green color
-	 * await db.update(cars).set({ color: 'red' })
+	 * yield* db.update(cars).set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'));
 	 * // or
-	 * await db.update(cars).set({ color: 'red' })
+	 * yield* db.update(cars).set({ color: 'red' })
 	 *   .where(sql`${cars.color} = 'green'`)
 	 * ```
 	 *
@@ -500,15 +479,15 @@ export class PgUpdateBase<
 	 *
 	 * ```ts
 	 * // Update all BMW cars with a green color
-	 * await db.update(cars).set({ color: 'red' })
+	 * yield* db.update(cars).set({ color: 'red' })
 	 *   .where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
 	 *
 	 * // Update all cars with the green or blue color
-	 * await db.update(cars).set({ color: 'red' })
+	 * yield* db.update(cars).set({ color: 'red' })
 	 *   .where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
 	 */
-	where(where: SQL | undefined): PgUpdateWithout<this, TDynamic, 'where'> {
+	where(where: SQL | undefined): EffectPgUpdateWithout<this, TDynamic, 'where'> {
 		this.config.where = where;
 		return this as any;
 	}
@@ -523,25 +502,25 @@ export class PgUpdateBase<
 	 * @example
 	 * ```ts
 	 * // Update all cars with the green color and return all fields
-	 * const updatedCars: Car[] = await db.update(cars)
+	 * const updatedCars: Car[] = yield* db.update(cars)
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning();
 	 *
 	 * // Update all cars with the green color and return only their id and brand fields
-	 * const updatedCarsIdsAndBrands: { id: number, brand: string }[] = await db.update(cars)
+	 * const updatedCarsIdsAndBrands: { id: number, brand: string }[] = yield* db.update(cars)
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning({ id: cars.id, brand: cars.brand });
 	 * ```
 	 */
-	returning(): PgUpdateReturningAll<this, TDynamic>;
+	returning(): EffectPgUpdateReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
-	): PgUpdateReturning<this, TDynamic, TSelectedFields>;
+	): EffectPgUpdateReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields?: SelectedFields,
-	): PgUpdateWithout<AnyPgUpdate, TDynamic, 'returning'> {
+	): EffectPgUpdateWithout<AnyEffectPgUpdate, TDynamic, 'returning'> {
 		if (!fields) {
 			fields = Object.assign({}, this.config.table[Table.Symbol.Columns]);
 
@@ -580,7 +559,7 @@ export class PgUpdateBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgUpdatePrepare<this> {
+	_prepare(name?: string): EffectPgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
@@ -591,19 +570,12 @@ export class PgUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): PgUpdatePrepare<this> {
+	prepare(name: string): EffectPgUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues, this.authToken);
+		return this._prepare().execute(placeholderValues);
 	};
 
 	/** @internal */
@@ -622,7 +594,7 @@ export class PgUpdateBase<
 		) as this['_']['selectedFields'];
 	}
 
-	$dynamic(): PgUpdateDynamic<this> {
+	$dynamic(): EffectPgUpdateDynamic<this> {
 		return this as any;
 	}
 }
