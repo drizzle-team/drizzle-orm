@@ -10,7 +10,7 @@ import type { EffectPgCorePreparedQuery } from './prepared-query.ts';
 import type { EffectPgCoreSession } from './session.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
+export interface EffectPgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	extends
 		EffectWrapper<PgQueryResultKind<TQueryResult, never>, DrizzleQueryError>,
 		RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>,
@@ -22,7 +22,7 @@ export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT
 	};
 }
 
-export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
+export class EffectPgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	extends EffectWrapper<PgQueryResultKind<TQueryResult, never>, DrizzleQueryError>
 	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
