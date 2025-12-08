@@ -1,5 +1,6 @@
 import { EffectWrapper } from '~/effect-core/effectable.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
@@ -11,7 +12,7 @@ import type { EffectPgCoreSession } from './session.ts';
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	extends
-		EffectWrapper<PgQueryResultKind<TQueryResult, never>>,
+		EffectWrapper<PgQueryResultKind<TQueryResult, never>, DrizzleQueryError>,
 		RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>,
 		SQLWrapper
 {
@@ -22,7 +23,7 @@ export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT
 }
 
 export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
-	extends EffectWrapper<PgQueryResultKind<TQueryResult, never>>
+	extends EffectWrapper<PgQueryResultKind<TQueryResult, never>, DrizzleQueryError>
 	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
 	static override readonly [entityKind]: string = 'PgRefreshMaterializedView';
