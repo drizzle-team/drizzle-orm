@@ -126,8 +126,8 @@ export class BunRedisCache extends Cache {
 		isAutoInvalidate?: boolean,
 	): Promise<any[] | undefined> {
 		if (!isAutoInvalidate) {
-			const result = await this.redis.hmget(BunRedisCache.nonAutoInvalidateTablePrefix, [key]);
-			return result === null ? undefined : (result as any[]);
+			const result = await this.redis.hget(BunRedisCache.nonAutoInvalidateTablePrefix, key);
+			return result === null ? undefined : JSON.parse(result);
 		}
 
 		if (isTag) {
@@ -137,12 +137,12 @@ export class BunRedisCache extends Cache {
 				BunRedisCache.tagsMapKey,
 				key,
 			]);
-			return result === null ? undefined : (result as any[]);
+			return result === null ? undefined : JSON.parse(result as string);
 		}
 
 		const compositeKey = this.getCompositeKey(tables);
-		const result = await this.redis.hmget(compositeKey, [key]);
-		return result === null ? undefined : (result as any[]);
+		const result = await this.redis.hget(compositeKey, key);
+		return result === null ? undefined : JSON.parse(result);
 	}
 
 	override async put(
@@ -154,28 +154,30 @@ export class BunRedisCache extends Cache {
 	): Promise<void> {
 		const isAutoInvalidate = tables.length !== 0;
 		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
+		const serializedResponse = JSON.stringify(response);
 
 		if (!isAutoInvalidate) {
 			if (isTag) {
-				await this.redis.hmset(BunRedisCache.tagsMapKey, [
+				await this.redis.hset(
+					BunRedisCache.tagsMapKey,
 					key,
 					BunRedisCache.nonAutoInvalidateTablePrefix,
-				]);
+				);
 				await this.redis.expire(BunRedisCache.tagsMapKey, ttlSeconds);
 			}
 
-			await this.redis.hmset(BunRedisCache.nonAutoInvalidateTablePrefix, [key, response]);
+			await this.redis.hset(BunRedisCache.nonAutoInvalidateTablePrefix, key, serializedResponse);
 			await this.redis.expire(BunRedisCache.nonAutoInvalidateTablePrefix, ttlSeconds);
 			return;
 		}
 
 		const compositeKey = this.getCompositeKey(tables);
 
-		await this.redis.hmset(compositeKey, [key, response]);
+		await this.redis.hset(compositeKey, key, serializedResponse);
 		await this.redis.expire(compositeKey, ttlSeconds);
 
 		if (isTag) {
-			await this.redis.hmset(BunRedisCache.tagsMapKey, [key, compositeKey]);
+			await this.redis.hset(BunRedisCache.tagsMapKey, key, compositeKey);
 			await this.redis.expire(BunRedisCache.tagsMapKey, ttlSeconds);
 		}
 
@@ -186,7 +188,7 @@ export class BunRedisCache extends Cache {
 	}
 
 	override async onMutate(params: MutationOption) {
-		const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
+		const tags: string[] = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
 		const tables = Array.isArray(params.tables)
 			? params.tables
 			: params.tables
