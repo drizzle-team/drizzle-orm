@@ -887,7 +887,7 @@ test('basic policy with "using" and "with"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies', async () => {
+test('multiple policies #1', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -898,6 +898,30 @@ test('multiple policies', async () => {
 		db,
 		schema,
 		'multiple-policies',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4407
+test('multiple policies #2', async () => {
+	const users = pgTable('users', {
+		id: integer(),
+	}, (table) => [
+		pgPolicy('insert_policy_for_users', { for: 'insert', withCheck: sql`true` }),
+		pgPolicy('update_policy_for_users', { for: 'update', using: sql`true`, withCheck: sql`true` }),
+	]);
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'multiple-policies-2',
 	);
 
 	expect(statements.length).toBe(0);
