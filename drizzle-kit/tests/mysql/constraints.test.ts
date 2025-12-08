@@ -532,6 +532,49 @@ test('index with sort', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3255
+test('index #1', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: int(),
+		col2: int(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema1 = { table1, index1, index2, index3, index4, index5, index6 };
+
+	throw new Error(`it's needed to fix ts error below`);
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n'
+		+ '\t`col1` int,\n'
+		+ '\t`col2` int,\n'
+		+ '\tCONSTRAINT `index1` UNIQUE INDEX(`col1`),\n'
+		+ '\tCONSTRAINT `index2` UNIQUE INDEX(`col1`,`col2`)\n'
+		+ ');\n',
+		'CREATE INDEX `index3` ON `table1` (`col1`);',
+		'CREATE INDEX `index4` ON `table1` (`col1`,`col2`);',
+		'CREATE INDEX `index5` ON `table1` (`col1` asc);',
+		'CREATE INDEX `index6` ON `table1` (`col1` asc,`col2` desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4221
 test('fk on char column', async () => {
 	function column1() {

@@ -2101,6 +2101,7 @@ export function tests(test: Test) {
 				{ id: sessionId, userId: 1, name: 'some session' },
 			]);
 
+			throw new Error(`it's needed to fix ts error below`);
 			const query = db.delete(sessions).where(
 				and(
 					eq(sessions.id, sessionId),

@@ -374,6 +374,7 @@ test('introspect all column types', async () => {
 			doublePrecision: doublePrecision('doublePrecision').default(100),
 			real: real('real').default(100),
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
+			json1: json('json1').default(sql`jsonb_build_object()`),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			jsonb2: jsonb('jsonb2').default({}),
