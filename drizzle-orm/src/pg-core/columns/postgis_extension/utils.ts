@@ -2,7 +2,7 @@ function isHexString(str: string): boolean {
   if (!str || str.length === 0) {
     return false;
   }
-  return /^(0x)?[0-9a-fA-F]+(h)?$/i.test(str);
+  return /^(0x)?[\da-f]+(h)?$/i.test(str);
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -43,7 +43,7 @@ export function parseEWKB(hex: string): [number, number] {
       offset += 4;
     }
 
-    if ((geomType & 0xffff) === 1) {
+    if ((geomType & 0xFFFF) === 1) {
       const x = bytesToFloat64(bytes, offset);
       offset += 8;
       const y = bytesToFloat64(bytes, offset);
@@ -67,11 +67,9 @@ export function parseEWKB(hex: string): [number, number] {
     }
   }
 
-  if (typeof hex === "object") {
-    if ((hex as any).coordinates) {
+  if (typeof hex === "object" && (hex as any).coordinates) {
       return (hex as any).coordinates;
     }
-  }
 
   throw new Error("Invalid GeoJSON format");
 }
