@@ -622,8 +622,8 @@ test('index #7', async () => {
 
 	const expectedSt1 = [
 		'CREATE TABLE "table1" (\n'
-		+ '\t"col1" int,\n'
-		+ '\t"col2" int\n'
+		+ '\t"col1" integer,\n'
+		+ '\t"col2" integer\n'
 		+ ');\n',
 		'CREATE UNIQUE INDEX "index1" ON "table1" ("col1");',
 		'CREATE UNIQUE INDEX "index2" ON "table1" ("col1","col2");',
