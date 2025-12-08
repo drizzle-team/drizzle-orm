@@ -1,5 +1,4 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type { EffectCache } from '~/cache/core/cache-effect';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -88,8 +87,13 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		}));
 	}
 
-	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], SqlError, never> {
-		return {} as any;
+	override all(placeholderValues: Record<string, unknown> = {}): Effect.Effect<T['all'], DrizzleQueryError, never> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+		this.logger.logQuery(this.queryString, params);
+
+		return this.client.unsafe(this.queryString, params as any).withoutTransform.pipe(Effect.catchAll((e) => {
+			return Effect.fail(new DrizzleQueryError(this.queryString, params, e));
+		}));
 	}
 
 	/** @internal */

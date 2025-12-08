@@ -12,7 +12,7 @@ export interface EffectPgRaw<TResult>
 export class EffectPgRaw<TResult> extends EffectWrapper<TResult, DrizzleQueryError>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
 {
-	static override readonly [entityKind]: string = 'PgRaw';
+	static override readonly [entityKind]: string = 'EffectPgRaw';
 
 	declare readonly _: {
 		readonly dialect: 'pg';

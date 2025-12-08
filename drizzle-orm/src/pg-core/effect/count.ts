@@ -10,18 +10,18 @@ import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 
-export interface PgEffectCountBuilder<
+export interface EffectPgCountBuilder<
 	// oxlint-disable-next-line no-unused-vars
 	TSession extends EffectPgSession<any, any, any>,
 > extends EffectWrapper<number, DrizzleQueryError, PgClient> {
 }
 
-export class PgEffectCountBuilder<
+export class EffectPgCountBuilder<
 	TSession extends EffectPgSession<any, any, any>,
 > extends SQL<number> implements SQLWrapper<number>, EffectWrapper<number, DrizzleQueryError, PgClient> {
 	private sql: SQL<number>;
-	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
-	[Symbol.toStringTag] = 'PgEffectCountBuilder';
+	static override readonly [entityKind]: string = 'EffectPgCountBuilder';
+	[Symbol.toStringTag] = 'EffectPgCountBuilder';
 
 	private session: TSession;
 	private dialect: PgDialect;
@@ -49,14 +49,14 @@ export class PgEffectCountBuilder<
 			dialect: PgDialect;
 		},
 	) {
-		super(PgEffectCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(EffectPgCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.mapWith(Number);
 
 		this.session = params.session;
 		this.dialect = params.dialect;
 
-		this.sql = PgEffectCountBuilder.buildCount(
+		this.sql = EffectPgCountBuilder.buildCount(
 			params.source,
 			params.filters,
 		);
@@ -78,4 +78,4 @@ export class PgEffectCountBuilder<
 	}
 }
 
-applyEffectWrapper(PgEffectCountBuilder);
+applyEffectWrapper(EffectPgCountBuilder);

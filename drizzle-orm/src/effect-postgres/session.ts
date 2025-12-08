@@ -16,7 +16,6 @@ export interface NodePgQueryResultHKT extends PgQueryResultHKT {
 	type: (readonly unknown[])[];
 }
 
-// TODO:
 export class EffectPgSession<
 	_TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,

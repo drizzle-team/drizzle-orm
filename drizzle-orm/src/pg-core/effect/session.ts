@@ -14,7 +14,7 @@ export abstract class EffectPgCoreSession<
 	_TRelations extends AnyRelations = EmptyRelations,
 	_TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
-	static readonly [entityKind]: string = 'PgSession';
+	static readonly [entityKind]: string = 'EffectPgCoreSession';
 
 	constructor(protected dialect: PgDialect) {}
 

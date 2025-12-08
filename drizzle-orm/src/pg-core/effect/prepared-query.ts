@@ -38,7 +38,7 @@ export abstract class EffectPgCorePreparedQuery<T extends PreparedQueryConfig> i
 		return response;
 	}
 
-	static readonly [entityKind]: string = 'PgPreparedQuery';
+	static readonly [entityKind]: string = 'EffectPgCorePreparedQuery';
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
@@ -118,7 +118,7 @@ export abstract class EffectPgCorePreparedQuery<T extends PreparedQueryConfig> i
 	abstract execute(placeholderValues?: Record<string, unknown>): Effect.Effect<T['execute'], DrizzleQueryError>;
 
 	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], SqlError>;
+	abstract all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], DrizzleQueryError>;
 
 	/** @internal */
 	abstract isResponseInArrayMode(): boolean;

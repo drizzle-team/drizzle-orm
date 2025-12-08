@@ -143,7 +143,7 @@ export class EffectPgDeleteBase<
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgDelete';
+	static override readonly [entityKind]: string = 'EffectPgDelete';
 
 	private config: PgDeleteConfig;
 	protected cacheConfig?: WithCacheConfig;

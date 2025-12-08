@@ -64,7 +64,7 @@ export class EffectPgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
-	static readonly [entityKind]: string = 'PgSelectBuilder';
+	static readonly [entityKind]: string = 'EffectPgSelectBuilder';
 
 	private fields: TSelection;
 	private session: EffectPgCoreSession<any, any, any> | undefined;
@@ -156,7 +156,7 @@ export abstract class EffectPgSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static override readonly [entityKind]: string = 'PgSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'EffectPgSelectQueryBuilder';
 
 	override readonly _: {
 		readonly dialect: 'pg';
@@ -1066,7 +1066,7 @@ export class EffectPgSelectBase<
 	TResult,
 	TSelectedFields
 > implements RunnableQuery<TResult, 'pg'>, SQLWrapper {
-	static override readonly [entityKind]: string = 'PgSelect';
+	static override readonly [entityKind]: string = 'EffectPgSelect';
 
 	/** @internal */
 	_prepare(name?: string): EffectPgSelectPrepare<this> {

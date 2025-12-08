@@ -22,7 +22,7 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class PgBasePreparedQuery implements PreparedQuery {
-	static readonly [entityKind]: string = 'PgPreparedQuery';
+	static readonly [entityKind]: string = 'PgBasePreparedQuery';
 
 	constructor(protected query: Query) {}
 
@@ -42,7 +42,7 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 }
 
 export abstract class PgPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
-	static override readonly [entityKind]: string = 'PromiseLikePgPreparedQuery';
+	static override readonly [entityKind]: string = 'PgPreparedQuery';
 
 	constructor(
 		query: Query,

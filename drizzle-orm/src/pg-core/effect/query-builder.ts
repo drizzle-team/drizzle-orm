@@ -11,7 +11,7 @@ import { EffectPgSelectBuilder } from './select.ts';
 import type { WithBuilder } from './subquery.ts';
 
 export class EffectQueryBuilder {
-	static readonly [entityKind]: string = 'PgQueryBuilder';
+	static readonly [entityKind]: string = 'EffectPgQueryBuilder';
 
 	private dialect: PgDialect | undefined;
 	private dialectConfig: PgDialectConfig | undefined;

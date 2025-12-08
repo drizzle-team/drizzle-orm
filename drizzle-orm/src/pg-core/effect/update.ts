@@ -57,7 +57,7 @@ export interface PgUpdateConfig {
 }
 
 export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
-	static readonly [entityKind]: string = 'PgUpdateBuilder';
+	static readonly [entityKind]: string = 'EffectPgUpdateBuilder';
 
 	declare readonly _: {
 		readonly table: TTable;

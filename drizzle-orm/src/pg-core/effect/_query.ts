@@ -16,7 +16,7 @@ export class _EffectRelationalQueryBuilder<
 	TSchema extends V1.TablesRelationalConfig,
 	TFields extends V1.TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'PgRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'EffectPgRelationalQueryBuilder';
 
 	constructor(
 		private fullSchema: Record<string, unknown>,
@@ -64,7 +64,7 @@ export class _EffectRelationalQueryBuilder<
 export class _EffectPgRelationalQuery<TResult> extends EffectWrapper<TResult, DrizzleQueryError>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgRelationalQuery';
+	static override readonly [entityKind]: string = 'EffectPgRelationalQuery';
 
 	declare readonly _: {
 		readonly dialect: 'pg';

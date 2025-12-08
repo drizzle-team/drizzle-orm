@@ -26,7 +26,7 @@ export class EffectPgRefreshMaterializedView<TQueryResult extends PgQueryResultH
 	extends EffectWrapper<PgQueryResultKind<TQueryResult, never>, DrizzleQueryError>
 	implements RunnableQuery<PgQueryResultKind<TQueryResult, never>, 'pg'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgRefreshMaterializedView';
+	static override readonly [entityKind]: string = 'EffectPgRefreshMaterializedView';
 
 	private config: {
 		view: PgMaterializedView;

@@ -30,7 +30,7 @@ export class EffectPgInsertBuilder<
 	TQueryResult extends PgQueryResultHKT,
 	OverrideT extends boolean = false,
 > {
-	static readonly [entityKind]: string = 'PgInsertBuilder';
+	static readonly [entityKind]: string = 'EffectPgInsertBuilder';
 
 	constructor(
 		private table: TTable,
@@ -219,7 +219,7 @@ export class EffectPgInsertBase<
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgInsert';
+	static override readonly [entityKind]: string = 'EffectPgInsert';
 
 	private config: PgInsertConfig<TTable>;
 	protected cacheConfig?: WithCacheConfig;
