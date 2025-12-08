@@ -1,12 +1,12 @@
 import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
-import type { EffectCache } from '~/cache/core/cache-effect';
+import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/index.ts';
-import type { PreparedQueryConfig } from '../session';
+import type { PreparedQueryConfig } from '../session.ts';
 
 export abstract class EffectPgCorePreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
 	constructor(

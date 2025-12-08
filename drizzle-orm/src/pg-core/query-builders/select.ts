@@ -2,7 +2,7 @@ import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PreparedQueryConfig, PromiseLikePgSession } from '~/pg-core/session.ts';
+import type { PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
@@ -66,7 +66,7 @@ export class PgSelectBuilder<
 	static readonly [entityKind]: string = 'PgSelectBuilder';
 
 	private fields: TSelection;
-	private session: PromiseLikePgSession | undefined;
+	private session: PgSession | undefined;
 	private dialect: PgDialect;
 	private withList: Subquery[] = [];
 	private distinct: boolean | {
@@ -76,7 +76,7 @@ export class PgSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: PromiseLikePgSession | undefined;
+			session: PgSession | undefined;
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
@@ -182,7 +182,7 @@ export abstract class PgSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	protected tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: PromiseLikePgSession | undefined;
+	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -192,7 +192,7 @@ export abstract class PgSelectQueryBuilderBase<
 			table: PgSelectConfig['table'];
 			fields: PgSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: PromiseLikePgSession | undefined;
+			session: PgSession | undefined;
 			dialect: PgDialect;
 			withList: Subquery[];
 			distinct: boolean | {

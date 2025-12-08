@@ -9,7 +9,7 @@ import type {
 	PgTransactionConfig,
 	PreparedQueryConfig,
 } from '~/pg-core/index.ts';
-import { PgPreparedQuery, PromiseLikePgSession } from '~/pg-core/index.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
@@ -44,7 +44,7 @@ export interface PrismaPgSessionOptions {
 	logger?: Logger;
 }
 
-export class PrismaPgSession extends PromiseLikePgSession {
+export class PrismaPgSession extends PgSession {
 	static override readonly [entityKind]: string = 'PrismaPgSession';
 
 	private readonly logger: Logger;

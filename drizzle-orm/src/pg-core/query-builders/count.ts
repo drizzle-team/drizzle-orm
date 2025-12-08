@@ -1,12 +1,12 @@
 import { entityKind } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
-import type { PromiseLikePgSession } from '../session.ts';
+import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 
 export class PgCountBuilder<
-	TSession extends PromiseLikePgSession<any, any, any>,
+	TSession extends PgSession<any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper<number> {
 	private sql: SQL<number>;
 	private token?: NeonAuthToken;

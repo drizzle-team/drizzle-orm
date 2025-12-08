@@ -17,7 +17,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PromiseLikePgSession } from '~/pg-core/session.ts';
+import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -209,7 +209,7 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PromiseLikePgSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;

@@ -1,6 +1,6 @@
 import { EffectWrapper } from '~/effect-core/effectable';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';

@@ -7,11 +7,11 @@ import type {
 	JoinType,
 	SelectMode,
 	SelectResult,
-} from '~/query-builders/select.types';
+} from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
-import type { Assume, DrizzleTypeError } from '~/utils';
+import type { Assume, DrizzleTypeError } from '~/utils.ts';
 import type { PgSelectHKTBase, SelectedFields, TableLikeHasEmptySelection } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';

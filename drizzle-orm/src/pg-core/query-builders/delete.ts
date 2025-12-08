@@ -1,12 +1,7 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type {
-	PgQueryResultHKT,
-	PgQueryResultKind,
-	PreparedQueryConfig,
-	PromiseLikePgSession,
-} from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -19,7 +14,7 @@ import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { PromiseLikePgPreparedQuery } from '../promiselike/prepared-query.ts';
+import type { PgPreparedQuery } from '../session.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -88,7 +83,7 @@ export type PgDeleteReturning<
 	'returning'
 >;
 
-export type PgDeletePrepare<T extends AnyPgDeleteBase> = PromiseLikePgPreparedQuery<
+export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
@@ -156,7 +151,7 @@ export class PgDeleteBase<
 
 	constructor(
 		table: TTable,
-		private session: PromiseLikePgSession,
+		private session: PgSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {

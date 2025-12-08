@@ -12,10 +12,10 @@ import {
 import type {
 	PgQueryResultHKT,
 	PgQueryResultKind,
+	PgSession,
 	PgTransaction,
 	PgTransactionConfig,
 	PreparedQueryConfig,
-	PromiseLikePgSession,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -48,7 +48,7 @@ export class PgDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PromiseLikePgSession<TQueryResult, TFullSchema, TRelations, TSchema>;
+		readonly session: PgSession<TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
 	/** @deprecated */
@@ -70,7 +70,7 @@ export class PgDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PromiseLikePgSession<any, any, any, any>,
+		readonly session: PgSession<any, any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
