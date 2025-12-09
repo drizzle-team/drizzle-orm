@@ -276,11 +276,15 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				if (chunk._.isWith) {
 					return { sql: escapeName(chunk._.alias), params: [] };
 				}
+				const columnList = chunk._.columnList
+					? sql` (${sql.join(chunk._.columnList.map(sql.identifier), new StringChunk(','))})`
+					: undefined;
 				return this.buildQueryFromSourceParams([
 					new StringChunk('('),
 					chunk._.sql,
 					new StringChunk(') '),
 					new Name(chunk._.alias),
+					columnList,
 				], config);
 			}
 
