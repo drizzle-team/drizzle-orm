@@ -1150,7 +1150,7 @@ export const connectToMySQL = async (
 			)!;
 			// const firstRowTime = Number(timeMatch[1]);
 			const lastRowTime = Number(timeMatch[2]);
-			const executionTime = lastRowTime;
+			let executionTime = lastRowTime;
 
 			let querySentAt: bigint = 0n;
 			let firstDataAt: bigint = 0n;
@@ -1208,7 +1208,19 @@ export const connectToMySQL = async (
 			});
 			queryCompletedAt = process.hrtime.bigint();
 
-			const querySentTime = ms(querySentAt, firstDataAt) - executionTime;
+			let querySentTime = ms(querySentAt, firstDataAt) - executionTime;
+			if (querySentTime < 0) {
+				// Adjust planning and execution times proportionally to accommodate negative query sent time (10% for network)
+				const percent = 0.10;
+				const overflow = -querySentTime;
+				const keepForSent = overflow * percent;
+				const adjustedOverflow = overflow * (1 + percent);
+				const total = executionTime;
+				const ratioExecution = executionTime / total;
+				executionTime -= adjustedOverflow * ratioExecution;
+				querySentTime = keepForSent;
+			}
+
 			const networkLatencyBefore = querySentTime / 2;
 			const networkLatencyAfter = querySentTime / 2;
 			// Minus parse time divided by row count to remove last row parse time overlap
