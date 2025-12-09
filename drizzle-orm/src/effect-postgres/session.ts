@@ -12,11 +12,10 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { EffectPgPreparedQuery } from './prepared-query';
 
-export interface NodePgQueryResultHKT extends PgQueryResultHKT {
+export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 	type: (readonly unknown[])[];
 }
 
-// TODO:
 export class EffectPgSession<
 	_TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,

@@ -1,10 +1,9 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type { EffectCache } from '~/cache/core/cache-effect';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { EffectPgCorePreparedQuery } from '~/pg-core/effect/prepared-query';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
@@ -47,26 +46,30 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		logger.logQuery(query.sql, params);
 
 		if (!fields && !customResultMapper) {
-			return this.client.unsafe(query.sql, params as any).withoutTransform.pipe(Effect.catchAll((e) => {
-				return Effect.fail(new DrizzleQueryError(query.sql, params, e));
-			}));
+			return this.queryWithCache(
+				query.sql,
+				params,
+				this.client.unsafe(query.sql, params as any).withoutTransform,
+			);
 		}
 
-		return client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
-			(rows) => {
-				if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
+		return this.queryWithCache(
+			query.sql,
+			params,
+			client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
+				(rows) => {
+					if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 
-				return rows.map((row) =>
-					mapResultRow(
-						fields!,
-						row as unknown[],
-						joinsNotNullableMap,
-					)
-				);
-			},
-		)).pipe(Effect.catchAll((e) => {
-			return Effect.fail(new DrizzleQueryError(query.sql, params, e));
-		}));
+					return rows.map((row) =>
+						mapResultRow(
+							fields!,
+							row as unknown[],
+							joinsNotNullableMap,
+						)
+					);
+				},
+			)),
+		);
 	}
 
 	private executeRqbV2(
@@ -76,20 +79,31 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
 		logger.logQuery(query.sql, params);
-		return client.unsafe(query.sql, params as any).withoutTransform.pipe(
-			Effect.andThen((v) =>
-				(customResultMapper as (
-					rows: Record<string, unknown>[],
-					mapColumnValue?: (value: unknown) => unknown,
-				) => unknown)(v as Record<string, unknown>[])
+		return this.queryWithCache(
+			query.sql,
+			params,
+			client.unsafe(query.sql, params as any).withoutTransform.pipe(
+				Effect.andThen((v) =>
+					(customResultMapper as (
+						rows: Record<string, unknown>[],
+						mapColumnValue?: (value: unknown) => unknown,
+					) => unknown)(v as Record<string, unknown>[])
+				),
 			),
-		).pipe(Effect.catchAll((e) => {
-			return Effect.fail(new DrizzleQueryError(query.sql, params, e));
-		}));
+		);
 	}
 
-	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], SqlError, never> {
-		return {} as any;
+	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], DrizzleQueryError, never> {
+		const { query, logger, client } = this;
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+
+		logger.logQuery(query.sql, params);
+
+		return this.queryWithCache(
+			query.sql,
+			params,
+			client.unsafe(query.sql, params as any).withoutTransform,
+		);
 	}
 
 	/** @internal */
