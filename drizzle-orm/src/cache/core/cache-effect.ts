@@ -8,6 +8,8 @@ export class EffectCache {
 
 	constructor(private readonly wrapped: Wrapped) {}
 
+	strategy = () => this.wrapped.strategy();
+
 	get(
 		key: string,
 		tables: string[],
@@ -15,10 +17,7 @@ export class EffectCache {
 		isAutoInvalidate?: boolean,
 	): Effect.Effect<any[] | undefined, unknown, never> {
 		const promise = this.wrapped.get(key, tables, isTag, isAutoInvalidate);
-		return Effect.tryPromise({
-			try: () => promise,
-			catch: (e) => e,
-		});
+		return Effect.tryPromise(() => promise);
 	}
 
 	put(
@@ -30,19 +29,13 @@ export class EffectCache {
 	): Effect.Effect<void, unknown, never> {
 		const promise = this.wrapped.put(hashedQuery, response, tables, isTag, config);
 
-		return Effect.tryPromise({
-			try: () => promise,
-			catch: (e) => e,
-		});
+		return Effect.tryPromise(() => promise);
 	}
 
 	onMutate(params: MutationOption): Effect.Effect<void, unknown, never> {
 		const promise = this.wrapped.onMutate(params);
 
-		return Effect.tryPromise({
-			try: () => promise,
-			catch: (e) => e,
-		});
+		return Effect.tryPromise(() => promise);
 	}
 }
 

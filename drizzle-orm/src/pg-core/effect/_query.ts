@@ -1,6 +1,6 @@
 import type { Effect } from 'effect/Effect';
 import * as V1 from '~/_relations.ts';
-import { EffectWrapper } from '~/effect-core/effectable.ts';
+import { QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -61,7 +61,7 @@ export class _EffectRelationalQueryBuilder<
 	}
 }
 
-export class _EffectPgRelationalQuery<TResult> extends EffectWrapper<TResult, DrizzleQueryError>
+export class _EffectPgRelationalQuery<TResult> extends QueryEffect<TResult, DrizzleQueryError>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
 	static override readonly [entityKind]: string = 'EffectPgRelationalQuery';

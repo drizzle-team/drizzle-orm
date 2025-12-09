@@ -1,5 +1,5 @@
 import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
-import { applyEffectWrapper, type EffectWrapper } from '~/effect-core/effectable.ts';
+import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
@@ -1041,7 +1041,7 @@ export interface EffectPgSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	EffectWrapper<TResult, DrizzleQueryError>,
+	QueryEffect<TResult, DrizzleQueryError>,
 	SQLWrapper
 {}
 

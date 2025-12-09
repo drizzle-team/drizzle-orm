@@ -12,7 +12,7 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { EffectPgPreparedQuery } from './prepared-query';
 
-export interface NodePgQueryResultHKT extends PgQueryResultHKT {
+export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 	type: (readonly unknown[])[];
 }
 

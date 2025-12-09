@@ -231,7 +231,7 @@ export const Blob: SqlType = {
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
 			const parsed = Buffer.from(value.slice(2, value.length - 1), 'hex').toString('utf-8');
-			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
+			const escaped = parsed.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 			return `Buffer.from("${escaped}")`;
 		}
 

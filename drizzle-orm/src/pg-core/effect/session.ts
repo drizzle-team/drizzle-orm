@@ -8,7 +8,6 @@ import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { EffectPgCorePreparedQuery } from './prepared-query.ts';
 
-// TODO: implement??
 export abstract class EffectPgCoreSession<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	_TRelations extends AnyRelations = EmptyRelations,
