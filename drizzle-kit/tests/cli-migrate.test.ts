@@ -96,6 +96,21 @@ test('migrate #5', async (t) => {
 	});
 });
 
+test('migrate #6 --env-file', async (t) => {
+	const res = await brotest(migrate, '--config=env.config.ts --env-file=.env.test');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		out: 'drizzle',
+		credentials: {
+			url: 'postgresql://test:test@127.0.0.1:5432/db'
+		},
+		schema: undefined,
+		table: undefined,
+	});
+});
+
+
 // --- errors ---
 test('err #1', async (t) => {
 	const res = await brotest(migrate, '--config=expo.config.ts');
