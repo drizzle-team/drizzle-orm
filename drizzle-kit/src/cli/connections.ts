@@ -317,6 +317,7 @@ export const preparePostgresDB = async (
 			let bytesReceived = 0;
 			let rowCount = 0;
 			let parseTime = 0;
+			let lastParseTime = 0;
 
 			const rowDescriptionListener = (data: { length: number }) => {
 				if (firstDataAt === 0n) {
@@ -333,7 +334,8 @@ export const preparePostgresDB = async (
 				originalRowListener.apply(client.connection, [data]);
 				const end = process.hrtime.bigint();
 				lastRowParsedAt = end;
-				parseTime += ms(start, end);
+				lastParseTime = ms(start, end);
+				parseTime += lastParseTime;
 				bytesReceived += data.length;
 			};
 			client.connection.removeAllListeners('dataRow');
@@ -371,7 +373,7 @@ export const preparePostgresDB = async (
 			const networkLatencyBefore = querySentTime / 2;
 			const networkLatencyAfter = querySentTime / 2;
 			// Minus parse time divided by row count to remove last row parse time overlap
-			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - parseTime / rowCount : 0);
+			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - lastParseTime : 0);
 			const total = ms(querySentAt, queryCompletedAt);
 			const calculatedTotal = networkLatencyBefore + planningTime + executionTime + networkLatencyAfter + downloadTime
 				+ parseTime + ms(lastRowParsedAt, queryCompletedAt);
@@ -1160,6 +1162,7 @@ export const connectToMySQL = async (
 			let bytesReceived = 0;
 			let rowCount = 0;
 			let parseTime = 0;
+			let lastParseTime = 0;
 
 			querySentAt = process.hrtime.bigint();
 			await new Promise<void>((resolve, reject) => {
@@ -1187,7 +1190,8 @@ export const connectToMySQL = async (
 					const res = originalRowHandler.apply(query, [packet, connection]);
 					const end = process.hrtime.bigint();
 					lastRowParsedAt = end;
-					parseTime += ms(start, end);
+					lastParseTime = ms(start, end);
+					parseTime += lastParseTime;
 					bytesReceived += packet.length();
 					if (!res || packet.isEOF()) {
 						return res;
@@ -1224,7 +1228,7 @@ export const connectToMySQL = async (
 			const networkLatencyBefore = querySentTime / 2;
 			const networkLatencyAfter = querySentTime / 2;
 			// Minus parse time divided by row count to remove last row parse time overlap
-			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - parseTime / rowCount : 0);
+			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - lastParseTime : 0);
 			const total = ms(querySentAt, queryCompletedAt);
 			const calculatedTotal = networkLatencyBefore + executionTime + networkLatencyAfter + downloadTime
 				+ parseTime + ms(lastRowParsedAt, queryCompletedAt);
