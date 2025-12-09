@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "0.4.0",
+	"version": "1.0.0-beta.2",
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
@@ -67,7 +67,7 @@
 		}
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=1.0.0-beta.1"
+		"drizzle-orm": ">=1.0.0-beta.2"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {

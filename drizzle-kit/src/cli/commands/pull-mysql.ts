@@ -6,7 +6,7 @@ import { render } from 'hanji';
 import { join } from 'path';
 import type { EntityFilter } from 'src/dialects/pull-utils';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
+import { createDDL, interimToDDL, mysqlToRelationsPull } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
 import { toJsonSnapshot } from '../../dialects/mysql/snapshot';
@@ -51,7 +51,7 @@ export const handle = async (
 	const { ddl } = interimToDDL(schema);
 
 	const ts = ddlToTypeScript(ddl, schema.viewColumns, casing, 'mysql');
-	const relations = relationsToTypeScript(ddl.fks.list(), casing);
+	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);

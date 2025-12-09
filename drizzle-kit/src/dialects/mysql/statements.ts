@@ -40,6 +40,10 @@ export interface AlterColumn {
 	column: Column;
 	isPK: boolean;
 	wasPK: boolean;
+	origin: {
+		column: string;
+		table: string;
+	};
 }
 
 export interface RecreateColumn {

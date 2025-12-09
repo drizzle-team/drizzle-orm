@@ -59,6 +59,8 @@ import { DB } from 'src/utils';
 import 'zx/globals';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
+import { getReasonsFromStatements } from 'src/dialects/postgres/commutativity';
+import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -353,7 +355,12 @@ export const diffIntrospect = async (
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		groupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (afterFileSqlStatements.length > 0) {
+		console.log(explain('mysql', groupedStatements, true, []));
+	}
 
 	rmSync(`tests/postgres/tmp/${testName}.ts`);
 
@@ -688,3 +695,46 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 	};
 	return { db, close, clear, client };
 };
+
+type SchemaShape = {
+	id: string;
+	prevId?: string;
+	schema: Record<string, PgTable>;
+};
+
+export async function conflictsFromSchema(
+	{ parent, child1, child2 }: {
+		parent: SchemaShape;
+		child1: SchemaShape;
+		child2: SchemaShape;
+	},
+) {
+	const parentInterim = fromDrizzleSchema(
+		{
+			tables: Object.values(parent.schema),
+			schemas: [],
+			enums: [],
+			sequences: [],
+			roles: [],
+			policies: [],
+			views: [],
+			matViews: [],
+		},
+		undefined,
+		() => true,
+	);
+
+	const parentSnapshot = {
+		version: '8',
+		dialect: 'postgres',
+		id: parent.id,
+		prevIds: parent.prevId ? [parent.prevId] : [],
+		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
+		renames: [],
+	} satisfies PostgresSnapshot;
+
+	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
+	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
+
+	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+}
