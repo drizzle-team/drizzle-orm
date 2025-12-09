@@ -33,10 +33,14 @@ export type QueriesTimings = {
 	tlsHandshake: number | null;
 	dbHandshake: number | null;
 	queries: {
+		networkLatencyBefore: number;
 		planning: number | null;
 		execution: number;
+		networkLatencyAfter: number;
 		dataDownload: number;
+		dataParse: number;
 		total: number;
+		errorMargin: number;
 		dataSize: number;
 	}[];
 };
