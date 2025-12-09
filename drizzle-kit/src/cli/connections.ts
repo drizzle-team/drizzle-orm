@@ -4,7 +4,7 @@ import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import type { config } from 'mssql';
-import type { Connection, ConnectionConfig, FieldPacket } from 'mysql2';
+import type { Connection, ConnectionConfig, Query } from 'mysql2';
 import net from 'net';
 import fetch from 'node-fetch';
 import type { Client as PgClient } from 'pg';
@@ -307,39 +307,85 @@ export const preparePostgresDB = async (
 			const planningMatch = stringifiedResult.match(/Planning Time:\s*([\d.]+)\s*ms/i)!;
 			const executionMatch = stringifiedResult.match(/Execution Time:\s*([\d.]+)\s*ms/i)!;
 
-			const planningTime = Number(planningMatch[1]);
-			const executionTime = Number(executionMatch[1]);
-
+			let planningTime = Number(planningMatch[1]);
+			let executionTime = Number(executionMatch[1]);
 			let querySentAt: bigint = 0n;
 			let firstDataAt: bigint = 0n;
 			let lastDataAt: bigint = 0n;
+			let lastRowParsedAt: bigint = 0n;
+			let queryCompletedAt: bigint = 0n;
 			let bytesReceived = 0;
+			let rowCount = 0;
+			let parseTime = 0;
 
-			client.connection.addListener('rowDescription', (data: { length: number }) => {
+			const rowDescriptionListener = (data: { length: number }) => {
 				if (firstDataAt === 0n) {
 					firstDataAt = process.hrtime.bigint();
 				}
 				bytesReceived += data.length;
-			});
-			client.connection.addListener('dataRow', (data: { length: number }) => {
+			};
+
+			const originalRowListener = client.connection.listeners('dataRow')[0] as (...args: any[]) => void;
+			const wrappedRowListener = (data: { length: number }) => {
+				rowCount += 1;
+				const start = process.hrtime.bigint();
+				lastDataAt = start;
+				originalRowListener.apply(client.connection, [data]);
+				const end = process.hrtime.bigint();
+				lastRowParsedAt = end;
+				parseTime += ms(start, end);
 				bytesReceived += data.length;
-			});
-			client.connection.addListener('commandComplete', () => {
-				lastDataAt = process.hrtime.bigint();
-			});
+			};
+			client.connection.removeAllListeners('dataRow');
+			client.connection.addListener('dataRow', wrappedRowListener);
+
+			client.connection.prependListener('rowDescription', rowDescriptionListener);
 
 			querySentAt = process.hrtime.bigint();
-			await client.query(sql, params);
+			await client.query({
+				text: sql,
+				values: params,
+				types,
+			});
+			queryCompletedAt = process.hrtime.bigint();
 
-			client.connection.removeAllListeners('rowDescription');
+			client.connection.removeListener('rowDescription', rowDescriptionListener);
 			client.connection.removeAllListeners('dataRow');
-			client.connection.removeAllListeners('commandComplete');
+			client.connection.addListener('dataRow', originalRowListener);
+
+			let querySentTime = ms(querySentAt, firstDataAt) - executionTime - planningTime;
+			if (querySentTime < 0) {
+				// Adjust planning and execution times proportionally to accommodate negative query sent time (10% for network)
+				const percent = 0.10;
+				const overflow = -querySentTime;
+				const keepForSent = overflow * percent;
+				const adjustedOverflow = overflow * (1 + percent);
+				const total = planningTime + executionTime;
+				const ratioPlanning = planningTime / total;
+				const ratioExecution = executionTime / total;
+				planningTime -= adjustedOverflow * ratioPlanning;
+				executionTime -= adjustedOverflow * ratioExecution;
+				querySentTime = keepForSent;
+			}
+
+			const networkLatencyBefore = querySentTime / 2;
+			const networkLatencyAfter = querySentTime / 2;
+			// Minus parse time divided by row count to remove last row parse time overlap
+			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - parseTime / rowCount : 0);
+			const total = ms(querySentAt, queryCompletedAt);
+			const calculatedTotal = networkLatencyBefore + planningTime + executionTime + networkLatencyAfter + downloadTime
+				+ parseTime + ms(lastRowParsedAt, queryCompletedAt);
+			const errorMargin = Math.abs(total - calculatedTotal);
 
 			return {
+				networkLatencyBefore,
 				planning: planningTime,
 				execution: executionTime,
-				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime - planningTime,
-				total: ms(querySentAt, lastDataAt),
+				networkLatencyAfter,
+				dataDownload: downloadTime,
+				dataParse: parseTime,
+				total,
+				errorMargin,
 				dataSize: bytesReceived,
 			};
 		};
@@ -1109,7 +1155,11 @@ export const connectToMySQL = async (
 			let querySentAt: bigint = 0n;
 			let firstDataAt: bigint = 0n;
 			let lastDataAt: bigint = 0n;
+			let lastRowParsedAt: bigint = 0n;
+			let queryCompletedAt: bigint = 0n;
 			let bytesReceived = 0;
+			let rowCount = 0;
+			let parseTime = 0;
 
 			querySentAt = process.hrtime.bigint();
 			await new Promise<void>((resolve, reject) => {
@@ -1117,34 +1167,66 @@ export const connectToMySQL = async (
 					sql,
 					values: params ?? [],
 					typeCast,
-					// rowsAsArray: true,
+				}) as Query & {
+					row: (...args: any[]) => any;
+				};
+				const originalRowHandler = query.row;
+				let packets = 0;
+				const wrappedRowListener = (
+					packet: { buffer: Buffer; isEOF: () => {}; length: () => number; start: number },
+					connection: any,
+				) => {
+					packets += 1;
+					if (firstDataAt === 0n) {
+						firstDataAt = process.hrtime.bigint();
+						// First packet also contains some bytes before row data starts
+						bytesReceived += packet.start;
+					}
+					const start = process.hrtime.bigint();
+					lastDataAt = start;
+					const res = originalRowHandler.apply(query, [packet, connection]);
+					const end = process.hrtime.bigint();
+					lastRowParsedAt = end;
+					parseTime += ms(start, end);
+					bytesReceived += packet.length();
+					if (!res || packet.isEOF()) {
+						return res;
+					}
+					return wrappedRowListener;
+				};
+				query.row = wrappedRowListener;
+
+				query.on('result', () => {
+					rowCount += 1;
 				});
 				query.on('error', (err) => {
 					reject(err);
 				});
-				query.on('fields', (fields: FieldPacket & { _buf: Buffer }[]) => {
-					if (firstDataAt === 0n) {
-						firstDataAt = process.hrtime.bigint();
-					}
-					bytesReceived += fields[0]._buf.length;
-				});
-				// query.on('result', (result) => {
-				// 	// if (firstRowAt === 0n) {
-				// 	// 	firstRowAt = process.hrtime.bigint();
-				// 	// }
-				// 	bytesReceived += JSON.stringify(result).length;
-				// });
 				query.on('end', () => {
-					lastDataAt = process.hrtime.bigint();
 					resolve();
 				});
 			});
+			queryCompletedAt = process.hrtime.bigint();
+
+			const querySentTime = ms(querySentAt, firstDataAt) - executionTime;
+			const networkLatencyBefore = querySentTime / 2;
+			const networkLatencyAfter = querySentTime / 2;
+			// Minus parse time divided by row count to remove last row parse time overlap
+			const downloadTime = ms(firstDataAt, lastDataAt) - (rowCount > 1 ? parseTime - parseTime / rowCount : 0);
+			const total = ms(querySentAt, queryCompletedAt);
+			const calculatedTotal = networkLatencyBefore + executionTime + networkLatencyAfter + downloadTime
+				+ parseTime + ms(lastRowParsedAt, queryCompletedAt);
+			const errorMargin = Math.abs(total - calculatedTotal);
 
 			return {
+				networkLatencyBefore,
 				planning: null,
 				execution: executionTime,
-				dataDownload: ms(firstDataAt, lastDataAt) + ms(querySentAt, firstDataAt) - executionTime,
-				total: ms(querySentAt, lastDataAt),
+				networkLatencyAfter,
+				dataDownload: downloadTime,
+				dataParse: parseTime,
+				total,
+				errorMargin,
 				dataSize: bytesReceived,
 			};
 		};
