@@ -1,7 +1,7 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import { Effect } from 'effect';
-import type { EffectWrapper } from '~/effect-core/effectable.ts';
-import { applyEffectWrapper } from '~/effect-core/effectable.ts';
+import type { QueryEffect } from '~/effect-core/query-effect.ts';
+import { applyEffectWrapper } from '~/effect-core/query-effect.ts';
 import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
@@ -13,12 +13,12 @@ import type { PgViewBase } from '../view-base.ts';
 export interface PgEffectCountBuilder<
 	// oxlint-disable-next-line no-unused-vars
 	TSession extends EffectPgSession<any, any, any>,
-> extends EffectWrapper<number, DrizzleQueryError, PgClient> {
+> extends QueryEffect<number, DrizzleQueryError, PgClient> {
 }
 
 export class PgEffectCountBuilder<
 	TSession extends EffectPgSession<any, any, any>,
-> extends SQL<number> implements SQLWrapper<number>, EffectWrapper<number, DrizzleQueryError, PgClient> {
+> extends SQL<number> implements SQLWrapper<number>, QueryEffect<number, DrizzleQueryError, PgClient> {
 	private sql: SQL<number>;
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
 	[Symbol.toStringTag] = 'PgEffectCountBuilder';

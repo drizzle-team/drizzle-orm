@@ -1,4 +1,4 @@
-import { EffectWrapper } from '~/effect-core/effectable';
+import { QueryEffect } from '~/effect-core/effectable';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -6,10 +6,10 @@ import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 
 export interface EffectPgRaw<TResult>
-	extends EffectWrapper<TResult, DrizzleQueryError>, RunnableQuery<TResult, 'pg'>, SQLWrapper
+	extends QueryEffect<TResult, DrizzleQueryError>, RunnableQuery<TResult, 'pg'>, SQLWrapper
 {}
 
-export class EffectPgRaw<TResult> extends EffectWrapper<TResult, DrizzleQueryError>
+export class EffectPgRaw<TResult> extends QueryEffect<TResult, DrizzleQueryError>
 	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
 {
 	static override readonly [entityKind]: string = 'PgRaw';
@@ -20,7 +20,7 @@ export class EffectPgRaw<TResult> extends EffectWrapper<TResult, DrizzleQueryErr
 	};
 
 	constructor(
-		public execute: EffectWrapper<TResult, DrizzleQueryError>['execute'],
+		public execute: QueryEffect<TResult, DrizzleQueryError>['execute'],
 		private sql: SQL,
 		private query: Query,
 		private mapBatchResult: (result: unknown) => unknown,

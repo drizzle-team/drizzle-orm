@@ -4,28 +4,17 @@ import { entityKind } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors';
 import { applyMixins } from '~/utils';
 
-export interface EffectWrapper<Succes = never, Failure = DrizzleQueryError, Context = never>
+export interface QueryEffect<Succes = never, Failure = DrizzleQueryError, Context = never>
 	extends Effect.Effect<Succes, Failure, Context>
 {
 }
 
-export abstract class EffectWrapper<Succes = never, Failure = DrizzleQueryError, Context = never> {
+export abstract class QueryEffect<Succes = never, Failure = DrizzleQueryError, Context = never> {
 	static readonly [entityKind]: string = 'EffectWrapper';
 
-	protected _effect: Effect.Effect<Succes, Failure, Context> | undefined;
-
-	protected get effect() {
-		return this._effect ??= this.toEffect();
-	}
-
+	protected effect: Effect.Effect<Succes, Failure, Context> = Effect.suspend(() => this.execute());
 	abstract execute(...args: any[]): Effect.Effect<Succes, Failure, Context>;
 
-	/** @internal */
-	toEffect(): Effect.Effect<Succes, Failure, Context> {
-		return Effect.suspend(() => this.execute());
-	}
-
-	/** @internal */
 	get [Effect.EffectTypeId]() {
 		return this.effect[Effect.EffectTypeId];
 	}
@@ -40,17 +29,17 @@ export abstract class EffectWrapper<Succes = never, Failure = DrizzleQueryError,
 }
 
 export function applyEffectWrapper(baseClass: any) {
-	applyMixins(baseClass, [EffectWrapper]);
+	applyMixins(baseClass, [QueryEffect]);
 
 	Object.defineProperty(
 		baseClass.prototype,
 		Symbol.iterator,
-		Object.getOwnPropertyDescriptor(EffectWrapper.prototype, Symbol.iterator)!,
+		Object.getOwnPropertyDescriptor(QueryEffect.prototype, Symbol.iterator)!,
 	);
 
 	Object.defineProperty(
 		baseClass.prototype,
 		Effect.EffectTypeId,
-		Object.getOwnPropertyDescriptor(EffectWrapper.prototype, Effect.EffectTypeId)!,
+		Object.getOwnPropertyDescriptor(QueryEffect.prototype, Effect.EffectTypeId)!,
 	);
 }

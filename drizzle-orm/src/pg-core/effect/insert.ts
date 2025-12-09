@@ -1,5 +1,5 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { EffectWrapper } from '~/effect-core/effectable.ts';
+import { QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -182,7 +182,7 @@ export interface EffectPgInsertBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	EffectWrapper<
+	QueryEffect<
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 		DrizzleQueryError
 	>,
@@ -210,7 +210,7 @@ export class EffectPgInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends EffectWrapper<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
+> extends QueryEffect<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
 		TypedQueryBuilder<
 			TSelectedFields,
