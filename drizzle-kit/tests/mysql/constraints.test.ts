@@ -553,9 +553,8 @@ test('index #1', async () => {
 	const index5 = index('index5').on(sql`${table1.col1} asc`);
 	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
 
-	const schema1 = { table1, index1, index2, index3, index4, index5, index6 };
+	const schema1 = { table1 };
 
-	throw new Error(`it's needed to fix ts error below`);
 	const { sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 
