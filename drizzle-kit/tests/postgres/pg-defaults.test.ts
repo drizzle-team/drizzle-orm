@@ -389,6 +389,7 @@ test('numeric arrays', async () => {
 	expect.soft(res24).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3582
 test('real + real arrays', async () => {
 	const res1 = await diffDefault(_, real().default(1000.123), '1000.123');
 

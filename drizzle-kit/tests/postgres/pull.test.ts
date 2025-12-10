@@ -341,13 +341,14 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3593
 // https://github.com/drizzle-team/drizzle-orm/issues/4349
 // https://github.com/drizzle-team/drizzle-orm/issues/4632
 // https://github.com/drizzle-team/drizzle-orm/issues/4644
 // https://github.com/drizzle-team/drizzle-orm/issues/4730
 // https://github.com/drizzle-team/drizzle-orm/issues/4760
 // https://github.com/drizzle-team/drizzle-orm/issues/4916
-test('introspect all column types', async () => {
+test.only('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -367,6 +368,7 @@ test('introspect all column types', async () => {
 			text3: text('text3').default(''),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
 			varchar1: varchar('varchar1', { length: 25 }).default(''),
+			varchar2: varchar('varchar2').default(sql`md5((random())::text)`),
 			char: char('char', { length: 3 }).default('abc'),
 			char1: char('char1', { length: 3 }).default(''),
 			serial: serial('serial'),
