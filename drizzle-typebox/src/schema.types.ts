@@ -1,6 +1,7 @@
-import type * as t from '@sinclair/typebox';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
+import type * as t from 'typebox';
+import type { TTypeScriptEnumToEnumValues } from 'typebox';
 import type { EnumValuesToEnum } from './column.types.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
@@ -23,7 +24,9 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): t.TEnum<EnumValuesToEnum<TEnum['enumValues']>>;
+	<TEnum extends PgEnum<any>>(
+		enum_: TEnum,
+	): t.TEnum<TTypeScriptEnumToEnumValues<EnumValuesToEnum<TEnum['enumValues']>>>;
 }
 
 export interface CreateInsertSchema {

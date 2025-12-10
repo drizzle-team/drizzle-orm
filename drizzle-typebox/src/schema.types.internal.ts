@@ -1,5 +1,5 @@
-import type * as t from '@sinclair/typebox';
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
+import type * as t from 'typebox';
 import type { GetTypeboxType, HandleColumn } from './column.types.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
 
@@ -9,7 +9,8 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
-type BuildRefineField<T> = T extends t.TSchema ? ((schema: T) => t.TSchema) | t.TSchema : never;
+// Using any for schema parameter to allow access to TypeBox 1.x properties like minimum, maximum, etc.
+type BuildRefineField<T> = T extends t.TSchema ? ((schema: any) => t.TSchema) | t.TSchema : never;
 
 export type BuildRefine<
 	TColumns extends Record<string, any>,
