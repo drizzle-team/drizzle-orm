@@ -4410,3 +4410,69 @@ test('alter inherit in role', async (t) => {
 		await client.query(st);
 	}
 });
+
+test('push respects casing configuration', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			userId: serial('user_id').primaryKey(),
+			firstName: text('first_name').notNull(),
+			lastName: text('last_name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		{},
+		schema,
+		[],
+		false,
+		['public'],
+		'snake_case',
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_table',
+			tableName: 'users',
+			schema: '',
+			columns: [
+				{
+					name: 'user_id',
+					type: 'serial',
+					primaryKey: true,
+					notNull: true,
+				},
+				{
+					name: 'first_name',
+					type: 'text',
+					primaryKey: false,
+					notNull: true,
+				},
+				{
+					name: 'last_name',
+					type: 'text',
+					primaryKey: false,
+					notNull: false,
+				},
+			],
+			compositePKs: [],
+			compositePkName: '',
+			uniqueConstraints: [],
+			checkConstraints: [],
+			isRLSEnabled: false,
+			policies: [],
+		},
+	]);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toContain('CREATE TABLE');
+	expect(sqlStatements[0]).toContain('"user_id"');
+	expect(sqlStatements[0]).toContain('"first_name"');
+	expect(sqlStatements[0]).toContain('"last_name"');
+
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+});

@@ -21,7 +21,7 @@ import type {
 } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { Casing, DrizzleTypeError } from '~/utils.ts';
 import { SQLiteCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
@@ -42,6 +42,8 @@ export class BaseSQLiteDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 	};
+
+	readonly casing: Casing | undefined;
 
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
@@ -87,6 +89,7 @@ export class BaseSQLiteDatabase<
 			}
 		}
 		this.$cache = { invalidate: async (_params: any) => {} };
+		this.casing = dialect.casing.casing;
 	}
 
 	/**
