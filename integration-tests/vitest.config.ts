@@ -12,6 +12,7 @@ export default defineConfig({
 			'tests/mysql/**/*.test.ts',
 			'tests/singlestore/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
+			'tests/bigquery/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',
 			'tests/extensions/vectors/**/*',
