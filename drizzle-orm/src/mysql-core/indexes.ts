@@ -19,9 +19,9 @@ interface IndexConfig {
 	using?: 'btree' | 'hash';
 
 	/**
-	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
+	 * If set, the index will be created as `create index ... algorithm { 'default' | 'inplace' | 'copy' }`.
 	 */
-	algorythm?: 'default' | 'inplace' | 'copy';
+	algorithm?: 'default' | 'inplace' | 'copy';
 
 	/**
 	 * If set, adds locks to the index creation.
@@ -67,8 +67,8 @@ export class IndexBuilder implements AnyIndexBuilder {
 		return this;
 	}
 
-	algorythm(algorythm: IndexConfig['algorythm']): this {
-		this.config.algorythm = algorythm;
+	algorithm(algorithm: IndexConfig['algorithm']): this {
+		this.config.algorithm = algorithm;
 		return this;
 	}
 
@@ -87,9 +87,11 @@ export class Index {
 	static readonly [entityKind]: string = 'MySqlIndex';
 
 	readonly config: IndexConfig & { table: MySqlTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: MySqlTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

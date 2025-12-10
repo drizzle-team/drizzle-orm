@@ -5,6 +5,7 @@ import {
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
+import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -20,7 +21,7 @@ import {
 	type PreparedQueryConfig,
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
@@ -29,6 +30,7 @@ export type AwsDataApiClient = RDSDataClient;
 
 export class AwsDataApiPreparedQuery<
 	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
+	TIsRqbV2 extends boolean = false,
 > extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
@@ -50,7 +52,10 @@ export class AwsDataApiPreparedQuery<
 		/** @internal */
 		readonly transactionId: string | undefined,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = new ExecuteStatementCommand({
@@ -60,11 +65,13 @@ export class AwsDataApiPreparedQuery<
 			resourceArn: options.resourceArn,
 			database: options.database,
 			transactionId,
-			includeResultMetadata: !fields && !customResultMapper,
+			includeResultMetadata: isRqbV2Query || (!fields && !customResultMapper),
 		});
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const { fields, joinsNotNullableMap, customResultMapper } = this;
 
 		const result = await this.values(placeholderValues);
@@ -95,8 +102,42 @@ export class AwsDataApiPreparedQuery<
 		}
 
 		return customResultMapper
-			? customResultMapper(result.rows!)
+			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows!)
 			: result.rows!.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		const { customResultMapper } = this;
+
+		const result = await this.values(placeholderValues);
+		const { columnMetadata, rows } = result;
+		if (!columnMetadata) {
+			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+				rows as [],
+			);
+		}
+		const mappedRows = rows.map((sourceRow) => {
+			const row: Record<string, unknown> = {};
+			for (const [index, value] of sourceRow.entries()) {
+				const metadata = columnMetadata[index];
+				if (!metadata) {
+					throw new Error(
+						`Unexpected state: no column metadata found for index ${index}. Please report this issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new/choose`,
+					);
+				}
+				if (!metadata.name) {
+					throw new Error(
+						`Unexpected state: no column name for index ${index} found in the column metadata. Please report this issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new/choose`,
+					);
+				}
+				row[metadata.name] = value;
+			}
+			return row;
+		});
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+			mappedRows,
+		);
 	}
 
 	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
@@ -164,8 +205,9 @@ interface AwsDataApiQueryBase {
 
 export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiSession';
 
 	/** @internal */
@@ -176,7 +218,8 @@ export class AwsDataApiSession<
 		/** @internal */
 		readonly client: AwsDataApiClient,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: AwsDataApiSessionOptions,
 		/** @internal */
 		readonly transactionId: string | undefined,
@@ -222,6 +265,41 @@ export class AwsDataApiSession<
 		);
 	}
 
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: QueryWithTypings,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		transactionId?: string,
+	): PgPreparedQuery<T> {
+		return new AwsDataApiPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			query.typings ?? [],
+			this.options,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			transactionId ?? this.transactionId,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
+	override async count(sql: SQL): Promise<number> {
+		const query = this.dialect.sqlToQuery(sql);
+		const prepared = this.prepareQuery(query, undefined, undefined, true);
+
+		const { rows } = await prepared.values();
+		const count = rows[0]?.[0] ?? 0;
+
+		if (typeof count === 'number') return count;
+		return Number(count);
+	}
+
 	override execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T; values: AwsDataApiPgQueryResult<unknown[]> }>(
 			this.dialect.sqlToQuery(query),
@@ -236,12 +314,26 @@ export class AwsDataApiSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
-		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
-		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const session = new AwsDataApiSession(
+			this.client,
+			this.dialect,
+			this.relations,
+			this.schema,
+			this.options,
+			transactionId,
+		);
+		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
+			this.dialect,
+			session,
+			this.relations,
+			this.schema,
+			undefined,
+			true,
+		);
 		if (config) {
 			await tx.setTransaction(config);
 		}
@@ -258,17 +350,19 @@ export class AwsDataApiSession<
 
 export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(
+		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
+			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
 		);

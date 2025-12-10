@@ -1,28 +1,28 @@
 import pgClient, { type Options, type PostgresType, type Sql } from 'postgres';
+import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
 import { PostgresJsSession } from './session.ts';
 
 export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<PostgresJsQueryResultHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgDatabase<PostgresJsQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
 
-function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	client: Sql,
-	config: DrizzleConfig<TSchema> = {},
-): PostgresJsDatabase<TSchema> & {
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): PostgresJsDatabase<TSchema, TRelations> & {
 	$client: Sql;
 } {
 	const transparentParser = (val: any) => val;
@@ -43,11 +43,11 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -56,8 +56,9 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new PostgresJsSession(client, dialect, schema, { logger, cache: config.cache });
-	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const session = new PostgresJsSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const db = new PostgresJsDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -69,16 +70,17 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Sql = Sql,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
-		DrizzleConfig<TSchema>,
+		string,
+		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, TRelations>
 			& ({
 				connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
 			} | {
@@ -86,7 +88,7 @@ export function drizzle<
 			})
 		),
 	]
-): PostgresJsDatabase<TSchema> & {
+): PostgresJsDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -95,32 +97,31 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as {
-			connection?: { url?: string } & Options<Record<string, PostgresType>>;
-			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+	const { connection, client, ...drizzleConfig } = params[0] as {
+		connection?: { url?: string } & Options<Record<string, PostgresType>>;
+		client?: TClient;
+	} & DrizzleConfig<TSchema>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		if (typeof connection === 'object' && connection.url !== undefined) {
-			const { url, ...config } = connection;
+	if (typeof connection === 'object' && connection.url !== undefined) {
+		const { url, ...config } = connection;
 
-			const instance = pgClient(url, config);
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = pgClient(connection);
+		const instance = pgClient(url, config);
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	const instance = pgClient(connection);
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): PostgresJsDatabase<TSchema> & {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: DrizzleConfig<TSchema, TRelations>,
+	): PostgresJsDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({

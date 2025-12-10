@@ -1,7 +1,8 @@
 import chalk from 'chalk';
-import { UnionToIntersection } from 'hono/utils/types';
-import { any, boolean, enum as enum_, literal, object, string, TypeOf, union } from 'zod';
-import { dialect } from '../../schemaValidator';
+import type { UnionToIntersection } from 'hono/utils/types';
+import type { TypeOf } from 'zod';
+import { any, boolean, enum as enum_, literal, object, string, union } from 'zod';
+import { dialect } from '../../utils/schemaValidator';
 import { outputs } from './outputs';
 
 export type Commands =
@@ -13,7 +14,7 @@ export type Commands =
 	| 'push'
 	| 'export';
 
-type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
+// type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
 type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
 type LastTupleElement<TArr extends any[]> = TArr extends [
 	...start: infer _,
@@ -37,7 +38,7 @@ export const assertCollisions = <
 	command: Commands,
 	options: T,
 	whitelist: Exclude<TKeys, 'config'>,
-	remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
+	_remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 ): IsUnion<LastTupleElement<UNIQ>> extends false ? 'cli' | 'config' : TKeys => {
 	const { config, ...rest } = options;
 
@@ -65,6 +66,7 @@ export const sqliteDriversLiterals = [
 	literal('d1-http'),
 	literal('expo'),
 	literal('durable-sqlite'),
+	literal('sqlite-cloud'),
 ] as const;
 
 export const postgresqlDriversLiterals = [
@@ -108,7 +110,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
+	schemaFilter: union([string(), string().array()]).optional(),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
 	casing: casingType.optional(),
@@ -163,7 +165,7 @@ export const configPushSchema = object({
 });
 
 export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite'] as const;
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
 export type Driver = (typeof drivers)[number];
 const _: Driver = '' as TypeOf<typeof driver>;
 

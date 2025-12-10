@@ -3,12 +3,13 @@ import { entityKind, is } from '~/entity.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
+import { TableName } from '~/table.utils.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { IsAlias, Table } from '../table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -37,7 +38,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
-	invokeSource?: 'indexes' | undefined;
+	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -62,8 +63,8 @@ export interface QueryWithTypings extends Query {
  * - `Placeholder`
  * - `Param`
  */
-export interface SQLWrapper {
-	getSQL(): SQL;
+export interface SQLWrapper<T = unknown> {
+	getSQL(): SQL<T>;
 	shouldOmitSQLParens?(): boolean;
 }
 
@@ -100,7 +101,7 @@ export class StringChunk implements SQLWrapper {
 	}
 }
 
-export class SQL<T = unknown> implements SQLWrapper {
+export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
 
 	declare _: {
@@ -158,6 +159,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			prepareTyping,
 			inlineParams,
 			paramStartIndex,
+			invokeSource,
 		} = config;
 
 		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
@@ -195,6 +197,15 @@ export class SQL<T = unknown> implements SQLWrapper {
 			if (is(chunk, Table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
+
+				if (invokeSource === 'mssql-view-with-schemabinding') {
+					return {
+						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+							+ escapeName(tableName),
+						params: [],
+					};
+				}
+
 				return {
 					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)
@@ -209,9 +220,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: escapeName(columnName), params: [] };
 				}
 
-				const schemaName = chunk.table[Table.Symbol.Schema];
+				const schemaName = invokeSource === 'mssql-check' ? undefined : chunk.table[Table.Symbol.Schema];
 				return {
-					sql: chunk.table[IsAlias] || schemaName === undefined
+					sql: chunk.isAlias ? escapeName(chunk.name) : chunk.table[IsAlias] || schemaName === undefined
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
 						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
 							+ escapeName(columnName),
@@ -306,7 +317,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		if (chunk === null) {
 			return 'null';
 		}
-		if (typeof chunk === 'number' || typeof chunk === 'boolean') {
+		if (typeof chunk === 'number' || typeof chunk === 'boolean' || typeof chunk === 'bigint') {
 			return chunk.toString();
 		}
 		if (typeof chunk === 'string') {
@@ -322,7 +333,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		throw new Error('Unexpected param value: ' + chunk);
 	}
 
-	getSQL(): SQL {
+	getSQL(): SQL<T> {
 		return this;
 	}
 
@@ -475,6 +486,8 @@ export type SQLChunk =
 	| FakePrimitiveParam
 	| Placeholder;
 
+export type SQLGenerator<T = unknown> = typeof sql<T>;
+
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
 	The type of `params` is specified as `SQLChunk[]`, but that's slightly incorrect -
@@ -565,7 +578,7 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
@@ -577,17 +590,17 @@ export namespace SQL {
 		isSelectionField = false;
 
 		constructor(
-			readonly sql: SQL,
+			readonly sql: SQL<T>,
 			readonly fieldAlias: string,
 		) {}
 
-		getSQL(): SQL {
-			return this.sql;
+		getSQL(): SQL<T> {
+			return this.sql as SQL<T>;
 		}
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased<T>(this.sql, this.fieldAlias);
 		}
 	}
 }
@@ -639,7 +652,7 @@ export abstract class View<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
 	TSelection extends ColumnsSelection = ColumnsSelection,
-> implements SQLWrapper {
+> {
 	static readonly [entityKind]: string = 'View';
 
 	declare _: {
@@ -664,6 +677,31 @@ export abstract class View<
 	/** @internal */
 	[IsDrizzleView] = true;
 
+	/** @internal */
+	public get [TableName]() {
+		return this[ViewBaseConfig].name;
+	}
+
+	/** @internal */
+	public get [TableSchema]() {
+		return this[ViewBaseConfig].schema;
+	}
+
+	/** @internal */
+	public get [IsAlias]() {
+		return this[ViewBaseConfig].isAlias;
+	}
+
+	/** @internal */
+	public get [OriginalName]() {
+		return this[ViewBaseConfig].originalName;
+	}
+
+	/** @internal */
+	public get [TableColumns]() {
+		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
+	}
+
 	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
 
 	constructor(
@@ -683,10 +721,6 @@ export abstract class View<
 			isExisting: !query as TExisting,
 			isAlias: false,
 		};
-	}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
 	}
 }
 
@@ -710,13 +744,9 @@ export type InferSelectViewModel<TView extends View> =
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
-
-// Defined separately from the Table class to resolve circular dependency
-Table.prototype.getSQL = function() {
-	return new SQL([this]);
-};
-
 // Defined separately from the Column class to resolve circular dependency
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };
+
+export type SQLEntity = SQL | SQLWrapper | SQL.Aliased | Table | View;

@@ -1,0 +1,16 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"allowImportingTsExtensions": true,
+		"paths": {
+			"~/*": ["src/*"]
+		},
+		"lib": ["WebWorker", "ESNext"],
+		"declaration": true,
+		"outDir": "dist",
+		"noEmit": true,
+		"types": ["ts-expose-internals", "node"]
+	},
+	"include": ["src"]
+}

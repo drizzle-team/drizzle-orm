@@ -1,6 +1,15 @@
 import type { Field } from '@aws-sdk/client-rds-data';
-import { TypeHint } from '@aws-sdk/client-rds-data';
+import type { TypeHint } from '@aws-sdk/client-rds-data';
 import type { QueryTypingsValue } from '~/sql/sql.ts';
+
+export const typeHint: { [K in TypeHint]: K } = {
+	DATE: 'DATE',
+	DECIMAL: 'DECIMAL',
+	JSON: 'JSON',
+	TIME: 'TIME',
+	TIMESTAMP: 'TIMESTAMP',
+	UUID: 'UUID',
+};
 
 export function getValueFromDataApi(field: Field) {
 	if (field.stringValue !== undefined) {
@@ -41,17 +50,17 @@ export function getValueFromDataApi(field: Field) {
 
 export function typingsToAwsTypeHint(typings?: QueryTypingsValue): TypeHint | undefined {
 	if (typings === 'date') {
-		return TypeHint.DATE;
+		return typeHint.DATE;
 	} else if (typings === 'decimal') {
-		return TypeHint.DECIMAL;
+		return typeHint.DECIMAL;
 	} else if (typings === 'json') {
-		return TypeHint.JSON;
+		return typeHint.JSON;
 	} else if (typings === 'time') {
-		return TypeHint.TIME;
+		return typeHint.TIME;
 	} else if (typings === 'timestamp') {
-		return TypeHint.TIMESTAMP;
+		return typeHint.TIMESTAMP;
 	} else if (typings === 'uuid') {
-		return TypeHint.UUID;
+		return typeHint.UUID;
 	} else {
 		return undefined;
 	}
@@ -67,11 +76,11 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 		response.value = { isNull: true };
 	} else if (typeof value === 'string') {
 		switch (response.typeHint) {
-			case TypeHint.DATE: {
+			case typeHint.DATE: {
 				response.value = { stringValue: value.split('T')[0]! };
 				break;
 			}
-			case TypeHint.TIMESTAMP: {
+			case typeHint.TIMESTAMP: {
 				response.value = { stringValue: value.replace('T', ' ').replace('Z', '') };
 				break;
 			}
@@ -86,7 +95,7 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 		response.value = { doubleValue: value };
 	} else if (typeof value === 'boolean') {
 		response.value = { booleanValue: value };
-	} else if (value instanceof Date) { // eslint-disable-line no-instanceof/no-instanceof
+	} else if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 		// TODO: check if this clause is needed? Seems like date value always comes as string
 		response.value = { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
 	} else {

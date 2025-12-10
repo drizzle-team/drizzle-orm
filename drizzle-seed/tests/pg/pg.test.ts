@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
@@ -12,7 +13,7 @@ let db: PgliteDatabase;
 beforeAll(async () => {
 	client = new PGlite();
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
 	await db.execute(

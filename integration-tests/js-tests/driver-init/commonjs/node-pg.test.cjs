@@ -28,7 +28,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -40,7 +40,7 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -54,32 +54,18 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = new Pool({
 			connectionString: process.env['PG_CONNECTION_STRING'],
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = new Pool({
-			connectionString: process.env['PG_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -94,16 +80,16 @@ describe('node-pg', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
 describe('node-pg:Client', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = new Client({
 			connectionString: process.env['PG_CONNECTION_STRING'],
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await client.connect();
 
@@ -111,23 +97,6 @@ describe('node-pg:Client', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = new Client({
-			connectionString: process.env['PG_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await client.connect();
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).not.toBeInstanceOf(Pool);
-		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -145,40 +114,23 @@ describe('node-pg:Client', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
 describe('node-pg:PoolClient', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const pool = new Pool({
 			connectionString: process.env['PG_CONNECTION_STRING'],
 		});
 		const client = await pool.connect();
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.query('SELECT 1;');
 		client.release();
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const pool = new Pool({
-			connectionString: process.env['PG_CONNECTION_STRING'],
-		});
-		const client = await pool.connect();
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-		client.release();
-
-		expect(db.$client).not.toBeInstanceOf(Pool);
-		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -196,6 +148,6 @@ describe('node-pg:PoolClient', async (it) => {
 
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

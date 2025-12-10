@@ -1,22 +1,21 @@
 import { useEffect, useReducer } from 'react';
-import type { MigrationMeta } from '~/migrator.ts';
+import { formatToMillis, type MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
-	journal: {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
 	migrations: Record<string, string>;
 }
 
-async function readMigrationFiles({ journal, migrations }: MigrationConfig): Promise<MigrationMeta[]> {
+async function readMigrationFiles({ migrations }: MigrationConfig): Promise<MigrationMeta[]> {
 	const migrationQueries: MigrationMeta[] = [];
 
-	for await (const journalEntry of journal.entries) {
-		const query = migrations[`m${journalEntry.idx.toString().padStart(4, '0')}`];
+	const sortedMigrations = Object.keys(migrations).sort();
 
+	for (const key of sortedMigrations) {
+		const query = migrations[key];
 		if (!query) {
-			throw new Error(`Missing migration: ${journalEntry.tag}`);
+			throw new Error(`Missing migration: ${key}`);
 		}
 
 		try {
@@ -24,22 +23,27 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 				return it;
 			});
 
+			const migrationDate = formatToMillis(key.slice(0, 14));
+
 			migrationQueries.push({
 				sql: result,
-				bps: journalEntry.breakpoints,
-				folderMillis: journalEntry.when,
+				bps: true,
+				folderMillis: migrationDate,
 				hash: '',
 			});
 		} catch {
-			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
+			throw new Error(`Failed to parse migration: ${key}`);
 		}
 	}
 
 	return migrationQueries;
 }
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: ExpoSQLiteDatabase<TSchema>,
+export async function migrate<
+	TSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
+	db: ExpoSQLiteDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
@@ -56,7 +60,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
+export const useMigrations = (db: ExpoSQLiteDatabase<any, any>, migrations: {
 	journal: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};

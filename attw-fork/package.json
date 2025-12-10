@@ -1,0 +1,53 @@
+{
+	"name": "attw-fork",
+	"version": "0.18.2-drizzlefork",
+	"description": "Fork of arethetypeswrong.github.io that allows for resolving packages in only specified modes for performance reasons",
+	"author": "Andrew Branch",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/arethetypeswrong/arethetypeswrong.github.io.git",
+		"directory": "packages/core"
+	},
+	"files": [
+		"LICENSE",
+		"src"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"run": "bun --bun run src/run.ts",
+		"build": "echo skip...",
+		"build:artifact": "pnpm run build",
+		"pack": "echo skip...",
+		"pack:artifact": "pnpm run pack",
+		"test": "echo skip...",
+		"test:types": "echo skip..."
+	},
+	"type": "module",
+	"dependencies": {
+		"@andrewbranch/untar.js": "^1.0.3",
+		"@loaderkit/resolve": "^1.0.2",
+		"chalk": "^4.1.2",
+		"cjs-module-lexer": "^1.2.3",
+		"cli-table3": "^0.6.3",
+		"fflate": "^0.8.2",
+		"lru-cache": "^11.0.1",
+		"marked": "9.1.2",
+		"marked-terminal": "7.1.0",
+		"semver": "^7.5.4",
+		"typescript": "5.9.2",
+		"validate-npm-package-name": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/marked-terminal": "3.1.3",
+		"@types/node": "^24.5.0",
+		"@types/semver": "^7.5.0",
+		"@types/validate-npm-package-name": "^4.0.0",
+		"ts-expose-internals": "5.6.3"
+	},
+	"engines": {
+		"node": ">=20"
+	}
+}

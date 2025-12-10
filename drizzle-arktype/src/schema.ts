@@ -1,4 +1,4 @@
-import { Type, type } from 'arktype';
+import { type Type, type } from 'arktype';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
@@ -79,7 +79,9 @@ export const createInsertSchema = ((
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
-		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		never: (column) =>
+			column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always'
+			|| ('identity' in (column ?? {}) && typeof (column as any)?.identity !== 'undefined'),
 		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
 		nullable: (column) => !column.notNull,
 	}) as any;
@@ -91,7 +93,9 @@ export const createUpdateSchema = ((
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, {
-		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		never: (column) =>
+			column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always'
+			|| ('identity' in (column ?? {}) && typeof (column as any)?.identity !== 'undefined'),
 		optional: () => true,
 		nullable: (column) => !column.notNull,
 	}) as any;

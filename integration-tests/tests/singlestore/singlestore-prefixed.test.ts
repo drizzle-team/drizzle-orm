@@ -1,7 +1,6 @@
 import retry from 'async-retry';
-import type Docker from 'dockerode';
-import type { Equal } from 'drizzle-orm';
 import { asc, eq, getTableName, gt, inArray, Name, sql, TransactionRollbackError } from 'drizzle-orm';
+import type { Equal } from 'drizzle-orm';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { drizzle } from 'drizzle-orm/singlestore';
 import {
@@ -26,23 +25,16 @@ import { migrate } from 'drizzle-orm/singlestore/migrator';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { Expect, toLocalDate } from '~/utils';
-import { createDockerDB } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
 let db: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
-let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
+	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
+	if (!connectionString) throw new Error();
+
 	client = await retry(async () => {
 		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
@@ -60,12 +52,11 @@ beforeAll(async () => {
 
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle({ client, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
 	await client?.end();
-	await container?.stop().catch(console.error);
 });
 
 const tablePrefix = 'drizzle_tests_';

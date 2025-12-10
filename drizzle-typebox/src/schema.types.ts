@@ -1,5 +1,6 @@
 import type * as t from '@sinclair/typebox';
-import type { Table, View } from 'drizzle-orm';
+import type { InferInsertModel, InferSelectModel, Table, View } from 'drizzle-orm';
+import type { CockroachEnum } from 'drizzle-orm/cockroach-core';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { EnumValuesToEnum } from './column.types.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
@@ -11,7 +12,7 @@ export interface CreateSelectSchema {
 		TRefine extends BuildRefine<TTable['_']['columns']>,
 	>(
 		table: TTable,
-		refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>,
+		refine?: NoUnknownKeys<TRefine, InferSelectModel<TTable>>,
 	): BuildSchema<'select', TTable['_']['columns'], TRefine>;
 
 	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
@@ -23,17 +24,17 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): t.TEnum<EnumValuesToEnum<TEnum['enumValues']>>;
+	<TEnum extends PgEnum<any> | CockroachEnum<any>>(enum_: TEnum): t.TEnum<EnumValuesToEnum<TEnum['enumValues']>>;
 }
 
 export interface CreateInsertSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
 	>(
 		table: TTable,
-		refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>,
+		refine?: NoUnknownKeys<TRefine, InferInsertModel<TTable>>,
 	): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
 }
 
@@ -41,7 +42,7 @@ export interface CreateUpdateSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
 	>(
 		table: TTable,
 		refine?: TRefine,

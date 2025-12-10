@@ -1,9 +1,14 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
-import type { ExtraConfigColumn, PgColumn, PgColumnBuilder, PgColumnBuilderBase } from './columns/common.ts';
+import type { ExtraConfigColumn, PgColumn, PgColumnBuilder, PgColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
@@ -23,7 +28,7 @@ export type PgTableExtraConfig = Record<
 	PgTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<PgColumn>;
+export type TableConfig = TableConfigBase<PgColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
@@ -55,12 +60,14 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
 
-export type PgTableWithColumns<T extends TableConfig> =
+export type PgTableWithColumns<
+	T extends TableConfig,
+> =
 	& PgTable<T>
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>
 	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	}
-	& {
+		/** @deprecated use `pgTable.withRLS()` instead*/
 		enableRLS: () => Omit<
 			PgTableWithColumns<T>,
 			'enableRLS'
@@ -71,7 +78,7 @@ export type PgTableWithColumns<T extends TableConfig> =
 export function pgTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: PgColumnsBuilders) => TColumnsMap),
@@ -133,13 +140,13 @@ export function pgTableWithSchema<
 				dialect: 'pg';
 			}>;
 		},
-	});
+	}) as any;
 }
 
-export interface PgTableFn<TSchema extends string | undefined = undefined> {
+export interface PgTableFnInternal<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -155,7 +162,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
@@ -190,7 +197,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -228,7 +235,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
@@ -241,12 +248,34 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-export const pgTable: PgTableFn = (name, columns, extraConfig) => {
+export interface PgTableFn<TSchema extends string | undefined = undefined> extends PgTableFnInternal<TSchema> {
+	withRLS: PgTableFnInternal<TSchema>;
+}
+
+const pgTableInternal: PgTableFnInternal = (name, columns, extraConfig) => {
 	return pgTableWithSchema(name, columns, extraConfig, undefined);
 };
 
+const pgTableWithRLS: PgTableFn['withRLS'] = (name, columns, extraConfig) => {
+	const table = pgTableWithSchema(name, columns, extraConfig, undefined);
+	table[EnableRLS] = true;
+
+	return table;
+};
+
+export const pgTable: PgTableFn = Object.assign(pgTableInternal, { withRLS: pgTableWithRLS });
+
 export function pgTableCreator(customizeTableName: (name: string) => string): PgTableFn {
-	return (name, columns, extraConfig) => {
+	const fn: PgTableFnInternal = (name, columns, extraConfig) => {
 		return pgTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
 	};
+
+	return Object.assign(fn, {
+		withRLS: ((name, columns, extraConfig) => {
+			const table = pgTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+			table[EnableRLS] = true;
+
+			return table;
+		}) as PgTableFnInternal,
+	});
 }

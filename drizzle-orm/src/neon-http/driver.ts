@@ -1,5 +1,6 @@
 import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
 import { neon, types } from '@neondatabase/serverless';
+import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
@@ -7,9 +8,8 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
@@ -29,9 +29,10 @@ export class NeonHttpDriver {
 	}
 
 	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NeonHttpSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NeonHttpSession(this.client, this.dialect, schema, {
+		relations: AnyRelations | undefined,
+		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
+	): NeonHttpSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
+		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
 		});
@@ -62,7 +63,7 @@ function wrap<T extends object>(
 			if (typeof element !== 'function' && (typeof element !== 'object' || element === null)) return element;
 
 			if (deep) return wrap(element, token, cb);
-			if (p === 'query') return wrap(element, token, cb, true);
+			if (p === 'query' || p === '_query') return wrap(element, token, cb, true);
 
 			return new Proxy(element as any, {
 				apply(target, thisArg, argArray) {
@@ -79,7 +80,8 @@ function wrap<T extends object>(
 
 export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<NeonHttpQueryResultHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgDatabase<NeonHttpQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	$withAuth(
@@ -96,6 +98,7 @@ export class NeonHttpDatabase<
 			| 'update'
 			| 'insert'
 			| 'with'
+			| '_query'
 			| 'query'
 			| 'execute'
 			| 'refreshMaterializedView'
@@ -112,7 +115,11 @@ export class NeonHttpDatabase<
 	}
 
 	/** @internal */
-	declare readonly session: NeonHttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: NeonHttpSession<
+		TSchema,
+		TRelations,
+		V1.ExtractTablesWithRelations<TSchema>
+	>;
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -123,11 +130,12 @@ export class NeonHttpDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<any, any>,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): NeonHttpDatabase<TSchema> & {
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): NeonHttpDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -138,11 +146,11 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -151,13 +159,16 @@ function construct<
 		};
 	}
 
+	const relations = config.relations ?? {} as TRelations;
+
 	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
-	const session = driver.createSession(schema);
+	const session = driver.createSession(relations, schema);
 
 	const db = new NeonHttpDatabase(
 		dialect,
 		session,
-		schema as RelationalSchemaConfig<ExtractTablesWithRelations<TSchema>> | undefined,
+		relations,
+		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
 	);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
@@ -170,16 +181,17 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
-		DrizzleConfig<TSchema>,
+		string,
+		DrizzleConfig<TSchema, TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, TRelations>
 			& ({
 				connection: string | ({ connectionString: string } & HTTPTransactionOptions<boolean, boolean>);
 			} | {
@@ -187,7 +199,7 @@ export function drizzle<
 			})
 		),
 	]
-): NeonHttpDatabase<TSchema> & {
+): NeonHttpDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -195,40 +207,39 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& {
-				connection?:
-					| ({
-						connectionString: string;
-					} & HTTPTransactionOptions<boolean, boolean>)
-					| string;
-				client?: TClient;
-			}
-			& DrizzleConfig<TSchema>;
-
-		if (client) return construct(client, drizzleConfig);
-
-		if (typeof connection === 'object') {
-			const { connectionString, ...options } = connection;
-
-			const instance = neon(connectionString, options);
-
-			return construct(instance, drizzleConfig) as any;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& {
+			connection?:
+				| ({
+					connectionString: string;
+				} & HTTPTransactionOptions<boolean, boolean>)
+				| string;
+			client?: TClient;
 		}
+		& DrizzleConfig<TSchema, TRelations>;
 
-		const instance = neon(connection!);
+	if (client) return construct(client, drizzleConfig);
+
+	if (typeof connection === 'object') {
+		const { connectionString, ...options } = connection;
+
+		const instance = neon(connectionString, options);
 
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	const instance = neon(connection!);
+
+	return construct(instance, drizzleConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): NeonHttpDatabase<TSchema> & {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: DrizzleConfig<TSchema, TRelations>,
+	): NeonHttpDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

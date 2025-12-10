@@ -1,5 +1,5 @@
+import { relations } from '~/_relations.ts';
 import { foreignKey, integer, pgTable, serial, text, timestamp } from '~/pg-core/index.ts';
-import { relations } from '~/relations.ts';
 
 export const users = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -67,11 +67,11 @@ export const node = pgTable('node', {
 	parentId: integer('parent_id'),
 	leftId: integer('left_id'),
 	rightId: integer('right_id'),
-}, (node) => ({
-	fk1: foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
-	fk2: foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
-	fk3: foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
-}));
+}, (node) => [
+	foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
+	foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
+	foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
+]);
 export const nodeRelations = relations(node, ({ one }) => ({
 	parent: one(node, { fields: [node.parentId], references: [node.id] }),
 	left: one(node, { fields: [node.leftId], references: [node.id] }),

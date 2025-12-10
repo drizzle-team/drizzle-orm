@@ -51,10 +51,12 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'SQLiteUniqueConstraint';
 
 	readonly columns: SQLiteColumn[];
-	readonly name?: string;
+	readonly name: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string) {
 		this.columns = columns;
+		this.isNameExplicit = !!name;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 	}
 

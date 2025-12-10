@@ -1,48 +1,38 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'MySqlDateTime';
+export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDateTime'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
-{
+}, MySqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
-	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
-		super(name, 'date', 'MySqlDateTime');
+	constructor(name: string, config: MySqlDatetimeConfig | undefined) {
+		super(name, 'object date', 'MySqlDateTime');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDateTime<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateTime<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlDateTime(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> extends MySqlColumn<T> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeBuilder<T>['config'],
+		config: MySqlDateTimeBuilder['config'],
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
@@ -53,53 +43,46 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date', 'MySqlDateTime'>> 
 		return `datetime${precision}`;
 	}
 
-	override mapToDriverValue(value: Date): unknown {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 
-	override mapFromDriverValue(value: string): Date {
-		return new Date(value.replace(' ', 'T') + 'Z');
+	override mapFromDriverValue(value: string | Date): Date {
+		if (typeof value === 'string') return new Date(value.replace(' ', 'T') + 'Z');
+		return value;
 	}
 }
 
-export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateTimeStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlDateTimeString';
+export class MySqlDateTimeStringBuilder extends MySqlColumnBuilder<{
+	dataType: 'string datetime';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlDateTimeString'>>
-	extends MySqlColumnBuilder<T, MySqlDatetimeConfig>
-{
+}, MySqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlDateTimeStringBuilder';
 
-	constructor(name: T['name'], config: MySqlDatetimeConfig | undefined) {
-		super(name, 'string', 'MySqlDateTimeString');
+	constructor(name: string, config: MySqlDatetimeConfig | undefined) {
+		super(name, 'string datetime', 'MySqlDateTimeString');
 		this.config.fsp = config?.fsp;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDateTimeString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateTimeString<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlDateTimeString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDateTimeString'>> extends MySqlColumn<T> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeStringBuilder<T>['config'],
+		config: MySqlDateTimeStringBuilder['config'],
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
@@ -108,6 +91,16 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string', 'MySqlDate
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
+	}
+
+	override mapFromDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, -5).replace('T', ' ');
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 }
 
@@ -118,14 +111,13 @@ export interface MySqlDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 
 	fsp?: DatetimeFsp;
 }
 
-export function datetime(): MySqlDateTimeBuilderInitial<''>;
 export function datetime<TMode extends MySqlDatetimeConfig['mode'] & {}>(
 	config?: MySqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<''> : MySqlDateTimeBuilderInitial<''>;
-export function datetime<TName extends string, TMode extends MySqlDatetimeConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilder : MySqlDateTimeBuilder;
+export function datetime<TMode extends MySqlDatetimeConfig['mode'] & {}>(
+	name: string,
 	config?: MySqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilderInitial<TName> : MySqlDateTimeBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MySqlDateTimeStringBuilder : MySqlDateTimeBuilder;
 export function datetime(a?: string | MySqlDatetimeConfig, b?: MySqlDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

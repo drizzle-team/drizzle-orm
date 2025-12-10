@@ -1,4 +1,4 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
@@ -6,11 +6,11 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
-import type { GelColumn, GelColumnBuilderBase } from './columns/common.ts';
+import type { GelColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { gelTable } from './table.ts';
 import { GelViewBase } from './view-base.ts';
-import { GelViewConfig } from './view-common.ts';
+import { GelMaterializedViewConfig, GelViewConfig } from './view-common.ts';
 
 export type ViewWithConfig = RequireAtLeastOne<{
 	checkOption: 'local' | 'cascaded';
@@ -74,7 +74,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, GelColumnBuilderBase> = Record<string, GelColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'GelManualViewBuilder';
 
@@ -232,7 +232,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 
 export class ManualMaterializedViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, GelColumnBuilderBase> = Record<string, GelColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'GelManualMaterializedViewBuilder';
 
@@ -335,8 +335,6 @@ export type GelViewWithSelection<
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = GelView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
-export const GelMaterializedViewConfig = Symbol.for('drizzle:GelMaterializedViewConfig');
-
 export class GelMaterializedView<
 	TName extends string = string,
 	TExisting extends boolean = boolean,
@@ -384,7 +382,7 @@ export type GelMaterializedViewWithSelection<
 /** @internal */
 export function gelViewWithSchema(
 	name: string,
-	selection: Record<string, GelColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -396,7 +394,7 @@ export function gelViewWithSchema(
 /** @internal */
 export function gelMaterializedViewWithSchema(
 	name: string,
-	selection: Record<string, GelColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	if (selection) {
@@ -408,24 +406,24 @@ export function gelMaterializedViewWithSchema(
 // TODO not implemented
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function gelView<TName extends string>(name: TName): ViewBuilder<TName>;
-function gelView<TName extends string, TColumns extends Record<string, GelColumnBuilderBase>>(
+function gelView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
-function gelView(name: string, columns?: Record<string, GelColumnBuilderBase>): ViewBuilder | ManualViewBuilder {
+function gelView(name: string, columns?: Record<string, ColumnBuilderBase>): ViewBuilder | ManualViewBuilder {
 	return gelViewWithSchema(name, columns, undefined);
 }
 
 // TODO not implemented
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function gelMaterializedView<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
-function gelMaterializedView<TName extends string, TColumns extends Record<string, GelColumnBuilderBase>>(
+function gelMaterializedView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualMaterializedViewBuilder<TName, TColumns>;
 function gelMaterializedView(
 	name: string,
-	columns?: Record<string, GelColumnBuilderBase>,
+	columns?: Record<string, ColumnBuilderBase>,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	return gelMaterializedViewWithSchema(name, columns, undefined);
 }

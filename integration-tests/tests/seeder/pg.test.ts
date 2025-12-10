@@ -4,7 +4,7 @@ import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { cities, countries, firstNames, lastNames, reset, seed } from 'drizzle-seed';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import * as schema from './pgSchema.ts';
+import * as schema from './pgSchema';
 
 let client: PGlite;
 let db: PgliteDatabase;
@@ -79,7 +79,7 @@ const createNorthwindTables = async () => {
 				"ship_country" text NOT NULL,
 				"customer_id" text NOT NULL,
 				"employee_id" integer NOT NULL
-			);    
+			);
 		`,
 	);
 
@@ -95,7 +95,7 @@ const createNorthwindTables = async () => {
 				"reorder_level" integer NOT NULL,
 				"discontinued" integer NOT NULL,
 				"supplier_id" integer NOT NULL
-			);    
+			);
 		`,
 	);
 
@@ -112,7 +112,7 @@ const createNorthwindTables = async () => {
 				"postal_code" text NOT NULL,
 				"country" text NOT NULL,
 				"phone" text NOT NULL
-			);    
+			);
 		`,
 	);
 
@@ -132,7 +132,7 @@ const createNorthwindTables = async () => {
 			 ALTER TABLE "seeder_lib_pg"."order_detail" ADD CONSTRAINT "order_detail_product_id_product_id_fk" FOREIGN KEY ("product_id") REFERENCES "seeder_lib_pg"."product"("id") ON DELETE cascade ON UPDATE no action;
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;    
+			END $$;
 		`,
 	);
 
@@ -142,7 +142,7 @@ const createNorthwindTables = async () => {
 			 ALTER TABLE "seeder_lib_pg"."employee" ADD CONSTRAINT "employee_reports_to_employee_id_fk" FOREIGN KEY ("reports_to") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE no action ON UPDATE no action;
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;    
+			END $$;
 		`,
 	);
 
@@ -152,7 +152,7 @@ const createNorthwindTables = async () => {
 			 ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_customer_id_customer_id_fk" FOREIGN KEY ("customer_id") REFERENCES "seeder_lib_pg"."customer"("id") ON DELETE cascade ON UPDATE no action;
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;    
+			END $$;
 		`,
 	);
 
@@ -162,7 +162,7 @@ const createNorthwindTables = async () => {
 			 ALTER TABLE "seeder_lib_pg"."order" ADD CONSTRAINT "order_employee_id_employee_id_fk" FOREIGN KEY ("employee_id") REFERENCES "seeder_lib_pg"."employee"("id") ON DELETE cascade ON UPDATE no action;
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;    
+			END $$;
 		`,
 	);
 
@@ -172,7 +172,7 @@ const createNorthwindTables = async () => {
 			 ALTER TABLE "seeder_lib_pg"."product" ADD CONSTRAINT "product_supplier_id_supplier_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "seeder_lib_pg"."supplier"("id") ON DELETE cascade ON UPDATE no action;
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;    
+			END $$;
 		`,
 	);
 };
@@ -276,14 +276,14 @@ const createAllGeneratorsTables = async () => {
 			 CREATE TYPE "seeder_lib_pg"."enum" AS ENUM('sad', 'ok', 'happy');
 			EXCEPTION
 			 WHEN duplicate_object THEN null;
-			END $$;  
+			END $$;
 		`,
 	);
 	await db.execute(
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_table" (
 				"default_string" text
-			);    
+			);
 		`,
 	);
 
@@ -291,7 +291,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_array_table" (
 				"default_string" text[]
-			);    
+			);
 		`,
 	);
 
@@ -299,7 +299,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_table" (
 				"boolean" boolean
-			);    
+			);
 		`,
 	);
 
@@ -307,7 +307,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_array_table" (
 				"boolean" boolean[]
-			);    
+			);
 		`,
 	);
 
@@ -315,7 +315,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_table" (
 				"city" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -324,7 +324,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_unique_table" (
 				"city_unique" varchar(256),
 				CONSTRAINT "city_unique_table_city_unique_unique" UNIQUE("city_unique")
-			);    
+			);
 		`,
 	);
 
@@ -332,7 +332,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_array_table" (
 				"city" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -340,7 +340,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_table" (
 				"company_name" text
-			);    
+			);
 		`,
 	);
 
@@ -349,7 +349,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_unique_table" (
 				"company_name_unique" varchar(256),
 				CONSTRAINT "company_name_unique_table_company_name_unique_unique" UNIQUE("company_name_unique")
-			);    
+			);
 		`,
 	);
 
@@ -357,7 +357,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_array_table" (
 				"company_name" text[]
-			);    
+			);
 		`,
 	);
 
@@ -365,7 +365,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_table" (
 				"country" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -374,7 +374,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_unique_table" (
 				"country_unique" varchar(256),
 				CONSTRAINT "country_unique_table_country_unique_unique" UNIQUE("country_unique")
-			);    
+			);
 		`,
 	);
 
@@ -382,7 +382,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_array_table" (
 				"country" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -390,7 +390,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_table" (
 				"date" date
-			);    
+			);
 		`,
 	);
 
@@ -399,7 +399,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_array_table" (
 				"date" date[],
 				"date_string" date[]
-			);    
+			);
 		`,
 	);
 
@@ -408,7 +408,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_table" (
 				"email" varchar(256),
 				CONSTRAINT "email_table_email_unique" UNIQUE("email")
-			);    
+			);
 		`,
 	);
 
@@ -416,7 +416,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_array_table" (
 				"email" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -424,7 +424,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."enum_table" (
 				"mood_enum" "seeder_lib_pg"."enum"
-			);  
+			);
 		`,
 	);
 
@@ -432,7 +432,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_table" (
 				"first_name" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -441,7 +441,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_unique_table" (
 				"first_name_unique" varchar(256),
 				CONSTRAINT "first_name_unique_table_first_name_unique_unique" UNIQUE("first_name_unique")
-			);    
+			);
 		`,
 	);
 
@@ -449,7 +449,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_array_table" (
 				"first_name" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -457,7 +457,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name__table" (
 				"full_name_" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -466,7 +466,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_unique_table" (
 				"full_name_unique" varchar(256),
 				CONSTRAINT "full_name_unique_table_full_name_unique_unique" UNIQUE("full_name_unique")
-			);    
+			);
 		`,
 	);
 
@@ -474,7 +474,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_array_table" (
 				"full_name" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -483,7 +483,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_primary_key_table" (
 				"int_primary_key" integer,
 				CONSTRAINT "int_primary_key_table_int_primary_key_unique" UNIQUE("int_primary_key")
-			);    
+			);
 		`,
 	);
 
@@ -491,7 +491,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_table" (
 				"int" integer
-			);    
+			);
 		`,
 	);
 
@@ -500,7 +500,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_unique_table" (
 				"int_unique" integer,
 				CONSTRAINT "int_unique_table_int_unique_unique" UNIQUE("int_unique")
-			);    
+			);
 		`,
 	);
 
@@ -508,7 +508,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_array_table" (
 				"int" integer[]
-			);    
+			);
 		`,
 	);
 
@@ -516,7 +516,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_table" (
 				"interval" interval
-			);    
+			);
 		`,
 	);
 
@@ -525,7 +525,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_unique_table" (
 				"interval_unique" interval,
 				CONSTRAINT "interval_unique_table_interval_unique_unique" UNIQUE("interval_unique")
-			);    
+			);
 		`,
 	);
 
@@ -533,7 +533,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_array_table" (
 				"interval" interval[]
-			);    
+			);
 		`,
 	);
 
@@ -541,7 +541,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_title_table" (
 				"job_title" text
-			);    
+			);
 		`,
 	);
 
@@ -549,7 +549,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_title_array_table" (
 				"job_title" text[]
-			);    
+			);
 		`,
 	);
 
@@ -557,7 +557,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_table" (
 				"json" json
-			);    
+			);
 		`,
 	);
 
@@ -565,7 +565,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_array_table" (
 				"json" json[]
-			);    
+			);
 		`,
 	);
 
@@ -573,7 +573,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_table" (
 				"last_name" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -582,7 +582,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_unique_table" (
 				"last_name_unique" varchar(256),
 				CONSTRAINT "last_name_unique_table_last_name_unique_unique" UNIQUE("last_name_unique")
-			);    
+			);
 		`,
 	);
 
@@ -590,7 +590,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_array_table" (
 				"last_name" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -598,7 +598,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_table" (
 				"line" "line"
-			);    
+			);
 		`,
 	);
 
@@ -606,7 +606,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_array_table" (
 				"line" "line"[]
-			);    
+			);
 		`,
 	);
 
@@ -614,7 +614,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_table" (
 				"lorem_ipsum" text
-			);    
+			);
 		`,
 	);
 
@@ -622,7 +622,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_array_table" (
 				"lorem_ipsum" text[]
-			);    
+			);
 		`,
 	);
 
@@ -630,7 +630,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_table" (
 				"number" real
-			);    
+			);
 		`,
 	);
 
@@ -639,7 +639,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_unique_table" (
 				"number_unique" real,
 				CONSTRAINT "number_unique_table_number_unique_unique" UNIQUE("number_unique")
-			);    
+			);
 		`,
 	);
 
@@ -647,7 +647,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_array_table" (
 				"number" real[]
-			);    
+			);
 		`,
 	);
 
@@ -660,7 +660,7 @@ const createAllGeneratorsTables = async () => {
 				CONSTRAINT "phone_number_table_phoneNumber_unique" UNIQUE("phoneNumber"),
 				CONSTRAINT "phone_number_table_phone_number_template_unique" UNIQUE("phone_number_template"),
 				CONSTRAINT "phone_number_table_phone_number_prefixes_unique" UNIQUE("phone_number_prefixes")
-			);    
+			);
 		`,
 	);
 
@@ -670,7 +670,7 @@ const createAllGeneratorsTables = async () => {
 				"phoneNumber" varchar(256)[],
 				"phone_number_template" varchar(256)[],
 				"phone_number_prefixes" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -678,7 +678,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_table" (
 				"point" "point"
-			);    
+			);
 		`,
 	);
 
@@ -686,7 +686,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_array_table" (
 				"point" "point"[]
-			);    
+			);
 		`,
 	);
 
@@ -694,7 +694,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_table" (
 				"postcode" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -703,7 +703,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_unique_table" (
 				"postcode_unique" varchar(256),
 				CONSTRAINT "postcode_unique_table_postcode_unique_unique" UNIQUE("postcode_unique")
-			);    
+			);
 		`,
 	);
 
@@ -711,7 +711,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_array_table" (
 				"postcode" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -719,7 +719,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_table" (
 				"state" text
-			);   
+			);
 		`,
 	);
 
@@ -727,7 +727,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_array_table" (
 				"state" text[]
-			);   
+			);
 		`,
 	);
 
@@ -735,7 +735,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_table" (
 				"street_address" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -744,7 +744,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_unique_table" (
 				"street_address_unique" varchar(256),
 				CONSTRAINT "street_address_unique_table_street_address_unique_unique" UNIQUE("street_address_unique")
-			);    
+			);
 		`,
 	);
 
@@ -752,7 +752,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_array_table" (
 				"street_address" varchar(256)[]
-			);    
+			);
 		`,
 	);
 
@@ -760,7 +760,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_table" (
 				"string" text
-			);    
+			);
 		`,
 	);
 
@@ -769,7 +769,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_unique_table" (
 				"string_unique" varchar(256),
 				CONSTRAINT "string_unique_table_string_unique_unique" UNIQUE("string_unique")
-			);    
+			);
 		`,
 	);
 
@@ -777,7 +777,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_array_table" (
 				"string" text[]
-			);    
+			);
 		`,
 	);
 
@@ -785,7 +785,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_table" (
 				"time" time
-			);    
+			);
 		`,
 	);
 
@@ -793,7 +793,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_array_table" (
 				"time" time[]
-			);    
+			);
 		`,
 	);
 
@@ -801,7 +801,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_table" (
 				"timestamp" timestamp
-			);    
+			);
 		`,
 	);
 
@@ -809,7 +809,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_array_table" (
 				"timestamp" timestamp[]
-			);    
+			);
 		`,
 	);
 
@@ -818,7 +818,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_table" (
 				"values_from_array_not_null" varchar(256) NOT NULL,
 				"values_from_array_weighted_not_null" varchar(256) NOT NULL
-			);    
+			);
 		`,
 	);
 
@@ -833,7 +833,7 @@ const createAllGeneratorsTables = async () => {
 				CONSTRAINT "values_from_array_unique_table_values_from_array_not_null_unique" UNIQUE("values_from_array_not_null"),
 				CONSTRAINT "values_from_array_unique_table_values_from_array_weighted_unique" UNIQUE("values_from_array_weighted"),
 				CONSTRAINT "values_from_array_unique_table_values_from_array_weighted_not_null_unique" UNIQUE("values_from_array_weighted_not_null")
-			);    
+			);
 		`,
 	);
 
@@ -841,7 +841,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_array_table" (
 				"values_from_array" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -849,7 +849,7 @@ const createAllGeneratorsTables = async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."weighted_random_table" (
 				"weighted_random" varchar(256)
-			);    
+			);
 		`,
 	);
 
@@ -858,7 +858,7 @@ const createAllGeneratorsTables = async () => {
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."weighted_random_with_unique_gens_table" (
 				"weighted_random_with_unique_gens" varchar(256),
 				CONSTRAINT "weighted_random_with_unique_gens_table_weighted_random_with_unique_gens_unique" UNIQUE("weighted_random_with_unique_gens")
-			);    
+			);
 		`,
 	);
 
@@ -868,7 +868,7 @@ const createAllGeneratorsTables = async () => {
 							"id" integer GENERATED ALWAYS AS IDENTITY,
 							"id1" integer,
 							"name" text
-						); 
+						);
 		`,
 	);
 };
@@ -876,7 +876,7 @@ const createAllGeneratorsTables = async () => {
 beforeAll(async () => {
 	client = new PGlite();
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "seeder_lib_pg";`);
 
@@ -1242,8 +1242,8 @@ test('valuesFromArray unique generator test', async () => {
 				}),
 				valuesFromArrayWeightedNotNull: funcs.valuesFromArray({
 					values: [
-						{ values: lastNames.slice(0, 14920), weight: 0.3 },
-						{ values: lastNames.slice(14920), weight: 0.7 },
+						{ values: lastNames.slice(0, 14894), weight: 0.3 },
+						{ values: lastNames.slice(14894), weight: 0.7 },
 					],
 					isUnique: true,
 				}),

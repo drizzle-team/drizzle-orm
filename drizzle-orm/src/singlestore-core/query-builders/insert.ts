@@ -14,7 +14,7 @@ import type {
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
-import type { InferModelFromColumns } from '~/table.ts';
+import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
@@ -32,9 +32,12 @@ export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = Singl
 
 export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTable>;
 
-export type SingleStoreInsertValue<TTable extends SingleStoreTable> =
+export type SingleStoreInsertValue<
+	TTable extends SingleStoreTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
 	& {};
 

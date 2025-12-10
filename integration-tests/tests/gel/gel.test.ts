@@ -1,5 +1,3 @@
-import retry from 'async-retry';
-import type Docker from 'dockerode';
 import {
 	and,
 	arrayContained,
@@ -64,7 +62,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	uuid as gelUuid,
 } from 'drizzle-orm/gel-core';
 import createClient, {
@@ -77,32 +74,30 @@ import createClient, {
 	RelativeDuration,
 } from 'gel';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test, vi } from 'vitest';
 import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
-import { createDockerDB } from './createInstance';
+import relations from './relations';
+import { rqbPost, rqbUser } from './schema';
 
 $.quiet = true;
 
-const ENABLE_LOGGING = false;
-
 let client: Client;
-let db: GelJsDatabase;
+let db: GelJsDatabase<never, typeof relations>;
 let dbGlobalCached: GelJsDatabase;
 let cachedDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
-let container: Docker.Container | undefined;
 
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// function sleep(ms: number) {
+// 	return new Promise((resolve) => setTimeout(resolve, ms));
+// }
 
 declare module 'vitest' {
 	interface TestContext {
 		gel: {
-			db: GelJsDatabase;
+			db: GelJsDatabase<never, typeof relations>;
 		};
 		cachedGel: {
 			db: GelJsDatabase;
@@ -212,44 +207,15 @@ const usersMySchemaTable = mySchema.table('users', {
 });
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	await sleep(15 * 1000);
-	client = await retry(() => {
-		client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.close();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-	cachedDb = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestCache(),
-	});
-	dbGlobalCached = drizzle(client, {
-		logger: ENABLE_LOGGING,
-		cache: new TestGlobalCache(),
-	});
+	const url = process.env['GEL_CONNECTION_STRING'];
+	if (!url) throw new Error('GEL_CONNECTION_STRING is not set');
 
-	dsn = connectionString;
-});
+	client = createClient({ dsn: url, tlsSecurity: 'insecure' });
+	db = drizzle({ client, relations });
+	cachedDb = drizzle({ client, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, cache: new TestGlobalCache() });
 
-afterAll(async () => {
-	await client?.close().catch(console.error);
-	await container?.stop().catch(console.error);
+	dsn = url;
 });
 
 beforeEach((ctx) => {
@@ -268,342 +234,282 @@ describe('some', async () => {
 		await ctx.cachedGel.dbGlobalCached.$cache?.invalidate({ tables: 'users' });
 	});
 	beforeAll(async () => {
+		await $`gel database wipe --tls-security=${tlsSecurity} --dsn=${dsn} --non-interactive`;
+
 		await $`gel query "CREATE TYPE default::users {
-            create property id1: int16 {
-                create constraint exclusive;
-            };
-            create required property name: str;
-      create required property verified: bool {
-          SET default := false;
-      };
-      create PROPERTY json: json;
-      create required property  created_at: datetime {
-          SET default := datetime_of_statement();
-      };
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_with_cities {
-    create property id1: int16 {
-        create constraint exclusive;
-    };
-    create required property name: str;
-    create required property cityId: int32;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_with_undefined {
-        create property id1: int16 {
-            create constraint exclusive;
-        };
-        create property name: str;
-        };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_insert_select {
-            create property id1: int16 {
-                create constraint exclusive;
-            };
-            create property name: str;
-            };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE mySchema::users {
-            create property id1: int16;
-            create required property name: str;
-      create required property verified: bool {
-          SET default := false;
-      };
-      create PROPERTY json: json;
-      create required property  created_at: datetime {
-          SET default := datetime_of_statement();
-      };
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::orders {
-    CREATE PROPERTY id1 -> int16;
-    CREATE REQUIRED PROPERTY region -> str;
-    CREATE REQUIRED PROPERTY product -> str;
-    CREATE REQUIRED PROPERTY amount -> int64;
-    CREATE REQUIRED PROPERTY quantity -> int64;
-    };
-    " --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_distinct {
-    create required property id1 -> int16;
-    create required property name -> str;
-    create required property age -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users3 {
-    create property id1 -> int16;
-    create required property name -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::cities {
-    create required property id1 -> int16;
-    create required property name -> str;
-    create property state -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::courses {
-    create required property id1 -> int16;
-    create required property name -> str;
-    create property categoryId -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::course_categories {
-    create required property id1 -> int16;
-    create required property name -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::jsontest {
-    create property id1 -> int16;
-    create required property json -> json;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::sal_emp {
-    create property name -> str;
-    create property pay_by_quarter -> array<int16>;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::some_new_users {
-    create required property id1 -> int16;
-    create required property name -> str;
-    create property cityId -> int32;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::aggregate_table {
-    create property id1: int16;
-    create required property name: str;
-    create property a: int16;
-    create property b: int16;
-    create property c: int16;
-    create PROPERTY nullOnly: int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::prefixed_users {
-    CREATE PROPERTY id1 -> int16;
-    CREATE REQUIRED PROPERTY name -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::empty_insert_single {
-    CREATE PROPERTY id1 -> int16;
-    CREATE REQUIRED PROPERTY name -> str {
-    SET default := 'Dan';
-    };
-    CREATE PROPERTY state -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::empty_insert_multiple {
-    CREATE PROPERTY id1 -> int16;
-    CREATE REQUIRED PROPERTY name -> str {
-    SET default := 'Dan';
-    };
-    CREATE PROPERTY state -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::products {
-    CREATE PROPERTY id1 -> int16;
-    CREATE REQUIRED PROPERTY price -> decimal;
-    CREATE REQUIRED PROPERTY cheap -> bool {
-    SET default := false
-    };
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
-    create property id1 -> int16;
-    create required property name -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::metric_entry {
-    create required property id1 -> uuid;
-    create required property createdAt -> datetime;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_transactions {
-    create required property id1 -> int16;
-    create required property balance -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::products_transactions {
-    create required property id1 -> int16;
-    create required property price -> int16;
-    create required property stock -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_transactions_rollback {
-    create required property id1 -> int16;
-    create required property balance -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_nested_transactions {
-    create required property id1 -> int16;
-    create required property balance -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::internal_staff {
-    create required property userId -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::custom_user {
-    create required property id1 -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::ticket {
-    create required property staffId -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::posts {
-    create required property id1 -> int16;
-    create property tags -> array<str>;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE dates_column {
-    create property datetimeColumn -> datetime;
-    create property local_datetimeColumn -> cal::local_datetime;
-    create property local_dateColumn -> cal::local_date;
-    create property local_timeColumn -> cal::local_time;
-    
-    create property durationColumn -> duration;
-    create property relative_durationColumn -> cal::relative_duration;
-    create property dateDurationColumn -> cal::date_duration;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE users_with_insert {
-    create required property username -> str;
-    create required property admin -> bool;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE users_test_with_and_without_timezone {
-    create required property username -> str;
-    create required property admin -> bool;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::arrays_tests {
-    create property id1: int16 {
-        create constraint exclusive;
-    };
-    create property tags: array<str>;
-    create required property numbers: array<int32>;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_on_update {
-    create required property id1 -> int16;
-    create required property name -> str;
-    create property update_counter -> int16 {
-        SET default := 1
-    };
-    create property always_null -> str;
-    create property updated_at -> datetime;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::json_table {
-    create PROPERTY json: json;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::notifications {
-    create required property id1 -> int16;
-     create required property  sentAt: datetime {
-          SET default := datetime_of_statement();
-      };
-    create property message -> str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "CREATE TYPE default::user_notifications {
-    create required property userId -> int16;
-    create required property notificationId -> int16;
-    create property categoryId -> int16;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users1 {
-    create required property id1: int16;
-    create required property name: str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "CREATE TYPE default::users2 {
-    create required property id1: int16;
-    create required property name: str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::count_test {
-    create required property id1: int16;
-    create required property name: str;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_with_names {
-    create required property id1: int16;
-    create required property firstName: str;
-    create required property lastName: str;
-    create required property admin: bool;
-    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
-		await $`gel query "CREATE TYPE default::users_with_age {
-        create required property id1: int16;
-        create required property name: str;
-        create required property age: int32;
-        create required property city: str;
-        };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		        create property id1: int16 {
+		            create constraint exclusive;
+		        };
+		        create required property name: str;
+		  create required property verified: bool {
+		      SET default := false;
+		  };
+		  create PROPERTY json: json;
+		  create required property  created_at: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		};
+		CREATE TYPE default::users_with_cities {
+		create property id1: int16 {
+		    create constraint exclusive;
+		};
+		create required property name: str;
+		create property cityId: int32;
+		};
+		CREATE TYPE default::users_with_undefined {
+		    create property id1: int16 {
+		        create constraint exclusive;
+		    };
+		    create property name: str;
+		    };
+		CREATE TYPE default::users_insert_select {
+		        create property id1: int16 {
+		            create constraint exclusive;
+		        };
+		        create property name: str;
+		        };
+		CREATE MODULE mySchema;
+		CREATE TYPE mySchema::users {
+		        create property id1: int16;
+		        create required property name: str;
+		  create required property verified: bool {
+		      SET default := false;
+		  };
+		  create PROPERTY json: json;
+		  create required property  created_at: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		};
+		CREATE TYPE default::orders {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY region -> str;
+		CREATE REQUIRED PROPERTY product -> str;
+		CREATE REQUIRED PROPERTY amount -> int64;
+		CREATE REQUIRED PROPERTY quantity -> int64;
+		};
+		CREATE TYPE default::users_distinct {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create required property age -> int16;
+		};
+		CREATE TYPE default::users3 {
+		create property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::cities {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property state -> str;
+		};
+		CREATE TYPE default::courses {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property categoryId -> int16;
+		};
+		CREATE TYPE default::course_categories {
+		create required property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::jsontest {
+		create property id1 -> int16;
+		create required property json -> json;
+		};
+		CREATE TYPE default::sal_emp {
+		create property name -> str;
+		create property pay_by_quarter -> array<int16>;
+		};
+		CREATE TYPE default::some_new_users {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property cityId -> int32;
+		};
+		CREATE TYPE default::aggregate_table {
+		create property id1: int16;
+		create required property name: str;
+		create property a: int16;
+		create property b: int16;
+		create property c: int16;
+		create PROPERTY nullOnly: int16;
+		};
+		CREATE TYPE default::prefixed_users {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str;
+		};
+		CREATE TYPE default::empty_insert_single {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str {
+		SET default := 'Dan';
+		};
+		CREATE PROPERTY state -> str;
+		};
+		CREATE TYPE default::empty_insert_multiple {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY name -> str {
+		SET default := 'Dan';
+		};
+		CREATE PROPERTY state -> str;
+		};
+		CREATE TYPE default::products {
+		CREATE PROPERTY id1 -> int16;
+		CREATE REQUIRED PROPERTY price -> decimal;
+		CREATE REQUIRED PROPERTY cheap -> bool {
+		SET default := false
+		};
+		};
+		CREATE TYPE default::myprefix_test_prefixed_table_with_unique_name {
+		create property id1 -> int16;
+		create required property name -> str;
+		};
+		CREATE TYPE default::metric_entry {
+		create required property id1 -> uuid;
+		create required property createdAt -> datetime;
+		};
+		CREATE TYPE default::users_transactions {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::products_transactions {
+		create required property id1 -> int16;
+		create required property price -> int16;
+		create required property stock -> int16;
+		};
+		CREATE TYPE default::users_transactions_rollback {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::users_nested_transactions {
+		create required property id1 -> int16;
+		create required property balance -> int16;
+		};
+		CREATE TYPE default::internal_staff {
+		create required property userId -> int16;
+		};
+		CREATE TYPE default::custom_user {
+		create required property id1 -> int16;
+		};
+		CREATE TYPE default::ticket {
+		create required property staffId -> int16;
+		};
+		CREATE TYPE default::posts {
+		create required property id1 -> int16;
+		create property tags -> array<str>;
+		};
+		CREATE TYPE dates_column {
+		create property datetimeColumn -> datetime;
+		create property local_datetimeColumn -> cal::local_datetime;
+		create property local_dateColumn -> cal::local_date;
+		create property local_timeColumn -> cal::local_time;
+		create property durationColumn -> duration;
+		create property relative_durationColumn -> cal::relative_duration;
+		create property dateDurationColumn -> cal::date_duration;
+		};
+		CREATE TYPE users_with_insert {
+		create required property username -> str;
+		create required property admin -> bool;
+		};
+		CREATE TYPE users_test_with_and_without_timezone {
+		create required property username -> str;
+		create required property admin -> bool;
+		};
+		CREATE TYPE default::arrays_tests {
+		create property id1: int16 {
+		    create constraint exclusive;
+		};
+		create property tags: array<str>;
+		create required property numbers: array<int32>;
+		};
+		CREATE TYPE default::users_on_update {
+		create required property id1 -> int16;
+		create required property name -> str;
+		create property update_counter -> int16 {
+		    SET default := 1
+		};
+		create property always_null -> str;
+		create property updated_at -> datetime;
+		};
+		CREATE TYPE default::json_table {
+		create PROPERTY json: json;
+		};
+		CREATE TYPE default::notifications {
+		create required property id1 -> int16;
+		 create required property  sentAt: datetime {
+		      SET default := datetime_of_statement();
+		  };
+		create property message -> str;
+		};
+		CREATE TYPE default::user_notifications {
+		create required property userId -> int16;
+		create required property notificationId -> int16;
+		create property categoryId -> int16;
+		};
+		CREATE TYPE default::users1 {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::users2 {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::count_test {
+		create required property id1: int16;
+		create required property name: str;
+		};
+		CREATE TYPE default::users_with_names {
+		create required property id1: int16;
+		create required property firstName: str;
+		create required property lastName: str;
+		create required property admin: bool;
+		};
+		CREATE TYPE default::users_with_age {
+		    create required property id1: int16;
+		    create required property name: str;
+		    create required property age: int32;
+		    create required property city: str;
+		    };
+		CREATE TYPE default::user_rqb_test {
+		    create property custom_id: int32 {
+		        create constraint exclusive;
+		    };
+		    create property name: str;
+			create required property created_at -> datetime;
+		};
+		CREATE TYPE default::post_rqb_test {
+		    create property custom_id: int32 {
+		        create constraint exclusive;
+		    };
+		    create required property user_id: int32;
+		    create property content: str;
+			create required property created_at -> datetime;
+		};
+		CREATE TYPE default::users_on_update_sql {
+			create required property id1: int16;
+			create required property name: str;
+			create required property updated_at: datetime;
+		};
+		" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {
-		await $`gel query "DELETE default::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::prefixed_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::some_new_users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::orders;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::cities;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::users_on_update;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::aggregate_table;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE mySchema::users;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::count_test;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await Promise.all([
+			client.querySQL(`DELETE FROM "users";`),
+			client.querySQL(`DELETE FROM "prefixed_users";`),
+			client.querySQL(`DELETE FROM "some_new_users";`),
+			client.querySQL(`DELETE FROM "orders";`),
+			client.querySQL(`DELETE FROM "cities";`),
+			client.querySQL(`DELETE FROM "users_on_update";`),
+			client.querySQL(`DELETE FROM "aggregate_table";`),
+			client.querySQL(`DELETE FROM "count_test"`),
+			client.querySQL(`DELETE FROM "users1"`),
+			client.querySQL(`DELETE FROM "users2"`),
+			client.querySQL(`DELETE FROM "jsontest"`),
+			client.querySQL(`DELETE FROM "user_rqb_test"`),
+			client.querySQL(`DELETE FROM "post_rqb_test"`),
+			client.querySQL(`DELETE FROM "mySchema"."users";`),
+			client.querySQL(`DELETE FROM "users_on_update_sql";`),
+		]);
 	});
 
-	afterAll(async () => {
-		await $`gel query "DROP TYPE default::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_with_cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_with_undefined " --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_insert_select" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE mySchema::users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::orders" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_distinct" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users3" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::cities" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::courses" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::course_categories" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::jsontest" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::sal_emp" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::some_new_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::aggregate_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::prefixed_users" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::empty_insert_single" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::empty_insert_multiple" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::products" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::myprefix_test_prefixed_table_with_unique_name" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::metric_entry" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::products_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_transactions_rollback" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_nested_transactions" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::internal_staff" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::custom_user" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::ticket" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::posts" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE dates_column" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE users_with_insert" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE users_test_with_and_without_timezone" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::arrays_tests" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_on_update" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::json_table" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::user_notifications" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users1" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users2" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::count_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-		await $`gel query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-	});
-
-	async function setupSetOperationTest(db: GelJsDatabase) {
+	async function setupSetOperationTest(db: GelJsDatabase<any, any>) {
 		await db.insert(cities2Table).values([
 			{ id1: 1, name: 'New York' },
 			{ id1: 2, name: 'London' },
@@ -622,7 +528,7 @@ describe('some', async () => {
 		]);
 	}
 
-	async function setupAggregateFunctionsTest(db: GelJsDatabase) {
+	async function setupAggregateFunctionsTest(db: GelJsDatabase<any, any>) {
 		await db.insert(aggregateTable).values([
 			{ id1: 1, name: 'value 1', a: 5, b: 10, c: 20 },
 			{ id1: 2, name: 'value 1', a: 5, b: 20, c: 30 },
@@ -642,10 +548,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}),
+			(t) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)],
 		);
 
 		const tableConfig = getTableConfig(cities1Table);
@@ -673,7 +576,7 @@ describe('some', async () => {
 
 		const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-		expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+		expect(columnName?.uniqueName).toBe(undefined);
 		expect(columnName?.isUnique).toBe(true);
 
 		const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -694,9 +597,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: foreignKey({ foreignColumns: [t.id1], columns: [t.id1], name: 'custom_fk' }),
-			}),
+			(t) => [foreignKey({ foreignColumns: [t.id1], columns: [t.id1], name: 'custom_fk' })],
 		);
 
 		const tableConfig = getTableConfig(table);
@@ -713,9 +614,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}),
+			(t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })],
 		);
 
 		const tableConfig = getTableConfig(table);
@@ -1861,6 +1760,78 @@ describe('some', async () => {
 				},
 			},
 		]);
+	});
+
+	test('select from a many subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			population: db.select({ count: count().as('count') }).from(users2Table).where(
+				eq(users2Table.cityId, citiesTable.id1),
+			).as(
+				'population',
+			),
+			name: citiesTable.name,
+		}).from(citiesTable);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			population: number;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			population: 1,
+			name: 'Paris',
+		}, {
+			population: 2,
+			name: 'London',
+		}]);
+	});
+
+	test('select from a one subquery', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ id1: 1, name: 'John', cityId: 1 },
+			{ id1: 2, name: 'Jane', cityId: 2 },
+			{ id1: 3, name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id1))
+				.as(
+					'cityName',
+				),
+			name: users2Table.name,
+		}).from(users2Table);
+
+		expectTypeOf(res).toEqualTypeOf<{
+			cityName: string;
+			name: string;
+		}[]>();
+
+		expect(res).toStrictEqual([{
+			cityName: 'Paris',
+			name: 'John',
+		}, {
+			cityName: 'London',
+			name: 'Jane',
+		}, {
+			cityName: 'London',
+			name: 'Jack',
+		}]);
 	});
 
 	test('join subquery', async (ctx) => {
@@ -4700,10 +4671,10 @@ describe('some', async () => {
 					id: integer('id').primaryKey(),
 					name: text('name').notNull(),
 				},
-				() => ({
+				() => [
 					p1,
 					p2,
-				}),
+				],
 			);
 			const config = getTableConfig(table);
 			expect(config.policies).toHaveLength(2);
@@ -4727,6 +4698,35 @@ describe('some', async () => {
 
 		expect(config1.enableRLS).toBeTruthy();
 		expect(config2.enableRLS).toBeFalsy();
+	});
+
+	test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const users = gelTable('users_on_update_sql', {
+			id: integer('id1').notNull(),
+			name: text('name').notNull(),
+			updatedAt: timestamptz('updated_at').notNull().$onUpdate(() => sql`now()`),
+		});
+
+		const insertResp = await db.insert(users).values({
+			id: 1,
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		const now = Date.now();
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		const updateResp = await db.update(users).set({
+			name: 'John',
+		}).returning({
+			updatedAt: users.updatedAt,
+		});
+
+		expect(new Date(insertResp[0]?.updatedAt.toISOString() ?? 0).getTime()).lessThan(now);
+		expect(new Date(updateResp[0]?.updatedAt.toISOString() ?? 0).getTime()).greaterThan(now);
 	});
 
 	test('$count separate', async (ctx) => {
@@ -5006,10 +5006,584 @@ describe('some', async () => {
 		expect(inserted).toEqual([{ id1: 1, name: 'John' }]);
 	});
 
+	test('RQB v2 simple find first - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const result = await db.query.rqbUser.findFirst();
+
+		expect(result).toStrictEqual(undefined);
+	});
+
+	test('RQB v2 simple find first - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	});
+
+	test('RQB v2 simple find first - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			with: {
+				posts: {
+					orderBy: {
+						id: 'asc',
+					},
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			createdAt: date,
+			name: 'First',
+			posts: [{
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}],
+		});
+	});
+
+	test('RQB v2 simple find first - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findFirst({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare('rqb_v2_find_first_placeholders');
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	});
+
+	test('RQB v2 simple find many - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const result = await db.query.rqbUser.findMany();
+
+		expect(result).toStrictEqual([]);
+	});
+
+	test('RQB v2 simple find many - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findMany({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}, {
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}]);
+	});
+
+	test('RQB v2 simple find many - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbPost.findMany({
+			with: {
+				author: true,
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+			author: {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}, {
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+			author: {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}]);
+	});
+
+	test('RQB v2 simple find many - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findMany({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare('rqb_v2_find_many_placeholders');
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+	});
+
+	test('RQB v2 transaction find first - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst();
+
+			expect(result).toStrictEqual(undefined);
+		});
+	});
+
+	test('RQB v2 transaction find first - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	});
+
+	test('RQB v2 transaction find first - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				with: {
+					posts: {
+						orderBy: {
+							id: 'asc',
+						},
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+				posts: [{
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					_id: expect.stringMatching(/(.*)/),
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}],
+			});
+		});
+	});
+
+	test('RQB v2 transaction find first - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findFirst({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_first_tx_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	});
+
+	test('RQB v2 transaction find many - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany();
+
+			expect(result).toStrictEqual([]);
+		});
+	});
+
+	test('RQB v2 transaction find many - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}]);
+		});
+	});
+
+	test('RQB v2 transaction find many - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbPost.findMany({
+				with: {
+					author: true,
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+				author: {
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+				author: {
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}]);
+		});
+	});
+
+	test('RQB v2 transaction find many - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findMany({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_many_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+		});
+	});
+
 	test('test force invalidate', async (ctx) => {
 		const { db } = ctx.cachedGel;
 
-		const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 		await db.$cache?.invalidate({ tables: 'users' });
 		expect(spyInvalidate).toHaveBeenCalledTimes(1);
 	});
@@ -5018,11 +5592,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable);
 
@@ -5035,11 +5609,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache();
 
@@ -5052,11 +5626,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ config: { ex: 1 } });
 
@@ -5079,11 +5653,11 @@ describe('some', async () => {
 		const { db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
 
@@ -5101,11 +5675,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache(false);
 
@@ -5118,11 +5692,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable);
 
@@ -5135,11 +5709,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache(false);
 
@@ -5152,11 +5726,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ autoInvalidate: false });
 
@@ -5179,11 +5753,11 @@ describe('some', async () => {
 		const { dbGlobalCached: db } = ctx.cachedGel;
 
 		// @ts-expect-error
-		const spyPut = vi.spyOn(db.$cache, 'put');
+		using spyPut = vi.spyOn(db.$cache, 'put');
 		// @ts-expect-error
-		const spyGet = vi.spyOn(db.$cache, 'get');
+		using spyGet = vi.spyOn(db.$cache, 'get');
 		// @ts-expect-error
-		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+		using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
 
 		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false });
 
@@ -5250,5 +5824,92 @@ describe('some', async () => {
 
 		// @ts-expect-error
 		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
+	});
+
+	test('column.as', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const users = gelTable('users_with_cities', {
+			id: integer('id1').primaryKey(),
+			name: text('name').notNull(),
+			cityId: integer('cityId').references(() => cities.id),
+		});
+
+		const cities = gelTable('cities', {
+			id: integer('id1').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.delete(users);
+		await db.delete(cities);
+
+		const citiesInsRet = await db.insert(cities).values([{
+			id: 1,
+			name: 'Firstistan',
+		}, {
+			id: 2,
+			name: 'Secondaria',
+		}]).returning({
+			cityId: cities.id.as('city_id'),
+			cityName: cities.name.as('city_name'),
+		});
+
+		expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
+			cityId: 1,
+			cityName: 'Firstistan',
+		}, {
+			cityId: 2,
+			cityName: 'Secondaria',
+		}]));
+
+		const usersInsRet = await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
+			id: 2,
+			name: 'Second',
+			cityId: 2,
+		}, {
+			id: 3,
+			name: 'Third',
+		}]).returning({
+			userId: users.id.as('user_id'),
+			userName: users.name.as('users_name'),
+			userCityId: users.cityId,
+		});
+
+		expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
+			userId: 2,
+			userName: 'Second',
+			userCityId: 2,
+		}, {
+			userId: 3,
+			userName: 'Third',
+			userCityId: null,
+		}]));
+
+		const joinSelectReturn = await db.select({
+			userId: users.id.as('user_id'),
+			cityId: cities.id.as('city_id'),
+			userName: users.name.as('user_name'),
+			cityName: cities.name.as('city_name'),
+		}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+
+		expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
+			userId: 1,
+			userName: 'First',
+			cityId: 1,
+			cityName: 'Firstistan',
+		}, {
+			userId: 2,
+			userName: 'Second',
+			cityId: 2,
+			cityName: 'Secondaria',
+		}, {
+			userId: 3,
+			userName: 'Third',
+			cityId: null,
+			cityName: null,
+		}]));
+
+		await db.delete(users);
+		await db.delete(cities);
 	});
 });

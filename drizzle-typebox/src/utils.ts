@@ -25,6 +25,11 @@ export interface BufferSchema extends TSchema {
 	static: Buffer;
 	type: 'buffer';
 }
+export interface BigIntStringModeSchema extends TSchema {
+	[Kind]: 'BigIntStringMode';
+	static: string;
+	type: 'string';
+}
 
 export type IsNever<T> = [T] extends [never] ? true : false;
 
@@ -34,7 +39,8 @@ export type IsEnumDefined<TEnum extends string[] | undefined> = [string, ...stri
 
 export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column
 	? TColumn['_']['identity'] extends 'always' ? true
-	: TColumn['_']['generated'] extends { type: 'byDefault' } | undefined ? false
+	: TColumn['_'] extends { generated: undefined } ? false
+	: TColumn['_'] extends { generated: { type: 'byDefault' } } ? false
 	: true
 	: false;
 

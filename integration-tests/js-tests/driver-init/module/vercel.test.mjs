@@ -29,23 +29,12 @@ describe('vercel:sql', async (it) => {
 		expect(db.$client).toBeTypeOf('function');
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const db = drizzle(sql);
 
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeTypeOf('function');
-	});
-
-	it('drizzle(client, config)', async () => {
-		const db = drizzle(sql, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).toBeTypeOf('function');
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -57,7 +46,7 @@ describe('vercel:sql', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeTypeOf('function');
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({...config})', async () => {
@@ -68,36 +57,21 @@ describe('vercel:sql', async (it) => {
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).toBeTypeOf('function');
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
 describe('vercel:Pool', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = createPool({
 			connectionString: process.env['VERCEL_CONNECTION_STRING'],
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.query('SELECT 1;');
 
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).toBeInstanceOf(Pool);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = createPool({
-			connectionString: process.env['VERCEL_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).not.toBeTypeOf('function');
-		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -113,16 +87,16 @@ describe('vercel:Pool', async (it) => {
 
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).toBeInstanceOf(Pool);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
 describe('vercel:Client', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = createClient({
 			connectionString: process.env['NEON_CONNECTION_STRING'],
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await client.connect();
 
@@ -131,24 +105,6 @@ describe('vercel:Client', async (it) => {
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = createClient({
-			connectionString: process.env['NEON_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await client.connect();
-
-		await db.$client.query('SELECT 1;');
-
-		expect(db.$client).not.toBeTypeOf('function');
-		expect(db.$client).not.toBeInstanceOf(Pool);
-		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -167,18 +123,18 @@ describe('vercel:Client', async (it) => {
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });
 
 describe('vercel:PoolClient', async (it) => {
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const pool = createPool({
 			connectionString: process.env['VERCEL_CONNECTION_STRING'],
 		});
 		const client = await pool.connect();
 
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.query('SELECT 1;');
 		client.release();
@@ -186,25 +142,6 @@ describe('vercel:PoolClient', async (it) => {
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const pool = createPool({
-			connectionString: process.env['VERCEL_CONNECTION_STRING'],
-		});
-		const client = await pool.connect();
-
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.query('SELECT 1;');
-		client.release();
-
-		expect(db.$client).not.toBeTypeOf('function');
-		expect(db.$client).not.toBeInstanceOf(Pool);
-		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -224,6 +161,6 @@ describe('vercel:PoolClient', async (it) => {
 		expect(db.$client).not.toBeTypeOf('function');
 		expect(db.$client).not.toBeInstanceOf(Pool);
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

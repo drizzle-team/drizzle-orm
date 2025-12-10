@@ -1,6 +1,6 @@
-import { ConnectionOptions } from 'tls';
+import type { ConnectionOptions } from 'tls';
 import type { Driver, Prefix } from './cli/validations/common';
-import type { Dialect } from './schemaValidator';
+import type { Dialect } from './utils/schemaValidator';
 
 // import {SslOptions} from 'mysql2'
 type SslOptions = {
@@ -213,6 +213,10 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'durable-sqlite'>;
 		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'sqlite-cloud'>;
+		}
 		| {}
 		| {
 			dialect: Verify<Dialect, 'singlestore'>;
@@ -251,6 +255,46 @@ export type Config =
 						database: string;
 					})
 				);
+		}
+		// TODO update?
+		| {
+			dialect: Verify<Dialect, 'mssql'>;
+			dbCredentials:
+				| {
+					port: number;
+					user: string;
+					password: string;
+					database: string;
+					server: string;
+					options?: {
+						encrypt?: boolean;
+						trustServerCertificate?: boolean;
+					};
+				}
+				| {
+					url: string;
+				};
+		}
+		| {
+			dialect: Verify<Dialect, 'cockroach'>;
+			dbCredentials:
+				| ({
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?:
+						| boolean
+						| 'require'
+						| 'allow'
+						| 'prefer'
+						| 'verify-full'
+						| ConnectionOptions;
+				} & {})
+				| {
+					url: string;
+				};
 		}
 	);
 

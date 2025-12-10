@@ -1,85 +1,13 @@
-import Docker from 'dockerode';
-import { eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
+import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
-import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
-let pgContainer: Docker.Container;
-let docker: Docker;
 let client: Sql;
-let db: PostgresJsDatabase;
-
-async function createDockerDB(): Promise<string> {
-	const inDocker = (docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'pgvector/pgvector:pg16';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		inDocker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
-beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'] ?? (await createDockerDB());
-
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = postgres(connectionString, {
-				max: 1,
-				onnotice: () => {
-					// disable notices
-				},
-			});
-			await client`select 1`;
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-
-	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
-});
-
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await pgContainer?.stop().catch(console.error);
-});
+let db: PostgresJsDatabase<never, typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -87,6 +15,35 @@ const items = pgTable('items', {
 	bit: bit('bit', { dimensions: 3 }),
 	halfvec: halfvec('halfvec', { dimensions: 3 }),
 	sparsevec: sparsevec('sparsevec', { dimensions: 5 }),
+});
+
+const relations = defineRelations({ items }, (r) => ({
+	items: {
+		self: r.many.items({
+			from: r.items.id,
+			to: r.items.id,
+		}),
+	},
+}));
+
+beforeAll(async () => {
+	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
+
+	client = postgres(connectionString, {
+		max: 1,
+		onnotice: () => {
+			// disable notices
+		},
+	});
+	await client`select 1`;
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+
+	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
+});
+
+afterAll(async () => {
+	await client?.end().catch(console.error);
 });
 
 beforeEach(async () => {
@@ -380,4 +337,27 @@ test('select + insert all vectors', async () => {
 		halfvec: [1, 2, 3],
 		sparsevec: '{1:1,3:2,5:3}/5',
 	}]);
+});
+
+test('RQBv2', async () => {
+	await db.insert(items).values([{
+		vector: [3, 1, 2],
+		bit: '000',
+		halfvec: [1, 2, 3],
+		sparsevec: '{1:1,3:2,5:3}/5',
+	}]).returning();
+
+	const rawResponse = await db.select().from(items);
+	const rootRqbResponse = await db.query.items.findMany();
+	const { self: nestedRqbResponse } = (await db.query.items.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	expectTypeOf(rootRqbResponse).toEqualTypeOf(rawResponse);
+	expectTypeOf(nestedRqbResponse).toEqualTypeOf(rawResponse);
+
+	expect(rootRqbResponse).toStrictEqual(rawResponse);
+	expect(nestedRqbResponse).toStrictEqual(rawResponse);
 });

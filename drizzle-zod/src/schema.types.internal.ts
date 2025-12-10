@@ -1,6 +1,7 @@
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type { z } from 'zod/v4';
 import type { GetZodType, HandleColumn } from './column.types.ts';
+import type { CoerceOptions } from './schema.types.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
 
 export interface Conditions {
@@ -13,7 +14,7 @@ type BuildRefineField<T> = T extends z.ZodType ? ((schema: T) => z.ZodType) | z.
 
 export type BuildRefine<
 	TColumns extends Record<string, any>,
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > = {
 	[K in keyof TColumns as TColumns[K] extends Column | SelectedFieldsFlat<Column> | Table | View ? K : never]?:
 		TColumns[K] extends Column ? BuildRefineField<GetZodType<TColumns[K], TCoerce>>
@@ -41,7 +42,7 @@ export type BuildSchema<
 	TType extends 'select' | 'insert' | 'update',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > = z.ZodObject<
 	Simplify<
 		{

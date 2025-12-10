@@ -15,13 +15,26 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX });
+const integerNullableSchema = t.Union([integerSchema, t.Null()]);
+const integerOptionalSchema = t.Optional(integerSchema);
+const integerNullableOptionalSchema = t.Optional(t.Union([integerSchema, t.Null()]));
+
 const textSchema = t.String();
+const textOptionalSchema = t.Optional(textSchema);
+
+const anySchema = t.Any();
+
+const extendedSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 });
+const extendedNullableSchema = t.Union([extendedSchema, t.Null()]);
+const extendedOptionalSchema = t.Optional(extendedSchema);
+
+const customSchema = t.Integer({ minimum: 1, maximum: 10 });
 
 test('table - select', (tc) => {
 	const table = pgTable('test', {
@@ -56,7 +69,7 @@ test('table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = t.Object({ name: textSchema, age: t.Optional(t.Union([integerSchema, t.Null()])) });
+	const expected = t.Object({ name: textSchema, age: integerNullableOptionalSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -70,8 +83,8 @@ test('table - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		name: t.Optional(textSchema),
-		age: t.Optional(t.Union([integerSchema, t.Null()])),
+		name: textOptionalSchema,
+		age: integerNullableOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -85,7 +98,7 @@ test('view qb - select', (tc) => {
 	const view = pgView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, age: t.Any() });
+	const expected = t.Object({ id: integerSchema, age: anySchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -110,13 +123,13 @@ test('materialized view qb - select', (tc) => {
 	const view = pgMaterializedView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: integerSchema, age: t.Any() });
+	const expected = t.Object({ id: integerSchema, age: anySchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('materialized view columns - select', (tc) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -132,7 +145,7 @@ test('view with nested fields - select', (tc) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -146,7 +159,7 @@ test('view with nested fields - select', (tc) => {
 	const result = createSelectSchema(view);
 	const expected = t.Object({
 		id: integerSchema,
-		nested: t.Object({ name: textSchema, age: t.Any() }),
+		nested: t.Object({ name: textSchema, age: anySchema }),
 		table: t.Object({ id: integerSchema, name: textSchema }),
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -172,9 +185,9 @@ test('nullability - select', (tc) => {
 
 	const result = createSelectSchema(table);
 	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
+		c1: integerNullableSchema,
 		c2: integerSchema,
-		c3: t.Union([integerSchema, t.Null()]),
+		c3: integerNullableSchema,
 		c4: integerSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -194,11 +207,11 @@ test('nullability - insert', (tc) => {
 
 	const result = createInsertSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
+		c1: integerNullableOptionalSchema,
 		c2: integerSchema,
-		c3: t.Optional(t.Union([integerSchema, t.Null()])),
-		c4: t.Optional(integerSchema),
-		c7: t.Optional(integerSchema),
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
+		c7: integerOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 });
@@ -216,11 +229,11 @@ test('nullability - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Optional(integerSchema),
-		c3: t.Optional(t.Union([integerSchema, t.Null()])),
-		c4: t.Optional(integerSchema),
-		c7: t.Optional(integerSchema),
+		c1: integerNullableOptionalSchema,
+		c2: integerOptionalSchema,
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
+		c7: integerOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -238,9 +251,9 @@ test('refine table - select', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -262,9 +275,9 @@ test('refine table - select with custom data type', (tc) => {
 		c4: customTextSchema,
 	});
 	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -285,9 +298,9 @@ test('refine table - insert', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: integerNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -306,9 +319,9 @@ test('refine table - update', (tc) => {
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([integerSchema, t.Null()])),
-		c2: t.Optional(t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 })),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: integerNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -350,21 +363,21 @@ test('refine view - select', (tc) => {
 		},
 	});
 	const expected = t.Object({
-		c1: t.Union([integerSchema, t.Null()]),
-		c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: integerNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: t.Object({
-			c4: t.Union([integerSchema, t.Null()]),
-			c5: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
+			c4: integerNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: t.Object({
-			c1: t.Union([integerSchema, t.Null()]),
-			c2: t.Union([t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }), t.Null()]),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-			c4: t.Union([integerSchema, t.Null()]),
-			c5: t.Union([integerSchema, t.Null()]),
-			c6: t.Union([integerSchema, t.Null()]),
+			c1: integerNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: integerNullableSchema,
+			c5: integerNullableSchema,
+			c6: integerNullableSchema,
 		}),
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -407,6 +420,7 @@ test('all data types', (tc) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
+		bigint3: bigint({ mode: 'string' }).notNull(),
 		bigserial1: bigserial({ mode: 'number' }).notNull(),
 		bigserial2: bigserial({ mode: 'bigint' }).notNull(),
 		bit: bit({ dimensions: 5 }).notNull(),
@@ -429,7 +443,9 @@ test('all data types', (tc) => {
 		line2: line({ mode: 'tuple' }).notNull(),
 		macaddr: macaddr().notNull(),
 		macaddr8: macaddr8().notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		point1: point({ mode: 'xy' }).notNull(),
 		point2: point({ mode: 'tuple' }).notNull(),
 		real: real().notNull(),
@@ -455,13 +471,14 @@ test('all data types', (tc) => {
 	const expected = t.Object({
 		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		bigint3: bigintStringModeSchema,
 		bigserial1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigserial2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bit: t.RegExp(/^[01]+$/, { maxLength: 5 }),
+		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),
 		boolean: t.Boolean(),
 		date1: t.Date(),
 		date2: t.String(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		cidr: t.String(),
 		doublePrecision: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
@@ -477,7 +494,9 @@ test('all data types', (tc) => {
 		line2: t.Tuple([t.Number(), t.Number(), t.Number()]),
 		macaddr: t.String(),
 		macaddr8: t.String(),
-		numeric: t.String(),
+		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		numeric3: t.String(),
 		point1: t.Object({ x: t.Number(), y: t.Number() }),
 		point2: t.Tuple([t.Number(), t.Number()]),
 		real: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),

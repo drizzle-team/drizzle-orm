@@ -1,10 +1,30 @@
-import chalk from 'chalk';
-import fs, { writeFileSync } from 'fs';
-import path from 'path';
-import { Column, MySqlSchema, MySqlSchemaV4, MySqlSchemaV5, mysqlSchemaV5, Table } from '../../serializer/mysqlSchema';
-import { prepareOutFolder, validateWithReport } from '../../utils';
+import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import type { Column, MySqlSchemaV4, MySqlSchemaV5, Table } from '../../legacy/mysql-v5/mysqlSchema';
+import type { Journal } from '../../utils';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMysqlHandler = (out: string) => {
+	// if there is meta folder - and there is a journal - it's version <8
+	const metaPath = join(out, 'meta');
+	const journalPath = join(metaPath, '_journal.json');
+	if (existsSync(metaPath) && existsSync(journalPath)) {
+		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
+		if (Number(journal.version) < 8) {
+			for (const entry of journal.entries) {
+				const snapshotPrefix = entry.tag.split('_')[0];
+				const oldSnapshot = readFileSync(join(metaPath, `${snapshotPrefix}_snapshot.json`));
+				const oldSql = readFileSync(join(out, `${entry.tag}.sql`));
+
+				writeFileSync(join(out, `${entry.tag}/snapshot.json`), oldSnapshot);
+				writeFileSync(join(out, `${entry.tag}/migration.sql`), oldSql);
+
+				unlinkSync(join(out, `${entry.tag}.sql`));
+			}
+
+			rmSync(metaPath);
+		}
+	}
+};
 
 export const upMySqlHandlerV4toV5 = (obj: MySqlSchemaV4): MySqlSchemaV5 => {
 	const mappedTables: Record<string, Table> = {};

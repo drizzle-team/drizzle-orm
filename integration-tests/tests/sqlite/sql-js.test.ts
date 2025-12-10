@@ -1,40 +1,21 @@
 import { sql } from 'drizzle-orm';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
-import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import type { Database } from 'sql.js';
 import initSqlJs from 'sql.js';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { expect } from 'vitest';
 import { skipTests } from '~/common';
+import { sqlJsTest as test } from './instrumentation';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
-const ENABLE_LOGGING = false;
-
-let db: SQLJsDatabase;
-let client: Database;
-
-beforeAll(async () => {
-	const SQL = await initSqlJs();
-	client = new SQL.Database();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-});
-
-beforeEach((ctx) => {
-	ctx.sqlite = {
-		db,
-	};
-});
-
-afterAll(async () => {
-	client?.close();
-});
-
-test('migrator', async () => {
+test('migrator', async ({ db }) => {
 	db.run(sql`drop table if exists another_users`);
 	db.run(sql`drop table if exists users12`);
 	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+	migrate(db as SQLJsDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -50,7 +31,105 @@ test('migrator', async () => {
 	db.run(sql`drop table __drizzle_migrations`);
 });
 
-skipTests([
+test('migrator : --init', async ({ db }) => {
+	const migrationsTable = 'drzl_init';
+
+	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
+	await db.run(sql`drop table if exists ${usersMigratorTable}`);
+	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
+
+	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+		migrationsFolder: './drizzle2/sqlite',
+
+		migrationsTable,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsTable)}`);
+
+	const res = await db.get<{ tableExists: boolean | number }>(
+		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
+			getTableConfig(usersMigratorTable).name
+		}) AS ${sql.identifier('tableExists')};`,
+	);
+
+	expect(migratorRes).toStrictEqual(undefined);
+	expect(meta.length).toStrictEqual(1);
+	expect(!!res?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - local migrations error', async ({ db }) => {
+	const migrationsTable = 'drzl_init';
+
+	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
+	await db.run(sql`drop table if exists ${usersMigratorTable}`);
+	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
+
+	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+		migrationsFolder: './drizzle2/sqlite-init',
+
+		migrationsTable,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsTable)}`);
+
+	const res = await db.get<{ tableExists: boolean | number }>(
+		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
+			getTableConfig(usersMigratorTable).name
+		}) AS ${sql.identifier('tableExists')};`,
+	);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+	expect(meta.length).toStrictEqual(0);
+	expect(!!res?.tableExists).toStrictEqual(false);
+});
+
+test('migrator : --init - db migrations error', async ({ db }) => {
+	const migrationsTable = 'drzl_init';
+
+	await db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
+	await db.run(sql`drop table if exists ${usersMigratorTable}`);
+	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
+
+	migrate(db as SQLJsDatabase<never, typeof relations>, {
+		migrationsFolder: './drizzle2/sqlite',
+		migrationsTable,
+	});
+
+	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+		migrationsFolder: './drizzle2/sqlite-init',
+
+		migrationsTable,
+		// @ts-ignore - internal param
+		init: true,
+	});
+
+	const meta = await db.select({
+		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
+		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
+	}).from(sql`${sql.identifier(migrationsTable)}`);
+
+	const res = await db.get<{ tableExists: boolean | number }>(
+		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
+			getTableConfig(usersMigratorTable).name
+		}) AS ${sql.identifier('tableExists')};`,
+	);
+
+	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+	expect(meta.length).toStrictEqual(1);
+	expect(!!res?.tableExists).toStrictEqual(true);
+});
+
+const skip = [
 	/**
 	 * doesn't work properly:
 	 * 	Expect: should rollback transaction and don't insert/ update data
@@ -60,5 +139,5 @@ skipTests([
 	'nested transaction rollback',
 	'delete with limit and order by',
 	'update with limit and order by',
-]);
-tests();
+];
+tests(test, skip);

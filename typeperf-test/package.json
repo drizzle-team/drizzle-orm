@@ -1,0 +1,30 @@
+{
+	"name": "typeperf-tests",
+	"version": "1.0.0",
+	"description": "",
+	"type": "module",
+	"scripts": {
+		"run-test": "tsx test",
+		"test": "echo skip...",
+		"build": "echo skip...",
+		"build:artifact": "pnpm run build",
+		"pack": "echo skip...",
+		"pack:artifact": "pnpm run pack",
+		"test:types": "echo skip..."
+	},
+	"keywords": [],
+	"author": "Drizzle Team",
+	"license": "Apache-2.0",
+	"private": true,
+	"devDependencies": {
+		"tslatest": "npm:typescript@latest",
+		"tsnext": "npm:typescript@next"
+	},
+	"dependencies": {
+		"drizzle-beta": "npm:drizzle-orm@1.0.0-beta.1-c0277c0",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
+		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
+		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
+		"drizzle-zod": "workspace:../drizzle-zod/dist"
+	}
+}
