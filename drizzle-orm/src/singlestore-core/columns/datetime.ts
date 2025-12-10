@@ -49,7 +49,8 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> exte
 		return `datetime`;
 	}
 
-	override mapToDriverValue(value: Date): unknown {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 
@@ -97,6 +98,11 @@ export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string dateti
 
 	getSQLType(): string {
 		return `datetime`;
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 }
 

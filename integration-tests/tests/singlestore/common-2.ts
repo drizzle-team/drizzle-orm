@@ -2587,6 +2587,98 @@ export function tests(test: Test) {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
+		test.concurrent('placeholder + sql dates', async ({ db, push }) => {
+			const dateTable = singlestoreTable('dates_placeholder_test', (t) => ({
+				id: t.int('id').primaryKey().notNull(),
+				date: t.datetime('date', { mode: 'date' }).notNull(),
+				dateStr: t.datetime('date_str', { mode: 'string' }).notNull(),
+				timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
+				timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+			}));
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
+			await push({ dateTable });
+
+			const date = new Date('2025-12-10T01:01:01.000Z');
+			const timestamp = new Date('2025-12-10T01:01:01.000Z');
+			const dateStr = date.toISOString().slice(0, -5).replace('T', ' ');
+			const timestampStr = timestamp.toISOString().slice(0, -5).replace('T', ' ');
+
+			await db.insert(dateTable).values([{
+				id: 1,
+				date: date,
+				dateStr: dateStr,
+				timestamp: timestamp,
+				timestampStr: timestampStr,
+			}, {
+				id: 2,
+				date: sql.placeholder('dateAsDate'),
+				dateStr: sql.placeholder('dateStrAsDate'),
+				timestamp: sql.placeholder('timestampAsDate'),
+				timestampStr: sql.placeholder('timestampStrAsDate'),
+			}, {
+				id: 3,
+				date: sql.placeholder('dateAsString'),
+				dateStr: sql.placeholder('dateStrAsString'),
+				timestamp: sql.placeholder('timestampAsString'),
+				timestampStr: sql.placeholder('timestampStrAsString'),
+			}, {
+				id: 4,
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}]).execute({
+				dateAsDate: date,
+				dateAsString: dateStr,
+				dateStrAsDate: date,
+				dateStrAsString: dateStr,
+				timestampAsDate: timestamp,
+				timestampAsString: timestampStr,
+				timestampStrAsDate: timestamp,
+				timestampStrAsString: timestampStr,
+			});
+
+			const initial = await db.select().from(dateTable).orderBy(dateTable.id);
+
+			await db.update(dateTable).set({
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			});
+
+			const updated = await db.select().from(dateTable).orderBy(dateTable.id);
+
+			expect(initial).toStrictEqual([{
+				id: 1,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 2,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 3,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 4,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}]);
+
+			expect(updated).toStrictEqual(initial);
+		});
+
 		test.concurrent('all types', async ({ db }) => {
 			await db.execute(sql`drop table if exists ${allTypesTable};`);
 			await db.execute(sql`
