@@ -44,7 +44,11 @@ export class MySqlDate<T extends ColumnBaseConfig<'date', 'MySqlDate'>> extends 
 	}
 
 	override mapFromDriverValue(value: string): Date {
-		return new Date(value);
+		return new Date(value.replace(' ', 'T') + 'Z');
+	}
+
+	override mapToDriverValue(value: Date): unknown {
+		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 }
 
