@@ -178,7 +178,7 @@
 		"@prisma/client": "5.14.0",
 		"@tidbcloud/serverless": "^0.1.1",
 		"@types/better-sqlite3": "^7.6.12",
-		"@types/node": "^20.2.5",
+		"@types/node": "^22.9.1",
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
