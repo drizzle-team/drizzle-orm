@@ -211,6 +211,11 @@ test('alter column type to custom type', async (t) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4245
+// Author: @AlexSherman
+// Main issue here is that on push drizzle truncated table after changing column data type
+// now this won't happen
+// In the issue that is shown that data type was changed from text to jsonb, but it is needed to use "USING ..."
+// so it was tested with "text" -> "varchar"
 test('alter text type to jsonb type', async (t) => {
 	const schema1 = {
 		table1: pgTable('table1', {
@@ -224,25 +229,26 @@ test('alter text type to jsonb type', async (t) => {
 
 	const schema2 = {
 		table1: pgTable('table1', {
-			column1: jsonb(),
+			column1: varchar(),
 		}),
 	};
 
 	const { sqlStatements: st } = await diff(n1, schema2, []);
-	const { sqlStatements: pst } = await push({
+	const { sqlStatements: pst, hints } = await push({
 		db,
 		to: schema2,
 	});
 
 	const st0 = [
-		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE jsonb USING column1::jsonb;',
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE varchar;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
 
 	// to be sure that table1 wasn't truncated
 	const res = await db.query(`select * from table1;`);
-	expect(res[0]).toBeDefined();
+	expect(res[0].column1).toBe('{"b":2}');
 });
 
 test('alter table add composite pk', async (t) => {
@@ -1139,14 +1145,14 @@ test('no diff for enum and custom type in different schemas', async () => {
 			mySchemaEnum: mySchemaEnum().default('a'),
 			mySchemaCustomType: customType({
 				dataType: () => 'tsvector',
-			})().default("to_tsvector('english', 'The Fat Rats')"),
+			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),
 		myEnum,
 		table: pgTable('table', {
 			enum: myEnum().default('a'),
 			customType: customType({
 				dataType: () => 'tsvector',
-			})().default("to_tsvector('english', 'The Fat Rats')"),
+			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),
 	};
 

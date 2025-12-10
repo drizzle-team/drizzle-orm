@@ -717,7 +717,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -730,9 +730,16 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 				'[]'.repeat(column.dimensions)
 			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) {
+		if (column.default.right) {
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
+					defaultToSQL({
+						default: column.default.right,
+						dimensions: column.dimensions,
+						type: column.type,
+						typeSchema: column.typeSchema,
+					})
+				};`,
 			);
 		}
 	}

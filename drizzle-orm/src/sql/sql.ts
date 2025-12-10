@@ -168,7 +168,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
+				return { sql: escapeName(casing.getCasing(chunk.value)), params: [] };
 			}
 
 			if (chunk === undefined) {

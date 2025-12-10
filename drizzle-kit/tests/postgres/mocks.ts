@@ -201,7 +201,7 @@ export const push = async (config: {
 	const { db, to } = config;
 
 	const log = config.log ?? 'none';
-	const casing = config.casing ?? 'camelCase';
+	const casing = config.casing;
 	const schemas = config.schemas ?? [];
 	const tables = config.tables ?? [];
 

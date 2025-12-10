@@ -1536,7 +1536,7 @@ test('create/alter policy for select, insert, update, delete', async () => {
 		authenticatedRole,
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, (t) => [
+		}, () => [
 			pgPolicy('policy 1', {
 				as: 'permissive',
 				to: authenticatedRole,
@@ -1602,11 +1602,12 @@ test('create/alter policy for select, insert, update, delete', async () => {
 				as: 'permissive',
 				to: authenticatedRole,
 				for: 'select',
+				// some-user-id => some-user-id11
 				using: sql`
-(
-	(SELECT current_setting('auth.uid', true)) = 'some-user-id1'
-)
-`,
+	(
+		(SELECT current_setting('auth.uid', true)) = 'some-user-id1'
+	)
+	`,
 			}),
 			pgPolicy('policy 2', {
 				as: 'permissive',
@@ -1631,8 +1632,6 @@ test('create/alter policy for select, insert, update, delete', async () => {
 	};
 
 	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
-	console.log(st2);
-
 	const { sqlStatements: pst2 } = await push({
 		db,
 		to: schema2,
@@ -1641,16 +1640,16 @@ test('create/alter policy for select, insert, update, delete', async () => {
 
 	const expectedSt2 = [
 		'ALTER POLICY "policy 1" ON "users" TO "authenticated" USING (\n'
-		+ '(\n'
-		+ "\t(SELECT current_setting('auth.uid', true)) = 'some-user-id1'\n"
-		+ ')\n'
-		+ ');',
+		+ '\t(\n'
+		+ "\t\t(SELECT current_setting('auth.uid', true)) = 'some-user-id1'\n"
+		+ '\t)\n'
+		+ '\t);',
 		`ALTER POLICY "policy 2" ON "users" TO "authenticated" WITH CHECK (((SELECT current_setting('auth.uid', true)) = 'some-user-id1'));`,
 		`ALTER POLICY "policy 3" ON "users" TO "authenticated" USING (((SELECT current_setting('auth.uid', true)) = 'some-user-id1')) WITH CHECK (((SELECT current_setting('auth.uid', true)) = 'some-user-id1'));`,
 		`ALTER POLICY "policy 4" ON "users" TO "authenticated" USING (((SELECT current_setting('auth.uid', true)) = 'some-user-id1'));`,
 	];
 	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual([]); // using/with check is not handled for push
 
 	const { sqlStatements: st3 } = await diff(n2, schema2, []);
 
@@ -1767,7 +1766,7 @@ test('create/alter policy with comments', async () => {
 		+ '    );',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual([]); // using/with check is not handled in push
 
 	const { sqlStatements: st3 } = await diff(n2, schema2, []);
 

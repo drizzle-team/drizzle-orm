@@ -2070,7 +2070,12 @@ test('.as in view select', async () => {
 		},
 	);
 
-	const schema = { user, userSubscription, userSubscriptionView, userSubscriptionView1 };
+	const schema = {
+		user,
+		userSubscription,
+		userSubscriptionView,
+		userSubscriptionView1,
+	};
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });

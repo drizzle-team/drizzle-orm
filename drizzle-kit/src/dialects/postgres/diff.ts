@@ -1004,8 +1004,12 @@ export const ddlDiff = async (
 				.map((it) => {
 					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name });
 					if (c2 === null) return null;
-					it.default = c2.default;
-					return it;
+
+					const def = {
+						right: c2.default,
+						left: it.default,
+					};
+					return { ...it, default: def };
 				})
 				.filter((x) => x !== null);
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns, from: alter.$left }));
