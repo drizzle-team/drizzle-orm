@@ -327,10 +327,10 @@ export const unescapeFromSqlDefault = (input: string) => {
 
 	input = trimChar(input, "'");
 
-	let res = input.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+	let res = input.replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
 
 	// if (mode === 'arr') return res;
-	return res.replace(/\\'/g, "'");
+	return res;
 };
 
 export const escapeForTsLiteral = (input: string) => {

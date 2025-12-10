@@ -25,6 +25,7 @@ import { hash } from 'src/dialects/common';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
+import { expect } from 'vitest';
 
 export type MssqlDBSchema = Record<
 	string,
@@ -266,8 +267,7 @@ export const push = async (config: {
 			);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
-				console.log(sqlStatements.join('\n'));
-				throw new Error();
+				expect(sqlStatements.join('\n')).toBe('');
 			}
 		}
 	}

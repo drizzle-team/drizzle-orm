@@ -563,6 +563,24 @@ test('introspect bit(1); custom type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('generated as string: change generated constraint', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				`'users\\\\hello'`,
+			),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-generated-with-backslashes');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4170
 test('introspect view with table filter', async () => {
 	const table1 = mysqlTable('table1', {

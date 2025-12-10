@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
+import { createDDL, interimToDDL, mysqlToRelationsPull } from 'src/dialects/mysql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -43,7 +43,7 @@ export const handle = async (
 	const { ddl } = interimToDDL(res);
 
 	const ts = ddlToTypeScript(ddl, res.viewColumns, casing, 'singlestore');
-	const relations = relationsToTypeScript(ddl.fks.list(), casing);
+	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);

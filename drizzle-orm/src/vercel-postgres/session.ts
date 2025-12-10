@@ -303,7 +303,7 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
+		const session = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
 			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
 			: this;
 		const tx = new VercelPgTransaction<TFullSchema, TRelations, TSchema>(
@@ -321,7 +321,7 @@ export class VercelPgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
+			if (typeof this.client === 'function' || this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as VercelPoolClient).release();
 			}
 		}
