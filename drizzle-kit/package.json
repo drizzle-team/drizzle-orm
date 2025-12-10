@@ -44,7 +44,6 @@
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
-		"@esbuild-kit/esm-loader": "^2.5.5",
 		"esbuild": "^0.25.4",
 		"esbuild-register": "^3.5.0"
 	},
