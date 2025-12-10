@@ -1,6 +1,7 @@
 {
 	"name": "drizzle-kit",
 	"version": "1.0.0-beta.2",
+	"type": "module",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -37,11 +38,11 @@
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
 		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
-		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/",
+		"build": "bun scripts/build.ts",
 		"build:artifact": "pnpm run build",
-		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
-		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
-		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
+		"build:cli": "bun scripts/build.cli.ts",
+		"build:dev": "bun scripts/build.dev.ts",
+		"build:ext": "bun scripts/build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
@@ -115,7 +116,6 @@
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",
 		"semver": "^7.7.2",
-		"tsup": "^8.3.5",
 		"tsx": "^4.20.6",
 		"typescript": "^5.9.3",
 		"uuid": "^9.0.1",
@@ -123,30 +123,49 @@
 		"zod": "^3.20.2",
 		"zx": "^8.3.2"
 	},
+	"main": "./index.cjs",
+	"module": "./index.js",
+	"types": "./index.d.ts",
 	"exports": {
 		".": {
 			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
-			},
-			"require": {
 				"types": "./index.d.ts",
 				"default": "./index.js"
 			},
-			"types": "./index.d.mts",
-			"default": "./index.mjs"
+			"require": {
+				"types": "./index.d.cts",
+				"default": "./index.cjs"
+			}
 		},
 		"./api-postgres": {
 			"import": {
-				"types": "./api-postgres.d.mts",
-				"default": "./api-postgres.mjs"
-			},
-			"require": {
 				"types": "./api-postgres.d.ts",
 				"default": "./api-postgres.js"
 			},
-			"types": "./api-postgres.d.mts",
-			"default": "./api-postgres.mjs"
+			"require": {
+				"types": "./api-postgres.d.cts",
+				"default": "./api-postgres.cjs"
+			}
+		},
+		"./api-mysql": {
+			"import": {
+				"types": "./api-mysql.d.ts",
+				"default": "./api-mysql.js"
+			},
+			"require": {
+				"types": "./api-mysql.d.cts",
+				"default": "./api-mysql.cjs"
+			}
+		},
+		"./api-sqlite": {
+			"import": {
+				"types": "./api-sqlite.d.ts",
+				"default": "./api-sqlite.js"
+			},
+			"require": {
+				"types": "./api-sqlite.d.cts",
+				"default": "./api-sqlite.cjs"
+			}
 		}
 	}
 }

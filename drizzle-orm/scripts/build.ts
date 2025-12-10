@@ -1,76 +1,37 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
-import cpy from 'cpy';
+import { rm } from 'node:fs/promises';
+import { build } from '~build';
+import { version } from '../package.json';
+import { entrypoints } from './build.common';
 
-async function updateAndCopyPackageJson() {
-	const pkg = await fs.readJSON('package.json');
+const versionFileName = `${process.cwd()}/src/version.ts`;
+const versionTempFileName = `${process.cwd()}/src/version.temp.ts`;
+const versionFile = await Bun.file(versionFileName).text();
+const replaced = versionFile.replace(
+	"export { version as npmVersion } from '../package.json';",
+	`export const npmVersion = '${version}';`,
+);
+await Bun.write(versionTempFileName, replaced);
 
-	const entries = await glob('src/**/*.ts');
-
-	pkg.exports = entries.reduce<
-		Record<string, {
+const exports = Object.fromEntries(
+	Object
+		.values(entrypoints)
+		.map((v) => v.replace('src/', './'))
+		.sort((a, b) => a.localeCompare(b))
+		.map((v) => [v.replace('/index.ts', '').replace('.ts', ''), {
 			import: {
-				types?: string;
-				default: string;
-			};
+				types: v.replace('.ts', '.d.ts'),
+				default: v.replace('.ts', '.js'),
+			},
 			require: {
-				types: string;
-				default: string;
-			};
-			default: string;
-			types: string;
-		}>
-	>(
-		(acc, rawEntry) => {
-			const entry = rawEntry.match(/src\/(.*)\.ts/)![1]!;
-			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-			const importEntry = `./${entry}.js`;
-			const requireEntry = `./${entry}.cjs`;
-			acc[exportsEntry] = {
-				import: {
-					types: `./${entry}.d.ts`,
-					default: importEntry,
-				},
-				require: {
-					types: `./${entry}.d.cts`,
-					default: requireEntry,
-				},
-				types: `./${entry}.d.ts`,
-				default: importEntry,
-			};
-			return acc;
-		},
-		{},
-	);
+				types: v.replace('.ts', '.d.cts'),
+				default: v.replace('.ts', '.cjs'),
+			},
+		}]),
+);
 
-	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
-}
+await build({
+	readme: '../README.md',
+	customPackageJsonExports: exports,
+});
 
-await fs.remove('dist.new');
-
-await Promise.all([
-	(async () => {
-		await $`tsup`.stdio('pipe', 'pipe', 'pipe');
-	})(),
-	(async () => {
-		await $`tsc -p tsconfig.dts.json`.stdio('pipe', 'pipe', 'pipe');
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
-		});
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
-		});
-	})(),
-]);
-
-await Promise.all([
-	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-]);
-
-await $`scripts/fix-imports.ts`;
-
-await fs.copy('../README.md', 'dist.new/README.md');
-await updateAndCopyPackageJson();
-await fs.remove('dist');
-await fs.rename('dist.new', 'dist');
+await rm(versionTempFileName, { force: true });

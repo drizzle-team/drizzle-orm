@@ -47,7 +47,7 @@ const transformFromDrizzleRelation = (
 			const tableDbName = tableConfig.name;
 			const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
-			const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
+			const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as DrizzleTable);
 			const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
 				?? [];
 
@@ -57,7 +57,7 @@ const transformFromDrizzleRelation = (
 			const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
 				?? refTableDbName;
 
-			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
+			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as DrizzleTable);
 			const refColumns = drizzleRel.config?.references.map((ref) => dbToTsColumnNamesMapForRefTable[ref.name] as string)
 				?? [];
 
