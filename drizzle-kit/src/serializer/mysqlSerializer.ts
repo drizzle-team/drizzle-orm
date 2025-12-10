@@ -367,6 +367,7 @@ export const generateMySqlSnapshot = (
 				using: value.config.using,
 				algorithm: value.config.algorithm,
 				lock: value.config.lock,
+				raw: value.config.raw,
 			};
 		});
 
