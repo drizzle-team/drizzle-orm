@@ -10,6 +10,7 @@ import {
 	smallserial,
 	text,
 	timestamp,
+	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -153,3 +154,7 @@ export const testSequences = schema.table(
 		col8: smallserial(),
 	},
 );
+
+export const uuidTest = schema.table('uuid_test', {
+	col1: uuid(),
+});

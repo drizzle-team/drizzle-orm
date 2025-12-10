@@ -226,7 +226,7 @@ export class SeedService {
 						}
 
 						// Generating undefined as a value for a column and then inserting it via drizzle-orm
-						// will result in the value not being inserted into that column.
+						// will result in null of default value being inserted into that column.
 						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: undefined });
 						columnPossibleGenerator.wasRefined = true;
 

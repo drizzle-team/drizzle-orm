@@ -93,6 +93,7 @@
 		"dotenv": "^16.4.5",
 		"drizzle-kit": "workspace:./drizzle-kit/dist",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
+		"drizzle-zod": "workspace:./drizzle-zod/dist",
 		"get-port": "^7.1.0",
 		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
@@ -102,6 +103,7 @@
 		"tslib": "^2.7.0",
 		"tsx": "^4.19.0",
 		"uuid": "^10.0.0",
+		"zod": "^4.0.0",
 		"zx": "^8.1.5"
 	},
 	"dependencies": {

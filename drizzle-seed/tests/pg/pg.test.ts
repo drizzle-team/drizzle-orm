@@ -4,6 +4,7 @@ import { relations } from 'drizzle-orm/_relations';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
+import { createSelectSchema } from '../../../drizzle-zod/dist';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
@@ -233,6 +234,15 @@ beforeAll(async () => {
 			    col6 bigserial,
 				col7 bigserial,
 			    col8 smallserial
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table "seeder_lib_pg"."uuid_test"
+			(
+			    col1 uuid
 			);
 		`,
 	);
@@ -500,4 +510,29 @@ test('seeding table with sequences', async () => {
 		col7: 11n,
 		col8: 11,
 	});
+});
+
+test('uuid with drizzle-zod check', async () => {
+	await seed(db, { uuidTest: schema.uuidTest }, { count: 1 }).refine((funcs) => ({
+		uuidTest: {
+			columns: {
+				col1: funcs.uuid(),
+			},
+		},
+	}));
+
+	const uuidSelectSchema = createSelectSchema(schema.uuidTest);
+	const res = await db.select().from(schema.uuidTest);
+	uuidSelectSchema.parse(res[0]);
+
+	expect(res).toStrictEqual([{ col1: 'caf44ec1-e98c-4d92-8ed5-beb2074f1460' }]);
+	const possibleUuids = [
+		'caf44ec1-e98c-4d92-8ed5-beb2074f1460',
+		'caf44ec1-e98c-4d92-9ed5-beb2074f1460',
+		'caf44ec1-e98c-4d92-aed5-beb2074f1460',
+		'caf44ec1-e98c-4d92-bed5-beb2074f1460',
+	];
+	for (const uuid of possibleUuids) {
+		uuidSelectSchema.parse({ col1: uuid });
+	}
 });
