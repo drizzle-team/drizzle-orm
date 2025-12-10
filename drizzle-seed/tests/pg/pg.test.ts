@@ -3,8 +3,8 @@ import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+import { createSelectSchema } from 'drizzle-zod';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
-import { createSelectSchema } from '../../../drizzle-zod/dist';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
