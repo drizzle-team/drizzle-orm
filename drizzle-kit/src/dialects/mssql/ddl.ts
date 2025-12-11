@@ -39,7 +39,13 @@ export const createDDL = () => {
 		indexes: {
 			schema: 'required',
 			table: 'required',
-			columns: 'string[]', // does not supported indexing expressions
+			// TODO add asc/desc: asc and desc feature exists in mssql
+			columns: [
+				{
+					value: 'string',
+					isExpression: 'boolean',
+				},
+			],
 			isUnique: 'boolean',
 			where: 'string?',
 		},

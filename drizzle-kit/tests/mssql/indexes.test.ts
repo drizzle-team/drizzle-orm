@@ -116,16 +116,16 @@ test('indexes #2', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 
 	const expectedSt1 = [
-		'CREATE TABLE `table1` (\n'
-		+ '\t`col1` int,\n'
-		+ '\t`col2` int,\n'
-		+ '\tCONSTRAINT `index1` UNIQUE INDEX(`col1`),\n'
-		+ '\tCONSTRAINT `index2` UNIQUE INDEX(`col1`,`col2`)\n'
+		'CREATE TABLE [table1] (\n'
+		+ '\t[col1] int,\n'
+		+ '\t[col2] int\n'
 		+ ');\n',
-		'CREATE INDEX `index3` ON `table1` (`col1`);',
-		'CREATE INDEX `index4` ON `table1` (`col1`,`col2`);',
-		'CREATE INDEX `index5` ON `table1` (`col1` asc);',
-		'CREATE INDEX `index6` ON `table1` (`col1` asc,`col2` desc);',
+		`CREATE UNIQUE INDEX [index1] ON [table1] ([col1]);`,
+		`CREATE UNIQUE INDEX [index2] ON [table1] ([col1],[col2]);`,
+		'CREATE INDEX [index3] ON [table1] ([col1]);',
+		'CREATE INDEX [index4] ON [table1] ([col1],[col2]);',
+		'CREATE INDEX [index5] ON [table1] ([col1] asc);',
+		'CREATE INDEX [index6] ON [table1] ([col1] asc,[col2] desc);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

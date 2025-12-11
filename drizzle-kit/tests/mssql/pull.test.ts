@@ -491,3 +491,31 @@ test('introspect empty db', async () => {
 
 	expect(introspectDDL.entities.list().length).toBe(0);
 });
+
+test('indexes #2', async () => {
+	const table1 = mssqlTable('table1', {
+		col1: int(),
+		col2: int(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'sql-in-index');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
