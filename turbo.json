@@ -189,7 +189,8 @@
 		},
 		"drizzle-seed#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"drizzle-orm#build",
+				"drizzle-zod#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
