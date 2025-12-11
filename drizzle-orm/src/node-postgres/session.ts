@@ -15,7 +15,6 @@ import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 const { Pool, types } = pg;
-const NativePool = (<any> pg).native ? (<{ Pool: typeof Pool }> (<any> pg).native).Pool : undefined;
 
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
@@ -250,8 +249,9 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) // eslint-disable-line no-instanceof/no-instanceof
-			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // eslint-disable-line no-instanceof/no-instanceof
+		const session = isPool
+			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
@@ -263,9 +263,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool || (NativePool && this.client instanceof NativePool)) { // eslint-disable-line no-instanceof/no-instanceof
-				(session.client as PoolClient).release();
-			}
+			if (isPool) (session.client as PoolClient).release();
 		}
 	}
 
