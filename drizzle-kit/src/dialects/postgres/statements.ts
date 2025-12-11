@@ -278,6 +278,7 @@ export interface JsonAlterPrimaryKey {
 	type: 'alter_pk';
 	pk: PrimaryKey;
 	diff: DiffEntities['pks'];
+	deleted?: boolean;
 }
 
 export interface JsonMoveTable {

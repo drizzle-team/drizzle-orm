@@ -544,9 +544,10 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 });
 
 const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
-	const drop = dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	const create = addPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	return [drop, create];
+	const st: string[] = [];
+	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	return st;
 });
 
 const renameConstraintConvertor = convertor('rename_constraint', (st) => {

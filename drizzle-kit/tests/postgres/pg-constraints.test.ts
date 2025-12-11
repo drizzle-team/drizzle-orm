@@ -1,6 +1,7 @@
 import { and, isNull, SQL } from 'drizzle-orm';
 import {
 	AnyPgColumn,
+	bigint,
 	boolean,
 	foreignKey,
 	index,
@@ -1403,6 +1404,254 @@ test('pk multistep #4', async () => {
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3496
+test('remove/add pk', async (t) => {
+	const Step = pgTable('Step', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+	});
+	const schema1 = {
+		Step1: Step,
+		Branch: pgTable('Branch', {
+			id: bigint({ mode: 'number' }).primaryKey(),
+			stepId: bigint({ mode: 'number' }).references(() => Step.id, { onDelete: 'cascade' }),
+		}),
+	};
+	const schema2 = {
+		Step,
+		Branch: pgTable('Branch', {
+			stepId: bigint({ mode: 'number' }).primaryKey().references(() => Step.id, { onDelete: 'cascade' }),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "Branch" DROP COLUMN "id";',
+		'ALTER TABLE "Branch" ADD PRIMARY KEY ("stepId");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('remove/add pk #2', async (t) => {
+	const Step = pgTable('Step', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+	});
+	const schema1 = {
+		Step1: Step,
+		Branch: pgTable('Branch', {
+			id: bigint({ mode: 'number' }).primaryKey(),
+			stepId: bigint({ mode: 'number' }).references(() => Step.id, { onDelete: 'cascade' }),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		Step,
+		Branch: pgTable('Branch', {
+			stepId: bigint({ mode: 'number' }).references(() => Step.id, { onDelete: 'cascade' }),
+			stepId2: bigint({ mode: 'number' }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "Branch" ADD COLUMN "stepId2" bigint;',
+		'ALTER TABLE "Branch" DROP COLUMN "id";',
+		'ALTER TABLE "Branch" ADD PRIMARY KEY ("stepId2");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('alter pk from single to composite with column deletion', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+		age: integer(),
+		name: varchar(),
+	});
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		age: integer(),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.age, t.name] })]);
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" DROP COLUMN "id";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("age","name");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('alter pk from composite to single with column deletion', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.age, t.name] })]);
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+		age: integer(),
+	});
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" DROP COLUMN "name";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("id");',
+		'ALTER TABLE "users" ALTER COLUMN "age" DROP NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('alter pk from composite to composite with column deletion', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.age, t.name] })]);
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.id, t.name] })]);
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" DROP COLUMN "age";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("id","name");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('alter pk from single to single with column creation', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+		age: integer(),
+	});
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+		name: varchar().primaryKey(),
+	});
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" ADD COLUMN "name" varchar;',
+		'ALTER TABLE "users" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("name");',
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('alter pk from single to composite with column creation', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }).primaryKey(),
+		age: integer(),
+	});
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.id, t.name] })]);
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" ADD COLUMN "name" varchar;',
+		'ALTER TABLE "users" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("id","name");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+test('alter pk from composite to composite with column creation', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+	}, (t) => [primaryKey({ columns: [t.id, t.age] })]);
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: integer(),
+		name: varchar(),
+	}, (t) => [primaryKey({ columns: [t.id, t.name] })]);
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		'ALTER TABLE "users" ADD COLUMN "name" varchar;',
+		'ALTER TABLE "users" DROP CONSTRAINT "users_pkey";',
+		'ALTER TABLE "users" ADD PRIMARY KEY ("id","name");',
+		'ALTER TABLE "users" ALTER COLUMN "age" DROP NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('add column with pk to table where was no pk', async (t) => {
+	const schema1 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+	});
+
+	const { next: n1 } = await diff({}, { schema1 }, []);
+	await push({ db, to: { schema1 } });
+
+	const schema2 = pgTable('users', {
+		id: bigint({ mode: 'number' }),
+		age: bigint({ mode: 'number' }).primaryKey(),
+	});
+
+	const { sqlStatements: st2 } = await diff(n1, { schema2 }, []);
+	const { sqlStatements: pst2 } = await push({ db, to: { schema2 } });
+
+	const expectedSt2 = [
+		`ALTER TABLE "users" ADD COLUMN "age" bigint;`,
+		`ALTER TABLE "users" ADD PRIMARY KEY ("age");`,
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4369
