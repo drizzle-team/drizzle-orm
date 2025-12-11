@@ -1297,6 +1297,55 @@ test('add check constraint to table', async (t) => {
 	expect(tablesToTruncate!.length).toBe(0);
 });
 
+test('recreate table with existing unique index does not duplicate index creation', async () => {
+    const client = new Database(':memory:');
+
+    // Base schema with a unique index on email
+    const schema1 = {
+        users: sqliteTable(
+            'users',
+            {
+                id: int('id').primaryKey({ autoIncrement: false }),
+                name: text('name'),
+                email: text('email').notNull().unique(),
+            },
+            (t) => ({
+                // also define an explicit unique index to cover both paths
+                emailIdx: uniqueIndex('users_email_unique').on(t.email),
+            }),
+        ),
+    };
+
+    // Change that forces table recreation (add check constraint)
+    const schema2 = {
+        users: sqliteTable(
+            'users',
+            {
+                id: int('id').primaryKey({ autoIncrement: false }),
+                name: text('name'),
+                email: text('email').notNull().unique(),
+            },
+            (table) => ({
+                emailIdx: uniqueIndex('users_email_unique').on(table.email),
+                someCheck: check('some_check', sql`${table.id} >= 0`),
+            }),
+        ),
+    };
+
+    const { sqlStatements } = await diffTestSchemasPushSqlite(
+        client,
+        schema1,
+        schema2,
+        [],
+    );
+
+    // Ensure only one CREATE UNIQUE INDEX for users_email_unique exists
+    const createIdx = sqlStatements.filter((s) =>
+        s.startsWith('CREATE UNIQUE INDEX `users_email_unique`')
+    );
+    expect(createIdx.length).toBe(1);
+});
+
 test('drop check constraint', async (t) => {
 	const client = new Database(':memory:');
 
