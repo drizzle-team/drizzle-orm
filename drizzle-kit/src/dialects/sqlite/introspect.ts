@@ -535,8 +535,8 @@ export const fromDatabase = async (
 			columns: columnsFrom,
 			columnsTo,
 			nameExplicit: true,
-			onDelete: fk.onDelete ?? 'NO ACTION',
-			onUpdate: fk.onUpdate ?? 'NO ACTION',
+			onDelete: fk.onDelete?.toLowerCase() ?? 'no action',
+			onUpdate: fk.onUpdate?.toLowerCase() ?? 'no action',
 		});
 	}
 

@@ -1811,8 +1811,8 @@ test('index #1', async () => {
 		'CREATE UNIQUE INDEX `index2` ON `table1` (`col1`,`col2`);',
 		'CREATE INDEX `index3` ON `table1` (`col1`);',
 		'CREATE INDEX `index4` ON `table1` (`col1`,`col2`);',
-		'CREATE INDEX `index5` ON `table1` (`col1` asc);',
-		'CREATE INDEX `index6` ON `table1` (`col1` asc,`col2` desc);',
+		'CREATE INDEX `index5` ON `table1` ("col1" asc);',
+		'CREATE INDEX `index6` ON `table1` ("col1" asc,"col2" desc);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

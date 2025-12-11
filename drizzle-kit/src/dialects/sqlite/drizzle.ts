@@ -110,8 +110,8 @@ export const fromDrizzleSchema = (
 	const fks = tableConfigs.map((it) => {
 		return it.config.foreignKeys.map((fk) => {
 			const tableFrom = it.config.name;
-			const onDelete = fk.onDelete ?? 'NO ACTION';
-			const onUpdate = fk.onUpdate ?? 'NO ACTION';
+			const onDelete = fk.onDelete ?? 'no action';
+			const onUpdate = fk.onUpdate ?? 'no action';
 			const reference = fk.reference();
 
 			const referenceFT = reference.foreignTable;
