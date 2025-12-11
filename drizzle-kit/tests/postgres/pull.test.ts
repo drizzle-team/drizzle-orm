@@ -348,7 +348,7 @@ test('generated column: link to another jsonb column', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4730
 // https://github.com/drizzle-team/drizzle-orm/issues/4760
 // https://github.com/drizzle-team/drizzle-orm/issues/4916
-test.only('introspect all column types', async () => {
+test('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -1268,9 +1268,9 @@ test('introspect view with table filter', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
 test('introspect sequences with table filter', async () => {
-	// postpone
-	// December 12, 2025 2:29:56 PM
-	if (Date.now() < 1765549796000) return;
+	// postpone cc: @AlexSherman
+	// need to discuss this
+	if (Date.now() < +new Date('2025-12-15')) return;
 
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 

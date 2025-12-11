@@ -35,7 +35,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
-import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
+import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
