@@ -2503,3 +2503,58 @@ test('check filtering json statements. here we have recreate enum + set new type
 		typeSchema: 'public',
 	});
 });
+
+// Object-based enum tests (pgEnum with object instead of array)
+test('object enum: create enum and table with default value', async () => {
+	const StatusValues = {
+		Active: 'active',
+		Inactive: 'inactive',
+	} as const;
+
+	const statusEnum = pgEnum('status', StatusValues);
+
+	const to = {
+		statusEnum,
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			status: statusEnum('status').default(StatusValues.Active),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`CREATE TYPE "public"."status" AS ENUM('active', 'inactive');`);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"status" "status" DEFAULT 'active'\n);\n`,
+	);
+});
+
+test('object enum: add column with default value', async () => {
+	const StatusValues = {
+		Active: 'active',
+		Inactive: 'inactive',
+	} as const;
+
+	const statusEnum = pgEnum('status', StatusValues);
+
+	const from = {
+		statusEnum,
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const to = {
+		statusEnum,
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			status: statusEnum('status').default(StatusValues.Active),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "users" ADD COLUMN "status" "status" DEFAULT 'active';`);
+});
