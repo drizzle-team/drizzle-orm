@@ -136,6 +136,7 @@ test('basic identity by default test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
 	const client = new PGlite();
 

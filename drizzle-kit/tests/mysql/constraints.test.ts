@@ -623,7 +623,7 @@ test('fk name is too long', async () => {
 	);
 	const to = { table1, table2 };
 
-	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: st, next: n } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 	const expectedSt: string[] = [
 		'CREATE TABLE `table1_loooooong` (\n\t`column1_looooong` int PRIMARY KEY\n);\n',
@@ -633,6 +633,13 @@ test('fk name is too long', async () => {
 
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
+
+	const { sqlStatements: st1 } = await diff(n, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to });
+
+	const expectedSt1: string[] = [];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4456#issuecomment-3076042688

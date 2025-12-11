@@ -2114,6 +2114,70 @@ test('constraints order', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3260
+test('constraints order #2', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			col1: text(),
+			col2: text(),
+			col3: text(),
+		}),
+		table2: pgTable('table2', {
+			col1: text(),
+		}),
+		table3: pgTable('table3', {
+			col1: text(),
+			col2: text(),
+			col3: text(),
+			col4: text(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const table1 = pgTable('table1', {
+		col1: text().unique(),
+		col2: text(),
+		col3: text(),
+	}, (t) => [
+		unique().on(t.col2, t.col3),
+	]);
+
+	const table2 = pgTable('table2', {
+		col1: text(),
+	}, (t) => [
+		uniqueIndex().on(t.col1),
+	]);
+
+	const schema2 = {
+		table1,
+		table2,
+		table3: pgTable('table3', {
+			col1: text().references(() => table1.col1),
+			col2: text(),
+			col3: text(),
+			col4: text().references(() => table2.col1),
+		}, (t) => [
+			foreignKey({ columns: [t.col2, t.col3], foreignColumns: [table1.col2, table1.col3] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "table1" ADD CONSTRAINT "table1_col2_col3_unique" UNIQUE("col2","col3");',
+		'ALTER TABLE "table1" ADD CONSTRAINT "table1_col1_key" UNIQUE("col1");',
+		'CREATE UNIQUE INDEX "table2_col1_index" ON "table2" ("col1");',
+		'ALTER TABLE "table3" ADD CONSTRAINT "table3_col1_table1_col1_fkey" FOREIGN KEY ("col1") REFERENCES "table1"("col1");',
+		'ALTER TABLE "table3" ADD CONSTRAINT "table3_col4_table2_col1_fkey" FOREIGN KEY ("col4") REFERENCES "table2"("col1");',
+		'ALTER TABLE "table3" ADD CONSTRAINT "table3_col2_col3_table1_col2_col3_fkey" FOREIGN KEY ("col2","col3") REFERENCES "table1"("col2","col3");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('generated + fk', async (t) => {
 	const table1 = pgTable(
 		'table_with_gen',
@@ -2297,4 +2361,39 @@ test('drop column with pk and add pk to another column #1', async () => {
 
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3280
+test('fk name is too long', async () => {
+	const table1 = pgTable(
+		'table1_loooooong',
+		{
+			column1: integer('column1_looooong').primaryKey(),
+		},
+	);
+	const table2 = pgTable(
+		'table2_loooooong',
+		{
+			column1: integer('column1_looooong').references(() => table1.column1).notNull(),
+		},
+	);
+	const to = { table1, table2 };
+
+	const { sqlStatements: st, next: n } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt: string[] = [
+		'CREATE TABLE "table1_loooooong" (\n\t"column1_looooong" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "table2_loooooong" (\n\t"column1_looooong" integer NOT NULL\n);\n',
+		'ALTER TABLE "table2_loooooong" ADD CONSTRAINT "table2_loooooong_KObGFnvgHDVg_fkey" FOREIGN KEY ("column1_looooong") REFERENCES "table1_loooooong"("column1_looooong");',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+
+	const { sqlStatements: st1 } = await diff(n, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to });
+
+	const expectedSt1: string[] = [];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });
