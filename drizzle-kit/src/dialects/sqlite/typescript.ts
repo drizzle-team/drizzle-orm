@@ -422,11 +422,11 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 		statement += `\t\t})`;
 
 		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
+			? `.onUpdate("${it.onUpdate.toLowerCase()}")`
 			: '';
 
 		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
+			? `.onDelete("${it.onDelete.toLowerCase()}")`
 			: '';
 
 		statement += `,\n`;
