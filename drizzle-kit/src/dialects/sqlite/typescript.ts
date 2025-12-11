@@ -284,8 +284,8 @@ const createTableColumns = (
 				withCasing(fk.columnsTo[0], casing)
 			}`;
 
-			const onDelete = (fk.onDelete && fk.onDelete !== 'no action') ? fk.onDelete : null;
-			const onUpdate = (fk.onUpdate && fk.onUpdate !== 'no action') ? fk.onUpdate : null;
+			const onDelete = (fk.onDelete && fk.onDelete !== 'NO ACTION') ? fk.onDelete.toLowerCase() : null;
+			const onUpdate = (fk.onUpdate && fk.onUpdate !== 'NO ACTION') ? fk.onUpdate.toLowerCase() : null;
 			const params = { onDelete, onUpdate };
 
 			const paramsStr = objToStatement2(params);

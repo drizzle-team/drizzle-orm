@@ -1034,8 +1034,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate.toLowerCase()}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete.toLowerCase()}")` : '';
 		statement += `,\n`;
 	});
 	return statement;

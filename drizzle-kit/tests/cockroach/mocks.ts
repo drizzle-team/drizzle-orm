@@ -183,7 +183,7 @@ export const push = async (
 ) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
-	const casing = config.casing ?? 'camelCase';
+	const casing = config.casing;
 
 	const filterConfig: EntitiesFilterConfig = {
 		schemas: config.schemas,
