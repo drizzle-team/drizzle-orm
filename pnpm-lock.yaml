@@ -559,11 +559,11 @@ importers:
         specifier: ^16.4.5
         version: 16.6.1
       drizzle-kit:
-        specifier: workspace:./drizzle-kit/dist
-        version: link:drizzle-kit/dist
+        specifier: workspace:../drizzle-kit/dist
+        version: link:../drizzle-kit/dist
       drizzle-orm:
-        specifier: workspace:./drizzle-orm/dist
-        version: link:drizzle-orm/dist
+        specifier: workspace:../drizzle-orm/dist
+        version: link:../drizzle-orm/dist
       drizzle-zod:
         specifier: workspace:../drizzle-zod/dist
         version: link:../drizzle-zod/dist

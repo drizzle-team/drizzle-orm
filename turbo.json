@@ -396,7 +396,8 @@
 		},
 		"drizzle-seed#build:artifact": {
 			"dependsOn": [
-				"drizzle-orm#build:artifact"
+				"drizzle-orm#build:artifact",
+				"drizzle-zod#build:artifact"
 			],
 			"inputs": [
 				"src/**/*.ts",
