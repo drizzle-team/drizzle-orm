@@ -1506,7 +1506,41 @@ test('change data type from standart type to enum. column has default', async ()
 	expect(pst).toStrictEqual(st0);
 });
 
-test('change data type from standart type to enum. column has no default', async () => {
+test('change data type from standart type to enum. set default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
+		`ALTER TABLE \"table\" ALTER COLUMN \"column\" SET DEFAULT 'value1'::"enum";`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('change data type from standart type to enum. altered column has no default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1524,7 +1558,6 @@ test('change data type from standart type to enum. column has no default', async
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
-	console.log(st);
 
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
@@ -1534,6 +1567,39 @@ test('change data type from standart type to enum. column has no default', async
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('change data type from standart type to enum. column has no default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
 	];
 

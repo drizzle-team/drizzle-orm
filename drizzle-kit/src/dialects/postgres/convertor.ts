@@ -361,7 +361,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -390,7 +390,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			}${suffix};`,
 		);
 
-		if (recreateDefault) {
+		if (recreateDefault && column.default) {
 			statements.push(
 				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);

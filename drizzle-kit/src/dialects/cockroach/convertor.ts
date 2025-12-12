@@ -246,7 +246,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 
 	// TODO need to recheck this
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -270,7 +270,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			}${suffix};`,
 		);
 
-		if (recreateDefault) {
+		if (recreateDefault && column.default) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);
 		}
 	}
@@ -552,6 +552,7 @@ const alterEnumConvertor = convertor('alter_enum', (st) => {
 
 const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const { to, columns } = st;
+
 	const statements: string[] = [];
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
