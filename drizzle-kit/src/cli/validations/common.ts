@@ -11,7 +11,8 @@ export type Commands =
 	| 'up'
 	| 'drop'
 	| 'push'
-	| 'export';
+	| 'export'
+	| 'squash';
 
 type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
 type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
