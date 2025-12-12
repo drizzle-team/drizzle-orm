@@ -1,6 +1,13 @@
-import { integer, pgEnum, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgEnumCreator, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
+
+test('enums creator #1', async () => {
+	const enumCreator = pgEnumCreator((s) => `prefix_${s}`);
+	const createdEnum = enumCreator('enum', ['value']);
+
+	expect(createdEnum.enumName).toBe("prefix_enum");
+});
 
 test('enums #1', async () => {
 	const to = {
