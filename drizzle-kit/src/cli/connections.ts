@@ -668,73 +668,74 @@ export const prepareDuckDb = async (
 		migrate: (config: string | MigrationConfig) => Promise<void>;
 	}
 > => {
-	if (await checkPackage('duckdb')) {
-		console.log(withStyle.info(`Using 'duckdb' driver for database querying`));
-		const duckdb = await import('duckdb');
+	// ! Cannot find module node_modules/duckdb/lib/duckdb-binding.js
+	// if (await checkPackage('duckdb')) {
+	// 	console.log(withStyle.info(`Using 'duckdb' driver for database querying`));
+	// 	const duckdb = await import('duckdb');
 
-		const client = await new Promise<InstanceType<typeof duckdb.Database>>((resolve, reject) => {
-			const db = new duckdb.Database(credentials.url, (err) => {
-				if (err) {
-					reject(err);
-				}
-				resolve(db);
-			});
-		});
+	// 	const client = await new Promise<InstanceType<typeof duckdb.Database>>((resolve, reject) => {
+	// 		const db = new duckdb.Database(credentials.url, (err) => {
+	// 			if (err) {
+	// 				reject(err);
+	// 			}
+	// 			resolve(db);
+	// 		});
+	// 	});
 
-		const query = async (sql: string, params: any[] = []) =>
-			new Promise<any[]>((resolve, reject) => {
-				client.all(sql, ...params, (err, rows) => {
-					if (err) {
-						reject(err);
-					}
-					resolve(rows);
-				});
-			});
+	// 	const query = async (sql: string, params: any[] = []) =>
+	// 		new Promise<any[]>((resolve, reject) => {
+	// 			client.all(sql, ...params, (err, rows) => {
+	// 				if (err) {
+	// 					reject(err);
+	// 				}
+	// 				resolve(rows);
+	// 			});
+	// 		});
 
-		const proxy: Proxy = async (params) => {
-			const rows = await query(params.sql, params.params);
-			return params.mode === 'array'
-				// not safe, but DuckDB does not support array mode
-				? rows.map((row) => Object.values(row))
-				: rows;
-		};
+	// 	const proxy: Proxy = async (params) => {
+	// 		const rows = await query(params.sql, params.params);
+	// 		return params.mode === 'array'
+	// 			// not safe, but DuckDB does not support array mode
+	// 			? rows.map((row) => Object.values(row))
+	// 			: rows;
+	// 	};
 
-		const transactionProxy: TransactionProxy = async (queries) => {
-			const results: any[] = [];
-			const tx = client.connect();
-			try {
-				tx.run('BEGIN');
-				for (const query of queries) {
-					const rows = await new Promise<any[]>((resolve, reject) => {
-						client.all(query.sql, (err, rows) => {
-							if (err) {
-								reject(err);
-							}
-							resolve(rows);
-						});
-					});
-					results.push(rows);
-				}
-				tx.run('COMMIT');
-			} catch (error) {
-				tx.run('ROLLBACK');
-				results.push(error as Error);
-			} finally {
-				tx.close();
-			}
-			return results;
-		};
+	// 	const transactionProxy: TransactionProxy = async (queries) => {
+	// 		const results: any[] = [];
+	// 		const tx = client.connect();
+	// 		try {
+	// 			tx.run('BEGIN');
+	// 			for (const query of queries) {
+	// 				const rows = await new Promise<any[]>((resolve, reject) => {
+	// 					client.all(query.sql, (err, rows) => {
+	// 						if (err) {
+	// 							reject(err);
+	// 						}
+	// 						resolve(rows);
+	// 					});
+	// 				});
+	// 				results.push(rows);
+	// 			}
+	// 			tx.run('COMMIT');
+	// 		} catch (error) {
+	// 			tx.run('ROLLBACK');
+	// 			results.push(error as Error);
+	// 		} finally {
+	// 			tx.close();
+	// 		}
+	// 		return results;
+	// 	};
 
-		return {
-			packageName: 'duckdb',
-			query,
-			proxy,
-			transactionProxy,
-			migrate: () => {
-				throw new Error('DuckDB does not support migrations');
-			},
-		};
-	}
+	// 	return {
+	// 		packageName: 'duckdb',
+	// 		query,
+	// 		proxy,
+	// 		transactionProxy,
+	// 		migrate: () => {
+	// 			throw new Error('DuckDB does not support migrations');
+	// 		},
+	// 	};
+	// }
 
 	if (await checkPackage('@duckdb/node-api')) {
 		console.log(
@@ -784,7 +785,8 @@ export const prepareDuckDb = async (
 	}
 
 	console.error(
-		"To connect to DuckDb database - please install either of 'duckdb', '@duckdb/node-api' drivers",
+		// "To connect to DuckDb database - please install either of 'duckdb', '@duckdb/node-api' drivers",
+		"To connect to DuckDb database - please install '@duckdb/node-api' driver",
 	);
 	process.exit(1);
 };
