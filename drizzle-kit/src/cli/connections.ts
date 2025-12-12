@@ -14,6 +14,7 @@ import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage, QueryError } from './utils';
+import type { DuckDbCredentials } from './validations/duckdb';
 import type { GelCredentials } from './validations/gel';
 import type { LibSQLCredentials } from './validations/libsql';
 import type { MssqlCredentials } from './validations/mssql';
@@ -187,7 +188,13 @@ export const preparePostgresDB = async (
 				return results;
 			};
 
-			return { packageName: 'pglite', query, proxy, transactionProxy, migrate: migrateFn };
+			return {
+				packageName: 'pglite',
+				query,
+				proxy,
+				transactionProxy,
+				migrate: migrateFn,
+			};
 		}
 
 		assertUnreachable(driver);
@@ -287,7 +294,13 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { packageName: 'pg', query, proxy, transactionProxy, migrate: migrateFn };
+		return {
+			packageName: 'pg',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	if (await checkPackage('postgres')) {
@@ -351,7 +364,13 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { packageName: 'postgres', query, proxy, transactionProxy, migrate: migrateFn };
+		return {
+			packageName: 'postgres',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	if (await checkPackage('@vercel/postgres')) {
@@ -453,7 +472,13 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { packageName: '@vercel/postgres', query, proxy, transactionProxy, migrate: migrateFn };
+		return {
+			packageName: '@vercel/postgres',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	if (await checkPackage('@neondatabase/serverless')) {
@@ -467,7 +492,11 @@ export const preparePostgresDB = async (
 				"'@neondatabase/serverless' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
 		);
-		const { Pool, neonConfig, types: pgTypes } = await import('@neondatabase/serverless');
+		const {
+			Pool,
+			neonConfig,
+			types: pgTypes,
+		} = await import('@neondatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/neon-serverless');
 		const { migrate } = await import('drizzle-orm/neon-serverless/migrator');
 
@@ -557,7 +586,13 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { packageName: '@neondatabase/serverless', query, proxy, transactionProxy, migrate: migrateFn };
+		return {
+			packageName: '@neondatabase/serverless',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	if (await checkPackage('bun')) {
@@ -620,6 +655,137 @@ export const preparePostgresDB = async (
 		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers",
 	);
 	console.warn("For the 'bun' driver, run your script using: bun --bun");
+	process.exit(1);
+};
+
+export const prepareDuckDb = async (
+	credentials: DuckDbCredentials,
+): Promise<
+	DB & {
+		packageName: 'duckdb' | '@duckdb/node-api';
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+		migrate: (config: string | MigrationConfig) => Promise<void>;
+	}
+> => {
+	if (await checkPackage('duckdb')) {
+		console.log(withStyle.info(`Using 'duckdb' driver for database querying`));
+		const duckdb = await import('duckdb');
+
+		const client = await new Promise<InstanceType<typeof duckdb.Database>>((resolve, reject) => {
+			const db = new duckdb.Database(credentials.url, (err) => {
+				if (err) {
+					reject(err);
+				}
+				resolve(db);
+			});
+		});
+
+		const query = async (sql: string, params: any[] = []) =>
+			new Promise<any[]>((resolve, reject) => {
+				client.all(sql, ...params, (err, rows) => {
+					if (err) {
+						reject(err);
+					}
+					resolve(rows);
+				});
+			});
+
+		const proxy: Proxy = async (params) => {
+			const rows = await query(params.sql, params.params);
+			return params.mode === 'array'
+				// not safe, but DuckDB does not support array mode
+				? rows.map((row) => Object.values(row))
+				: rows;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			const tx = client.connect();
+			try {
+				tx.run('BEGIN');
+				for (const query of queries) {
+					const rows = await new Promise<any[]>((resolve, reject) => {
+						client.all(query.sql, (err, rows) => {
+							if (err) {
+								reject(err);
+							}
+							resolve(rows);
+						});
+					});
+					results.push(rows);
+				}
+				tx.run('COMMIT');
+			} catch (error) {
+				tx.run('ROLLBACK');
+				results.push(error as Error);
+			} finally {
+				tx.close();
+			}
+			return results;
+		};
+
+		return {
+			packageName: 'duckdb',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: () => {
+				throw new Error('DuckDB does not support migrations');
+			},
+		};
+	}
+
+	if (await checkPackage('@duckdb/node-api')) {
+		console.log(
+			withStyle.info(`Using '@duckdb/node-api' driver for database querying`),
+		);
+		const { DuckDBInstance } = await import('@duckdb/node-api');
+
+		const instance = await DuckDBInstance.create(credentials.url);
+		const client = await instance.connect();
+
+		const query = async (sql: string, params: any[] = []) => {
+			const result = await client.run(sql, params);
+			const rows = await result.getRowObjectsJson();
+			return rows as any[];
+		};
+
+		const proxy: Proxy = async (params) => {
+			const result = await client.run(params.sql, params.params);
+			return params.mode === 'array' ? await result.getRowsJson() : await result.getRowObjectsJson();
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.run('BEGIN');
+				for (const query of queries) {
+					const result = await client.run(query.sql);
+					results.push(await result.getRowObjectsJson());
+				}
+				await client.run('COMMIT');
+			} catch (error) {
+				await client.run('ROLLBACK');
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			packageName: '@duckdb/node-api',
+			query,
+			proxy,
+			transactionProxy,
+			migrate: () => {
+				throw new Error('DuckDB does not support migrations');
+			},
+		};
+	}
+
+	console.error(
+		"To connect to DuckDb database - please install either of 'duckdb', '@duckdb/node-api' drivers",
+	);
 	process.exit(1);
 };
 
@@ -702,9 +868,7 @@ export const prepareCockroach = async (
 		return { query, proxy, migrate: migrateFn };
 	}
 
-	console.error(
-		"To connect to Cockroach - please install 'pg' package",
-	);
+	console.error("To connect to Cockroach - please install 'pg' package");
 	process.exit(1);
 };
 
@@ -745,7 +909,9 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 		}
 
 		const query = async (sql: string, params?: any[]) => {
-			const result = params?.length ? await client.querySQL(sql, params) : await client.querySQL(sql);
+			const result = params?.length
+				? await client.querySQL(sql, params)
+				: await client.querySQL(sql);
 			return result as any[];
 		};
 
@@ -760,7 +926,9 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 						: await client.withSQLRowMode('array').querySQL(sql);
 					break;
 				case 'object':
-					result = sqlParams?.length ? await client.querySQL(sql, sqlParams) : await client.querySQL(sql);
+					result = sqlParams?.length
+						? await client.querySQL(sql, sqlParams)
+						: await client.querySQL(sql);
 					break;
 			}
 
@@ -785,9 +953,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 		return { packageName: 'gel', query, proxy, transactionProxy };
 	}
 
-	console.error(
-		"To connect to gel database - please install 'edgedb' driver",
-	);
+	console.error("To connect to gel database - please install 'edgedb' driver");
 	process.exit(1);
 };
 
@@ -941,7 +1107,11 @@ export const connectToMySQL = async (
 		};
 
 		const typeCast = (field: any, next: any) => {
-			if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+			if (
+				field.type === 'TIMESTAMP'
+				|| field.type === 'DATETIME'
+				|| field.type === 'DATE'
+			) {
 				return field.string();
 			}
 			return next();
@@ -1202,9 +1372,7 @@ export const connectToMsSQL = async (
 		};
 	}
 
-	console.error(
-		"To connect to MsSQL database - please install 'mssql' driver",
-	);
+	console.error("To connect to MsSQL database - please install 'mssql' driver");
 	process.exit(1);
 };
 
@@ -1387,7 +1555,10 @@ export const connectToSQLite = async (
 			};
 
 			const proxy: Proxy = async (params) => {
-				const preparedParams = prepareSqliteParams(params.params || [], 'd1-http');
+				const preparedParams = prepareSqliteParams(
+					params.params || [],
+					'd1-http',
+				);
 				const result = await remoteCallback(
 					params.sql,
 					preparedParams,
@@ -1651,19 +1822,23 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 
-			const tx = sqlite.transaction((queries: Parameters<TransactionProxy>[0]) => {
-				for (const query of queries) {
-					let result: any[] = [];
-					if (query.method === 'values' || query.method === 'get' || query.method === 'all') {
-						result = sqlite
-							.prepare(query.sql)
-							.all();
-					} else {
-						sqlite.prepare(query.sql).run();
+			const tx = sqlite.transaction(
+				(queries: Parameters<TransactionProxy>[0]) => {
+					for (const query of queries) {
+						let result: any[] = [];
+						if (
+							query.method === 'values'
+							|| query.method === 'get'
+							|| query.method === 'all'
+						) {
+							result = sqlite.prepare(query.sql).all();
+						} else {
+							sqlite.prepare(query.sql).run();
+						}
+						results.push(result);
 					}
-					results.push(result);
-				}
-			});
+				},
+			);
 
 			try {
 				tx(queries);
@@ -1674,7 +1849,13 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
+		return {
+			...db,
+			packageName: 'better-sqlite3',
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
 	}
 
 	if (await checkPackage('bun')) {
@@ -1741,9 +1922,10 @@ export const connectToSQLite = async (
 	process.exit(1);
 };
 
-export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
-	& LibSQLDB
-	& {
+export const connectToLibSQL = async (
+	credentials: LibSQLCredentials,
+): Promise<
+	LibSQLDB & {
 		packageName: '@libsql/client';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;

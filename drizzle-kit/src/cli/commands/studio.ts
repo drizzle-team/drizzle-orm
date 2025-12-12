@@ -37,6 +37,7 @@ import { assertUnreachable } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
 import { prepareFilenames } from '../../utils/utils-node';
 import { JSONB } from '../../utils/when-json-met-bigint';
+import type { DuckDbCredentials } from '../validations/duckdb';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { SingleStoreCredentials } from '../validations/singlestore';
@@ -56,7 +57,7 @@ type SchemaFile = {
 
 export type Setup = {
 	dbHash: string;
-	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
+	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
 	packageName:
 		| '@aws-sdk/client-rds-data'
 		| 'pglite'
@@ -72,7 +73,9 @@ export type Setup = {
 		| 'better-sqlite3'
 		| '@sqlitecloud/drivers'
 		| '@tursodatabase/database'
-		| 'bun';
+		| 'bun'
+		| 'duckdb'
+		| '@duckdb/node-api';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
@@ -363,6 +366,29 @@ export const drizzleForPostgres = async (
 		relations,
 		schemaFiles,
 		casing,
+	};
+};
+
+export const drizzleForDuckDb = async (
+	credentials: DuckDbCredentials,
+): Promise<Setup> => {
+	const { prepareDuckDb } = await import('../connections');
+	const db = await prepareDuckDb(credentials);
+
+	const dbUrl = `duckdb://${credentials.url}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'duckdb',
+		driver: undefined,
+		packageName: db.packageName,
+		proxy: db.proxy,
+		transactionProxy: db.transactionProxy,
+		customDefaults: [],
+		schema: {},
+		relations: {},
 	};
 };
 

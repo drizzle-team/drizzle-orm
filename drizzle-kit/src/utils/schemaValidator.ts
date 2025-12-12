@@ -10,6 +10,7 @@ export const dialects = [
 	'gel',
 	'mssql',
 	'cockroach',
+	'duckdb',
 ] as const;
 export const dialect = enumType(dialects);
 
