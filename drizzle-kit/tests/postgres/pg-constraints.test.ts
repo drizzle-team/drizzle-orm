@@ -1406,6 +1406,50 @@ test('pk multistep #4', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3189
+test('pk multistep #5', async () => {
+	const table1 = pgTable('table1', {
+		id: text('id').notNull(),
+		dbtProjectId: text('dbt_project_id').notNull(),
+	}, (table) => [
+		primaryKey({ columns: [table.dbtProjectId, table.id] }),
+	]);
+
+	const table2 = pgTable('table2', {
+		dbtProjectId: text('dbt_project_id').notNull(),
+		dbtBranchId: text('dbt_branch_id').notNull(),
+	}, (t) => [
+		foreignKey({
+			columns: [t.dbtProjectId, t.dbtBranchId],
+			foreignColumns: [table1.dbtProjectId, table1.id],
+		}),
+	]);
+
+	const schema = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n'
+		+ '\t"id" text,\n'
+		+ '\t"dbt_project_id" text,\n'
+		+ '\tCONSTRAINT "table1_pkey" PRIMARY KEY("dbt_project_id","id")\n'
+		+ ');\n',
+		'CREATE TABLE "table2" (\n'
+		+ '\t"dbt_project_id" text NOT NULL,\n'
+		+ '\t"dbt_branch_id" text NOT NULL\n'
+		+ ');\n',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_kbxVCdKFtrgY_fkey" FOREIGN KEY ("dbt_project_id","dbt_branch_id") REFERENCES "table1"("dbt_project_id","id");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3496
 test('remove/add pk', async (t) => {
 	const Step = pgTable('Step', {
@@ -1630,6 +1674,7 @@ test('alter pk from composite to composite with column creation', async (t) => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3117
 test('add column with pk to table where was no pk', async (t) => {
 	const schema1 = pgTable('users', {
 		id: bigint({ mode: 'number' }),

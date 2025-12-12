@@ -251,6 +251,81 @@ test('alter text type to jsonb type', async () => {
 	expect(res[0].column1).toBe('{"b":2}');
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2856
+test('alter text type to timestamp type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('2024-01-01 09:00:00.123456');`);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			column1: timestamp({ withTimezone: true }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst, hints } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE timestamp with time zone USING "column1"::timestamp with time zone;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toBeDefined();
+	expect(res[0].column1).not.toBe(null);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2751
+test('alter text type to enum type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('admin');`);
+
+	const roles = ['admin', 'participant'] as const;
+	const roleEnum = pgEnum('role', roles);
+	const schema2 = {
+		roleEnum,
+		table1: pgTable('table1', {
+			column1: roleEnum(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
+
+	const st0 = [
+		`CREATE TYPE "role" AS ENUM('admin', 'participant');`,
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE "role" USING "column1"::"role";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toBeDefined();
+	expect(res[0].column1).not.toBe(null);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 test('alter integer type to text type with fk constraints', async () => {
 	// postpone cc: @AlexSherman
