@@ -173,17 +173,17 @@ export const logSuggestionsAndReturn = async (
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-			infoToPrint.push(
-				`· You're about to change ${
-					chalk.underline(
-						statement.columnName,
-					)
-				} column type from ${
-					chalk.underline(
-						statement.oldDataType,
-					)
-				} to ${chalk.underline(statement.newDataType)} in ${statement.tableName} table with ${count} items`,
-			);
+				infoToPrint.push(
+					`· You're about to change ${
+						chalk.underline(
+							statement.columnName,
+						)
+					} column type from ${
+						chalk.underline(
+							statement.oldDataType,
+						)
+					} to ${chalk.underline(statement.newDataType)} in ${statement.tableName} table with ${count} items`,
+				);
 				statementsToExecute.push(`truncate table ${statement.tableName};`);
 				tablesToTruncate.push(statement.tableName);
 				shouldAskForApprove = true;
@@ -196,13 +196,13 @@ export const logSuggestionsAndReturn = async (
 
 				const count = Number(res[0].count);
 				if (count > 0) {
-				infoToPrint.push(
-					`· You're about to remove default value from ${
-						chalk.underline(
-							statement.columnName,
-						)
-					} not-null column in ${statement.tableName} table with ${count} items`,
-				);
+					infoToPrint.push(
+						`· You're about to remove default value from ${
+							chalk.underline(
+								statement.columnName,
+							)
+						} not-null column in ${statement.tableName} table with ${count} items`,
+					);
 
 					tablesToTruncate.push(statement.tableName);
 					statementsToExecute.push(`truncate table ${statement.tableName};`);
@@ -219,13 +219,13 @@ export const logSuggestionsAndReturn = async (
 
 				const count = Number(res[0].count);
 				if (count > 0) {
-				infoToPrint.push(
-					`· You're about to set not-null constraint to ${
-						chalk.underline(
-							statement.columnName,
-						)
-					} column without default in ${statement.tableName} table, which contains ${count} items`,
-				);
+					infoToPrint.push(
+						`· You're about to set not-null constraint to ${
+							chalk.underline(
+								statement.columnName,
+							)
+						} column without default in ${statement.tableName} table, which contains ${count} items`,
+					);
 
 					tablesToTruncate.push(statement.tableName);
 					statementsToExecute.push(`truncate table ${statement.tableName};`);
