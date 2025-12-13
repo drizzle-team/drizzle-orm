@@ -105,7 +105,7 @@ export class PostgresJsPreparedQuery<
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
+				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(Object.values(rows));
 			});
 		});
 	}
