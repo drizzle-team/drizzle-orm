@@ -33,6 +33,7 @@ const column = object({
 		type: enumType(['stored', 'virtual']),
 		as: string(),
 	}).optional(),
+	comment: string().optional(),
 }).strict();
 
 const tableV3 = object({
@@ -73,6 +74,7 @@ const table = object({
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 	checkConstraint: record(string(), checkConstraint).default({}),
+	comment: string().optional(),
 }).strict();
 
 const viewMeta = object({
@@ -177,6 +179,7 @@ const tableSquashed = object({
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
+	comment: string().optional(),
 }).strict();
 
 const viewSquashed = view.omit({
@@ -365,6 +368,7 @@ export const squashMysqlScheme = (json: MySqlSchema): MySqlSchemaSquashed => {
 				it[0],
 				{
 					name: it[1].name,
+					comment: it[1].comment,
 					columns: it[1].columns,
 					indexes: squashedIndexes,
 					foreignKeys: squashedFKs,

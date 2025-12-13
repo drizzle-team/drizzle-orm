@@ -35,6 +35,7 @@ test('create table with check', async (t) => {
 				autoincrement: false,
 			},
 		],
+		comment: undefined,
 		compositePKs: [
 			'users_id;id',
 		],
