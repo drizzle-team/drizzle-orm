@@ -1,5 +1,5 @@
 import { softAssertUnreachable } from 'src/global';
-import { literal, object, string, TypeOf, undefined, union } from 'zod';
+import { literal, object, record, string, type TypeOf, undefined, union } from 'zod';
 import { error } from '../views';
 import { sqliteDriver, wrapParam } from './common';
 
@@ -8,6 +8,7 @@ export const sqliteCredentials = union([
 		driver: literal('turso'),
 		url: string().min(1),
 		authToken: string().min(1).optional(),
+		headers: record(string()).optional(),
 	}),
 	object({
 		driver: literal('d1-http'),
