@@ -12,11 +12,11 @@ import {
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import { SQLiteBunSession } from './session.ts';
+import { type BunSQLiteRunResult, SQLiteBunSession } from './session.ts';
 
 export class BunSQLiteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'sync', void, TSchema> {
+> extends BaseSQLiteDatabase<'sync', BunSQLiteRunResult, TSchema> {
 	static override readonly [entityKind]: string = 'BunSQLiteDatabase';
 }
 
