@@ -1084,7 +1084,7 @@ export const ddlDiff = async (
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
-	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
 	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
@@ -1122,7 +1122,8 @@ export const ddlDiff = async (
 		});
 	});
 
-	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition).map((entry) => {
+	// recreate views
+	viewsAlters.filter((it) => it.diff.definition).forEach((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -1137,7 +1138,9 @@ export const ddlDiff = async (
 				${schema}:${name}
 				`);
 		}
-		return prepareStatement('recreate_view', { from, to: it });
+
+		jsonDropViews.push(prepareStatement('drop_view', { view: it, cause: from }));
+		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
@@ -1201,7 +1204,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
-	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonRenameTables);
