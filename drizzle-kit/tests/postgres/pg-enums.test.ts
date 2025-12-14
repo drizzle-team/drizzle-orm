@@ -2167,3 +2167,37 @@ test('enums ordering', async () => {
 	expect(st4).toStrictEqual([]);
 	expect(pst4).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5130
+// https://github.com/drizzle-team/drizzle-orm/pull/5131
+test('enums defaults', async () => {
+	enum status {
+		active = 'active',
+		inactive = 'inactive',
+	}
+	const Status = {
+		active: 'active',
+		inactive: 'inactive',
+	} as const;
+
+	const en1 = pgEnum('en1', status);
+	const en2 = pgEnum('en2', Status);
+
+	const to = {
+		en1,
+		en2,
+		table: pgTable('table', {
+			col1: en1().default(status.active),
+			col2: en2().default('inactive'),
+		}),
+	};
+
+	const res = await diff({}, to, []);
+	await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		"CREATE TYPE \"en1\" AS ENUM('active', 'inactive');",
+		"CREATE TYPE \"en2\" AS ENUM('active', 'inactive');",
+		'CREATE TABLE "table" (\n\t"col1" "en1" DEFAULT \'active\'::"en1",\n\t"col2" "en2" DEFAULT \'inactive\'::"en2"\n);\n',
+	]);
+});
