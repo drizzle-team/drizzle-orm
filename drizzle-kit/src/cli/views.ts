@@ -307,8 +307,8 @@ export const psqlExplain = (st: StatementPostgres) => {
 		if (d.with) cause += `| with: ${formatOptionChanges(d.with.from, d.with.to)}`;
 	}
 
-	if (st.type === 'recreate_view') {
-		const { from, to } = st;
+	if (st.type === 'drop_view' && st.cause) {
+		const { cause: from, view: to } = st;
 
 		const key = `${to.schema}.${to.name}`;
 		title += `${key} view changed:`;

@@ -111,12 +111,6 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 	return statements;
 });
 
-const recreateViewConvertor = convertor('recreate_view', (st) => {
-	const drop = dropViewConvertor.convert({ view: st.from }) as string;
-	const create = createViewConvertor.convert({ view: st.to }) as string;
-	return [drop, create];
-});
-
 const createTableConvertor = convertor('create_table', (st) => {
 	const { schema, name, columns, pk, uniques, checks, policies, isRlsEnabled } = st.table;
 
@@ -1016,7 +1010,6 @@ const convertors = [
 	renameViewConvertor,
 	moveViewConvertor,
 	alterViewConvertor,
-	recreateViewConvertor,
 	createTableConvertor,
 	dropTableConvertor,
 	renameTableConvertor,
