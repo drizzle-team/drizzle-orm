@@ -354,7 +354,7 @@ const recreateIndexConvertor = convertor('recreate_index', (st) => {
 });
 
 const alterColumnConvertor = convertor('alter_column', (st) => {
-	const { diff, to: column, isEnum, wasEnum } = st;
+	const { diff, to: column, isEnum, wasEnum, wasSerial } = st;
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
@@ -371,7 +371,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
-			: '';
+			: ` USING "${column.name}"::${column.type}${'[]'.repeat(column.dimensions)}`;
 		let type: string;
 
 		if (diff.type) {
@@ -382,6 +382,14 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 				: diff.type.to;
 		} else {
 			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
+		}
+
+		if (wasSerial) {
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT`);
+			const sequenceKey = column.schema !== 'public'
+				? `"${column.schema}"."${column.table}_${column.name}_seq"`
+				: `"${column.table}_${column.name}_seq"`;
+			statements.push(`DROP SEQUENCE ${sequenceKey}`);
 		}
 
 		statements.push(
@@ -427,6 +435,12 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			const identityStatement =
 				`GENERATED ${typeClause} AS IDENTITY (sequence name ${identityWithSchema}${incrementClause}${minClause}${maxClause}${startWith}${cache}${cycle})`;
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ADD ${identityStatement};`);
+
+			if (wasSerial && column.identity) {
+				statements.push(
+					`SELECT setval('${column.identity.name}'::regclass, (SELECT COALESCE(MAX(id), 1) FROM ${key}), false);`,
+				);
+			}
 		} else if (diff.identity.to === null) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
 		} else {

@@ -318,6 +318,7 @@ export interface JsonAlterColumn {
 	to: Column;
 	wasEnum: boolean;
 	isEnum: boolean;
+	wasSerial: boolean;
 	diff: DiffEntities['columns'];
 }
 

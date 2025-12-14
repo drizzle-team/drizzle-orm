@@ -783,7 +783,7 @@ test('drop enum', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" ALTER COLUMN "col" DROP DEFAULT;',
-		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text;',
+		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text USING "col"::text;',
 		'ALTER TABLE "users" ALTER COLUMN "col" SET DEFAULT \'value1\';',
 		`DROP TYPE "enum";`,
 	];
@@ -1595,7 +1595,7 @@ test('change data type from enum type to standart type', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar USING \"column\"::varchar;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1629,7 +1629,7 @@ test('change data type from enum type to standart type. column has default', asy
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar USING \"column\"::varchar;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1663,7 +1663,7 @@ test('change data type from array enum type to array standart type', async () =>
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1696,7 +1696,7 @@ test('change data type from array enum with custom size type to array standart t
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1730,7 +1730,7 @@ test('change data type from array enum type to array standart type. column has d
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1765,7 +1765,7 @@ test('change data type from array enum type with custom size to array standart t
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1795,7 +1795,7 @@ test('change data type from standart type to standart type', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text USING \"column\"::text;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1824,7 +1824,7 @@ test('change data type from standart type to standart type. column has default',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text USING \"column\"::text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1854,7 +1854,7 @@ test('change data type from standart type to standart type. columns are arrays',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1883,7 +1883,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1912,7 +1912,7 @@ test('change data type from standart type to standart type. columns are arrays. 
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1941,7 +1941,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING "column"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
