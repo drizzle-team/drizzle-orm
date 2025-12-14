@@ -740,9 +740,7 @@ export function mapRelationalRow(
 	parseJsonIfString: boolean = false,
 	path?: string,
 ): Record<string, unknown> {
-	for (
-		const selectionItem of buildQueryResultSelection
-	) {
+	for (const selectionItem of buildQueryResultSelection) {
 		if (selectionItem.selection) {
 			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
 
