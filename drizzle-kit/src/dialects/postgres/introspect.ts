@@ -642,13 +642,6 @@ export const fromDatabase = async (
 		});
 	}
 
-	let columnsCount = 0;
-	let indexesCount = 0;
-	let foreignKeysCount = 0;
-	let tableCount = 0;
-	let checksCount = 0;
-	let viewsCount = 0;
-
 	for (const seq of sequencesList) {
 		const depend = dependList.find((it) => it.oid === seq.oid);
 
@@ -671,8 +664,6 @@ export const fromDatabase = async (
 			cacheSize: Number(parseIdentityProperty(seq.cacheSize) ?? 1),
 		});
 	}
-
-	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	for (const dbRole of rolesList) {
 		roles.push({
@@ -718,8 +709,6 @@ export const fromDatabase = async (
 			withCheck: it.withCheck ?? null,
 		});
 	}
-
-	progressCallback('policies', policiesList.length, 'done');
 
 	type DBColumn = (typeof columnsList)[number];
 
@@ -1087,11 +1076,6 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('columns', columnsCount, 'fetching');
-	progressCallback('checks', checksCount, 'fetching');
-	progressCallback('indexes', indexesCount, 'fetching');
-	progressCallback('tables', tableCount, 'done');
-
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
 
@@ -1130,8 +1114,6 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		tableCount += 1;
-
 		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
 		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
 
@@ -1188,12 +1170,14 @@ export const fromDatabase = async (
 		});
 	}
 
-	// TODO: update counts!
-	progressCallback('columns', columnsCount, 'done');
-	progressCallback('indexes', indexesCount, 'done');
-	progressCallback('fks', foreignKeysCount, 'done');
-	progressCallback('checks', checksCount, 'done');
-	progressCallback('views', viewsCount, 'done');
+	progressCallback('tables', filteredTables.length, 'done');
+	progressCallback('columns', columnsList.length, 'done');
+	progressCallback('checks', checks.length, 'done');
+	progressCallback('indexes', indexes.length, 'fetching');
+	progressCallback('views', viewsList.length, 'done');
+	progressCallback('fks', fks.length, 'done');
+	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
+	progressCallback('policies', policiesList.length, 'done');
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));

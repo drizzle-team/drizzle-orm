@@ -26,7 +26,7 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative } from './grammar';
+import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -1039,12 +1039,18 @@ export const ddlDiff = async (
 		})
 		.map((it) => {
 			const column = it.$right;
+			const wasSerial = isSerialType(it.$left.type);
+			const isEnum = ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null;
+			const wasEnum =
+				(it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
+					?? false;
+
 			return prepareStatement('alter_column', {
 				diff: it,
-				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
-				wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
-					?? false,
 				to: column,
+				isEnum,
+				wasEnum,
+				wasSerial,
 			});
 		});
 
