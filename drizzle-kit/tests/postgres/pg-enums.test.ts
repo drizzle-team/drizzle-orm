@@ -2201,3 +2201,23 @@ test('enums defaults', async () => {
 		'CREATE TABLE "table" (\n\t"col1" "en1" DEFAULT \'active\'::"en1",\n\t"col2" "en2" DEFAULT \'inactive\'::"en2"\n);\n',
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5129
+test('enums camelcase', async () => {
+	const en1 = pgEnum('camelCase', ['active', 'inactive']);
+
+	const to = {
+		en1,
+		table: pgTable('table', {
+			col1: en1().default('active'),
+		}),
+	};
+
+	const res = await diff({}, to, []);
+	await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		"CREATE TYPE \"camelCase\" AS ENUM('active', 'inactive');",
+		'CREATE TABLE "table" (\n\t"col1" "camelCase" DEFAULT \'active\'::"camelCase"\n);\n',
+	]);
+});
