@@ -2101,12 +2101,13 @@ export function tests(test: Test) {
 				{ id: sessionId, userId: 1, name: 'some session' },
 			]);
 
-			throw new Error(`it's needed to fix ts error below`);
 			const query = db.delete(sessions).where(
 				and(
 					eq(sessions.id, sessionId),
 					eq(sessions.userId, userId),
 					not(
+						// @ts-expect-error
+						// TODO @skylotus
 						or(
 							eq(sessions.name, DEFAULT_SESSION_NAME),
 							eq(sessions.name, BASE_SESSION_NAME),
