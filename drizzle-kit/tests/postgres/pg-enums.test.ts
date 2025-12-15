@@ -783,7 +783,7 @@ test('drop enum', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" ALTER COLUMN "col" DROP DEFAULT;',
-		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text;',
+		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text USING "col"::text;',
 		'ALTER TABLE "users" ALTER COLUMN "col" SET DEFAULT \'value1\';',
 		`DROP TYPE "enum";`,
 	];
@@ -1595,7 +1595,7 @@ test('change data type from enum type to standart type', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar USING \"column\"::varchar;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1629,7 +1629,7 @@ test('change data type from enum type to standart type. column has default', asy
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar USING \"column\"::varchar;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1663,7 +1663,7 @@ test('change data type from array enum type to array standart type', async () =>
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1696,7 +1696,7 @@ test('change data type from array enum with custom size type to array standart t
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1730,7 +1730,7 @@ test('change data type from array enum type to array standart type. column has d
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1765,7 +1765,7 @@ test('change data type from array enum type with custom size to array standart t
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[] USING \"column\"::varchar[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1795,7 +1795,7 @@ test('change data type from standart type to standart type', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text USING \"column\"::text;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1824,7 +1824,7 @@ test('change data type from standart type to standart type. column has default',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text USING \"column\"::text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1854,7 +1854,7 @@ test('change data type from standart type to standart type. columns are arrays',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1883,7 +1883,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1912,7 +1912,7 @@ test('change data type from standart type to standart type. columns are arrays. 
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING \"column\"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1941,7 +1941,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[] USING "column"::text[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2166,4 +2166,58 @@ test('enums ordering', async () => {
 	const { sqlStatements: pst4 } = await push({ db, to: schema4 });
 	expect(st4).toStrictEqual([]);
 	expect(pst4).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5130
+// https://github.com/drizzle-team/drizzle-orm/pull/5131
+test('enums defaults', async () => {
+	enum status {
+		active = 'active',
+		inactive = 'inactive',
+	}
+	const Status = {
+		active: 'active',
+		inactive: 'inactive',
+	} as const;
+
+	const en1 = pgEnum('en1', status);
+	const en2 = pgEnum('en2', Status);
+
+	const to = {
+		en1,
+		en2,
+		table: pgTable('table', {
+			col1: en1().default(status.active),
+			col2: en2().default('inactive'),
+		}),
+	};
+
+	const res = await diff({}, to, []);
+	await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		"CREATE TYPE \"en1\" AS ENUM('active', 'inactive');",
+		"CREATE TYPE \"en2\" AS ENUM('active', 'inactive');",
+		'CREATE TABLE "table" (\n\t"col1" "en1" DEFAULT \'active\'::"en1",\n\t"col2" "en2" DEFAULT \'inactive\'::"en2"\n);\n',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5129
+test('enums camelcase', async () => {
+	const en1 = pgEnum('camelCase', ['active', 'inactive']);
+
+	const to = {
+		en1,
+		table: pgTable('table', {
+			col1: en1().default('active'),
+		}),
+	};
+
+	const res = await diff({}, to, []);
+	await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		"CREATE TYPE \"camelCase\" AS ENUM('active', 'inactive');",
+		'CREATE TABLE "table" (\n\t"col1" "camelCase" DEFAULT \'active\'::"camelCase"\n);\n',
+	]);
 });

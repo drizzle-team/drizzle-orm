@@ -6156,6 +6156,102 @@ export function tests() {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
+		test('placeholder + sql dates', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			const dateTable = cockroachTable('dates_placeholder_test', (t) => ({
+				id: t.int4('id').primaryKey().notNull(),
+				date: t.date('date', { mode: 'date' }).notNull(),
+				dateStr: t.date('date_str', { mode: 'string' }).notNull(),
+				timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
+				timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+			}));
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
+			await db.execute(sql`CREATE TABLE ${dateTable} (
+			${sql.identifier('id')} INT4 PRIMARY KEY NOT NULL,
+			${sql.identifier('date')} DATE NOT NULL,
+			${sql.identifier('date_str')} DATE NOT NULL,
+			${sql.identifier('timestamp')} TIMESTAMP NOT NULL,
+			${sql.identifier('timestamp_str')} TIMESTAMP NOT NULL
+		);`);
+
+			const date = new Date('2025-12-10T00:00:00.000Z');
+			const timestamp = new Date('2025-12-10T01:01:01.111Z');
+			const dateStr = date.toISOString().slice(0, -14);
+			const timestampStr = timestamp.toISOString().slice(0, -1).replace('T', ' ');
+
+			const initial = await db.insert(dateTable).values([{
+				id: 1,
+				date: date,
+				dateStr: dateStr,
+				timestamp: timestamp,
+				timestampStr: timestampStr,
+			}, {
+				id: 2,
+				date: sql.placeholder('dateAsDate'),
+				dateStr: sql.placeholder('dateStrAsDate'),
+				timestamp: sql.placeholder('timestampAsDate'),
+				timestampStr: sql.placeholder('timestampStrAsDate'),
+			}, {
+				id: 3,
+				date: sql.placeholder('dateAsString'),
+				dateStr: sql.placeholder('dateStrAsString'),
+				timestamp: sql.placeholder('timestampAsString'),
+				timestampStr: sql.placeholder('timestampStrAsString'),
+			}, {
+				id: 4,
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}]).returning().execute({
+				dateAsDate: date,
+				dateAsString: dateStr,
+				dateStrAsDate: date,
+				dateStrAsString: dateStr,
+				timestampAsDate: timestamp,
+				timestampAsString: timestampStr,
+				timestampStrAsDate: timestamp,
+				timestampStrAsString: timestampStr,
+			});
+
+			const updated = await db.update(dateTable).set({
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}).returning();
+
+			expect(initial).toStrictEqual([{
+				id: 1,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 2,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 3,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 4,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}]);
+
+			expect(updated).toStrictEqual(initial);
+		});
+
 		test('all types', async (ctx) => {
 			const { db } = ctx.cockroach;
 

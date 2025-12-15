@@ -28,6 +28,26 @@ export const mapEntries = <T>(
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
+export type QueriesTimings = {
+	tcpHandshake: number;
+	tlsHandshake: number | null;
+	dbHandshake: number | null;
+	queries: {
+		networkLatencyBefore: number;
+		planning: number | null;
+		execution: number;
+		networkLatencyAfter: number;
+		dataDownload: number;
+		dataParse: number;
+		total: number;
+		errorMargin: number;
+		dataSize: number;
+	}[];
+};
+export type BenchmarkProxy = (
+	query: { sql: string; params?: any[]; method?: ProxyParams['method'] },
+	repeats: number,
+) => Promise<QueriesTimings>;
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
@@ -69,6 +89,10 @@ export const kloudMeta = () => {
 		sqlite: [] as number[],
 	};
 };
+
+export function convertBigIntToMilliseconds(bigInt: bigint): number {
+	return Number(bigInt / BigInt(1_000_000));
+}
 
 export function escapeSingleQuotes(str: string) {
 	return str.replace(/'/g, "''");

@@ -2124,3 +2124,29 @@ test('add not null to column with default', async () => {
 	expect(st3).toStrictEqual(expectedSt3);
 	expect(pst3).toStrictEqual(expectedSt3);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5125
+test('case - #5125', async () => {
+	const students = mysqlTable('student', {
+		id: int().primaryKey().autoincrement(),
+	});
+
+	const courses = mysqlTable('course', {
+		id: int().primaryKey().autoincrement(),
+	});
+
+	const studentCourse = mysqlTable('student_course', {
+		studentId: int().notNull().references(() => students.id), // FK relies on PK index by default in MySQL
+		courseId: int().notNull().references(() => courses.id),
+	}, (table) => [
+		primaryKey({ columns: [table.studentId, table.courseId] }),
+	]);
+
+	const to = {
+		students,
+		courses,
+		studentCourse,
+	};
+
+	await push({ db, to });
+});
