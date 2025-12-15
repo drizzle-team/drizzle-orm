@@ -1270,7 +1270,6 @@ test('introspect view with table filter', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
 test('introspect sequences with table filter', async () => {
 	// postpone cc: @AlexSherman
-	// need to discuss this
 	if (Date.now() < +new Date('2025-12-15')) return;
 
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')

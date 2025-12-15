@@ -329,7 +329,7 @@ test('alter text type to enum type', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 test('alter integer type to text type with fk constraints', async () => {
 	// postpone cc: @AlexSherman
-	// need to discuss this
+	// After discussion it was decided to postpone this feature
 	if (Date.now() < +new Date('2026-02-01')) return;
 
 	const users1 = pgTable('users', {
