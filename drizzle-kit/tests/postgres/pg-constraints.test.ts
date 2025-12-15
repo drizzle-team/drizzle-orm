@@ -1,8 +1,9 @@
-import { and, isNull, SQL } from 'drizzle-orm';
+import { and, isNull, SQL, sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
 	bigint,
 	boolean,
+	check,
 	foreignKey,
 	index,
 	integer,
@@ -2441,4 +2442,26 @@ test('fk name is too long', async () => {
 	const expectedSt1: string[] = [];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3713
+test('enums in check', async () => {
+	enum unit {
+		kg = 'kg',
+		lb = 'lb',
+	}
+	const to = {
+		table: pgTable('table', {
+			unit: text().$defaultFn(() => unit.kg).$type<unit>(),
+		}, (t) => [
+			check('unit_valid', sql`${t.unit} in (${unit.kg}, ${unit.lb})`),
+		]),
+	};
+
+	const res1 = await push({ db, to });
+	const res2 = await push({ db, to });
+	expect(res1.sqlStatements).toStrictEqual([
+		'CREATE TABLE "table" (\n\t"unit" text,\n\tCONSTRAINT "unit_valid" CHECK ("unit" in (\'kg\', \'lb\'))\n);\n',
+	]);
+	expect(res2.sqlStatements).toStrictEqual([]);
 });

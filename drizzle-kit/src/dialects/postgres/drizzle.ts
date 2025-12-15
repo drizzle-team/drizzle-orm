@@ -23,6 +23,7 @@ import {
 	PgArray,
 	PgDialect,
 	PgEnumColumn,
+	PgEnumObjectColumn,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
@@ -117,7 +118,7 @@ export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
 		? unwrapArray(column)
 		: { baseColumn: column, dimensions: 0 };
 
-	const isEnum = is(baseColumn, PgEnumColumn);
+	const isEnum = is(baseColumn, PgEnumColumn) || is(baseColumn, PgEnumObjectColumn);
 	const typeSchema = isEnum
 		? baseColumn.enum.schema || 'public'
 		: null;

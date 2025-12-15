@@ -1,5 +1,6 @@
 import { and, eq, gt, or, sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2172,4 +2173,58 @@ test('create view with camelCase', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+test('drop column referenced by a view', async () => {
+	const users = pgTable('users', { id: integer(), name: text() });
+	const uv = pgView('users_view').as((q) => q.select().from(users));
+	const from = { users, uv };
+
+	const users2 = pgTable('users', { id: integer() });
+	const uv2 = pgView('users_view').as((q) => q.select().from(users2));
+	const to = { users2, uv2 };
+
+	// push command ignores view definition
+	const res = await diff(from, to, []);
+	await push({ db, to: from });
+	// no view recreate in push so far, with shadow db we can
+	// const resp = await push({ db, to });
+
+	for (const st of res.sqlStatements) {
+		await db.query(st);
+	}
+
+	expect(res.sqlStatements).toStrictEqual([
+		'DROP VIEW "users_view";',
+		'ALTER TABLE "users" DROP COLUMN "name";',
+		'CREATE VIEW "users_view" AS (select "id" from "users");',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5116
+test('rename column referenced in view', async () => {
+	const users = pgTable('users', { id: integer(), name: text() });
+	const uv = pgView('users_view').as((q) => q.select().from(users));
+
+	const from = {
+		users,
+		uv,
+	};
+
+	const users2 = pgTable('users', { id2: integer(), name2: text() });
+	const uv2 = pgView('users_view').as((q) => q.select().from(users2));
+	const to = { users2, uv2 };
+
+	// push command ignores view definition
+	const res = await diff(from, to, ['public.users.name->public.users.name2', 'public.users.id->public.users.id2']);
+	await push({ db, to: from });
+	for (const s of res.sqlStatements) {
+		await db.query(s);
+	}
+	expect(res.sqlStatements).toStrictEqual([
+		'DROP VIEW "users_view";',
+		'ALTER TABLE "users" RENAME COLUMN "name" TO "name2";',
+		'ALTER TABLE "users" RENAME COLUMN "id" TO "id2";',
+		'CREATE VIEW "users_view" AS (select "id2", "name2" from "users");',
+	]);
 });

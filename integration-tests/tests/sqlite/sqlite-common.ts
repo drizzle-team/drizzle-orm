@@ -4536,4 +4536,74 @@ export function tests(test: Test, exclude: string[] = []) {
 		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
+
+	test.concurrent('placeholder + sql dates', async ({ db }) => {
+		const dateTable = sqliteTable('dates_placeholder_test', (t) => ({
+			id: t.integer('id').primaryKey().notNull(),
+			unix: t.integer('unix_date', {
+				mode: 'timestamp',
+			}).notNull(),
+			ms: t.integer('ms_date', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${dateTable};`);
+		await db.run(sql`CREATE TABLE ${dateTable} (
+			id INTEGER PRIMARY KEY NOT NULL,
+			unix_date INTEGER NOT NULL,
+			ms_date INTEGER NOT NULL
+		);`);
+
+		const msDate = new Date();
+		const unixDate = new Date(Math.floor(msDate.getTime() / 1000) * 1000);
+
+		const initial = await db.insert(dateTable).values([{
+			id: 1,
+			unix: unixDate,
+			ms: msDate,
+		}, {
+			id: 2,
+			unix: sql.placeholder('unixOne'),
+			ms: sql.placeholder('msOne'),
+		}, {
+			id: 3,
+			unix: sql.placeholder('unixTwo'),
+			ms: sql.placeholder('msTwo'),
+		}, {
+			id: 4,
+			unix: sql`${unixDate.getTime() / 1000}`,
+			ms: sql`${msDate.getTime()}`,
+		}]).returning().all({
+			unixOne: unixDate,
+			unixTwo: unixDate.getTime() / 1000,
+			msOne: msDate,
+			msTwo: msDate.getTime(),
+		});
+
+		const updated = await db.update(dateTable).set({
+			unix: sql`${unixDate.getTime() / 1000}`,
+			ms: sql`${msDate.getTime()}`,
+		}).returning();
+
+		expect(initial).toStrictEqual([{
+			id: 1,
+			unix: unixDate,
+			ms: msDate,
+		}, {
+			id: 2,
+			unix: unixDate,
+			ms: msDate,
+		}, {
+			id: 3,
+			unix: unixDate,
+			ms: msDate,
+		}, {
+			id: 4,
+			unix: unixDate,
+			ms: msDate,
+		}]);
+
+		expect(updated).toStrictEqual(initial);
+	});
 }

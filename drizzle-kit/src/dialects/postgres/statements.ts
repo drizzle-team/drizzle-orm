@@ -324,6 +324,7 @@ export interface JsonAlterColumn {
 	to: Column;
 	wasEnum: boolean;
 	isEnum: boolean;
+	wasSerial: boolean;
 	diff: DiffEntities['columns'];
 }
 
@@ -373,6 +374,7 @@ export interface JsonCreateView {
 export interface JsonDropView {
 	type: 'drop_view';
 	view: View;
+	cause: View | null;
 }
 
 export interface JsonRenameView {
@@ -394,12 +396,6 @@ export interface JsonAlterView {
 	view: View;
 }
 
-export interface JsonRecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-}
-
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -409,7 +405,6 @@ export type JsonStatement =
 	| JsonRecreateColumn
 	| JsonMoveView
 	| JsonAlterView
-	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum
