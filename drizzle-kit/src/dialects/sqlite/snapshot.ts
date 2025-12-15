@@ -1,4 +1,15 @@
-import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
+import {
+	any,
+	array as zArray,
+	boolean,
+	coerce,
+	enum as enumType,
+	literal,
+	object,
+	record,
+	string,
+	type TypeOf,
+} from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import type { SQLiteDDL, SqliteEntity } from './ddl';
@@ -34,7 +45,7 @@ const column = object({
 	primaryKey: boolean(),
 	notNull: boolean(),
 	autoincrement: boolean().optional(),
-	default: string().optional(),
+	default: coerce.string().optional(),
 	generated: object({
 		type: enumType(['stored', 'virtual']),
 		as: string(),

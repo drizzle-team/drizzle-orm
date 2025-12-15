@@ -168,12 +168,11 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	move_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
 
 	// View operations
-	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
-	drop_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
-	rename_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
-	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
-	recreate_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
-	move_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
+	drop_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
+	rename_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
+	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
+	move_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
 
 	// Schema operations
 	create_schema: ['create_schema', 'drop_schema', 'rename_schema'],
@@ -387,10 +386,6 @@ function extractStatementInfo(
 		case 'alter_view':
 			schema = statement.view.schema;
 			objectName = statement.view.name;
-			break;
-		case 'recreate_view':
-			schema = statement.to.schema;
-			objectName = statement.to.name;
 			break;
 		case 'rename_view':
 			schema = statement.from.schema;

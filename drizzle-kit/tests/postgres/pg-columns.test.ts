@@ -200,7 +200,7 @@ test('alter column type to custom type', async (t) => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE text;',
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE text USING "column1"::text;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -896,7 +896,7 @@ test('geometry point with srid', async () => {
 		});
 
 		const st0: string[] = [
-			'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE geometry(point,12);',
+			'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE geometry(point,12) USING "id3"::geometry(point,12);',
 		];
 
 		expect(st).toStrictEqual(st0);
@@ -1164,4 +1164,25 @@ test('column with not null was renamed and dropped not null', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 	expect(sbsqSt).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2856
+test('alter text to timestamp', async () => {
+	const from = {
+		users: pgTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			name: timestamp(),
+		}),
+	};
+
+	await push({ db, to: from });
+	const res = await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "name" SET DATA TYPE timestamp USING "name"::timestamp;',
+	]);
 });

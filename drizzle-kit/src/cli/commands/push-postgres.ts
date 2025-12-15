@@ -137,8 +137,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
-		// discussion -
-		if (it.type === 'recreate_view') return false;
+		// TODO: discussion -
+		if (it.type === 'drop_view' && it.cause) return false;
 
 		/*
 			drizzle-kit push does not handle alternations of postgres views definitions

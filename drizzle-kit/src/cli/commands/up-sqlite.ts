@@ -45,7 +45,7 @@ export const upSqliteHandler = (out: string) => {
 	console.log("Everything's fine 🐶🔥");
 };
 
-const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
+export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	const ddl = createDDL();
 	for (const table of Object.values(snapshot.tables)) {
 		ddl.tables.push({

@@ -54,9 +54,10 @@ export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgCo
 		return value;
 	}
 
-	override mapToDriverValue = (value: Date): string => {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString();
-	};
+	}
 }
 
 export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
@@ -116,6 +117,11 @@ export class PgTimestampString<T extends ColumnBaseConfig<'string timestamp'>> e
 		}
 
 		return shortened;
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString();
 	}
 }
 
