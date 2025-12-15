@@ -21,8 +21,11 @@
 		"baseUrl": ".",
 		"outDir": "dist",
 		"noEmit": true,
-		"typeRoots": ["node_modules/@types", "src/@types"]
+		"typeRoots": ["node_modules/@types", "src/@types"],
+		"paths": {
+			"~build": ["../build/index.ts"]
+		}
 	},
-	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts"],
+	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts", "scripts"],
 	"exclude": ["node_modules"]
 }

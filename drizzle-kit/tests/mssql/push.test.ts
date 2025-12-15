@@ -1,3 +1,4 @@
+import { eq, sql } from 'drizzle-orm';
 import {
 	bigint,
 	check,
@@ -10,7 +11,6 @@ import {
 	text,
 	varchar,
 } from 'drizzle-orm/mssql-core';
-import { eq, sql } from 'drizzle-orm/sql';
 // import { suggestions } from 'src/cli/commands/push-mssql';
 import { DB } from 'src/utils';
 import { diff, prepareTestDatabase, push, TestDatabase } from 'tests/mssql/mocks';

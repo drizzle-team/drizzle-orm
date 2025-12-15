@@ -4,7 +4,7 @@
 	"description": "Generate Typebox schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
-		"build": "tsx scripts/build.ts",
+		"build": "bun scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"b": "pnpm build",
 		"test:types": "cd tests && tsc",
@@ -16,19 +16,17 @@
 	"exports": {
 		".": {
 			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
+				"types": "./index.d.ts",
+				"default": "./index.js"
 			},
 			"require": {
-				"types": "./index.d.cjs",
+				"types": "./index.d.cts",
 				"default": "./index.cjs"
-			},
-			"types": "./index.d.ts",
-			"default": "./index.mjs"
+			}
 		}
 	},
 	"main": "./index.cjs",
-	"module": "./index.mjs",
+	"module": "./index.js",
 	"types": "./index.d.ts",
 	"publishConfig": {
 		"provenance": true
@@ -61,14 +59,9 @@
 		"drizzle-orm": ">=1.0.0-beta.2"
 	},
 	"devDependencies": {
-		"@rollup/plugin-typescript": "^11.1.0",
 		"@sinclair/typebox": "^0.34.8",
 		"@types/node": "^18.15.10",
-		"cpy": "^10.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
-		"json-rules-engine": "^7.3.1",
-		"rimraf": "^5.0.0",
-		"rollup": "^3.29.5",
-		"zx": "^7.2.2"
+		"json-rules-engine": "^7.3.1"
 	}
 }

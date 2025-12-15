@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"p": "prisma generate --schema src/prisma/schema.prisma",
-		"build": "pnpm p && scripts/build.ts",
+		"build": "pnpm p && bun scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
@@ -204,10 +204,8 @@
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
-		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
-		"glob": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
@@ -216,9 +214,6 @@
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
 		"ts-morph": "^25.0.1",
-		"tslib": "^2.5.2",
-		"tsx": "^3.12.7",
-		"zod": "^3.20.2",
-		"zx": "^7.2.2"
+		"zod": "^3.20.2"
 	}
 }
