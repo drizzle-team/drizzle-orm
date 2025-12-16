@@ -1374,3 +1374,29 @@ test('alter text to timestamp', async () => {
 		'ALTER TABLE "users" ALTER COLUMN "name" SET DATA TYPE timestamp USING "name"::timestamp;',
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2183
+test('alter integer type to serial type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			col1: integer(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			col1: serial(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});

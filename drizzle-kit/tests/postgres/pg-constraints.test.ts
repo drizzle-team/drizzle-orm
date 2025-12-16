@@ -1407,6 +1407,7 @@ test('pk multistep #4', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3380
 // https://github.com/drizzle-team/drizzle-orm/issues/3189
 test('pk multistep #5', async () => {
 	const table1 = pgTable('table1', {
