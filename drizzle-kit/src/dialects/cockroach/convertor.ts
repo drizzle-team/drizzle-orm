@@ -246,7 +246,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 
 	// TODO need to recheck this
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -270,7 +270,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			}${suffix};`,
 		);
 
-		if (recreateDefault) {
+		if (recreateDefault && column.default) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);
 		}
 	}
@@ -552,11 +552,12 @@ const alterEnumConvertor = convertor('alter_enum', (st) => {
 
 const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const { to, columns } = st;
+
 	const statements: string[] = [];
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`);
-		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -568,8 +569,15 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);
-		if (column.default) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);
+		if (column.default.right) {
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
+				defaultToSQL({
+					default: column.default.right,
+					dimensions: column.dimensions,
+					type: column.type,
+					typeSchema: column.typeSchema,
+				})
+			};`);
 		}
 	}
 

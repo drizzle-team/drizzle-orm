@@ -90,7 +90,7 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'tables') imports.add('sqliteTable');
 		if (it.entityType === 'fks') {
 			imports.add('foreignKey');
-			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('AnySQLiteColumn');
+			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('type AnySQLiteColumn');
 		}
 	}
 
@@ -116,9 +116,9 @@ export const ddlToTypeScript = (
 		statement += createTableColumns(columns, fks, pk, casing);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
+		// more than 2 fields
 		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
+			return it.columns.length > 1;
 		});
 
 		if (
@@ -278,26 +278,21 @@ const createTableColumns = (
 		const references = fks.filter((fk) => fk.columns.length === 1 && fk.columns[0] === it.name);
 
 		for (const fk of references) {
-			statement += `.references(() => ${withCasing(fk.tableTo, casing)}.${withCasing(fk.columnsTo[0], casing)})`;
-
-			const onDelete = fk.onDelete && fk.onDelete !== 'no action' ? fk.onDelete : null;
-			const onUpdate = fk.onUpdate && fk.onUpdate !== 'no action' ? fk.onUpdate : null;
-			const params = { onDelete, onUpdate };
-
 			const typeSuffix = isCyclic(fk) ? ': AnySQLiteColumn' : '';
+
+			statement += `.references(()${typeSuffix} => ${withCasing(fk.tableTo, casing)}.${
+				withCasing(fk.columnsTo[0], casing)
+			}`;
+
+			const onDelete = (fk.onDelete && fk.onDelete !== 'NO ACTION') ? fk.onDelete.toLowerCase() : null;
+			const onUpdate = (fk.onUpdate && fk.onUpdate !== 'NO ACTION') ? fk.onUpdate.toLowerCase() : null;
+			const params = { onDelete, onUpdate };
 
 			const paramsStr = objToStatement2(params);
 			if (paramsStr) {
-				statement += `.references(()${typeSuffix} => ${withCasing(fk.tableTo, casing)}.${
-					withCasing(fk.columnsTo[0], casing)
-				}, ${paramsStr} )`;
+				statement += `, ${paramsStr} )`;
 			} else {
-				statement += `.references(()${typeSuffix} => ${
-					withCasing(
-						fk.tableTo,
-						casing,
-					)
-				}.${withCasing(fk.columnsTo[0], casing)})`;
+				statement += `)`;
 			}
 		}
 		statement += ',\n';
@@ -412,7 +407,7 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 	fks.forEach((it) => {
 		const isSelf = it.tableTo === it.table;
 		const tableTo = isSelf ? 'table' : `${withCasing(it.tableTo, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey(() => ({\n`;
+		statement += `\n\t\tforeignKey({\n`;
 		statement += `\t\t\tcolumns: [${
 			it.columns
 				.map((i) => `table.${withCasing(i, casing)}`)
@@ -424,14 +419,14 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 				.join(', ')
 		}],\n`;
 		statement += `\t\t\tname: "${it.name}"\n`;
-		statement += `\t\t}))`;
+		statement += `\t\t})`;
 
 		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
+			? `.onUpdate("${it.onUpdate.toLowerCase()}")`
 			: '';
 
 		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
+			? `.onDelete("${it.onDelete.toLowerCase()}")`
 			: '';
 
 		statement += `,\n`;

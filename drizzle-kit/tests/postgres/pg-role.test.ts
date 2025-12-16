@@ -234,7 +234,6 @@ test('alter inherit in role', async (t) => {
 		db,
 		to: schema2,
 		entities: { roles: { include: ['manager'] } },
-		log: 'statements',
 	});
 
 	const st0 = [

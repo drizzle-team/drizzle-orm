@@ -228,7 +228,6 @@ test.concurrent('drop identity from a column - no params', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		log: 'statements',
 	});
 
 	const st0 = [

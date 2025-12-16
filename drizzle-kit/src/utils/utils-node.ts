@@ -180,7 +180,7 @@ const mysqlValidator = (
 const mssqlSnapshotValidator = (
 	snapshot: object,
 ): ValidationResult => {
-	const versionError = assertVersion(snapshot, 1);
+	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
 	const res = mssqlValidatorSnapshot.parse(snapshot);

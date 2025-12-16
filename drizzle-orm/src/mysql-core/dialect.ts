@@ -316,7 +316,7 @@ export class MySqlDialect {
 		indexFor: 'USE' | 'FORCE' | 'IGNORE';
 	}): SQL | undefined {
 		return indexes && indexes.length > 0
-			? sql` ${sql.raw(indexFor)} INDEX (${sql.raw(indexes.join(`, `))})`
+			? sql` ${sql.raw(indexFor)} INDEX ${indexes.map((it) => sql.identifier(it))}`
 			: undefined;
 	}
 

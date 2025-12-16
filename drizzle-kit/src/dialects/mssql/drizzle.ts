@@ -272,9 +272,9 @@ export const fromDrizzleSchema = (
 				columns: columns.map((it) => {
 					if (is(it, SQL)) {
 						const sql = dialect.sqlToQuery(it, 'indexes').sql;
-						return sql;
+						return { value: sql, isExpression: true };
 					} else {
-						return getColumnCasing(it, casing);
+						return { value: getColumnCasing(it, casing), isExpression: false };
 					}
 				}),
 				isUnique: index.config.unique ?? false,

@@ -1,7 +1,7 @@
-import { SQL } from '~/sql/sql.ts';
-
 import { entityKind, is } from '~/entity.ts';
-import type { CockroachColumn, ExtraConfigColumn } from './columns/index.ts';
+import { SQL } from '~/sql/sql.ts';
+import { ExtraConfigColumn } from './columns/index.ts';
+import type { CockroachColumn } from './columns/index.ts';
 import { IndexedColumn } from './columns/index.ts';
 import type { CockroachTable } from './table.ts';
 
@@ -44,16 +44,36 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
+	on(
+		...columns: [
+			Partial<ExtraConfigColumn> | SQL | CockroachColumn,
+			...Partial<ExtraConfigColumn | SQL | CockroachColumn>[],
+		]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as CockroachColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			false,
@@ -61,16 +81,36 @@ export class IndexBuilderOn {
 		);
 	}
 
-	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
+	onOnly(
+		...columns: [
+			Partial<ExtraConfigColumn | SQL | CockroachColumn>,
+			...Partial<ExtraConfigColumn | SQL | CockroachColumn>[],
+		]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = it.defaultConfig;
-				return clonedIndexedColumn;
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as CockroachColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,
@@ -87,17 +127,35 @@ export class IndexBuilderOn {
 	 */
 	using(
 		method: CockroachIndexMethod,
-		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]
+		...columns: [
+			Partial<ExtraConfigColumn | SQL | CockroachColumn>,
+			...Partial<ExtraConfigColumn | SQL | CockroachColumn>[],
+		]
 	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as CockroachColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,
