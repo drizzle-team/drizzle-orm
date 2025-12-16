@@ -530,15 +530,17 @@ export const fromDrizzleSchema = (
 						} satisfies Index['columns'][number];
 					} else {
 						it = it as IndexedColumn;
+
+						let nullsFirst = false;
+						let asc = it.indexConfig?.order ? it.indexConfig.order === 'asc' : true;
+						if (!asc && !it.indexConfig?.nulls) nullsFirst = true;
+						else nullsFirst = it.indexConfig?.nulls ? it.indexConfig.nulls === 'first' : nullsFirst;
+
 						return {
 							value: getColumnCasing(it as IndexedColumn, casing),
 							isExpression: false,
-							asc: it.indexConfig?.order === 'asc',
-							nullsFirst: it.indexConfig?.nulls
-								? it.indexConfig?.nulls === 'first'
-									? true
-									: false
-								: false,
+							asc: asc,
+							nullsFirst: nullsFirst,
 							opclass: it.indexConfig?.opClass
 								? {
 									name: it.indexConfig.opClass,

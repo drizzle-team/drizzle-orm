@@ -535,7 +535,7 @@ WHERE obj.type in ('U', 'V')
 			const column = columnsList.find((column) =>
 				column.table_object_id === index.table_id && column.column_id === it
 			)!;
-			return column.name;
+			return { value: column.name, isExpression: false };
 		});
 
 		indexes.push({

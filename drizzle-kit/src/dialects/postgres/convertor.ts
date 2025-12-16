@@ -355,7 +355,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -392,7 +392,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			}${suffix};`,
 		);
 
-		if (recreateDefault) {
+		if (recreateDefault && column.default) {
 			statements.push(
 				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);
@@ -552,9 +552,10 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 });
 
 const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
-	const drop = dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	const create = addPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	return [drop, create];
+	const st: string[] = [];
+	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	return st;
 });
 
 const renameConstraintConvertor = convertor('rename_constraint', (st) => {
@@ -725,7 +726,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -738,9 +739,16 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 				'[]'.repeat(column.dimensions)
 			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) {
+		if (column.default.right) {
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
+					defaultToSQL({
+						default: column.default.right,
+						dimensions: column.dimensions,
+						type: column.type,
+						typeSchema: column.typeSchema,
+					})
+				};`,
 			);
 		}
 	}

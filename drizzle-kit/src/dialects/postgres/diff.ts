@@ -27,7 +27,7 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
-import type { JsonRecreateIndex, JsonStatement } from './statements';
+import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
@@ -728,7 +728,10 @@ export const ddlDiff = async (
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+			// if pk existed before and new column now has pk, this will trigger alter_pk, that will automatically add pk
+			// this flag is needed for column recreation (generated)
+			// see tests: "drizzle-kit/tests/postgres/pg-constraints.test.ts" => "remove/add pk" and below
+			isPK: false, // ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
@@ -845,7 +848,11 @@ export const ddlDiff = async (
 	});
 
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
-	const jsonAlteredPKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it, pk: it.$right }));
+	const jsonAlteredPKs: JsonAlterPrimaryKey[] = alteredPKs.map((it) => {
+		const deleted = columnsToDelete.some((x) => it.columns?.from.includes(x.name));
+
+		return prepareStatement('alter_pk', { diff: it, pk: it.$right, deleted });
+	});
 
 	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
 		if (
@@ -1004,8 +1011,12 @@ export const ddlDiff = async (
 				.map((it) => {
 					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name });
 					if (c2 === null) return null;
-					it.default = c2.default;
-					return it;
+
+					const def = {
+						right: c2.default,
+						left: it.default,
+					};
+					return { ...it, default: def };
 				})
 				.filter((x) => x !== null);
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns, from: alter.$left }));
@@ -1224,13 +1235,17 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
 
-	jsonStatements.push(...jsonAddPrimaryKeys);
-	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddPrimaryKeys);
+	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
+
+	jsonStatements.push(...jsonDropColumnsStatemets);
+	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonAlterColumns);
+
 	jsonStatements.push(...jsonRecreateIndex);
 
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
@@ -1240,9 +1255,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
-
-	jsonStatements.push(...jsonDropColumnsStatemets);
-	jsonStatements.push(...jsonAlteredPKs);
 
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 

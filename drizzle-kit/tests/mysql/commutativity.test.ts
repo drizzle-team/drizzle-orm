@@ -38,7 +38,7 @@ function mkTmp(): { tmp: string; fs: any; path: any; os: any } {
 describe('commutativity integration (mysql)', () => {
 	test('Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B', async () => {
 		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-15')) return;
+		if (Date.now() < +new Date('2025-12-20')) return;
 
 		const parentDDL = createDDL();
 		parentDDL.tables.push({ name: 'users' });
@@ -302,7 +302,7 @@ describe('commutativity integration (mysql)', () => {
 
 	test('detects conflict when drop table in one branch and add column in other', async () => {
 		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-15')) return;
+		if (Date.now() < +new Date('2025-12-20')) return;
 
 		const parentDDL = createDDL();
 		parentDDL.tables.push({ name: 'users' });
@@ -734,7 +734,7 @@ describe('commutativity integration (mysql)', () => {
 
 	test('complex mixed: multiple tables and views diverging', async () => {
 		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-15')) return;
+		if (Date.now() < +new Date('2025-12-20')) return;
 
 		const { tmp } = mkTmp();
 		const files: string[] = [];

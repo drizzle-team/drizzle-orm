@@ -1,6 +1,6 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { AnySQLiteColumn, AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteColumn, AnySQLiteTable, UpdateDeleteAction } from 'drizzle-orm/sqlite-core';
 import {
 	getTableConfig,
 	getViewConfig,
@@ -10,6 +10,7 @@ import {
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
+import { assertUnreachable } from 'src/utils';
 import { safeRegister } from 'src/utils/utils-node';
 import type { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../drizzle';
@@ -26,6 +27,16 @@ import type {
 	View,
 } from './ddl';
 import { Int, nameForForeignKey, nameForPk, nameForUnique, typeFor } from './grammar';
+
+export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {
+	if (on === 'no action') return 'NO ACTION';
+	if (on === 'cascade') return 'CASCADE';
+	if (on === 'restrict') return 'RESTRICT';
+	if (on === 'set default') return 'SET DEFAULT';
+	if (on === 'set null') return 'SET NULL';
+
+	assertUnreachable(on);
+};
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
@@ -110,8 +121,8 @@ export const fromDrizzleSchema = (
 	const fks = tableConfigs.map((it) => {
 		return it.config.foreignKeys.map((fk) => {
 			const tableFrom = it.config.name;
-			const onDelete = fk.onDelete ?? 'NO ACTION';
-			const onUpdate = fk.onUpdate ?? 'NO ACTION';
+			const onDelete = fk.onDelete;
+			const onUpdate = fk.onUpdate;
 			const reference = fk.reference();
 
 			const referenceFT = reference.foreignTable;
@@ -131,8 +142,8 @@ export const fromDrizzleSchema = (
 				tableTo,
 				columns: columnsFrom,
 				columnsTo,
-				onDelete,
-				onUpdate,
+				onDelete: transformOnUpdateDelete(onDelete ?? 'no action'),
+				onUpdate: transformOnUpdateDelete(onUpdate ?? 'no action'),
 				nameExplicit: fk.isNameExplicit(),
 			} satisfies ForeignKey;
 		});

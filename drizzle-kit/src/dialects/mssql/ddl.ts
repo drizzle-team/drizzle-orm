@@ -1,7 +1,8 @@
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
-export const createDDL = () => {
+// old
+export const createDDLV1 = () => {
 	return create({
 		schemas: {},
 		tables: { schema: 'required' },
@@ -72,6 +73,88 @@ export const createDDL = () => {
 		},
 	});
 };
+
+export const createDDL = () => {
+	return create({
+		schemas: {},
+		tables: { schema: 'required' },
+		columns: {
+			schema: 'required',
+			table: 'required',
+			type: 'string',
+			notNull: 'boolean',
+			generated: {
+				type: ['persisted', 'virtual'],
+				as: 'string',
+			},
+			identity: {
+				increment: 'number',
+				seed: 'number',
+			},
+		},
+		pks: {
+			schema: 'required',
+			table: 'required',
+			nameExplicit: 'boolean',
+			columns: 'string[]',
+		},
+		fks: {
+			schema: 'required',
+			table: 'required',
+			columns: 'string[]',
+			nameExplicit: 'boolean',
+			schemaTo: 'string',
+			tableTo: 'string',
+			columnsTo: 'string[]',
+			onUpdate: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
+			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
+		},
+		indexes: {
+			schema: 'required',
+			table: 'required',
+			// TODO add asc/desc: asc and desc feature exists in mssql
+			columns: [
+				{
+					value: 'string',
+					isExpression: 'boolean',
+				},
+			],
+			isUnique: 'boolean',
+			where: 'string?',
+		},
+		uniques: {
+			schema: 'required',
+			table: 'required',
+			nameExplicit: 'boolean',
+			columns: 'string[]',
+		},
+		checks: {
+			schema: 'required',
+			table: 'required',
+			value: 'string',
+		},
+		defaults: {
+			schema: 'required',
+			table: 'required',
+			column: 'string',
+			// this field will be required for name preserving
+			nameExplicit: 'boolean',
+			default: 'string?',
+		},
+		views: {
+			schema: 'required',
+			definition: 'string',
+			encryption: 'boolean?',
+			schemaBinding: 'boolean?',
+			viewMetadata: 'boolean?',
+			checkOption: 'boolean?',
+		},
+	});
+};
+
+export type MssqlDDLV1 = ReturnType<typeof createDDLV1>;
+export type MssqlEntitiesV1 = MssqlDDLV1['_']['types'];
+export type MssqlEntityV1 = MssqlEntitiesV1[keyof MssqlEntitiesV1];
 
 export type MssqlDDL = ReturnType<typeof createDDL>;
 
