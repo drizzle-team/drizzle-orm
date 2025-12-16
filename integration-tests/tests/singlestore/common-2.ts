@@ -2893,7 +2893,7 @@ export function tests(test: Test) {
 				params: [],
 			});
 			const res = await query;
-			expect(res.sort()).toStrictEqual([{ col1: false, col2: 'qwerty' }, { col1: true, col2: null }].sort());
+			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 		});
 	});
 }
