@@ -11,6 +11,7 @@ import {
 	pgView,
 	serial,
 	text,
+	varchar,
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -610,3 +611,169 @@ test('type coercion - mixed', (t) => {
 	// @ts-expect-error
 	createSelectSchema(mView, { unknown: z.string() });
 }
+
+// Security Tests
+
+test('factory - mode strict rejects unknown keys', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ mode: 'strict' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(result.success).toBe(false);
+});
+
+test('factory - mode strip removes unknown keys', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ mode: 'strip' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(result.success).toBe(true);
+	t.expect(result.data).toEqual({ name: 'test' });
+});
+
+test('factory - mode passthrough allows unknown keys', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ mode: 'passthrough' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(result.success).toBe(true);
+	t.expect(result.data).toEqual({ name: 'test', unknownKey: 'value' });
+});
+
+test('factory - trim removes whitespace from strings', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ trim: true, mode: 'strip' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ name: '  hello world  ' });
+	t.expect(result.success).toBe(true);
+	t.expect(result.data?.name).toBe('hello world');
+});
+
+test('factory - trim works on enum values', (t) => {
+	const statusEnum = pgEnum('status', ['active', 'inactive']);
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		status: statusEnum().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ trim: true, mode: 'strip' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ status: '  active  ' });
+	t.expect(result.success).toBe(true);
+	t.expect(result.data?.status).toBe('active');
+});
+
+test('factory - defaultTextMaxLength limits unbounded text', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ defaultTextMaxLength: 100, mode: 'strip' });
+	const schema = createInsertSchema(table);
+	const result = schema.safeParse({ name: 'a'.repeat(101) });
+	t.expect(result.success).toBe(false);
+});
+
+test('factory - defaultTextMaxLength does not affect columns with explicit length', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: varchar({ length: 50 }).notNull(),
+	});
+
+	const { createInsertSchema } = createSchemaFactory({ defaultTextMaxLength: 100, mode: 'strip' });
+	const schema = createInsertSchema(table);
+	// Should fail at 51 chars (column limit), not 101 (default limit)
+	const result50 = schema.safeParse({ name: 'a'.repeat(50) });
+	const result51 = schema.safeParse({ name: 'a'.repeat(51) });
+	t.expect(result50.success).toBe(true);
+	t.expect(result51.success).toBe(false);
+});
+
+test('factory - secure defaults are applied', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	// Factory should use secure defaults (strict mode, trim, defaultTextMaxLength)
+	const { createInsertSchema } = createSchemaFactory();
+	const schema = createInsertSchema(table);
+
+	// Test strict mode - should reject unknown keys
+	const unknownResult = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(unknownResult.success).toBe(false);
+
+	// Test trim - should trim whitespace
+	const trimResult = schema.safeParse({ name: '  hello  ' });
+	t.expect(trimResult.success).toBe(true);
+	t.expect(trimResult.data?.name).toBe('hello');
+
+	// Test defaultTextMaxLength - should limit unbounded text (65535 default)
+	const longText = 'a'.repeat(65536);
+	const longResult = schema.safeParse({ name: longText });
+	t.expect(longResult.success).toBe(false);
+});
+
+test('factory - secure defaults can be overridden', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	// Override secure defaults
+	const { createInsertSchema } = createSchemaFactory({
+		mode: 'strip',
+		trim: false,
+		defaultTextMaxLength: false,
+	});
+	const schema = createInsertSchema(table);
+
+	// Should strip unknown keys instead of rejecting
+	const unknownResult = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(unknownResult.success).toBe(true);
+
+	// Should not trim whitespace
+	const trimResult = schema.safeParse({ name: '  hello  ' });
+	t.expect(trimResult.success).toBe(true);
+	t.expect(trimResult.data?.name).toBe('  hello  ');
+
+	// Should allow unlimited text
+	const longText = 'a'.repeat(100000);
+	const longResult = schema.safeParse({ name: longText });
+	t.expect(longResult.success).toBe(true);
+});
+
+test('standalone functions do not apply secure defaults', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const schema = createInsertSchema(table);
+
+	// Standalone functions should use default Zod behavior (strip mode)
+	const unknownResult = schema.safeParse({ name: 'test', unknownKey: 'value' });
+	t.expect(unknownResult.success).toBe(true);
+
+	// Should not trim whitespace
+	const trimResult = schema.safeParse({ name: '  hello  ' });
+	t.expect(trimResult.success).toBe(true);
+	t.expect(trimResult.data?.name).toBe('  hello  ');
+});
