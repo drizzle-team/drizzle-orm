@@ -11,6 +11,7 @@ import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
+import { upMssqlHandler } from './commands/up-mssql';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
@@ -411,6 +412,10 @@ export const up = command({
 
 		if (dialect === 'cockroach') {
 			upCockroachHandler(out);
+		}
+
+		if (dialect === 'mssql') {
+			upMssqlHandler(out);
 		}
 
 		if (dialect === 'gel') {

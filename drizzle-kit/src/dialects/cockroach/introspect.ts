@@ -508,7 +508,7 @@ export const fromDatabase = async (
 			FROM
 				pg_attribute attr
 				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
-				LEFT JOIN crdb_internal.table_columns tc ON tc.descriptor_id = attrelid AND tc.column_id = attnum
+				LEFT JOIN crdb_internal.table_columns tc ON tc.descriptor_id = attrelid AND tc.column_name = attname
 				LEFT JOIN pg_type typ ON typ.oid = attr.atttypid
 			WHERE
 			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}

@@ -11,6 +11,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNull,
 	lt,
 	max,
 	min,
@@ -443,6 +444,30 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
+		test.concurrent('.where with isNull in it', async ({ db, push }) => {
+			const table = sqliteTable('table_where_is_null', {
+				col1: int({ mode: 'boolean' }),
+				col2: text(),
+			});
+
+			await db.run(sql`DROP TABLE IF EXISTS ${table}`);
+			await db.run(sql`CREATE TABLE ${table} (
+				col1 int,
+				col2 text
+			);`);
+			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "col1", "col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
+				params: [],
+			});
+			const res = await query;
+			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+		});
+
 		test.concurrent('select distinct', async ({ db }) => {
 			const usersDistinctTable = sqliteTable('users_distinct', {
 				id: integer('id').notNull(),
@@ -782,6 +807,50 @@ export function tests(test: Test, exclude: string[] = []) {
 			}]);
 
 			await db.run(sql`drop table ${users}`);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4389
+		test('inner join', async ({ db }) => {
+			const teams = sqliteTable('teams_1', {
+				id: integer().primaryKey(),
+			});
+			const users = sqliteTable('users_1', {
+				id: integer().primaryKey(),
+				name: text().notNull(),
+				teamId: integer('team_id').references(() => teams.id),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`create table ${users} (id integer primary key, name text not null, team_id integer, FOREIGN KEY (team_id) REFERENCES ${teams}(id));`,
+			);
+
+			await db.run(sql`drop table if exists ${teams}`);
+			await db.run(sql`create table ${teams} (id integer primary key);`);
+
+			await db.insert(teams).values([{ id: 1 }, { id: 2 }]).run();
+			await db.insert(users).values([{ id: 10, name: 'Ivan', teamId: 1 }, { id: 11, name: 'Hans', teamId: 2 }]).run();
+			const query = db
+				.select({ id: users.id, name: users.name, team_id: teams.id }).from(users)
+				.innerJoin(teams, eq(teams.id, users.teamId));
+
+			const result = await query.all();
+
+			expect(result).toEqual([
+				{
+					id: 10,
+					name: 'Ivan',
+					team_id: 1,
+				},
+				{
+					id: 11,
+					name: 'Hans',
+					team_id: 2,
+				},
+			]);
+
+			await db.run(sql`drop table ${users}`);
+			await db.run(sql`drop table ${teams}`);
 		});
 
 		test.concurrent('select from alias', async ({ db }) => {

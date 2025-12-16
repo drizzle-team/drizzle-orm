@@ -61,7 +61,12 @@ export interface JsonRenameEnum {
 export interface JsonRecreateEnum {
 	type: 'recreate_enum';
 	to: Enum;
-	columns: Column[];
+	columns: (Omit<Column, 'default'> & {
+		default: {
+			left: Column['default'];
+			right: Column['default'];
+		};
+	})[];
 	from: Enum;
 }
 
@@ -273,6 +278,7 @@ export interface JsonAlterPrimaryKey {
 	type: 'alter_pk';
 	pk: PrimaryKey;
 	diff: DiffEntities['pks'];
+	deleted?: boolean;
 }
 
 export interface JsonMoveTable {

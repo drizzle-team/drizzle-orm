@@ -148,7 +148,6 @@ test.concurrent('create materialized view', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
-		log: 'statements',
 	});
 
 	const st0: string[] = [
