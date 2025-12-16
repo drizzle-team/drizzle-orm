@@ -2,7 +2,7 @@ import type { MigrationMeta } from '~/migrator.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
-interface MigrationConfig {
+export interface MigrationConfig {
 	journal: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
