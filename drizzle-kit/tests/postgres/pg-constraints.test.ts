@@ -1701,6 +1701,50 @@ test('add column with pk to table where was no pk', async (t) => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1144#issuecomment-1960807398
+test('rename table with composite pk', async () => {
+	const schema1 = {
+		oauthAccount: pgTable(
+			'oauth_account',
+			{
+				providerId: text('provider_id').notNull(),
+				userId: text('user_id')
+					.notNull(),
+				// .references(() => user.id),
+			},
+			(table) => [
+				primaryKey({ columns: [table.providerId, table.userId] }),
+			],
+		),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		oauthAccount: pgTable(
+			'oauth_accounts',
+			{
+				providerId: text('provider_id').notNull(),
+				userId: text('user_id')
+					.notNull(),
+				// .references(() => user.id),
+			},
+			(table) => [
+				primaryKey({ columns: [table.providerId, table.userId] }),
+			],
+		),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE "oauth_account" RENAME TO "oauth_accounts";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4369
 test('fk #1', async () => {
 	const users = pgTable('users', {
