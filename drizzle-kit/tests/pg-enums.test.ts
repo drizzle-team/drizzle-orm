@@ -640,16 +640,17 @@ test('drop enum value. enum is columns data type', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(8);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[3]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[4]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[5]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[7]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 
@@ -714,15 +715,17 @@ test('shuffle enum values', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(8);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[3]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[4]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[5]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[7]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 
@@ -801,15 +804,16 @@ test('column is enum type with default value. shuffle enum', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 
@@ -859,15 +863,16 @@ test('column is array enum type with default value. shuffle enum', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);		
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"public"."enum"[];`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[] USING "column"::"public"."enum"[];`,
 	);
 
@@ -917,15 +922,16 @@ test('column is array enum with custom size type with default value. shuffle enu
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"public"."enum"[3];`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3] USING "column"::"public"."enum"[3];`,
 	);
 
@@ -975,11 +981,12 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[2]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[3]).toBe(
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3] USING "column"::"public"."enum"[3];`,
 	);
 
@@ -1029,11 +1036,12 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[2]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[3]).toBe(
+	expect(sqlStatements.length).toBe(5);	
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3][2] USING "column"::"public"."enum"[3][2];`,
 	);
 
@@ -1083,15 +1091,16 @@ test('column is array of enum with multiple dimenions type with custom size with
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::"public"."enum"[3][2];`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3][2] USING "column"::"public"."enum"[3][2];`,
 	);
 
@@ -1144,15 +1153,16 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"new_schema"."enum";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum" USING "column"::"new_schema"."enum";`,
 	);
 
@@ -1204,17 +1214,18 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`,
 	);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements[3]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
 	);
 
@@ -1266,17 +1277,18 @@ test('column is array enum type with custom size with default value. custom sche
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`,
 	);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements[3]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[3];`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[3] USING "column"::"new_schema"."enum"[3];`,
 	);
 
@@ -1328,11 +1340,12 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`DROP TYPE "new_schema"."enum";`);
-	expect(sqlStatements[2]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[3]).toBe(
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[3] USING "column"::"new_schema"."enum"[3];`,
 	);
 
@@ -2447,15 +2460,16 @@ test('check filtering json statements. here we have recreate enum + set new type
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum1";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum1" AS ENUM('value3', 'value1', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum1";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum1" AS ENUM('value3', 'value1', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum1";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum1" USING "column"::"public"."enum1";`,
 	);
 
@@ -2501,5 +2515,56 @@ test('check filtering json statements. here we have recreate enum + set new type
 		tableName: 'table',
 		type: 'pg_alter_table_alter_column_set_type',
 		typeSchema: 'public',
+	});
+});
+
+test('drop enum value that is used as default - should handle gracefully', async () => {
+	const enum1 = pgEnum('status', ['active', 'pending', 'inactive']);
+
+	const from = {
+		enum1,
+		table: pgTable('users', {
+			status: enum1('status').default('pending'),
+		}),
+	};
+
+	const enum2 = pgEnum('status', ['active', 'inactive']);
+	const to = {
+		enum2,
+		table: pgTable('users', {
+			status: enum2('status').default('active'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "users" ALTER COLUMN "status" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "users" ALTER COLUMN "status" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "users" ALTER COLUMN "status" SET DEFAULT 'active'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."status";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."status" AS ENUM('active', 'inactive');`);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "users" ALTER COLUMN "status" SET DEFAULT 'active'::"public"."status";`,
+	);
+	expect(sqlStatements[6]).toBe(
+		`ALTER TABLE "users" ALTER COLUMN "status" SET DATA TYPE "public"."status" USING "status"::"public"."status";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_type_drop_value',
+		name: 'status',
+		deletedValues: ['pending'],
+		newValues: ['active', 'inactive'],
+		columnsWithEnum: [{
+			schema: '',
+			table: 'users',
+			column: 'status',
+			typeSchema: 'public',
+			isArray: false,
+			dimensions: 0,
+			rawDimensions: 0,
+		}],
 	});
 });
