@@ -2458,6 +2458,7 @@ test('select from enum', async () => {
 	await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4311s
 test.skip('all date and time columns', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),

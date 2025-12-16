@@ -18,6 +18,7 @@ afterAll(async () => {
 	await _.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4217
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer({ mode: 'number' }).default(10), '10');
 	const res2 = await diffDefault(_, integer({ mode: 'number' }).default(0), '0');

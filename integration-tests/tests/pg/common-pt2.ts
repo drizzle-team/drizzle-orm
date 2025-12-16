@@ -11,6 +11,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	isNull,
 	like,
 	lt,
 	max,
@@ -1061,57 +1062,53 @@ export function tests(test: Test) {
 			});
 		});
 
-		test
-			.concurrent(
-				'mySchema :: select from tables with same name from different schema using alias',
-				async ({ db, push }) => {
-					const mySchema = pgSchema('mySchema');
-					const users = mySchema.table('users_99', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+		test.concurrent('mySchema :: select from tables with same name from different schema using alias', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema');
+			const users = mySchema.table('users_99', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					const usersDefault = pgTable('users_17', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+			const usersDefault = pgTable('users_17', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					await push({ users, usersDefault });
+			await push({ users, usersDefault });
 
-					await db.insert(users).values({ id: 10, name: 'Ivan' });
-					await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
+			await db.insert(users).values({ id: 10, name: 'Ivan' });
+			await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
 
-					const customerAlias = alias(usersDefault, 'customer');
+			const customerAlias = alias(usersDefault, 'customer');
 
-					const result = await db
-						.select().from(users)
-						.leftJoin(customerAlias, eq(customerAlias.id, 11))
-						.where(eq(customerAlias.id, 11));
+			const result = await db
+				.select().from(users)
+				.leftJoin(customerAlias, eq(customerAlias.id, 11))
+				.where(eq(customerAlias.id, 11));
 
-					expect(result).toEqual([{
-						users_99: {
-							id: 10,
-							name: 'Ivan',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.users_99.createdAt,
-						},
-						customer: {
-							id: 11,
-							name: 'Hans',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.customer!.createdAt,
-						},
-					}]);
+			expect(result).toEqual([{
+				users_99: {
+					id: 10,
+					name: 'Ivan',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.users_99.createdAt,
 				},
-			);
+				customer: {
+					id: 11,
+					name: 'Hans',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.customer!.createdAt,
+				},
+			}]);
+		});
 
 		test.concurrent('mySchema :: view', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -2076,6 +2073,54 @@ export function tests(test: Test) {
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4160
+		test.concurrent('delete; composition of `not` and `or`/`and`', async ({ db, push }) => {
+			const users = pgTable('users_1070', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const sessions = pgTable('sessions_0', {
+				id: serial('id').primaryKey(),
+				userId: integer('userId').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+				name: text('name').notNull().default(''),
+			});
+
+			await push({ users, sessions });
+
+			const DEFAULT_SESSION_NAME = 'Default Session';
+			const BASE_SESSION_NAME = 'Base Scramble';
+			const sessionId = 1;
+			const userId = 1;
+
+			await db.insert(users).values([
+				{ id: userId, name: 'John' },
+			]);
+
+			await db.insert(sessions).values([
+				{ id: sessionId, userId: 1, name: 'some session' },
+			]);
+
+			const query = db.delete(sessions).where(
+				and(
+					eq(sessions.id, sessionId),
+					eq(sessions.userId, userId),
+					not(
+						// @ts-expect-error
+						// TODO @skylotus
+						or(
+							eq(sessions.name, DEFAULT_SESSION_NAME),
+							eq(sessions.name, BASE_SESSION_NAME),
+						),
+					),
+				),
+			);
+
+			await query;
+			const result = await db.select().from(sessions);
+			expect(result).toStrictEqual([]);
+		});
+
 		test.concurrent('sql operator as cte', async ({ db, push }) => {
 			const users = pgTable('users_109', {
 				id: serial('id').primaryKey(),
@@ -2550,6 +2595,26 @@ export function tests(test: Test) {
 				cityName: 'London',
 				name: 'Jack',
 			}]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
+		test.concurrent('.where with isNull in it', async ({ db, push }) => {
+			const table = pgTable('table_where_is_null', {
+				col1: boolean(),
+				col2: text(),
+			});
+
+			await push({ table });
+			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "col1", "col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
+				params: [],
+			});
+			const res = await query;
+			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 		});
 
 		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {

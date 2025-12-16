@@ -514,7 +514,7 @@ test('index #4', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
 		`CREATE INDEX "table_uid_bool_idx" ON "table" ("uid","bool");`,
 	]);
 	// push is not triggered on generated change
@@ -592,4 +592,46 @@ test('index #6', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3255
+test('index #7', async () => {
+	const table1 = pgTable('table1', {
+		col1: integer(),
+		col2: integer(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema1 = { table1, index1, index2, index3, index4, index5, index6 };
+
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n'
+		+ '\t"col1" integer,\n'
+		+ '\t"col2" integer\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "index1" ON "table1" ("col1");',
+		'CREATE UNIQUE INDEX "index2" ON "table1" ("col1","col2");',
+		'CREATE INDEX "index3" ON "table1" ("col1");',
+		'CREATE INDEX "index4" ON "table1" ("col1","col2");',
+		'CREATE INDEX "index5" ON "table1" ("col1" asc);',
+		'CREATE INDEX "index6" ON "table1" ("col1" asc,"col2" desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

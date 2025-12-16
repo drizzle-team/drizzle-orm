@@ -1,4 +1,4 @@
-import { prepareMigrationRenames } from '../../utils';
+import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
@@ -634,10 +634,7 @@ export const ddlDiff = async (
 		const indexesToCreate = ddl2.indexes.list({
 			schema: column.schema,
 			table: column.table,
-			columns: {
-				CONTAINS: column.name,
-			},
-		});
+		}).filter((index) => index.columns.some((x) => trimChar(trimChar(x.value, '['), ']') === column.name));
 
 		const checksToDelete = ddl1.checks.list({
 			schema: column.schema,
@@ -675,10 +672,7 @@ export const ddlDiff = async (
 		const indexesToDelete = ddl1.indexes.list({
 			schema: column.schema,
 			table: column.table,
-			columns: {
-				CONTAINS: column.name,
-			},
-		});
+		}).filter((index) => index.columns.some((x) => trimChar(trimChar(x.value, '['), ']') === column.name));
 
 		return prepareStatement('recreate_identity_column', {
 			column: column,

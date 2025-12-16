@@ -5,6 +5,7 @@ import {
 	bit,
 	boolean,
 	char,
+	cidr,
 	date,
 	doublePrecision,
 	geometry,
@@ -223,6 +224,7 @@ test('serials', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=remove%20the%20default-,Bonus,-This%20is%20the
 test('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
 
@@ -387,6 +389,7 @@ test('numeric arrays', async () => {
 	expect.soft(res24).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3582
 test('real + real arrays', async () => {
 	const res1 = await diffDefault(_, real().default(1000.123), '1000.123');
 
@@ -601,6 +604,7 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res15).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
 test('text + text arrays', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `'text'`);
 	const res2 = await diffDefault(_, text().default("text'text"), `'text''text'`);
@@ -1578,7 +1582,11 @@ test('inet + inet arrays', async () => {
 	const res1 = await diffDefault(_, inet().default('127.0.0.1'), `'127.0.0.1'`);
 	const res2 = await diffDefault(_, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
 
-	const res1_1 = await diffDefault(_, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
+	const res1_1 = await diffDefault(
+		_,
+		inet().array().default(['127.0.0.1', '127.0.0.2']),
+		`'{127.0.0.1,127.0.0.2}'::inet[]`,
+	);
 	const res2_1 = await diffDefault(
 		_,
 		inet().array().default(['::ffff:192.168.0.1/96']),
@@ -1590,6 +1598,22 @@ test('inet + inet arrays', async () => {
 
 	expect.soft(res1_1).toStrictEqual([]);
 	expect.soft(res2_1).toStrictEqual([]);
+});
+
+test('cidr + cidr arrays', async () => {
+	const res1 = await diffDefault(_, cidr().default('127.0.0.1/32'), `'127.0.0.1/32'`);
+
+	const res2_1 = await diffDefault(_, cidr().array().default([]), `'{}'::cidr[]`);
+	const res2_2 = await diffDefault(
+		_,
+		cidr().array().default(['127.0.0.1/32', '127.0.0.2/32']),
+		`'{127.0.0.1/32,127.0.0.2/32}'::cidr[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res2_2).toStrictEqual([]);
 });
 
 test.skip('corner cases', async () => {

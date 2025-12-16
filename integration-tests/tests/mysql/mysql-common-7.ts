@@ -396,7 +396,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.where(eq(users.name, 'David'))
 			.toSQL();
 
-		expect(query.sql).to.include('USE INDEX (users_name_index_68)');
+		expect(query.sql).to.include('USE INDEX (`users_name_index_68`)');
 	});
 
 	test.concurrent('MySqlTable :: select with `use index` hint on multiple indexes', async ({ db, push }) => {
@@ -417,7 +417,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.where(eq(users.name, 'David'))
 			.toSQL();
 
-		expect(query.sql).to.include('USE INDEX (users_name_index_69, users_age_index_69)');
+		expect(query.sql).to.include('USE INDEX (`users_name_index_69`, `users_age_index_69`)');
 	});
 
 	test.concurrent('MySqlTable :: select with `use index` hint on not existed index', async ({ db, push }) => {
@@ -559,7 +559,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_73)');
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_73`)');
 	});
 
 	test.concurrent('MySqlTable :: select with cross join `use index` hint', async ({ db, push }) => {
@@ -641,7 +641,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_75)');
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_75`)');
 	});
 
 	test.concurrent('MySqlTable :: select with join `use index` hint on multiple indexes', async ({ db, push }) => {
@@ -676,7 +676,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		expect(query.sql).to.include('USE INDEX (posts_user_id_index_76, posts_text_index_76)');
+		console.log(query.sql);
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_76`, `posts_text_index_76`)');
 	});
 
 	test.concurrent('MySqlTable :: select with join `use index` hint on not existed index', async ({ db, push }) => {

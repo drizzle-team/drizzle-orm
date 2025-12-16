@@ -1803,7 +1803,7 @@ test.concurrent('alter pk test #1', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('alter pk test #2', async ({ dbc: db }) => {
+test.concurrent('alter pk test #2', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: text(),
@@ -1820,7 +1820,11 @@ test.concurrent('alter pk test #2', async ({ dbc: db }) => {
 
 	const { sqlStatements } = await diff(from, to, ['public.users.id->public.users.id3']);
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames: ['public.users.id->public.users.id3'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: ['public.users.id->public.users.id3'],
+	});
 
 	const st0 = [
 		`ALTER TABLE \"users\" RENAME COLUMN \"id\" TO \"id3\";`,

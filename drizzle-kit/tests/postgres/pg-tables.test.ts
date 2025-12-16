@@ -806,7 +806,7 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop tables with fk constraint', async () => {
+test('drop tables with fk constraint #1', async () => {
 	const table1 = pgTable('table1', {
 		column1: integer().primaryKey(),
 	});
@@ -833,6 +833,45 @@ test('drop tables with fk constraint', async () => {
 		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
 		'DROP TABLE "table1";',
 		'DROP TABLE "table2";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4155
+test('drop tables with fk constraint #2', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer().primaryKey(),
+	});
+	const table2 = pgTable('table2', {
+		column1: integer().primaryKey(),
+		column2: integer().references(() => table1.column1),
+	});
+	const schema1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"column1" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "table2" (\n\t"column1" integer PRIMARY KEY,\n\t"column2" integer\n);\n',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column2_table1_column1_fkey" FOREIGN KEY ("column2") REFERENCES "table1"("column1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const table2_ = pgTable('table2', {
+		column1: integer().primaryKey(),
+		column2: integer(),
+	});
+
+	const schema2 = { table2_ };
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
+		'DROP TABLE "table1";',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);

@@ -1,7 +1,7 @@
-import { SQL } from '~/sql/sql.ts';
-
 import { entityKind, is } from '~/entity.ts';
-import type { ExtraConfigColumn, PgColumn } from './columns/index.ts';
+import { SQL } from '~/sql/sql.ts';
+import { ExtraConfigColumn } from './columns/index.ts';
+import type { PgColumn } from './columns/index.ts';
 import { IndexedColumn } from './columns/index.ts';
 import type { PgTable } from './table.ts';
 
@@ -111,16 +111,34 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<ExtraConfigColumn> | SQL, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
+	on(
+		...columns: [Partial<ExtraConfigColumn> | SQL | PgColumn, ...(Partial<ExtraConfigColumn | SQL | PgColumn>)[]]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as PgColumn;
+
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			false,
@@ -128,16 +146,34 @@ export class IndexBuilderOn {
 		);
 	}
 
-	onOnly(...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]): IndexBuilder {
+	onOnly(
+		...columns: [Partial<ExtraConfigColumn | SQL | PgColumn>, ...Partial<ExtraConfigColumn | SQL | PgColumn>[]]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = it.defaultConfig;
-				return clonedIndexedColumn;
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as PgColumn;
+
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,
@@ -158,17 +194,32 @@ export class IndexBuilderOn {
 	 */
 	using(
 		method: PgIndexMethod,
-		...columns: [Partial<ExtraConfigColumn | SQL>, ...Partial<ExtraConfigColumn | SQL>[]]
+		...columns: [Partial<ExtraConfigColumn | SQL | PgColumn>, ...Partial<ExtraConfigColumn | SQL | PgColumn>[]]
 	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as ExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as PgColumn;
+
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,

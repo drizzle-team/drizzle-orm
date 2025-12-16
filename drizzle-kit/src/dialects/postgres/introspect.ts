@@ -535,7 +535,11 @@ export const fromDatabase = async (
 			attname AS "name",
 			attnum AS "ordinality",
 			attnotnull AS "notNull",
-			attndims as "dimensions",
+			CASE 
+        		WHEN attndims > 0 THEN attndims
+        		WHEN t.typcategory = 'A' THEN 1  -- If it's an array type, default to 1 dimension
+        		ELSE 0
+    		END as "dimensions",
 			atttypid as "typeId",
 			attgenerated as "generatedType", 
 			attidentity as "identityType",
@@ -569,6 +573,7 @@ export const fromDatabase = async (
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
 			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
+			JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) attr.atttypid
 		WHERE
 		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0

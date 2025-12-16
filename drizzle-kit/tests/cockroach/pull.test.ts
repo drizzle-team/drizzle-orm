@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyCockroachColumn,
 	bigint,
 	bit,
 	bool,
@@ -689,6 +690,37 @@ test.concurrent('case sensitive schema name + identity column', async ({ dbc: db
 		'case-sensitive-schema-name',
 		['CaseSensitiveSchema'],
 	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
+	const users = cockroachTable('users', {
+		id: int4('id').primaryKey(),
+		name: text('name'),
+	});
+	const schema = {
+		users,
+		posts: cockroachTable('posts', {
+			id: int4('id').primaryKey(),
+			userId: int4('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+		}),
+	};
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-foreign-keys');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
+	const users = cockroachTable('users', {
+		id: int4().primaryKey(),
+		name: text(),
+		invited_id: int4().references((): AnyCockroachColumn => users.id),
+	});
+	const schema = { users };
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-self-ref');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);

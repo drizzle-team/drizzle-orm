@@ -218,7 +218,11 @@ const createIndex = convertor('create_index', (st) => {
 	const { name, table, columns, isUnique, where, schema } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
-	const uniqueString = `[${columns.join('],[')}]`;
+	const uniqueString = `${
+		columns.map((it) => {
+			return it.isExpression ? it.value : `[${it.value}]`;
+		})
+	}`;
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 
