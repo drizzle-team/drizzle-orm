@@ -3965,7 +3965,7 @@ test.concurrent('.where with isNull in it', async ({ db }) => {
 	const query = db.select().from(table).where(eq(table.col1, sql`case when ${isNull(table.col2)} then 1 else 0 end;`));
 	expect(query.toSQL()).toStrictEqual({
 		sql:
-			'select [col1], [col2] from [table_where_is_null] where [table_where_is_null].[col1] = case when [table_where_is_null].[col2] is null then 1 else 0 end;',
+			'select [col1], [col2] from [table_where_is_null] where [table_where_is_null].[col1] = case when ([table_where_is_null].[col2] is null) then 1 else 0 end;',
 		params: [],
 	});
 	const res = await query;

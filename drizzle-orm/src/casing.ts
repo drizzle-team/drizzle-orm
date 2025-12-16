@@ -56,13 +56,6 @@ export class CasingCache {
 		return this.cache[key]!;
 	}
 
-	getCasing(key: string): string {
-		if (!this.cache[key]) {
-			this.cache[key] = this.convert(key);
-		}
-		return this.cache[key]!;
-	}
-
 	private cacheTable(table: Table | View) {
 		const schema = table[Table.Symbol.Schema] ?? 'public';
 		const tableName = table[Table.Symbol.OriginalName];

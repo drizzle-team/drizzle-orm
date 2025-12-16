@@ -451,7 +451,11 @@ export function tests(test: Test, exclude: string[] = []) {
 				col2: text(),
 			});
 
-			await push({ table });
+			await db.run(sql`DROP TABLE IF EXISTS ${table}`);
+			await db.run(sql`CREATE TABLE ${table} (
+				col1 int,
+				col2 text
+			);`);
 			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
 
 			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));

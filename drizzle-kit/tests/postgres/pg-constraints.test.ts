@@ -2233,7 +2233,7 @@ test('generated + fk', async (t) => {
 			column2: timestamp('column2'),
 			bool: boolean('bool')
 				.generatedAlwaysAs(
-					(): SQL => and(isNull(table1.column1))!,
+					(): SQL => isNull(table1.column1),
 				).unique()
 				.notNull(),
 		},
@@ -2249,7 +2249,7 @@ test('generated + fk', async (t) => {
 			column2: timestamp('column2'),
 			bool: boolean('bool')
 				.generatedAlwaysAs(
-					(): SQL => and(isNull(table1.column2))!,
+					(): SQL => isNull(table1.column2),
 				).unique()
 				.notNull(),
 		},
@@ -2264,7 +2264,7 @@ test('generated + fk', async (t) => {
 	expect(st).toStrictEqual([
 		'ALTER TABLE "table" DROP CONSTRAINT "table_bool_table_with_gen_bool_fkey";',
 		`ALTER TABLE \"table_with_gen\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table_with_gen\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ("table_with_gen"."column2" is null) STORED;`,
+		`ALTER TABLE \"table_with_gen\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (("table_with_gen"."column2" is null)) STORED;`,
 		'ALTER TABLE "table_with_gen" ADD CONSTRAINT "table_with_gen_bool_key" UNIQUE("bool");',
 		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_table_with_gen_bool_fkey" FOREIGN KEY ("bool") REFERENCES "table_with_gen"("bool");',
 	]);
@@ -2311,7 +2311,7 @@ test('generated + unique', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
 		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_key" UNIQUE("bool");',
 	]);
 	// push is not triggered on generated change
@@ -2359,7 +2359,7 @@ test('generated + pk', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS ((\"table\".\"column1\" is null and \"table\".\"column3\" is null)) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
 	]);
 	// push is not triggered on generated change
 	expect(pst).toStrictEqual([
