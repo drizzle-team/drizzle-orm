@@ -610,3 +610,188 @@ test('type coercion - mixed', (t) => {
 	// @ts-expect-error
 	createSelectSchema(mView, { unknown: z.string() });
 }
+
+// Unified createSchema API Tests
+
+test('createSchema - basic select type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'select' });
+	const result = schema.safeParse({ id: 1, name: 'test', age: 25 });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - basic insert type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'insert' });
+	// id is optional (serial has default), name is required, age is optional
+	const result = schema.safeParse({ name: 'test' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - basic update type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'update' });
+	// All fields should be optional in update
+	const result = schema.safeParse({ name: 'updated' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pick option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+	});
+
+	// Should only include picked columns
+	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(result.success).toBe(true);
+
+	// age is not in the schema, it should be stripped (or rejected in strict mode)
+	const resultWithAge = schema.safeParse({ name: 'test', email: 'test@example.com', age: 25 });
+	t.expect(resultWithAge.success).toBe(true);
+	t.expect(resultWithAge.data).not.toHaveProperty('age');
+});
+
+test('createSchema - omit option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		omit: ['id', 'age'],
+	});
+
+	// Should include all columns except omitted ones
+	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pick and omit together throws error', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+
+	t.expect(() => {
+		createSchema(table, {
+			type: 'insert',
+			pick: ['name'],
+			omit: ['id'],
+		} as any);
+	}).toThrow('Cannot use both "pick" and "omit" options together');
+});
+
+test('createSchema - allOptional makes all fields optional', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		allOptional: true,
+	});
+
+	// All fields should be optional, including required ones
+	const result = schema.safeParse({});
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - allNullable makes all fields nullable', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'select',
+		allNullable: true,
+	});
+
+	// All fields should accept null
+	const result = schema.safeParse({ id: null, name: null, email: null });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - combined allOptional and allNullable', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'select',
+		allOptional: true,
+		allNullable: true,
+	});
+
+	// Empty object should pass (all optional)
+	const emptyResult = schema.safeParse({});
+	t.expect(emptyResult.success).toBe(true);
+
+	// Null values should pass (all nullable)
+	const nullResult = schema.safeParse({ id: null, name: null });
+	t.expect(nullResult.success).toBe(true);
+});
+
+test('createSchema - pick with allOptional', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+		allOptional: true,
+	});
+
+	// Both picked fields should be optional
+	const result = schema.safeParse({});
+	t.expect(result.success).toBe(true);
+
+	// Partial data should work
+	const partialResult = schema.safeParse({ name: 'test' });
+	t.expect(partialResult.success).toBe(true);
+});
