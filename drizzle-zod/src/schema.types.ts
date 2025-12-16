@@ -3,6 +3,9 @@ import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
+/** Type representing a Zod-compatible library instance */
+export type ZodInstance = typeof z;
+
 export interface CreateSelectSchema<
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 > {
@@ -56,6 +59,8 @@ export interface CreateUpdateSchema<
 export interface CreateSchemaFactoryOptions<
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 > {
-	zodInstance?: any;
+	/** Custom Zod instance to use for schema generation (useful for custom Zod extensions) */
+	zodInstance?: ZodInstance;
+	/** Enable type coercion for specific types or all types */
 	coerce?: TCoerce;
 }
