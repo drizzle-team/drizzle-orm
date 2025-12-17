@@ -71,7 +71,7 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const namespacesQuery = db.query<Namespace>(
-		`SELECT oid, schema_name as name FROM duckdb_schemas() WHERE database_name = ${database} ORDER BY pg_catalog.lower(schema_name)`,
+		`SELECT oid, schema_name as name FROM duckdb_schemas() WHERE database_name = ${database} ORDER BY lower(schema_name)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -152,7 +152,7 @@ export const fromDatabase = async (
                 duckdb_views()
             WHERE database_name = ${database}
                 AND schema_oid IN (${filteredNamespacesIds.join(', ')})
-            ORDER BY pg_catalog.lower(schema_name), pg_catalog.lower(name)
+            ORDER BY lower(schema_name), lower(name)
         `).then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
@@ -330,7 +330,7 @@ export const fromDatabase = async (
             duckdb_constraints()
         WHERE database_name = ${database}
 			AND ${filterByTableIds ? `table_oid in ${filterByTableIds}` : 'false'}
-        ORDER BY constraint_type, pg_catalog.lower(constraint_name);
+        ORDER BY constraint_type, lower(constraint_name);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
 		return rows;
@@ -354,7 +354,7 @@ export const fromDatabase = async (
             column_index AS "ordinality",
             is_nullable = false AS "notNull",
             data_type_id AS "typeId",
-            pg_catalog.lower(data_type) AS "type",
+            lower(data_type) AS "type",
             column_default AS "default"
         FROM
             duckdb_columns()
