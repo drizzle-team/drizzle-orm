@@ -355,7 +355,15 @@ export const fromDatabase = async (
 
 	const views = await db.query(
 		`select * from INFORMATION_SCHEMA.VIEWS WHERE table_schema = '${schema}';`,
-	);
+	).then((rows) => {
+		queryCallback('views', rows, null);
+		return rows.filter((it) => {
+			return filter({ type: 'table', schema: false, name: it['TABLE_NAME'] });
+		});
+	}).catch((err) => {
+		queryCallback('views', [], err);
+		throw err;
+	});
 
 	viewsCount = views.length;
 	progressCallback('views', viewsCount, 'fetching');

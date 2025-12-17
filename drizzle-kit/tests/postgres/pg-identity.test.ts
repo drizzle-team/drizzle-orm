@@ -1,4 +1,4 @@
-import { bigint, integer, pgSequence, pgTable, smallint, text } from 'drizzle-orm/pg-core';
+import { bigint, integer, pgSequence, pgTable, serial, smallint, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -583,4 +583,31 @@ test('add identity to column - few params', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2630
+test('alter sequence to identity', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial().primaryKey(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+	await push({ db, to: from });
+	await db.query(`insert into users (id) values (default),(default),(default);`);
+
+	const res = await push({ db, to, log: 'statements' });
+
+	expect(res.sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT',
+		'DROP SEQUENCE "users_id_seq"',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE integer USING "id"::integer;',
+		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
+		'SELECT setval(\'users_id_seq\'::regclass, (SELECT COALESCE(MAX(id), 1) FROM "users"), false);',
+	]);
 });

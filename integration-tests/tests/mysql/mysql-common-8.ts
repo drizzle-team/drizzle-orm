@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, getTableColumns, gt, Name, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, gt, isNull, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	bigint,
 	boolean,
 	datetime,
+	index,
 	int,
 	mysqlEnum,
 	mysqlTable,
@@ -14,6 +15,8 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
+	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
 import type { Test } from './instrumentation';
@@ -753,5 +756,178 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			await db.execute(sql`DROP TABLE ${cities}`).catch(() => null);
 			await db.execute(sql`DROP VIEW ${ucView}`).catch(() => null);
 		}
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4878
+	test.concurrent('.where with isNull in it', async ({ db, push }) => {
+		const table = mysqlTable('table_where_is_null', {
+			col1: boolean(),
+			col2: text(),
+		});
+
+		await push({ table });
+		await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+		const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+		expect(query.toSQL()).toStrictEqual({
+			sql:
+				'select `col1`, `col2` from `table_where_is_null` where `table_where_is_null`.`col1` = (`table_where_is_null`.`col2` is null)',
+			params: [],
+		});
+		const res = await query;
+		expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+	});
+
+	test.concurrent('select + extra index params', async ({ db, push }) => {
+		const users = mysqlTable('index_test', {
+			id: int('id').primaryKey(),
+			name: varchar('name', { length: 15 }).notNull(),
+			age: int('age').notNull(),
+			time: int('time').notNull(),
+		}, () => [idx, idx2, unq]);
+		const idx = index('name_index').on(users.name);
+		const idx2 = index('age_index2').on(users.age);
+		const unq = unique('time_unq').on(users.time);
+
+		expect(db.select().from(users, { useIndex: [idx] }).toSQL().sql).toBe(
+			'select `id`, `name`, `age`, `time` from `index_test` USE INDEX (`name_index`)',
+		);
+		expect(db.select().from(users, { forceIndex: [idx] }).toSQL().sql).toBe(
+			'select `id`, `name`, `age`, `time` from `index_test` FORCE INDEX (`name_index`)',
+		);
+		expect(db.select().from(users, { ignoreIndex: [idx] }).toSQL().sql).toBe(
+			'select `id`, `name`, `age`, `time` from `index_test` IGNORE INDEX (`name_index`)',
+		);
+		expect(db.select().from(users, { ignoreIndex: [unq] }).toSQL().sql).toBe(
+			'select `id`, `name`, `age`, `time` from `index_test` IGNORE INDEX (`time_unq`)',
+		);
+
+		await push({ users });
+
+		try {
+			await db.insert(users).values([{ id: 1, name: 'hello1', age: 1, time: 1 }, {
+				id: 2,
+				name: 'hello2',
+				age: 2,
+				time: 2,
+			}]);
+
+			const res1 = await db.select().from(users, { forceIndex: idx });
+			const res2 = await db.select().from(users, { ignoreIndex: idx });
+			const res3 = await db.select().from(users, { useIndex: idx });
+			const res4 = await db.select().from(users, { forceIndex: idx, ignoreIndex: idx2 });
+			const res5 = await db.select().from(users, { useIndex: unq, ignoreIndex: unq });
+
+			const result = [{
+				age: 1,
+				id: 1,
+				name: 'hello1',
+				time: 1,
+			}, {
+				age: 2,
+				id: 2,
+				name: 'hello2',
+				time: 2,
+			}];
+			expect(res1).toStrictEqual(result);
+			expect(res2).toStrictEqual(result);
+			expect(res3).toStrictEqual(result);
+			expect(res4).toStrictEqual(result);
+			expect(res5).toStrictEqual(result);
+		} finally {
+			await db.execute(sql`DROP TABLE ${users}`).catch(() => null);
+		}
+	});
+
+	test.concurrent('placeholder + sql dates', async ({ db, push }) => {
+		const dateTable = mysqlTable('dates_placeholder_test', (t) => ({
+			id: t.int('id').primaryKey().notNull(),
+			date: t.datetime('date', { mode: 'date' }).notNull(),
+			dateStr: t.datetime('date_str', { mode: 'string' }).notNull(),
+			timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
+			timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
+		await push({ dateTable });
+
+		const date = new Date('2025-12-10T01:01:01.000Z');
+		const timestamp = new Date('2025-12-10T01:01:01.000Z');
+		const dateStr = date.toISOString().slice(0, -5).replace('T', ' ');
+		const timestampStr = timestamp.toISOString().slice(0, -5).replace('T', ' ');
+
+		await db.insert(dateTable).values([{
+			id: 1,
+			date: date,
+			dateStr: dateStr,
+			timestamp: timestamp,
+			timestampStr: timestampStr,
+		}, {
+			id: 2,
+			date: sql.placeholder('dateAsDate'),
+			dateStr: sql.placeholder('dateStrAsDate'),
+			timestamp: sql.placeholder('timestampAsDate'),
+			timestampStr: sql.placeholder('timestampStrAsDate'),
+		}, {
+			id: 3,
+			date: sql.placeholder('dateAsString'),
+			dateStr: sql.placeholder('dateStrAsString'),
+			timestamp: sql.placeholder('timestampAsString'),
+			timestampStr: sql.placeholder('timestampStrAsString'),
+		}, {
+			id: 4,
+			date: sql`${dateStr}`,
+			dateStr: sql`${dateStr}`,
+			timestamp: sql`${timestampStr}`,
+			timestampStr: sql`${timestampStr}`,
+		}]).execute({
+			dateAsDate: date,
+			dateAsString: dateStr,
+			dateStrAsDate: date,
+			dateStrAsString: dateStr,
+			timestampAsDate: timestamp,
+			timestampAsString: timestampStr,
+			timestampStrAsDate: timestamp,
+			timestampStrAsString: timestampStr,
+		});
+
+		const initial = await db.select().from(dateTable).orderBy(dateTable.id);
+
+		await db.update(dateTable).set({
+			date: sql`${dateStr}`,
+			dateStr: sql`${dateStr}`,
+			timestamp: sql`${timestampStr}`,
+			timestampStr: sql`${timestampStr}`,
+		});
+
+		const updated = await db.select().from(dateTable).orderBy(dateTable.id);
+
+		expect(initial).toStrictEqual([{
+			id: 1,
+			date,
+			dateStr,
+			timestamp,
+			timestampStr,
+		}, {
+			id: 2,
+			date,
+			dateStr,
+			timestamp,
+			timestampStr,
+		}, {
+			id: 3,
+			date,
+			dateStr,
+			timestamp,
+			timestampStr,
+		}, {
+			id: 4,
+			date,
+			dateStr,
+			timestamp,
+			timestampStr,
+		}]);
+
+		expect(updated).toStrictEqual(initial);
 	});
 }

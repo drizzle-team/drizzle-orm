@@ -43,7 +43,8 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'object date'>>
 		return value;
 	}
 
-	override mapToDriverValue(value: Date): string {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString().slice(0, -1).replace('T', ' ');
 	}
 }
@@ -88,6 +89,11 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string timestamp'>
 		if (shortened.endsWith('.000')) return shortened.slice(0, -4);
 
 		return shortened;
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, -1).replace('T', ' ');
 	}
 }
 

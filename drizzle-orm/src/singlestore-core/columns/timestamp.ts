@@ -42,7 +42,8 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 		return new Date(value + '+0000');
 	}
 
-	override mapToDriverValue(value: Date): string {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString().slice(0, -1).replace('T', ' ');
 	}
 }
@@ -78,6 +79,11 @@ export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string times
 
 	getSQLType(): string {
 		return `timestamp`;
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, -1).replace('T', ' ');
 	}
 }
 

@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyMsSqlColumn,
 	bigint,
 	binary,
 	bit,
@@ -443,6 +444,44 @@ test('introspect primary key with unqiue', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect fk with onUpdate, onDelete set', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey(),
+		name: varchar('users'),
+	});
+
+	const schema = {
+		users,
+		posts: mssqlTable('posts', {
+			id: int(),
+			usersId: int().references(() => users.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-fk',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect table with self reference', async () => {
+	const table1 = mssqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references((): AnyMsSqlColumn => table1.column1),
+	});
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-table-with-self-ref');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 test('introspect empty db', async () => {
 	const { introspectDDL } = await diffIntrospect(
 		db,
@@ -451,4 +490,32 @@ test('introspect empty db', async () => {
 	);
 
 	expect(introspectDDL.entities.list().length).toBe(0);
+});
+
+test('indexes #2', async () => {
+	const table1 = mssqlTable('table1', {
+		col1: int(),
+		col2: int(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'sql-in-index');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });

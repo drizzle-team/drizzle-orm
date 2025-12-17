@@ -38,7 +38,8 @@ export class CockroachDate<T extends ColumnBaseConfig<'object date'>> extends Co
 		return new Date(value);
 	}
 
-	override mapToDriverValue(value: Date): string {
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
 		return value.toISOString();
 	}
 }
@@ -70,6 +71,11 @@ export class CockroachDateString<T extends ColumnBaseConfig<'string date'>> exte
 
 	getSQLType(): string {
 		return 'date';
+	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString();
 	}
 }
 

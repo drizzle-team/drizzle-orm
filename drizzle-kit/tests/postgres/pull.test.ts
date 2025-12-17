@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
@@ -39,9 +40,10 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { fromDatabase } from 'src/dialects/postgres/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
+import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -134,6 +136,7 @@ test('basic identity by default test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
 	const client = new PGlite();
 
@@ -339,6 +342,8 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3593
+// https://github.com/drizzle-team/drizzle-orm/issues/4349
 // https://github.com/drizzle-team/drizzle-orm/issues/4632
 // https://github.com/drizzle-team/drizzle-orm/issues/4644
 // https://github.com/drizzle-team/drizzle-orm/issues/4730
@@ -364,6 +369,7 @@ test('introspect all column types', async () => {
 			text3: text('text3').default(''),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
 			varchar1: varchar('varchar1', { length: 25 }).default(''),
+			varchar2: varchar('varchar2').default(sql`md5((random())::text)`),
 			char: char('char', { length: 3 }).default('abc'),
 			char1: char('char1', { length: 3 }).default(''),
 			serial: serial('serial'),
@@ -372,6 +378,7 @@ test('introspect all column types', async () => {
 			doublePrecision: doublePrecision('doublePrecision').default(100),
 			real: real('real').default(100),
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
+			json1: json('json1').default(sql`jsonb_build_object()`),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			jsonb2: jsonb('jsonb2').default({}),
@@ -408,6 +415,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%201%3A%20jsonb().array().default(%5B%5D)
 // https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -428,7 +436,8 @@ test('introspect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
-			jsonb1: jsonb('jsonb3').array().default(sql`'{}'`),
+			jsonb1: jsonb('jsonb1').array().default(sql`'{}'`),
+			jsonb2: jsonb('jsonb2').array().default([]),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
@@ -672,6 +681,30 @@ test('introspect view #3', async () => {
 	// TODO: we need to check actual types generated;
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4262
+test('introspect view #4', async () => {
+	// postopone
+	// Need to write discussion/guide on this and add ts comment in typescript file
+	if (Date.now() < +new Date('2025-12-20')) return;
+
+	const table = pgTable('table', {
+		column1: text().notNull(),
+		column2: text(),
+	});
+	const myView = pgView('public_table_view_4', { column1: text(), column2: text() }).as(
+		sql`select column1, column2 from "table"`,
+	);
+
+	const schema = { table, myView };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-4');
+
+	throw Error('');
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
+});
+
 test('introspect view in other schema', async () => {
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
@@ -862,7 +895,7 @@ test('basic policy with "using" and "with"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies', async () => {
+test('multiple policies #1', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -873,6 +906,30 @@ test('multiple policies', async () => {
 		db,
 		schema,
 		'multiple-policies',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4407
+test('multiple policies #2', async () => {
+	const users = pgTable('users', {
+		id: integer(),
+	}, (table) => [
+		pgPolicy('insert_policy_for_users', { for: 'insert', withCheck: sql`true` }),
+		pgPolicy('update_policy_for_users', { for: 'update', using: sql`true`, withCheck: sql`true` }),
+	]);
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'multiple-policies-2',
 	);
 
 	expect(statements.length).toBe(0);
@@ -1052,6 +1109,19 @@ test('introspect foreign keys', async () => {
 	})).not.toBeNull();
 });
 
+test('introspect table with self reference', async () => {
+	const users = pgTable('users', {
+		id: integer().primaryKey(),
+		name: text(),
+		invited_id: integer().references((): AnyPgColumn => users.id),
+	});
+	const schema = { users };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, schema, 'introspect-self-ref');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect partitioned tables', async () => {
 	await db.query(`
 		CREATE TABLE measurement (
@@ -1136,3 +1206,194 @@ test('policy', async () => {
 // 		} satisfies typeof tables[number],
 // 	]);
 // });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4170
+test('introspect view with table filter', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const view1 = pgView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const table2 = pgTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const view2 = pgView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const schema1 = { table1, view1, table2, view2 };
+	await push({ db, to: schema1 });
+
+	let tables, views;
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	));
+	const expectedTables = [
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	));
+	const expectedViews = [
+		{
+			entityType: 'views',
+			schema: 'public',
+			name: 'view1',
+			definition: 'SELECT column1 FROM table1',
+			with: null,
+			materialized: false,
+			tablespace: null,
+			using: null,
+			withNoData: null,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual(expectedViews);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4144
+test('introspect sequences with table filter', async () => {
+	// postpone cc: @AlexSherman
+	if (Date.now() < +new Date('2025-12-20')) return;
+
+	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
+
+	// const seq1 = pgSequence('seq1');
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq1.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const table2 = pgTable('prefix_table2', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq2.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const schema1 = { table1, table2 };
+	await push({ db, to: schema1 });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['!prefix_*'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { tables, sequences } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(sequences).toBe([
+		{
+			entityType: 'sequences',
+			schema: 'public',
+			name: 'table1_column1_seq',
+			startWith: '1',
+			minValue: '1',
+			maxValue: '2147483647',
+			incrementBy: '1',
+			cycle: false,
+			cacheSize: 1,
+		},
+	]);
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
+	// 	console.log(
+	// 		await db.query(`SELECT *
+	// FROM pg_sequences
+	// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
+	// 	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4215
+test('introspect _{dataType} columns type as {dataType}[]', async () => {
+	await db.query(`CREATE TYPE mood_enum AS ENUM('ok', 'bad', 'good');`);
+	await db.query(`CREATE TABLE "_array_data_types" (
+			integer_array          _int4,
+			smallint_array         _int2,
+			bigint_array           _int8,
+			numeric_array          _numeric,
+			real_array             _float4,
+			double_precision_array double precision[],
+			boolean_array          _bool,
+			char_array             _bpchar,-- char with no length restriction
+			varchar_array          _varchar,
+			text_array             _text,
+			bit_array              _bit,
+			json_array             _json,
+			jsonb_array            _jsonb,
+			time_array             _time,
+			timestamp_array        _timestamp,
+			date_array             _date,
+			interval_array         _interval,
+			point_array            _point,
+			line_array             _line,
+			mood_enum_array        _mood_enum,
+			uuid_array             _uuid,
+			inet_array             _inet
+	);`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { columns } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	);
+
+	const columnTypes = columns.map((col) => col.type);
+	const columnDimensions = columns.map((col) => col.dimensions);
+
+	expect(columnTypes).toStrictEqual([
+		'integer',
+		'smallint',
+		'bigint',
+		'numeric',
+		'real',
+		'double precision',
+		'boolean',
+		'bpchar',
+		'varchar',
+		'text',
+		'bit',
+		'json',
+		'jsonb',
+		'time',
+		'timestamp',
+		'date',
+		'interval',
+		'point',
+		'line',
+		'mood_enum',
+		'uuid',
+		'inet',
+	]);
+	expect(columnDimensions.every((dim) => dim === 1)).toBe(true);
+});

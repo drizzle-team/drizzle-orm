@@ -1884,14 +1884,16 @@ export const defaultForVector: DefaultMapper<[number, number, number]> = (
 // 	return result;
 // };
 
+// TODO: write a test for view in postgres security_invoker = on ???
 export const wrapRecord = (it: Record<string, string>) => {
 	return {
 		bool: (key: string) => {
 			if (key in it) {
-				if (it[key] === 'true') {
+				const value = it[key];
+				if (value === 'true' || value === '1' || value === 'on' || value === 'yes') {
 					return true;
 				}
-				if (it[key] === 'false') {
+				if (value === 'false' || value === '0' || value === 'off' || value === 'no') {
 					return false;
 				}
 
