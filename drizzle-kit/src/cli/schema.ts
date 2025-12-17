@@ -271,7 +271,7 @@ export const push = command({
 		verbose: boolean()
 			.desc('Print all statements for each push')
 			.default(false),
-		strict: boolean().desc('Always ask for confirmation').default(false),
+		strict: boolean().desc('Always ask for confirmation'),
 		force: boolean()
 			.desc(
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
@@ -305,6 +305,13 @@ export const push = command({
 				'tlsSecurity',
 			],
 		);
+
+		if (typeof opts.strict !== 'undefined') {
+			console.log(withStyle.fullWarning(
+				"⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead",
+			));
+			process.exit(1);
+		}
 
 		return preparePushConfig(opts, from);
 	},
