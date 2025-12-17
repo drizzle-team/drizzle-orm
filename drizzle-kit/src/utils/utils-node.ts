@@ -234,6 +234,8 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: object) => Val
 			return cockroachSnapshotValidator;
 		case 'gel':
 			throw Error('gel validator is not implemented yet'); // TODO
+		case 'duckdb':
+			throw Error('duckdb validator is not implemented yet'); // TODO
 		default:
 			assertUnreachable(dialect);
 	}
