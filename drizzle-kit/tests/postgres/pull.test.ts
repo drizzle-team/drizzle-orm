@@ -1399,3 +1399,27 @@ test('introspect _{dataType} columns type as {dataType}[]', async () => {
 	]);
 	expect(columnDimensions.every((dim) => dim === 1)).toBe(true);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5149
+test('jsonb default with boolean literals', async () => {
+	const JSONB = pgTable('organizations1', {
+		notifications: jsonb().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSON = pgTable('organizations2', {
+		notifications: json().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSONBARRAY = pgTable('organizations3', {
+		notifications: jsonb().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+	const JSONARRAY = pgTable('organizations4', {
+		notifications: json().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ JSONB, JSONBARRAY, JSON, JSONARRAY },
+		'jsonb_default_with_boolean_literals',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});

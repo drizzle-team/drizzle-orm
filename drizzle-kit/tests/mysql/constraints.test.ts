@@ -919,9 +919,11 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSql2 = [
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey`;',
 		'ALTER TABLE `team_stats` DROP PRIMARY KEY;',
 		'ALTER TABLE `team_stats` MODIFY COLUMN `col1` int;',
 		'ALTER TABLE `team_stats` ADD PRIMARY KEY (`col2`,`col3`);',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey` FOREIGN KEY (`teamStatsCol1`) REFERENCES `team_stats`(`col1`);',
 	];
 	expect(st2).toStrictEqual(expectedSql2);
 	expect(pst2).toStrictEqual(expectedSql2);
@@ -963,10 +965,12 @@ test('pk multistep #2', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSql2 = [
-		'CREATE UNIQUE INDEX `col1_unique` ON `team_stats` (`col1`);',
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey`;',
 		'ALTER TABLE `team_stats` DROP PRIMARY KEY;',
 		'ALTER TABLE `team_stats` MODIFY COLUMN `col1` int;',
 		'ALTER TABLE `team_stats` ADD PRIMARY KEY (`col2`,`col3`);',
+		'CREATE UNIQUE INDEX `col1_unique` ON `team_stats` (`col1`);',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey` FOREIGN KEY (`teamStatsCol1`) REFERENCES `team_stats`(`col1`);',
 	];
 	expect(st2).toStrictEqual(expectedSql2);
 	expect(pst2).toStrictEqual(expectedSql2);
@@ -1005,16 +1009,24 @@ test('pk multistep #3', async () => {
 		}),
 	};
 
-	const { sqlStatements: st2 } = await diff(n1, schema2, []);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
-	// TODO: add hint expection;
-	// The hint should look something like this:
-	// You are attempting to drop the primary key on column `col1` of the `team_stats` table,
-	// but this column is referenced by a foreign key constraint, so the primary key cannot be dropped.
-	// You must either add a UNIQUE constraint to column `col1` or drop the foreign key
-	// constraint that references this column.
+	const { sqlStatements: st2, suggestion } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2, hints } = await push({ db, to: schema2, ignoreSubsequent: true, expectError: true });
 
-	const expectedSql2: string[] = [];
+	expect(suggestion.errors).toStrictEqual([
+		`· You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.`,
+	]);
+	expect(hints).toStrictEqual([{
+		hint:
+			'· You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.',
+	}]);
+
+	const expectedSql2: string[] = [
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey`;',
+		'ALTER TABLE `team_stats` DROP PRIMARY KEY;',
+		'ALTER TABLE `team_stats` MODIFY COLUMN `col1` int;',
+		'ALTER TABLE `team_stats` ADD PRIMARY KEY (`col2`,`col3`);',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_teamStatsCol1_team_stats_col1_fkey` FOREIGN KEY (`teamStatsCol1`) REFERENCES `team_stats`(`col1`);',
+	];
 	expect(st2).toStrictEqual(expectedSql2);
 	expect(pst2).toStrictEqual(expectedSql2);
 });

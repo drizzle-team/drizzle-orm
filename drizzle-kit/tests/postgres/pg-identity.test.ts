@@ -604,8 +604,8 @@ test('alter sequence to identity', async () => {
 	const res = await push({ db, to, log: 'statements' });
 
 	expect(res.sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT',
-		'DROP SEQUENCE "users_id_seq"',
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT;',
+		'DROP SEQUENCE "users_id_seq";',
 		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE integer USING "id"::integer;',
 		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
 		'SELECT setval(\'users_id_seq\'::regclass, (SELECT COALESCE(MAX(id), 1) FROM "users"), false);',
