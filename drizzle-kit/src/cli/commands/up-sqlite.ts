@@ -78,7 +78,7 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 
 			ddl.pks.push({
 				table: table.name,
-				name: pk.name,
+				name: pk.name!,
 				columns: pk.columns,
 				nameExplicit: !implicit,
 			});
