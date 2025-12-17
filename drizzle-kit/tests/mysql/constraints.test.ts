@@ -973,7 +973,7 @@ test('pk multistep #2', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1144
-test.only('pk multistep #3', async () => {
+test('pk multistep #3', async () => {
 	const teamStats1 = mysqlTable('team_stats', {
 		col1: int().primaryKey(),
 		col2: int(),

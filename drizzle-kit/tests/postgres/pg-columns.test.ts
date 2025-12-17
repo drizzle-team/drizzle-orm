@@ -1395,7 +1395,11 @@ test('alter integer type to serial type', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
-		'',
+		'CREATE SEQUENCE "table1_col1_seq";',
+		`ALTER TABLE "table1" ALTER COLUMN \"col1\" SET DEFAULT nextval('table1_col1_seq')`,
+		'ALTER SEQUENCE "table1_col1_seq" OWNED BY "public"."table1"."col1";',
+		'ALTER TABLE "table1" ALTER COLUMN "col1" SET DATA TYPE int USING "col1"::int;',
+		'ALTER TABLE "table1" ALTER COLUMN "col1" SET NOT NULL;',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
