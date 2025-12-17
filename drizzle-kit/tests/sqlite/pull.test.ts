@@ -267,3 +267,23 @@ test('broken view', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const sqlite = new Database(':memory:');
+
+	const group = sqliteTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffAfterPull(
+		sqlite,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});

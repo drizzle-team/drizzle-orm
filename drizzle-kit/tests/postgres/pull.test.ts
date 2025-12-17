@@ -1423,3 +1423,21 @@ test('jsonb default with boolean literals', async () => {
 
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = pgTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
