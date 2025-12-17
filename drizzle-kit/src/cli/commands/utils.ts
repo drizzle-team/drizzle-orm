@@ -14,6 +14,7 @@ import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { GelCredentials } from '../validations/gel';
 import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import type { LibSQLCredentials } from '../validations/libsql';
@@ -417,6 +418,15 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'push' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -656,6 +666,15 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'pull' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -785,6 +804,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 
 	if (dialect === 'mssql') {
 		throw new Error(`You can't use 'studio' command with MsSql dialect yet`);
+	}
+
+	if (dialect === 'duckdb') {
+		const parsed = duckdbCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesDuckDb(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
 	}
 
 	assertUnreachable(dialect);
@@ -923,6 +958,15 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			schema,
 			table,
 		};
+	}
+
+	if (dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'migrate' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
