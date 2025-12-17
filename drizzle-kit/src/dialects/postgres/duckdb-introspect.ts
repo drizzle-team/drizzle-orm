@@ -71,7 +71,7 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const namespacesQuery = db.query<Namespace>(
-		`SELECT oid, schema_name as name FROM duckdb_schemas() WHERE database_name = '${database}' ORDER BY lower(schema_name)`,
+		`SELECT oid, schema_name as name FROM duckdb_schemas() WHERE database_name = ${database} ORDER BY pg_catalog.lower(schema_name)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -137,7 +137,7 @@ export const fromDatabase = async (
                 'table' AS "type"
             FROM
                 duckdb_tables()
-            WHERE database_name = '${database}'
+            WHERE database_name = ${database}
                 AND schema_oid IN (${filteredNamespacesIds.join(', ')})
 
             UNION ALL
@@ -150,9 +150,9 @@ export const fromDatabase = async (
                 'view' AS "type"
             FROM
                 duckdb_views()
-            WHERE database_name = '${database}'
+            WHERE database_name = ${database}
                 AND schema_oid IN (${filteredNamespacesIds.join(', ')})
-            ORDER BY schema_name, name
+            ORDER BY pg_catalog.lower(schema_name), pg_catalog.lower(name)
         `).then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
@@ -328,9 +328,9 @@ export const fromDatabase = async (
             referenced_column_names AS "columnsToNames"
         FROM
             duckdb_constraints()
-        WHERE ${filterByTableIds ? ` table_oid in ${filterByTableIds}` : 'false'}
-			AND database_name = '${database}'
-        ORDER BY constraint_type, lower(name);
+        WHERE database_name = ${database}
+			AND ${filterByTableIds ? `table_oid in ${filterByTableIds}` : 'false'}
+        ORDER BY constraint_type, pg_catalog.lower(constraint_name);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
 		return rows;
@@ -354,13 +354,13 @@ export const fromDatabase = async (
             column_index AS "ordinality",
             is_nullable = false AS "notNull",
             data_type_id AS "typeId",
-            lower(data_type) AS "type",
+            pg_catalog.lower(data_type) AS "type",
             column_default AS "default"
         FROM
             duckdb_columns()
         WHERE
         ${filterByTableAndViewIds ? ` table_oid in ${filterByTableAndViewIds}` : 'false'}
-            AND database_name = '${database}'
+            AND database_name = ${database}
         ORDER BY column_index;
     `).then((rows) => {
 		queryCallback('columns', rows, null);
