@@ -98,7 +98,7 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 		.map((subdir) => ({ path: join(migrationFolderTo, subdir, 'migration.sql'), name: subdir }))
 		.filter((it) => existsSync(it.path));
 
-	migrations.sort();
+	migrations.sort((a, b) => a.name.localeCompare(b.name));
 
 	for (const migration of migrations) {
 		const migrationPath = migration.path;

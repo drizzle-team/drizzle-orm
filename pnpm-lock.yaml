@@ -771,6 +771,9 @@ importers:
       dotenv:
         specifier: ^16.1.4
         version: 16.6.1
+      drizzle-kit:
+        specifier: workspace:../drizzle-kit/dist
+        version: link:../drizzle-kit/dist
       drizzle-prisma-generator:
         specifier: ^0.1.2
         version: 0.1.7

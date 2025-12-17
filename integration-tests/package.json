@@ -64,6 +64,7 @@
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.1.4",
 		"drizzle-prisma-generator": "^0.1.2",
+		"drizzle-kit": "workspace:../drizzle-kit/dist",
 		"drizzle-seed": "workspace:../drizzle-seed/dist",
 		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
 		"drizzle-valibot": "workspace:../drizzle-valibot/dist",

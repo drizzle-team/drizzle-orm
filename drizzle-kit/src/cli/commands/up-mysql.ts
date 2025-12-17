@@ -87,7 +87,10 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 
 			const columns = index.columns.map((x) => {
 				const nameToCheck = trimChar(x, '`');
-				const isColumn = !!ddl.columns.one({ table: table.name, name: nameToCheck });
+				const isColumn = !!ddl.columns.one({
+					table: table.name,
+					name: nameToCheck,
+				});
 				return { value: x, isExpression: !isColumn };
 			});
 
@@ -103,8 +106,9 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 			});
 		}
 
-		for (const unique of Object.values(table.uniqueConstraints)) {
-			/* legacy columns mapper
+		if (table.uniqueConstraints) {
+			for (const unique of Object.values(table.uniqueConstraints)) {
+				/* legacy columns mapper
 				const uniqueString = unsquashedUnique.columns
 					.map((it) => {
 						return internals?.indexes
@@ -116,68 +120,78 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 					})
 					.join(',');
 			 */
-			const columns = unique.columns.map((x) => {
-				const nameToCheck = trimChar(x, '`');
-				const isColumn = !!ddl.columns.one({ table: table.name, name: nameToCheck });
-				return { value: x, isExpression: !isColumn };
-			});
+				const columns = unique.columns.map((x) => {
+					const nameToCheck = trimChar(x, '`');
+					const isColumn = !!ddl.columns.one({
+						table: table.name,
+						name: nameToCheck,
+					});
+					return { value: x, isExpression: !isColumn };
+				});
 
-			let nameImplicit = `${table.name}_${unique.columns.join('_')}_unique` === unique.name
-				|| `${table.name}_${unique.columns.join('_')}` === unique.name;
+				let nameImplicit = `${table.name}_${unique.columns.join('_')}_unique` === unique.name
+					|| `${table.name}_${unique.columns.join('_')}` === unique.name;
 
-			ddl.indexes.push({
-				table: table.name,
-				name: unique.name,
-				columns,
-				algorithm: null,
-				isUnique: true,
-				lock: null,
-				using: null,
-				nameExplicit: !nameImplicit,
-			});
+				ddl.indexes.push({
+					table: table.name,
+					name: unique.name,
+					columns,
+					algorithm: null,
+					isUnique: true,
+					lock: null,
+					using: null,
+					nameExplicit: !nameImplicit,
+				});
+			}
 		}
 
-		for (const fk of Object.values(table.foreignKeys)) {
-			const isNameImplicit =
-				`${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk` === fk.name;
+		if (table.foreignKeys) {
+			for (const fk of Object.values(table.foreignKeys)) {
+				const isNameImplicit = `${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`
+					=== fk.name;
 
-			ddl.fks.push({
-				table: table.name,
-				name: fk.name,
-				columns: fk.columnsFrom,
-				columnsTo: fk.columnsTo,
-				tableTo: fk.tableTo,
-				onUpdate: fk.onUpdate?.toUpperCase() as any ?? null,
-				onDelete: fk.onDelete?.toUpperCase() as any ?? null,
-				nameExplicit: !isNameImplicit,
-			});
+				ddl.fks.push({
+					table: table.name,
+					name: fk.name,
+					columns: fk.columnsFrom,
+					columnsTo: fk.columnsTo,
+					tableTo: fk.tableTo,
+					onUpdate: (fk.onUpdate?.toUpperCase() as any) ?? null,
+					onDelete: (fk.onDelete?.toUpperCase() as any) ?? null,
+					nameExplicit: !isNameImplicit,
+				});
+			}
 		}
 
-		for (const check of Object.values(table.checkConstraint)) {
-			ddl.checks.push({
-				table: table.name,
-				name: check.name,
-				value: check.value,
-			});
-		}
+		if (table.checkConstraint) {
+			for (const check of Object.values(table.checkConstraint)) {
+				ddl.checks.push({
+					table: table.name,
+					name: check.name,
+					value: check.value,
+				});
+			}
 
-		for (const pk of Object.values(table.compositePrimaryKeys)) {
-			ddl.pks.push({
-				table: table.name,
-				name: 'PRIMARY',
-				columns: pk.columns,
-			});
+			for (const pk of Object.values(table.compositePrimaryKeys)) {
+				ddl.pks.push({
+					table: table.name,
+					name: 'PRIMARY',
+					columns: pk.columns,
+				});
+			}
 		}
 	}
 
-	for (const view of Object.values(json.views)) {
-		ddl.views.push({
-			name: view.name,
-			algorithm: view.algorithm ?? null,
-			sqlSecurity: view.sqlSecurity ?? null,
-			withCheckOption: view.withCheckOption ?? null,
-			definition: view.definition!,
-		});
+	if (json.views) {
+		for (const view of Object.values(json.views)) {
+			ddl.views.push({
+				name: view.name,
+				algorithm: view.algorithm ?? null,
+				sqlSecurity: view.sqlSecurity ?? null,
+				withCheckOption: view.withCheckOption ?? null,
+				definition: view.definition!,
+			});
+		}
 	}
 
 	return {

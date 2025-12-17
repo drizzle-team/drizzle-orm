@@ -35,7 +35,7 @@ const fk = object({
 
 const compositePK = object({
 	columns: string().array(),
-	name: string(),
+	name: string().optional(),
 }).strict();
 
 const column = object({
@@ -154,8 +154,20 @@ export const schemaSquashed = object({
 export const sqliteSchemaV5 = schemaV5;
 export const sqliteSchemaV6 = schemaV6;
 
-export const toJsonSnapshot = (ddl: SQLiteDDL, id: string, prevIds: string[], renames: string[]): SqliteSnapshot => {
-	return { dialect: 'sqlite', id, prevIds, version: '7', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (
+	ddl: SQLiteDDL,
+	id: string,
+	prevIds: string[],
+	renames: string[],
+): SqliteSnapshot => {
+	return {
+		dialect: 'sqlite',
+		id,
+		prevIds,
+		version: '7',
+		ddl: ddl.entities.list(),
+		renames,
+	};
 };
 
 const ddl = createDDL();
