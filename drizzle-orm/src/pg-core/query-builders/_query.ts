@@ -5,9 +5,9 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgPreparedQuery } from '../session.ts';
-import type { PgSession, PreparedQueryConfig } from '../session.ts';
+import type { PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export class _RelationalQueryBuilder<
@@ -23,7 +23,7 @@ export class _RelationalQueryBuilder<
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PgAsyncSession,
 	) {}
 
 	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -76,7 +76,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private config: V1.DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {
@@ -84,7 +84,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
@@ -106,7 +106,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
@@ -148,6 +148,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 
 	override execute(): Promise<TResult> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
+			// @ts-ignore - TODO
 			return this._prepare().execute(undefined, this.authToken);
 		});
 	}

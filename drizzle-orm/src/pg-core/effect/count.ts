@@ -1,10 +1,10 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import { Effect } from 'effect';
+import type { Effect } from 'effect';
 import type { QueryEffect } from '~/effect-core/query-effect.ts';
 import { applyEffectWrapper } from '~/effect-core/query-effect.ts';
 import type { EffectPgSession } from '~/effect-postgres/session.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
@@ -72,9 +72,9 @@ export class EffectPgCountBuilder<
 			query,
 			undefined,
 			undefined,
-			false,
+			true,
 			(rows) => Number(rows[0]?.[0] ?? 0),
-		).execute().pipe(Effect.catchAll((e) => Effect.fail(new DrizzleQueryError(query.sql, query.params, e))));
+		).execute();
 	}
 }
 

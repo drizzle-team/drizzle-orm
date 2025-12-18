@@ -1,7 +1,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -10,7 +10,7 @@ import { type PgRemoteQueryResultHKT, PgRemoteSession } from './session.ts';
 export class PgRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<PgRemoteQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<PgRemoteQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'PgRemoteDatabase';
 }
 

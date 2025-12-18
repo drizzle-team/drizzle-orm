@@ -1,4 +1,4 @@
-import { QueryEffect } from '~/effect-core/effectable';
+import { QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleQueryError } from '~/errors.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';

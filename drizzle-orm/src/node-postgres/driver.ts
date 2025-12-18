@@ -4,7 +4,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -19,7 +19,7 @@ export interface PgDriverOptions {
 export class NodePgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<NodePgQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<NodePgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
 

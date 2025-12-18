@@ -1,4 +1,3 @@
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type {
 	BuildSubquerySelection,
@@ -8,9 +7,11 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type Assume, type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import { tracer } from '~/tracing.ts';
+import { applyMixins, type Assume, type DrizzleTypeError, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
 import { PgSelectQueryBuilderBase } from '../query-builders/select.ts';
@@ -18,20 +19,20 @@ import type { PgSelectHKTBase, SelectedFields, TableLikeHasEmptySelection } from
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgEffectSelectPrepare, PgEffectSession } from './session.ts';
+import type { PgAsyncSelectPrepare, PgAsyncSession } from './session.ts';
 
-export interface PgEffectSelectQueryBuilderInit<
+export interface PgAsyncSelectQueryBuilderInit<
 	TSelection extends SelectedFields | undefined,
 > {
-	from: PgEffectSelectQueryBuilderBase<
+	from: PgAsyncSelectQueryBuilderBase<
 		undefined,
 		TSelection,
 		SelectMode
 	>['from'];
 }
 
-export interface PgEffectSelectQueryBuilderHKT extends PgSelectHKTBase {
-	_type: PgEffectSelectQueryBuilderBase<
+export interface PgAsyncSelectQueryBuilderHKT extends PgSelectHKTBase {
+	_type: PgAsyncSelectQueryBuilderBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -43,7 +44,7 @@ export interface PgEffectSelectQueryBuilderHKT extends PgSelectHKTBase {
 	>;
 }
 
-export interface PgEffectSelectQueryBuilderBase<
+export interface PgAsyncSelectQueryBuilderBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -57,7 +58,7 @@ export interface PgEffectSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<ColumnsSelection, TNullabilityMap>,
-> extends QueryEffect<TResult> {
+> extends QueryPromise<TResult> {
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -71,7 +72,7 @@ export interface PgEffectSelectQueryBuilderBase<
 			tableName: GetSelectTableName<TFrom>;
 			selection: TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection;
 			selectMode: TSelection extends undefined ? 'single' : 'partial';
-			nullabilityMap: TTableName extends string ? Record<TTableName, 'not-null'> : {};
+			nullabilityMap: GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {};
 		},
 	>(
 		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
@@ -79,7 +80,7 @@ export interface PgEffectSelectQueryBuilderBase<
 			>
 			: TFrom,
 	): Omit<
-		PgEffectSelectQueryBuilderBase<
+		PgAsyncSelectQueryBuilderBase<
 			TConfig['tableName'],
 			TConfig['selection'],
 			TConfig['selectMode'],
@@ -96,7 +97,7 @@ export interface PgEffectSelectQueryBuilderBase<
 	>;
 }
 
-export class PgEffectSelectQueryBuilderBase<
+export class PgAsyncSelectQueryBuilderBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -107,7 +108,7 @@ export class PgEffectSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<ColumnsSelection, TNullabilityMap>,
 > extends PgSelectQueryBuilderBase<
-	PgEffectSelectQueryBuilderHKT,
+	PgAsyncSelectQueryBuilderHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -117,14 +118,14 @@ export class PgEffectSelectQueryBuilderBase<
 	TResult,
 	TSelectedFields
 > {
-	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'PgAsyncSelectQueryBuilder';
 
-	declare protected session: PgEffectSession<any, any, any> | undefined;
+	declare protected session: PgAsyncSession<any, any, any, any> | undefined;
 
 	constructor(
 		config: {
 			fields: TSelection;
-			session: PgEffectSession<any, any, any>;
+			session: PgAsyncSession<any, any, any, any>;
 			dialect: PgDialect;
 			withList?: Subquery[];
 			distinct?: boolean | {
@@ -136,24 +137,28 @@ export class PgEffectSelectQueryBuilderBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgEffectSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
+	_prepare(
+		name?: string,
+	): PgAsyncSelectPrepare<this> {
+		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 
 		const { fields } = config;
 
-		const fieldsList = orderSelectedFields<PgColumn>(fields);
-		const query = session.prepareQuery<
-			PreparedQueryConfig & { execute: TResult }
-		>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-			type: 'select',
-			tables: [...usedTables],
-		}, cacheConfig);
-		query.joinsNotNullableMap = joinsNotNullableMap;
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const fieldsList = orderSelectedFields<PgColumn>(fields);
+			const query = session.prepareQuery<
+				PreparedQueryConfig & { execute: any }
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
+				type: 'select',
+				tables: [...usedTables],
+			}, cacheConfig);
+			query.joinsNotNullableMap = joinsNotNullableMap;
 
-		return query;
+			return query.setToken(authToken);
+		}) as any;
 	}
 
 	/**
@@ -163,15 +168,27 @@ export class PgEffectSelectQueryBuilderBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): PgEffectSelectPrepare<this> {
+	prepare(
+		name: string,
+	): PgAsyncSelectPrepare<this> {
 		return this._prepare(name);
 	}
 
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().execute(placeholderValues);
-	};
+	/** @internal */
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
+	execute(placeholderValues?: Record<string, unknown>) {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
+	}
 }
 
-applyEffectWrapper(PgEffectSelectQueryBuilderBase);
+applyMixins(PgAsyncSelectQueryBuilderBase, [QueryPromise]);
 
-export type AnyPgEffectSelectQueryBuilder = PgEffectSelectQueryBuilderBase<any, any, any, any, any, any, any, any>;
+export type AnyPgAsyncSelectQueryBuilder = PgAsyncSelectQueryBuilderBase<any, any, any, any, any, any, any, any>;

@@ -14,10 +14,10 @@ import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgDialect } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -25,7 +25,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
 export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
 
@@ -209,7 +209,7 @@ export class VercelPgSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
@@ -238,7 +238,7 @@ export class VercelPgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
 			query.sql,
@@ -259,7 +259,7 @@ export class VercelPgSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
 			query.sql,
@@ -332,7 +332,7 @@ export class VercelPgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(

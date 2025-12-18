@@ -7,23 +7,17 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import {
-	PgPreparedQuery,
-	type PgQueryResultHKT,
-	type PgTransactionConfig,
-	type PreparedQueryConfig,
-} from '~/pg-core/session.ts';
-import { PgSession } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
+import { tracer } from '~/tracing';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'BunSQLPreparedQuery';
 
@@ -153,7 +147,7 @@ export class BunSQLSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BunSQLSession';
 
 	logger: Logger;
@@ -183,7 +177,7 @@ export class BunSQLSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new BunSQLPreparedQuery(
 			this.client,
 			query.sql,
@@ -203,7 +197,7 @@ export class BunSQLSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new BunSQLPreparedQuery(
 			this.client,
 			query.sql,
@@ -256,7 +250,7 @@ export class BunSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BunSQLTransaction';
 
 	constructor(

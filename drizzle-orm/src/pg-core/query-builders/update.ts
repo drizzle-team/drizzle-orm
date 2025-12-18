@@ -2,7 +2,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -27,14 +27,13 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { PgPreparedQuery } from '../session.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
@@ -77,16 +76,10 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 
 	constructor(
 		private table: TTable,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 	) {}
-
-	private authToken?: NeonAuthToken;
-	setToken(token: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
 
 	set(
 		values: PgUpdateSetSource<TTable>,
@@ -97,7 +90,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 			this.session,
 			this.dialect,
 			this.withList,
-		).setToken(this.authToken);
+		);
 	}
 }
 
@@ -275,7 +268,7 @@ export type PgUpdateReturning<
 	'returning'
 >;
 
-export type PgUpdatePrepare<T extends AnyPgUpdate> = PgPreparedQuery<
+export type PgUpdatePrepare<T extends AnyPgUpdate> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
@@ -366,7 +359,7 @@ export class PgUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {
@@ -590,15 +583,8 @@ export class PgUpdateBase<
 		return this._prepare(name);
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues, this.authToken);
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
+		return this._prepare().execute(placeholderValues);
 	};
 
 	/** @internal */

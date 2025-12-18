@@ -2,7 +2,7 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { EffectPgCountBuilder } from '~/pg-core/effect/count.ts';
-import { EffectPgSelectBuilder } from '~/pg-core/effect/select.ts';
+import { PgEffectSelectQueryBuilderBase, type PgEffectSelectQueryBuilderInit } from '~/pg-core/effect/select.ts';
 import type { SelectedFields } from '~/pg-core/index.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import type { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
@@ -146,10 +146,12 @@ export class EffectPgDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): EffectPgSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): EffectPgSelectBuilder<TSelection>;
-	select<TSelection extends SelectedFields>(fields?: TSelection): EffectPgSelectBuilder<TSelection | undefined> {
-		return new EffectPgSelectBuilder({
+	select(): PgEffectSelectQueryBuilderInit<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectQueryBuilderInit<TSelection>;
+	select<TSelection extends SelectedFields | undefined>(
+		fields?: TSelection,
+	): PgEffectSelectQueryBuilderInit<TSelection> {
+		return new PgEffectSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,

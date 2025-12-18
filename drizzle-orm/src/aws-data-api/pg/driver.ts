@@ -3,7 +3,7 @@ import * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
 import { PgArray } from '~/pg-core/index.ts';
@@ -35,7 +35,7 @@ export interface DrizzleAwsDataApiPgConfig<
 export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<AwsDataApiPgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
 
 	override execute<

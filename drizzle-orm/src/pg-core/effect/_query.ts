@@ -9,8 +9,7 @@ import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
-import type { EffectPgCorePreparedQuery } from './prepared-query.ts';
-import type { EffectPgCoreSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export class _EffectRelationalQueryBuilder<
 	TSchema extends V1.TablesRelationalConfig,
@@ -25,7 +24,7 @@ export class _EffectRelationalQueryBuilder<
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: EffectPgCoreSession,
+		private session: PgEffectSession,
 	) {}
 
 	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -78,7 +77,7 @@ export class _EffectPgRelationalQuery<TResult> extends QueryEffect<TResult, Driz
 		private table: PgTable,
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
-		private session: EffectPgCoreSession,
+		private session: PgEffectSession,
 		private config: V1.DBQueryConfig<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {
@@ -86,7 +85,7 @@ export class _EffectPgRelationalQuery<TResult> extends QueryEffect<TResult, Driz
 	}
 
 	/** @internal */
-	_prepare(name?: string): EffectPgCorePreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
 		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
@@ -106,7 +105,7 @@ export class _EffectPgRelationalQuery<TResult> extends QueryEffect<TResult, Driz
 		);
 	}
 
-	prepare(name: string): EffectPgCorePreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

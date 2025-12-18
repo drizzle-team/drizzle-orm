@@ -1,7 +1,6 @@
 export * from './alias.ts';
 export * from './checks.ts';
 export * from './columns/index.ts';
-export * from './db.ts';
 export * from './dialect.ts';
 export * from './foreign-keys.ts';
 export * from './indexes.ts';
@@ -11,7 +10,6 @@ export * from './query-builders/index.ts';
 export * from './roles.ts';
 export * from './schema.ts';
 export * from './sequence.ts';
-export * from './session.ts';
 export * from './subquery.ts';
 export * from './table.ts';
 export * from './unique-constraint.ts';

@@ -7,7 +7,7 @@ import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { WithBuilder } from '../subquery.ts';
-import { PgSelectBuilder } from './select.ts';
+import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
@@ -49,12 +49,12 @@ export class QueryBuilder {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): PgSelectBuilder<undefined, 'qb'>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
+		function select(): PgSelectQueryBuilderInit<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectQueryBuilderInit<TSelection>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgSelectBuilder<TSelection | undefined, 'qb'> {
-			return new PgSelectBuilder({
+		): PgSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -62,12 +62,14 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinct(): PgSelectBuilder<undefined, 'qb'>;
-		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
+		function selectDistinct(): PgSelectQueryBuilderInit<undefined>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgSelectQueryBuilderInit<TSelection>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgSelectBuilder<TSelection | undefined, 'qb'> {
-			return new PgSelectBuilder({
+		): PgSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -75,16 +77,16 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined, 'qb'>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectQueryBuilderInit<undefined>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgSelectBuilder<TSelection, 'qb'>;
+		): PgSelectQueryBuilderInit<TSelection>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgSelectBuilder<TSelection | undefined, 'qb'> {
-			return new PgSelectBuilder({
+		): PgSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -95,20 +97,24 @@ export class QueryBuilder {
 		return { select, selectDistinct, selectDistinctOn };
 	}
 
-	select(): PgSelectBuilder<undefined, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
-	select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined, 'qb'> {
-		return new PgSelectBuilder({
+	select(): PgSelectQueryBuilderInit<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectQueryBuilderInit<TSelection>;
+	select<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectQueryBuilderInit<TSelection | undefined> {
+		return new PgSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
 		});
 	}
 
-	selectDistinct(): PgSelectBuilder<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
+	selectDistinct(): PgSelectQueryBuilderInit<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectQueryBuilderInit<TSelection>;
+	selectDistinct<TSelection extends SelectedFields>(
+		fields?: TSelection,
+	): PgSelectQueryBuilderInit<TSelection | undefined> {
+		return new PgSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
@@ -116,16 +122,16 @@ export class QueryBuilder {
 		});
 	}
 
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectQueryBuilderInit<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgSelectBuilder<TSelection>;
+	): PgSelectQueryBuilderInit<TSelection>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
+	): PgSelectQueryBuilderInit<TSelection | undefined> {
+		return new PgSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),

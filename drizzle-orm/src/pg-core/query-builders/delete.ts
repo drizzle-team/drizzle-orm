@@ -1,7 +1,7 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -13,8 +13,8 @@ import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { PgPreparedQuery } from '../session.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -83,7 +83,7 @@ export type PgDeleteReturning<
 	'returning'
 >;
 
-export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgPreparedQuery<
+export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
@@ -151,7 +151,7 @@ export class PgDeleteBase<
 
 	constructor(
 		table: TTable,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 	) {
@@ -262,6 +262,7 @@ export class PgDeleteBase<
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
+			// @ts-ignore - TODO
 			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};

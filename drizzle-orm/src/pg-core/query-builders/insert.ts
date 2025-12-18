@@ -2,7 +2,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -16,8 +16,8 @@ import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
-import type { PgPreparedQuery } from '../session.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -63,7 +63,7 @@ export class PgInsertBuilder<
 
 	constructor(
 		private table: TTable,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 		private overridingSystemValue_?: boolean,
@@ -182,7 +182,7 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	set: PgUpdateSetSource<T['_']['table']>;
 }
 
-export type PgInsertPrepare<T extends AnyPgInsert> = PgPreparedQuery<
+export type PgInsertPrepare<T extends AnyPgInsert> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
@@ -258,7 +258,7 @@ export class PgInsertBase<
 	constructor(
 		table: TTable,
 		values: PgInsertConfig['values'],
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 		withList?: Subquery[],
 		select?: boolean,
@@ -427,6 +427,7 @@ export class PgInsertBase<
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
+			// @ts-ignore - TODO
 			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};

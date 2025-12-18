@@ -1,22 +1,10 @@
 import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	PgDeleteBase,
-	PgInsertBuilder,
-	PgSelectBuilder,
-	PgUpdateBuilder,
-	QueryBuilder,
-} from '~/pg-core/query-builders/index.ts';
-import type {
-	PgQueryResultHKT,
-	PgQueryResultKind,
-	PgSession,
-	PgTransaction,
-	PgTransactionConfig,
-	PreparedQueryConfig,
-} from '~/pg-core/session.ts';
+import { PgDeleteBase, PgInsertBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -24,31 +12,33 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
-import type { PgColumn } from './columns/index.ts';
-import { _RelationalQueryBuilder } from './query-builders/_query.ts';
-import { PgCountBuilder } from './query-builders/count.ts';
-import { RelationalQueryBuilder } from './query-builders/query.ts';
-import { PgRaw } from './query-builders/raw.ts';
-import { PgRefreshMaterializedView } from './query-builders/refresh-materialized-view.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithBuilder } from './subquery.ts';
-import type { PgViewBase } from './view-base.ts';
-import type { PgMaterializedView } from './view.ts';
+import type { PgColumn } from '../columns/index.ts';
+import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
+import { PgCountBuilder } from '../query-builders/count.ts';
+import { RelationalQueryBuilder } from '../query-builders/query.ts';
+import { PgRaw } from '../query-builders/raw.ts';
+import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
+import type { SelectedFields } from '../query-builders/select.types.ts';
+import type { PreparedQueryConfig } from '../session.ts';
+import type { WithBuilder } from '../subquery.ts';
+import type { PgViewBase } from '../view-base.ts';
+import type { PgMaterializedView } from '../view.ts';
+import { PgAsyncSelectQueryBuilderBase, type PgAsyncSelectQueryBuilderInit } from './select.ts';
 
-export class PgDatabase<
+export class PgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
-	static readonly [entityKind]: string = 'PgDatabase';
+	static readonly [entityKind]: string = 'PgAsyncDatabase';
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgSession<TQueryResult, TFullSchema, TRelations, TSchema>;
+		readonly session: PgAsyncSession<TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
 	/** @deprecated */
@@ -70,7 +60,7 @@ export class PgDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgSession<any, any, any, any>,
+		readonly session: PgAsyncSession<any, any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
@@ -93,7 +83,7 @@ export class PgDatabase<
 		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as PgDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
+				(this._query as PgAsyncDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
 					new _RelationalQueryBuilder(
 						schema!.fullSchema,
 						this._.schema,
@@ -107,7 +97,7 @@ export class PgDatabase<
 		}
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as PgDatabase<
+			(this.query as PgAsyncDatabase<
 				TQueryResult,
 				TSchema,
 				AnyRelations,
@@ -249,10 +239,12 @@ export class PgDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-		function select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
+		function select(): PgAsyncSelectQueryBuilderInit<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgAsyncSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -284,12 +276,14 @@ export class PgDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgSelectBuilder<undefined>;
-		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
+		function selectDistinct(): PgAsyncSelectQueryBuilderInit<undefined>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgAsyncSelectQueryBuilderInit<TSelection>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
+		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgAsyncSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -323,16 +317,16 @@ export class PgDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectQueryBuilderInit<undefined>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgSelectBuilder<TSelection>;
+		): PgAsyncSelectQueryBuilderInit<TSelection>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
+		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
+			return new PgAsyncSelectQueryBuilderBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -467,14 +461,16 @@ export class PgDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	select<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
+	select(): PgAsyncSelectQueryBuilderInit<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+	select<TSelection extends SelectedFields | undefined>(
+		fields?: TSelection,
+	): PgAsyncSelectQueryBuilderInit<TSelection> {
+		return new PgAsyncSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
-		});
+		}) as PgAsyncSelectQueryBuilderInit<TSelection>;
 	}
 
 	/**
@@ -501,10 +497,12 @@ export class PgDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgSelectBuilder<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
+	selectDistinct(): PgAsyncSelectQueryBuilderInit<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+	selectDistinct<TSelection extends SelectedFields | undefined>(
+		fields?: TSelection,
+	): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
+		return new PgAsyncSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
@@ -537,16 +535,16 @@ export class PgDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectQueryBuilderInit<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgSelectBuilder<TSelection>;
-	selectDistinctOn<TSelection extends SelectedFields>(
+	): PgAsyncSelectQueryBuilderInit<TSelection>;
+	selectDistinctOn<TSelection extends SelectedFields | undefined>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
+	): PgAsyncSelectQueryBuilderInit<TSelection> {
+		return new PgAsyncSelectQueryBuilderBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
@@ -645,10 +643,18 @@ export class PgDatabase<
 		return new PgRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	protected authToken?: NeonAuthToken;
-
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
+	): PgRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	/** @internal */
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		authToken: NeonAuthToken,
+	): PgRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	/** @internal */
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		authToken?: NeonAuthToken,
 	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
@@ -659,9 +665,9 @@ export class PgDatabase<
 			undefined,
 			undefined,
 			false,
-		);
+		).setToken(authToken);
 		return new PgRaw(
-			() => prepared.execute(undefined, this.authToken),
+			() => prepared.execute(),
 			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),
@@ -669,7 +675,7 @@ export class PgDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(
@@ -686,7 +692,7 @@ export const withReplicas = <
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-	Q extends PgDatabase<
+	Q extends PgAsyncDatabase<
 		HKT,
 		TFullSchema,
 		TRelations,

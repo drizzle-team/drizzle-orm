@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils.ts';
-import type { PgPreparedQuery } from '../session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
@@ -36,7 +36,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 
 	constructor(
 		view: PgMaterializedView,
-		private session: PgSession,
+		private session: PgAsyncSession,
 		private dialect: PgDialect,
 	) {
 		super();
@@ -70,7 +70,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 	}
 
 	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<
+	_prepare(name?: string): PgAsyncPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}
@@ -80,7 +80,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 		});
 	}
 
-	prepare(name: string): PgPreparedQuery<
+	prepare(name: string): PgAsyncPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}
@@ -97,6 +97,7 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
+			// @ts-ignore - TODO
 			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
