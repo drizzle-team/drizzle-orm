@@ -635,7 +635,6 @@ test('createSchema - basic insert type', (t) => {
 
 	const { createSchema } = createSchemaFactory();
 	const schema = createSchema(table, { type: 'insert' });
-	// id is optional (serial has default), name is required, age is optional
 	const result = schema.safeParse({ name: 'test' });
 	t.expect(result.success).toBe(true);
 });
@@ -649,7 +648,6 @@ test('createSchema - basic update type', (t) => {
 
 	const { createSchema } = createSchemaFactory();
 	const schema = createSchema(table, { type: 'update' });
-	// All fields should be optional in update
 	const result = schema.safeParse({ name: 'updated' });
 	t.expect(result.success).toBe(true);
 });
@@ -668,11 +666,9 @@ test('createSchema - pick option', (t) => {
 		pick: ['name', 'email'],
 	});
 
-	// Should only include picked columns
 	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
 	t.expect(result.success).toBe(true);
 
-	// age is not in the schema, it should be stripped (or rejected in strict mode)
 	const resultWithAge = schema.safeParse({ name: 'test', email: 'test@example.com', age: 25 });
 	t.expect(resultWithAge.success).toBe(true);
 	t.expect(resultWithAge.data).not.toHaveProperty('age');
@@ -692,7 +688,6 @@ test('createSchema - omit option', (t) => {
 		omit: ['id', 'age'],
 	});
 
-	// Should include all columns except omitted ones
 	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
 	t.expect(result.success).toBe(true);
 });
@@ -727,7 +722,6 @@ test('createSchema - allOptional makes all fields optional', (t) => {
 		allOptional: true,
 	});
 
-	// All fields should be optional, including required ones
 	const result = schema.safeParse({});
 	t.expect(result.success).toBe(true);
 });
@@ -745,7 +739,6 @@ test('createSchema - allNullable makes all fields nullable', (t) => {
 		allNullable: true,
 	});
 
-	// All fields should accept null
 	const result = schema.safeParse({ id: null, name: null, email: null });
 	t.expect(result.success).toBe(true);
 });
@@ -763,11 +756,9 @@ test('createSchema - combined allOptional and allNullable', (t) => {
 		allNullable: true,
 	});
 
-	// Empty object should pass (all optional)
 	const emptyResult = schema.safeParse({});
 	t.expect(emptyResult.success).toBe(true);
 
-	// Null values should pass (all nullable)
 	const nullResult = schema.safeParse({ id: null, name: null });
 	t.expect(nullResult.success).toBe(true);
 });
@@ -787,11 +778,103 @@ test('createSchema - pick with allOptional', (t) => {
 		allOptional: true,
 	});
 
-	// Both picked fields should be optional
 	const result = schema.safeParse({});
 	t.expect(result.success).toBe(true);
 
-	// Partial data should work
 	const partialResult = schema.safeParse({ name: 'test' });
 	t.expect(partialResult.success).toBe(true);
 });
+
+test('createSchema - refine option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		refine: {
+			email: (schema) => schema.email(),
+		},
+	});
+
+	const validResult = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(validResult.success).toBe(true);
+
+	const invalidResult = schema.safeParse({ name: 'test', email: 'not-an-email' });
+	t.expect(invalidResult.success).toBe(false);
+});
+
+test('createSchema - refine with pick', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+		refine: {
+			email: (schema) => schema.email(),
+		},
+	});
+
+	const validResult = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(validResult.success).toBe(true);
+
+	const invalidResult = schema.safeParse({ name: 'test', email: 'invalid' });
+	t.expect(invalidResult.success).toBe(false);
+});
+
+test('createSchema - view support without type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const view = pgView('test_view').as((qb) => qb.select().from(table));
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(view);
+
+	const result = schema.safeParse({ id: 1, name: 'test' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - view with allNullable without type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const view = pgView('test_view').as((qb) => qb.select().from(table));
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(view, { allNullable: true });
+
+	const result = schema.safeParse({ id: null, name: null });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pgEnum support', (t) => {
+	const statusEnum = pgEnum('status', ['active', 'inactive', 'pending']);
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(statusEnum);
+
+	t.expect(schema.safeParse('active').success).toBe(true);
+	t.expect(schema.safeParse('inactive').success).toBe(true);
+	t.expect(schema.safeParse('invalid').success).toBe(false);
+});
+
+/* Disallow unknown keys in createSchema refinement */ {
+	const table = pgTable('test', { id: integer(), name: text() });
+	const { createSchema } = createSchemaFactory();
+	// @ts-expect-error - unknown key in refinement
+	createSchema(table, { type: 'insert', refine: { unknown: z.string() } });
+}

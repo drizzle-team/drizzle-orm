@@ -7,14 +7,14 @@ import type { Conditions } from './schema.types.internal.ts';
 import type {
 	CreateInsertSchema,
 	CreateSchemaFactoryOptions,
-	CreateSchemaOptions,
 	CreateSelectSchema,
+	CreateTableSchemaOptions,
 	CreateUpdateSchema,
+	CreateViewSchemaOptions,
 	SchemaType,
 } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
 
-/** Map of schema type to conditions */
 const conditionsMap: Record<SchemaType, Conditions> = {
 	select: {
 		never: () => false,
@@ -37,10 +37,6 @@ function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
 }
 
-/**
- * Filter columns based on pick/omit options.
- * Throws error if both pick and omit are provided.
- */
 function filterColumns(
 	columns: Record<string, any>,
 	options?: { pick?: string[]; omit?: string[] },
@@ -78,7 +74,6 @@ function filterColumns(
 	return columns;
 }
 
-/** Schema-level options for allOptional/allNullable */
 interface SchemaLevelOptions {
 	allOptional?: boolean;
 	allNullable?: boolean;
@@ -118,13 +113,11 @@ function handleColumns(
 			columnSchemas[key] = refined;
 		}
 
-		// Apply nullable: schemaOptions.allNullable overrides, or use condition check
 		const shouldBeNullable = schemaOptions?.allNullable || (column && conditions.nullable(column));
 		if (shouldBeNullable) {
 			columnSchemas[key] = columnSchemas[key]!.nullable();
 		}
 
-		// Apply optional: schemaOptions.allOptional overrides, or use condition check
 		const shouldBeOptional = schemaOptions?.allOptional || (column && conditions.optional(column));
 		if (shouldBeOptional) {
 			columnSchemas[key] = columnSchemas[key]!.optional();
@@ -219,48 +212,39 @@ export function createSchemaFactory<
 		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
 	};
 
-	/**
-	 * Unified schema creation function with pick/omit support.
-	 *
-	 * @example
-	 * ```ts
-	 * // Create an insert schema with only specific columns
-	 * const schema = createSchema(users, {
-	 *   type: 'insert',
-	 *   pick: ['name', 'email'],
-	 * });
-	 *
-	 * // Create an update schema excluding certain columns
-	 * const schema = createSchema(users, {
-	 *   type: 'update',
-	 *   omit: ['id', 'createdAt'],
-	 * });
-	 *
-	 * // Make all fields optional (useful for PATCH operations)
-	 * const schema = createSchema(users, {
-	 *   type: 'update',
-	 *   allOptional: true,
-	 * });
-	 * ```
-	 */
-	const createSchema = <TTable extends Table>(
+	function createSchema<TTable extends Table>(
 		table: TTable,
-		schemaOptions: CreateSchemaOptions<keyof TTable['$inferSelect'] & string>,
-	): z.ZodType => {
-		const conditions = conditionsMap[schemaOptions.type];
-		let columns = getColumns(table);
+		schemaOptions: CreateTableSchemaOptions<TTable, TCoerce>,
+	): z.ZodObject<z.ZodRawShape>;
+	function createSchema<TView extends View>(
+		view: TView,
+		schemaOptions?: CreateViewSchemaOptions<TView, TCoerce>,
+	): z.ZodObject<z.ZodRawShape>;
+	function createSchema<TEnum extends PgEnum<any>>(
+		enum_: TEnum,
+	): z.ZodEnum<{ [K in TEnum['enumValues'][number]]: K }>;
+	function createSchema(
+		entity: Table | View | PgEnum<[string, ...string[]]>,
+		schemaOptions?: CreateTableSchemaOptions<any, TCoerce> | CreateViewSchemaOptions<any, TCoerce>,
+	): z.ZodType {
+		if (isPgEnum(entity)) {
+			return handleEnum(entity, options);
+		}
 
-		// Apply pick/omit filtering
+		const type = schemaOptions?.type ?? 'select';
+		const conditions = conditionsMap[type];
+		let columns = getColumns(entity);
+
 		columns = filterColumns(columns, {
-			pick: schemaOptions.pick as string[] | undefined,
-			omit: schemaOptions.omit as string[] | undefined,
+			pick: (schemaOptions as any)?.pick as string[] | undefined,
+			omit: (schemaOptions as any)?.omit as string[] | undefined,
 		});
 
-		return handleColumns(columns, {}, conditions, options, {
-			allOptional: schemaOptions.allOptional,
-			allNullable: schemaOptions.allNullable,
+		return handleColumns(columns, schemaOptions?.refine ?? {}, conditions, options, {
+			allOptional: schemaOptions?.allOptional,
+			allNullable: schemaOptions?.allNullable,
 		}) as any;
-	};
+	}
 
 	return { createSelectSchema, createInsertSchema, createUpdateSchema, createSchema };
 }
