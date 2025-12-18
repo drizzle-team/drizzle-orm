@@ -347,13 +347,13 @@ export const push = command({
 			await libSQLPush(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
-			await handle(schemaPath, credentials, filters, verbose, force, casing);
+			await handle(schemaPath, credentials, filters, verbose, force, casing, explain);
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
-			await handle(schemaPath, verbose, credentials, filters, force, casing);
+			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
-			await handle(schemaPath, verbose, credentials, filters, force, casing);
+			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'gel') {
 			console.log(error(`You can't use 'push' command with Gel dialect`));
 		} else {
