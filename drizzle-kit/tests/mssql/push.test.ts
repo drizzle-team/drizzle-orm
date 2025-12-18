@@ -262,7 +262,7 @@ test('create view', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE VIEW [view] AS (select distinct [id] from [test]);',
+		'CREATE VIEW [view] AS select distinct [id] from [test];',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -450,7 +450,7 @@ test('alter view definition', async () => {
 	});
 
 	expect(st).toStrictEqual([
-		`ALTER VIEW [view] AS (select distinct [id] from [test] where [test].[id] = 1);`,
+		`ALTER VIEW [view] AS select distinct [id] from [test] where [test].[id] = 1;`,
 	]);
 	expect(pst).toStrictEqual([]);
 });
