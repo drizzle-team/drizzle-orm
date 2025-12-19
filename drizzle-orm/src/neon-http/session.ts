@@ -12,7 +12,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
@@ -287,18 +287,6 @@ export class NeonHttpSession<
 		params: unknown[],
 	): Promise<FullQueryResults<false>> {
 		return this.clientQuery(query, params, { arrayMode: false, fullResults: true });
-	}
-
-	override async count(sql: SQL): Promise<number>;
-	/** @internal */
-	override async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
-	/** @internal */
-	override async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql, token);
-
-		return Number(
-			res['rows'][0]['count'],
-		);
 	}
 
 	override async transaction<T>(

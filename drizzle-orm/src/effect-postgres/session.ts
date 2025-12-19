@@ -208,13 +208,4 @@ export class EffectPgSession<
 			false,
 		).all();
 	}
-	override count(sql: SQL): Effect.Effect<number, DrizzleQueryError> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: number }>(
-			this.dialect.sqlToQuery(sql),
-			undefined,
-			undefined,
-			true,
-			(rows) => Number(rows[0]?.[0] ?? 0),
-		).execute();
-	}
 }

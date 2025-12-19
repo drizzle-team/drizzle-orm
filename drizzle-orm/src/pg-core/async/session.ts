@@ -185,17 +185,6 @@ export abstract class PgAsyncSession<
 		).all();
 	}
 
-	override async count(sql: SQL): Promise<number>;
-	/** @internal */
-	override async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
-	/** @internal */
-	override async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
-		const query = this.dialect.sqlToQuery(sql);
-		return this.prepareQuery(query, undefined, undefined, true).setToken(token).all().then((
-			e,
-		) => Number((<unknown[][]> e)[0]?.[0] ?? 0));
-	}
-
 	abstract transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,

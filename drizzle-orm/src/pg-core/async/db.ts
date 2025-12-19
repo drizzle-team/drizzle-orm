@@ -12,9 +12,9 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
+import { PgAsyncCountBuilder } from '../async/count.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
-import { PgCountBuilder } from '../query-builders/count.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import { PgRaw } from '../query-builders/raw.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
@@ -176,7 +176,7 @@ export class PgAsyncDatabase<
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new PgCountBuilder({ source, filters, session: this.session });
+		return new PgAsyncCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	$cache: { invalidate: Cache['onMutate'] };

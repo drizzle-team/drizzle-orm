@@ -1,7 +1,7 @@
 import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { EffectPgCountBuilder } from '~/pg-core/effect/count.ts';
+import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectSelectQueryBuilderBase, type PgEffectSelectQueryBuilderInit } from '~/pg-core/effect/select.ts';
 import type { SelectedFields } from '~/pg-core/index.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
@@ -107,7 +107,7 @@ export class EffectPgDatabase<
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new EffectPgCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
+		return new PgEffectCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	/**

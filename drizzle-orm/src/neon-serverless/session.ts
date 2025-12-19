@@ -19,7 +19,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
@@ -290,14 +290,6 @@ export class NeonSession<
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
-	}
-
-	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
-
-		return Number(
-			res['rows'][0]['count'],
-		);
 	}
 
 	override async transaction<T>(

@@ -80,8 +80,6 @@ export abstract class PgSession {
 	abstract execute(query: SQL): unknown;
 
 	abstract all(query: SQL): unknown;
-
-	abstract count(sql: SQL): unknown;
 }
 
 export interface PgQueryResultHKT {
