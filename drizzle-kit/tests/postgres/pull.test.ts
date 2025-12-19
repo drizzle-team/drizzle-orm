@@ -11,6 +11,7 @@ import {
 	customType,
 	date,
 	doublePrecision,
+	foreignKey,
 	index,
 	inet,
 	integer,
@@ -1109,6 +1110,47 @@ test('introspect foreign keys', async () => {
 		tableTo: 'users',
 		columnsTo: ['id'],
 	})).not.toBeNull();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5082
+test.only('introspect foreign keys #2', async () => {
+	const test = pgTable('test', {
+		col1: integer(),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		unique('composite_unique').on(table.col2, table.col3),
+		unique('test_col1_key').on(table.col1),
+	]);
+
+	const test1 = pgTable('test1', {
+		col1: integer().references(() => test.col1),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		foreignKey({
+			columns: [table.col2, table.col3],
+			foreignColumns: [test.col2, test.col3],
+			name: 'composite_fk',
+		}),
+	]);
+
+	const schema = { test, test1 };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-foreign-keys-2',
+		['public'],
+	);
+	console.log(ddlAfterPull.fks);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	expect(ddlAfterPull.fks.list({ schema: 'public' }).length).toBe(2);
+	const predicate = ddlAfterPull.fks.list({ schema: 'public' }).map((fk) =>
+		fk.columns.length !== 0 && fk.columnsTo.length !== 0
+	).every((val) => val === true);
+	expect(predicate).toBe(true);
 });
 
 test('introspect table with self reference', async () => {
