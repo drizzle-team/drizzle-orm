@@ -12,7 +12,34 @@ export interface QueryEffect<Succes = never, Failure = DrizzleQueryError, Contex
 export abstract class QueryEffect<Succes = never, Failure = DrizzleQueryError, Context = never> {
 	static readonly [entityKind]: string = 'EffectWrapper';
 
-	protected effect: Effect.Effect<Succes, Failure, Context> = Effect.suspend(() => this.execute());
+	protected _effect: Effect.Effect<Succes, Failure, Context> | undefined;
+	protected get effect() {
+		this._effect = Effect.suspend(() => this.execute());
+
+		Object.defineProperty(this, 'effect', {
+			value: this._effect,
+			writable: false,
+			configurable: false,
+		});
+
+		return this._effect;
+	}
+
+	private _pipe!: Pipeable['pipe'];
+	get pipe() {
+		this._pipe = (...args: any[]) => {
+			return (this.effect.pipe as (...args: any[]) => any)(...args);
+		};
+
+		Object.defineProperty(this, 'pipe', {
+			value: this._pipe,
+			writable: false,
+			configurable: false,
+		});
+
+		return this._pipe;
+	}
+
 	abstract execute(...args: any[]): Effect.Effect<Succes, Failure, Context>;
 
 	get [Effect.EffectTypeId]() {
@@ -22,10 +49,6 @@ export abstract class QueryEffect<Succes = never, Failure = DrizzleQueryError, C
 	[Symbol.iterator]() {
 		return this.effect[Symbol.iterator]();
 	}
-
-	pipe: Pipeable['pipe'] = (...args: any[]) => {
-		return (this.effect.pipe as (...args: any[]) => any)(...args);
-	};
 }
 
 export function applyEffectWrapper(baseClass: any) {
