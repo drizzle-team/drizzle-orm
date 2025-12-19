@@ -1113,7 +1113,7 @@ test('introspect foreign keys', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5082
-test.only('introspect foreign keys #2', async () => {
+test('introspect foreign keys #2', async () => {
 	const test = pgTable('test', {
 		col1: integer(),
 		col2: integer(),

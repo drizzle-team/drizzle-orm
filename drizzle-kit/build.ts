@@ -21,6 +21,9 @@ const driversPackages = [
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
 	'bun',
+	// duckdb drivers
+	'duckdb',
+	'@duckdb/node-api',
 ];
 
 esbuild.buildSync({
@@ -47,7 +50,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: driversPackages,
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
