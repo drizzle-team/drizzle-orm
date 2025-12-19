@@ -128,6 +128,7 @@ export const introspectParams = object({
 	introspect: object({
 		casing,
 	}).default({ casing: 'camel' }),
+	omitSuffixForSchema: string().optional().default('public'),
 });
 
 export type IntrospectParams = TypeOf<typeof introspectParams>;
@@ -142,6 +143,7 @@ export const configIntrospectCliSchema = object({
 	introspectCasing: union([literal('camel'), literal('preserve')]).default(
 		'camel',
 	),
+	omitSuffixForSchema: string().optional().default('public')
 });
 
 export const configGenerateSchema = object({
