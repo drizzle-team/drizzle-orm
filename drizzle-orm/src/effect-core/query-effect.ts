@@ -12,7 +12,7 @@ export interface QueryEffect<Succes = never, Failure = DrizzleQueryError, Contex
 export abstract class QueryEffect<Succes = never, Failure = DrizzleQueryError, Context = never> {
 	static readonly [entityKind]: string = 'EffectWrapper';
 
-	protected _effect: Effect.Effect<Succes, Failure, Context> | undefined;
+	protected _effect!: Effect.Effect<Succes, Failure, Context>;
 	protected get effect() {
 		this._effect = Effect.suspend(() => this.execute());
 
