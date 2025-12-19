@@ -398,6 +398,36 @@ test('add columns #6', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4217
+test('add column with .notNull and .default', async () => {
+	const schema1 = {
+		table1: sqliteTable('table1', {
+			col1: integer(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	await db.run('insert into `table1` values (1);');
+	const schema2 = {
+		table1: sqliteTable('table1', {
+			col1: integer(),
+			col2: integer({ mode: 'boolean' }).notNull().default(false),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` ADD `col2` integer DEFAULT 0 NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+	const res = await db.query('select * from `table1`;');
+	expect(res).toStrictEqual([{ col1: 1, col2: 0 }]);
+});
+
 test('drop column', async (t) => {
 	const schema1 = {
 		users: sqliteTable('users', {
@@ -1544,4 +1574,19 @@ test('text default values escape single quotes', async (t) => {
 	const st0: string[] = ["ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';"];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3979
+test('filter out system tables created by analyze', async () => {
+	await db.run('analyze');
+
+	const schema = {
+		table: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSql1 = ['CREATE TABLE `table` (\n\t`id` integer PRIMARY KEY\n);\n'];
+	expect(pst1).toStrictEqual(expectedSql1);
 });

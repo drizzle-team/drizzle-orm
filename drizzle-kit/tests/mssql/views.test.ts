@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm';
-import { int, mssqlSchema, mssqlTable, mssqlView } from 'drizzle-orm/mssql-core';
+import { eq, sql } from 'drizzle-orm';
+import { customType, datetime2, int, mssqlSchema, mssqlTable, mssqlView } from 'drizzle-orm/mssql-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -889,4 +889,86 @@ test('moved schema and alter view', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5113
+test('create view .with', async () => {
+	const uniqueidentifier = customType({
+		dataType() {
+			return 'uniqueidentifier';
+		},
+	});
+
+	const ebayStatus = mssqlTable('ebay_status', {
+		id: uniqueidentifier().primaryKey().notNull().default(sql`newid()`),
+	});
+
+	const ebayCase = mssqlTable('ebay_case', {
+		id: uniqueidentifier().primaryKey().notNull().default(sql`newid()`),
+	});
+
+	const ebayStatusLog = mssqlTable('ebay_status_log', {
+		id: uniqueidentifier()
+			.primaryKey()
+			.notNull()
+			.default(sql`newid()`),
+		ebayCaseID: uniqueidentifier('ebay_case_id')
+			.notNull()
+			.references(() => ebayCase.id),
+		statusID: uniqueidentifier('status_id')
+			.notNull()
+			.references(() => ebayStatus.id),
+		created: datetime2().defaultGetDate(),
+	});
+
+	const testView = mssqlView('ebay_status_latest').as((qb) => {
+		const latestStatus = qb.$with('statuslog_latest').as(
+			qb
+				.select({
+					ebayCaseID: ebayStatusLog.ebayCaseID,
+					statusID: ebayStatusLog.statusID,
+					created: ebayStatusLog.created,
+					row:
+						sql`(ROW_NUMBER() OVER (PARTITION BY ${ebayStatusLog.ebayCaseID} ORDER BY ${ebayStatusLog.created} DESC))`
+							.as(
+								'row',
+							),
+				})
+				.from(ebayStatusLog),
+		);
+
+		return qb
+			.with(latestStatus)
+			.select()
+			.from(latestStatus)
+			.where(eq(latestStatus.row, 1));
+	});
+
+	const schema = { ebayStatus, ebayCase, ebayStatusLog, testView };
+
+	const { sqlStatements: st1 } = await diff({}, schema, []);
+	console.log(st1);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE [ebay_status] (\n'
+		+ '\t[id] uniqueidentifier CONSTRAINT [ebay_status_id_default] DEFAULT (newid()),\n'
+		+ '\tCONSTRAINT [ebay_status_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+		'CREATE TABLE [ebay_case] (\n'
+		+ '\t[id] uniqueidentifier CONSTRAINT [ebay_case_id_default] DEFAULT (newid()),\n'
+		+ '\tCONSTRAINT [ebay_case_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+		'CREATE TABLE [ebay_status_log] (\n'
+		+ '\t[id] uniqueidentifier CONSTRAINT [ebay_status_log_id_default] DEFAULT (newid()),\n'
+		+ '\t[ebay_case_id] uniqueidentifier NOT NULL,\n'
+		+ '\t[status_id] uniqueidentifier NOT NULL,\n'
+		+ '\t[created] datetime2 CONSTRAINT [ebay_status_log_created_default] DEFAULT (getdate()),\n'
+		+ '\tCONSTRAINT [ebay_status_log_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+		'ALTER TABLE [ebay_status_log] ADD CONSTRAINT [ebay_status_log_ebay_case_id_ebay_case_id_fk] FOREIGN KEY ([ebay_case_id]) REFERENCES [ebay_case]([id]);',
+		'ALTER TABLE [ebay_status_log] ADD CONSTRAINT [ebay_status_log_status_id_ebay_status_id_fk] FOREIGN KEY ([status_id]) REFERENCES [ebay_status]([id]);',
+		'CREATE VIEW [ebay_status_latest] AS with [statuslog_latest] as (select [ebay_case_id], [status_id], [created], (ROW_NUMBER() OVER (PARTITION BY [ebay_case_id] ORDER BY [created] DESC)) as [row] from [ebay_status_log]) select [ebay_case_id], [status_id], [created], [row] from [statuslog_latest] where [row] = 1;',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

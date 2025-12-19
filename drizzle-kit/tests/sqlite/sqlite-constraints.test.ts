@@ -672,6 +672,40 @@ test('pk #1_0. drop table with pk', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3801
+test('pk #1_1. add column with pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			name: text(),
+			id: integer().primaryKey({ autoIncrement: true }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+	const st0 = [
+		'ALTER TABLE `users` ADD `id` integer;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (\n\t\`name\` text,\n\t\`id\` integer PRIMARY KEY AUTOINCREMENT\n);\n`,
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('pk #1_0. drop column with pk', async () => {
 	const from = {
 		users: sqliteTable('users', {
@@ -1257,6 +1291,43 @@ test('pk multistep #3', async () => {
 	];
 	expect(st5).toStrictEqual(e5);
 	expect(pst5).toStrictEqual(e5);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
+test('composite pk multistep #1', async () => {
+	const organisations = sqliteTable('organisation', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const users = sqliteTable('user', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const organisationUsers = sqliteTable(
+		'organisationUser',
+		{
+			organisationId: int()
+				.notNull()
+				.references(() => organisations.id),
+			userId: int()
+				.notNull()
+				.references(() => users.id),
+			roles: text({ mode: 'json' }).$type<string[]>().default([]),
+		},
+		(t) => [
+			primaryKey({ columns: [t.userId, t.organisationId] }),
+		],
+	);
+
+	const schema1 = { users, organisations, organisationUsers };
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema1 });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
 
 test('fk #0', async () => {

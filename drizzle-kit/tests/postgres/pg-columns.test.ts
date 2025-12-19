@@ -1130,7 +1130,7 @@ test('defaults: timestamptz with precision', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.test.ts
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('no diff for all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -1162,9 +1162,11 @@ test('no diff for all column types', async () => {
 			doublePrecision: doublePrecision().default(100.12),
 			real: real().default(100.123),
 			json: json().default({ attr: 'value' }),
+			json1: json().default({ b: 2, a: 1 }),
 			jsonb: jsonb().default({ attr: 'value' }),
 			jsonb1: jsonb().default(sql`jsonb_build_object()`),
 			jsonb2: jsonb().default({}),
+			jsonb3: jsonb().default({ b: 2, a: 1 }),
 			time1: time().default('00:00:00'),
 			time2: time().defaultNow(),
 			timestamp1: timestamp({ withTimezone: true, precision: 6 }).default(new Date()),
