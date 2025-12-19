@@ -418,6 +418,32 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5093
+test('introspect uuid column with custom default function', async () => {
+	await db.query(`CREATE OR REPLACE FUNCTION uuidv7()
+RETURNS uuid
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid;
+$$;`);
+
+	const schema = {
+		columns: pgTable('columns', {
+			uuid1: uuid().default(sql`uuidv7()`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-uuid-column-custom-default',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%201%3A%20jsonb().array().default(%5B%5D)
 // https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
@@ -1113,7 +1139,7 @@ test('introspect foreign keys', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5082
-test.only('introspect foreign keys #2', async () => {
+test('introspect foreign keys #2', async () => {
 	const test = pgTable('test', {
 		col1: integer(),
 		col2: integer(),

@@ -58,7 +58,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 
 				const tableFromPrefix = newItem.table ? `${newItem.table}.` : '';
 
-				const fromEntity = `${schemaFromPrefix}${tableFromPrefix}${newItem.name}`;
+				const fromEntity = `${schemaFromPrefix}${tableFromPrefix}${data.from.name}`;
 
 				const schemaToPrefix = to.schema ? to.schema !== defaultSchema ? `${to.schema}.` : '' : '';
 				const tableToPrefix = to.table ? `${to.table}.` : '';
