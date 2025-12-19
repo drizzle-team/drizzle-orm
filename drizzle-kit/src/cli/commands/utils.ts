@@ -48,6 +48,29 @@ import {
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
 
+/**
+ * Load environment variables from a specified .env file path
+ */
+export const loadEnvFile = (envFilePath?: string) => {
+	if (!envFilePath) return;
+
+	const { config } = require('dotenv');
+	const resolvedPath = resolve(envFilePath);
+
+	if (!existsSync(resolvedPath)) {
+		console.log(error(`Environment file not found: ${resolvedPath}`));
+		process.exit(1);
+	}
+
+	try {
+		config({ path: resolvedPath });
+	} catch (e) {
+		console.log(error(`Failed to load environment file: ${resolvedPath}`));
+		console.log(error(String(e)));
+		process.exit(1);
+	}
+};
+
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
 	try {
@@ -94,11 +117,15 @@ export const prepareCheckParams = async (
 		config?: string;
 		dialect?: Dialect;
 		out?: string;
+		envFile?: string;
 	},
 	from: 'cli' | 'config',
 ): Promise<{ out: string; dialect: Dialect }> => {
 	const config = from === 'config'
-		? await drizzleConfigFromFile(options.config as string | undefined)
+		? await drizzleConfigFromFile({
+				configPath: options.config as string | undefined,
+				envFile: options.envFile as string | undefined
+			})
 		: options;
 
 	if (!config.out || !config.dialect) {
@@ -117,11 +144,15 @@ export const prepareDropParams = async (
 		out?: string;
 		driver?: Driver;
 		dialect?: Dialect;
+		'env-file'?: string;
 	},
 	from: 'cli' | 'config',
 ): Promise<{ out: string; bundle: boolean }> => {
 	const config = from === 'config'
-		? await drizzleConfigFromFile(options.config as string | undefined)
+		? await drizzleConfigFromFile({
+			configPath: options.config as string | undefined,
+			envFile: options['env-file'] as string | undefined
+		})
 		: options;
 
 	if (config.dialect === 'gel') {
@@ -167,10 +198,16 @@ export const prepareGenerateConfig = async (
 		driver?: Driver;
 		prefix?: Prefix;
 		casing?: CasingType;
+		"env-file"?: string;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
+	const config = from === 'config'
+		? await drizzleConfigFromFile({
+			configPath: options.config,
+			envFile: options['env-file']
+		})
+		: options;
 
 	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
@@ -210,11 +247,16 @@ export const prepareExportConfig = async (
 		config?: string;
 		schema?: string;
 		dialect?: Dialect;
+		'env-file'?: string;
 		sql: boolean;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+	const config = from === 'config' ? await drizzleConfigFromFile({
+		configPath: options.config,
+		envFile: options['env-file'],
+		isExport: true,
+	}) : options;
 
 	const { schema, dialect, sql } = config;
 
@@ -298,7 +340,10 @@ export const preparePushConfig = async (
 > => {
 	const raw = flattenDatabaseCredentials(
 		from === 'config'
-			? await drizzleConfigFromFile(options.config as string | undefined)
+			? await drizzleConfigFromFile({
+				configPath: options.config as string | undefined,
+				envFile: options['env-file'] as string | undefined,
+			})
 			: options,
 	);
 
@@ -489,7 +534,10 @@ export const preparePullConfig = async (
 > => {
 	const raw = flattenPull(
 		from === 'config'
-			? await drizzleConfigFromFile(options.config as string | undefined)
+			? await drizzleConfigFromFile({
+				configPath: options.config as string | undefined,
+				envFile: options['env-file'] as string | undefined
+			})
 			: options,
 	);
 	const parsed = pullParams.safeParse(raw);
@@ -649,7 +697,7 @@ export const preparePullConfig = async (
 
 export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const params = studioCliParams.parse(options);
-	const config = await drizzleConfigFromFile(params.config);
+	const config = await drizzleConfigFromFile({ configPath: params.config, envFile: params['env-file'] });
 	const result = studioConfig.safeParse(config);
 	if (!result.success) {
 		if (!('dialect' in config)) {
@@ -769,8 +817,8 @@ export const migrateConfig = object({
 	migrations: configMigrations,
 });
 
-export const prepareMigrateConfig = async (configPath: string | undefined) => {
-	const config = await drizzleConfigFromFile(configPath);
+export const prepareMigrateConfig = async (configPath: string | undefined, envFile: string | undefined) => {
+	const config = await drizzleConfigFromFile(configPath, envFile);
 	const parsed = migrateConfig.safeParse(config);
 	if (parsed.error) {
 		console.log(error('Please provide required params:'));
@@ -873,10 +921,12 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	assertUnreachable(dialect);
 };
 
-export const drizzleConfigFromFile = async (
-	configPath?: string,
-	isExport?: boolean,
-): Promise<CliConfig> => {
+export const drizzleConfigFromFile = async (params: {
+  configPath: string | undefined;
+  envFile?: string;
+  isExport?: boolean;
+}): Promise<CliConfig> => {
+	const { configPath, envFile, isExport } = params;
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
 	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
@@ -907,6 +957,10 @@ export const drizzleConfigFromFile = async (
 	}
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+
+	if (envFile) {
+		loadEnvFile(join(prefix, envFile));
+	}
 
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);
