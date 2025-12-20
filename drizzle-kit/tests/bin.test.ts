@@ -27,6 +27,7 @@ test('imports-issues', () => {
 			'camelcase',
 			'semver',
 			'env-paths',
+			'node-fetch',
 		],
 		entry: 'src/cli/index.ts',
 		logger: true,
