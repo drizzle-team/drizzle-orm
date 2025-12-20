@@ -11,6 +11,7 @@ import { assertV1OutFolder } from '../utils';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
+import { updateHandler } from './commands/update';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
 import { upSinglestoreHandler } from './commands/singlestoreUp';
@@ -850,5 +851,20 @@ export const exportRaw = command({
 		} else {
 			assertUnreachable(dialect);
 		}
+	},
+});
+
+export const update = command({
+	name: 'update',
+	desc: 'Update drizzle-orm and drizzle-kit to the latest versions',
+	options: {
+		beta: boolean('beta').default(false).desc('Update both packages to their latest beta/preview versions'),
+		kitBeta: boolean('kit-beta').default(false).desc('Update drizzle-kit to the latest beta/preview version'),
+		ormBeta: boolean('orm-beta').default(false).desc('Update drizzle-orm to the latest beta/preview version'),
+		dryRun: boolean('dry-run').default(false).desc('Show what would be updated without making changes'),
+		skipInstall: boolean('skip-install').default(false).desc('Skip running package manager install after update'),
+	},
+	handler: async (opts) => {
+		await updateHandler(opts);
 	},
 });
