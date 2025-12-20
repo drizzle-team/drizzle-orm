@@ -1,5 +1,7 @@
 name: Release Router
 
+
+
 on:
   push:
     branches-ignore:
@@ -9,12 +11,15 @@ on:
 
 jobs:
   switch:
-    runs-on: self-hosted
+    runs-on: [self-hosted, windows]
+    container: 
+      ubuntu:24
     outputs:
       target: ${{ steps.route.outputs.target }}
     steps:
       - name: Route release
         id: route
+        shell: bash
         run: |
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
