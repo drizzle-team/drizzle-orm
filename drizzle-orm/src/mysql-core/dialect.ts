@@ -144,7 +144,8 @@ export class MySqlDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -222,6 +223,23 @@ export class MySqlDialect {
 					} else {
 						chunk.push(field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field._.sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
