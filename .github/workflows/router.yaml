@@ -9,7 +9,7 @@ on:
 
 jobs:
   switch:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       target: ${{ steps.route.outputs.target }}
     steps:
