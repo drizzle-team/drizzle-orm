@@ -1,3 +1,4 @@
+import { LockConfig, LockStrength } from '~/pg-core';
 import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -245,6 +246,12 @@ export type DBQueryConfig<
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>)
 			| undefined;
+		lockingClause?:
+			| {
+				strength: LockStrength;
+				config: LockConfig;
+			}
+			| undefined;
 	}
 	& (TRelationType extends 'many' ?
 			& {
@@ -460,7 +467,9 @@ export function extractTablesRelationalConfig<
 				}
 			}
 
-			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
+			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.(
+				(value as Table)[Table.Symbol.ExtraConfigColumns],
+			);
 			if (extraConfig) {
 				for (const configEntry of Object.values(extraConfig)) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
