@@ -27,9 +27,9 @@ test('integer', async () => {
 	const res4 = await diffDefault(_, integer({ mode: 'number' }).default(1e4), '10000');
 	const res5 = await diffDefault(_, integer({ mode: 'number' }).default(-1e4), '-10000');
 
-	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), '1');
-	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), '0');
-	const res71 = await diffDefault(_, int({ mode: 'boolean' }).default(false), '0');
+	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), 'true');
+	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), 'false');
+	const res71 = await diffDefault(_, int({ mode: 'boolean' }).default(false), 'false');
 
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);

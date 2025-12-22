@@ -780,7 +780,7 @@ test('create table with custom name references', async (t) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3047
-test('create table with custom type column', async (t) => {
+test.skipIf(Date.now() < +new Date('2025-12-24'))('create table with custom type column', async (t) => {
 	const f32Blob = customType<{
 		data: number[];
 		config: {

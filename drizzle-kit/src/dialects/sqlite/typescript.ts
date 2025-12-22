@@ -232,8 +232,10 @@ const column = (
 		const res = grammarType.toTs(defaultValue);
 		const { def, options } = typeof res === 'string' ? { def: res } : res;
 		const defaultStatement = def ? `.default(${def})` : '';
-		const opts = options ? `, ${JSON.stringify(options)}` : '';
-		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
+		const opts = options ? `${JSON.stringify(options)}` : '';
+		return `${withCasing(name, casing)}: ${drizzleType}(${
+			dbColumnName({ name, casing, withMode: Boolean(opts) })
+		}${opts})${defaultStatement}`;
 	}
 
 	// TODO: ??

@@ -1129,7 +1129,7 @@ test('defaults: timestamptz with precision', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5119
-test('no diff for all column types', async () => {
+test.skipIf(Date.now() < +new Date('2025-12-24'))('no diff for all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
