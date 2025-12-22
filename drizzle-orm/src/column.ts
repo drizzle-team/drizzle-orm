@@ -1,6 +1,8 @@
 import type {
 	ColumnBuilderRuntimeConfig,
+	ColumnDataType,
 	ColumnType,
+	ExtractColumnTypeData,
 	GeneratedColumnConfig,
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
@@ -11,6 +13,9 @@ import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
 export type Columns = Record<string, Column<any>>;
+export type ColumnDataTypeToEnumValues<T extends ColumnDataType> = T extends 'string' ? string[]
+	: T extends 'number' ? number[]
+	: never;
 
 export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	name: string;
@@ -23,7 +28,7 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	hasRuntimeDefault: boolean;
 	data: unknown;
 	driverParam: unknown;
-	enumValues: string[] | undefined;
+	enumValues: ColumnDataTypeToEnumValues<ExtractColumnTypeData<TDataType>['type']> | undefined;
 }
 
 export interface Column<
