@@ -4,10 +4,13 @@ import type { PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnType>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
+	TRuntimeConfig extends object = object,
 > extends PgColumnBuilder<
 	T,
-	{ generatedIdentity: GeneratedIdentityConfig }
+	TRuntimeConfig & {
+		generatedIdentity: GeneratedIdentityConfig;
+	}
 > {
 	static override readonly [entityKind]: string = 'PgIntColumnBaseBuilder';
 
