@@ -27,6 +27,7 @@ import {
 } from './commands/utils';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
+import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')

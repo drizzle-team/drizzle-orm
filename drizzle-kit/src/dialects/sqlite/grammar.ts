@@ -1,6 +1,6 @@
 import { trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import type { Column, ForeignKey } from './ddl';
+import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
 const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
@@ -45,9 +45,9 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	drizzleImport: () => 'integer',
 	defaultFromDrizzle: (value, mode) => {
-		if (typeof value === 'boolean') {
-			return value ? '1' : '0';
-		}
+		// if (typeof value === 'boolean') {
+		// 	return value ? '1' : '0';
+		// }
 
 		if (typeof value === 'bigint') {
 			return `'${value.toString()}'`;
@@ -69,8 +69,12 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	toTs: (value) => {
 		if (!value) return '';
-		const check = Number(value);
 
+		if (value === 'true' || value === 'false') {
+			return { def: value, options: { mode: 'boolean' } };
+		}
+
+		const check = Number(value);
 		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
 		return `${value}n`; // bigint
@@ -571,3 +575,72 @@ export function parseSqliteFks(ddl: string): IFkConstraint[] {
 
 	return results;
 }
+
+// for integer mode timestamp | timestamp_ms
+function compareIntegerTimestamps(from: string, to: string): boolean {
+	from = trimChar(trimChar(from, "'"), '"');
+	to = trimChar(trimChar(to, "'"), '"');
+
+	const mappedFrom: number | string = /^\d+$/.test(from) ? Number(from) : from;
+	const mappedTo: number | string = /^\d+$/.test(to) ? Number(to) : to;
+
+	let timestampFrom = new Date(mappedFrom).getTime();
+	let timestampTo = new Date(mappedTo).getTime();
+	if (timestampFrom === timestampTo) return true;
+
+	if (typeof mappedFrom === 'number') {
+		timestampFrom = new Date(Number(from) * 1000).getTime();
+
+		return timestampFrom === timestampTo;
+	}
+
+	if (typeof mappedTo === 'number') {
+		timestampTo = new Date(Number(to) * 1000).getTime();
+
+		return timestampFrom === timestampTo;
+	}
+
+	return false;
+}
+// for legacy blobs
+function parseToHex(value: string | null) {
+	if (!value) return null;
+
+	try {
+		const parsed: any = JSON.parse(trimChar(value, "'"));
+		if (parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+			value = Blob.defaultFromDrizzle(Buffer.from(parsed.data));
+		}
+	} catch {}
+
+	return value;
+}
+export const defaultsCommutative = (
+	diffDef: DiffEntities['columns']['default'],
+	type: string,
+): boolean => {
+	if (!diffDef) return false;
+
+	let from = diffDef.from;
+	let to = diffDef.to;
+
+	if (from === to) return true;
+	if (from === `(${to})`) return true;
+	if (to === `(${from})`) return true;
+
+	if (type.startsWith('integer')) {
+		if (from && to) {
+			// old snapshot has '"<iso_date>"'
+
+			return compareIntegerTimestamps(from, to);
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('blob')) {
+		return parseToHex(from) === parseToHex(to);
+	}
+
+	return false;
+};

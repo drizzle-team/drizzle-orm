@@ -1,6 +1,8 @@
 import chalk from 'chalk';
+import type { UpdateDeleteAction } from 'drizzle-orm/sqlite-core';
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { transformOnUpdateDelete } from 'src/dialects/sqlite/drizzle';
 import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
@@ -53,12 +55,14 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		});
 
 		for (const column of Object.values(table.columns)) {
+			let def: string | null = typeof column.default === 'undefined' ? null : String(column.default);
+
 			ddl.columns.push({
 				table: table.name,
 				name: column.name,
 				type: column.type,
-				notNull: column.notNull,
-				default: column.default ?? null,
+				notNull: column.notNull && !column.primaryKey,
+				default: def,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
 			});
@@ -114,17 +118,17 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const fk of Object.values(table.foreignKeys)) {
-			const implicit =
-				fk.name === `${table.name}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
+			const nameExplicit =
+				fk.name !== `${table.name}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 			ddl.fks.push({
 				table: table.name,
 				name: fk.name,
 				columns: fk.columnsFrom,
 				tableTo: fk.tableTo,
 				columnsTo: fk.columnsTo,
-				onDelete: fk.onDelete ?? 'NO ACTION',
-				onUpdate: fk.onUpdate ?? 'NO ACTION',
-				nameExplicit: !implicit,
+				onDelete: transformOnUpdateDelete((fk.onDelete as UpdateDeleteAction | undefined) ?? 'no action'),
+				onUpdate: transformOnUpdateDelete((fk.onUpdate as UpdateDeleteAction | undefined) ?? 'no action'),
+				nameExplicit: nameExplicit,
 			});
 		}
 	}

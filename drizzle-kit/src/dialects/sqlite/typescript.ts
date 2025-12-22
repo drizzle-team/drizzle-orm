@@ -232,7 +232,7 @@ const column = (
 		const res = grammarType.toTs(defaultValue);
 		const { def, options } = typeof res === 'string' ? { def: res } : res;
 		const defaultStatement = def ? `.default(${def})` : '';
-		const opts = options ? `${JSON.stringify(options)}` : '';
+		const opts = options ? `, ${JSON.stringify(options)}` : '';
 		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
 	}
 
@@ -334,7 +334,6 @@ const createTableIndexes = (
 		const indexGeneratedName = `${tableName}_${columnNames.join('_')}_index`;
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${

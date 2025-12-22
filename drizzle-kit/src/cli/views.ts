@@ -946,11 +946,11 @@ export const cockraochSchemaError = (error: CockroachSchemaError): string => {
 		return withStyle.errorWarning(
 			`You are specifying an index on the ${
 				chalk.blueBright(
-					column,
+					`"${column}"`,
 				)
 			} column inside the ${
 				chalk.blueBright(
-					table,
+					`"${table}"`,
 				)
 			} table with the ${
 				chalk.blueBright(
@@ -975,7 +975,7 @@ export const cockraochSchemaError = (error: CockroachSchemaError): string => {
 		return withStyle.errorWarning(
 			`We've found duplicated policy name across ${tableName} table. Please rename one of the policies with ${
 				chalk.underline.blue(
-					policy,
+					`"${policy}"`,
 				)
 			} name`,
 		);

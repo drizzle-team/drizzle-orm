@@ -43,6 +43,14 @@ export const createDDL = () => {
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 		},
+		/**
+		 * Unique constraints and unique indexes are functionally identical in terms of behavior
+		 * We decided to keep both constraints and indexes because when a unique constraint is created
+		 * it cannot be removed, whereas an index can be dropped
+		 * Removing unique constraints would require recreating the table
+		 * Before the beta v1 all unique constraints were created and stored in snapshots as indexes
+		 * We do not have sufficient information for upping snapshots to beta v1
+		 */
 		uniques: {
 			table: 'required',
 			columns: 'string[]',
@@ -68,6 +76,7 @@ export type SqliteDefinition = SQLiteDDL['_']['definition'];
 export type SqliteDiffEntities = SQLiteDDL['_']['diffs'];
 
 export type DiffColumn = SqliteDiffEntities['alter']['columns'];
+export type DiffEntities = SQLiteDDL['_']['diffs']['alter'];
 
 export type Table = SqliteEntities['tables'];
 export type Column = SqliteEntities['columns'];
@@ -184,6 +193,15 @@ export type InterimSchema = {
 	pks: PrimaryKey[];
 	fks: ForeignKey[];
 	views: View[];
+};
+
+export const fromEntities = (entities: SqliteEntity[]) => {
+	const ddl = createDDL();
+	for (const it of entities) {
+		ddl.entities.push(it);
+	}
+
+	return ddl;
 };
 
 export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: SchemaError[] } => {
