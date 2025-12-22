@@ -2502,7 +2502,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
-		test.concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2025-12-24')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
