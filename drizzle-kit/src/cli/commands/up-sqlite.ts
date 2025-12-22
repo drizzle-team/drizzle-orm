@@ -2,12 +2,16 @@ import chalk from 'chalk';
 import type { UpdateDeleteAction } from 'drizzle-orm/sqlite-core';
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { transformOnUpdateDelete } from 'src/dialects/sqlite/drizzle';
+import { transformOnUpdateDelete } from 'src/dialects/sqlite/grammar';
 import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
-import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
-import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6 } from '../../dialects/sqlite/snapshot';
+import {
+	sqliteSchemaV5,
+	type SQLiteSchemaV6,
+	sqliteSchemaV6,
+	type SqliteSnapshot,
+} from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
 import { embeddedMigrations } from './generate-common';
 import { migrateToFoldersV3 } from './utils';

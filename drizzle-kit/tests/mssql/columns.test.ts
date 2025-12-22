@@ -433,11 +433,12 @@ test('rename column #3. Part of check constraint', async (t) => {
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
 	]);
 	expect(error).not.toBeNull();
-	expect(phints).toStrictEqual([
-		'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
-		+ '\n'
-		+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
-	]);
+	expect(phints).toStrictEqual([{
+		hint:
+			'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
+			+ '\n'
+			+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
+	}]);
 });
 
 test('drop column #1. Part of check constraint', async (t) => {

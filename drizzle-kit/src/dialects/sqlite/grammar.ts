@@ -1,4 +1,4 @@
-import { trimChar } from '../../utils';
+import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
@@ -643,4 +643,14 @@ export const defaultsCommutative = (
 	}
 
 	return false;
+};
+
+export const transformOnUpdateDelete = (on: 'no action' | 'cascade' | 'restrict' | 'set default' | 'set null') => {
+	if (on === 'no action') return 'NO ACTION';
+	if (on === 'cascade') return 'CASCADE';
+	if (on === 'restrict') return 'RESTRICT';
+	if (on === 'set default') return 'SET DEFAULT';
+	if (on === 'set null') return 'SET NULL';
+
+	assertUnreachable(on);
 };
