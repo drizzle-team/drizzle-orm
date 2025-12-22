@@ -1,0 +1,166 @@
+{
+  "dialect": "sqlite",
+  "id": "b6793a90-b553-4a5d-9d2f-b48e56ef2a2a",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "version": "7",
+  "ddl": [
+    {
+      "name": "cities",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "table": "cities",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": null,
+      "default": null,
+      "generated": null,
+      "name": "fullname_name",
+      "table": "cities",
+      "entityType": "columns"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": null,
+      "default": null,
+      "generated": null,
+      "name": "state",
+      "table": "cities",
+      "entityType": "columns"
+    },
+    {
+      "columns": [
+        "id",
+        "fullname_name"
+      ],
+      "nameExplicit": true,
+      "name": null,
+      "table": "cities",
+      "entityType": "pks"
+    },
+    {
+      "name": "test_get",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "table": "test_get",
+      "entityType": "columns"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "test_get_pk",
+      "table": "test_get",
+      "entityType": "pks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": null,
+      "default": null,
+      "generated": null,
+      "name": "full_name",
+      "table": "test_get",
+      "entityType": "columns"
+    },
+    {
+      "name": "users",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "table": "users",
+      "entityType": "columns"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "users_pk",
+      "table": "users",
+      "entityType": "pks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": null,
+      "default": null,
+      "generated": null,
+      "name": "full_name",
+      "table": "users",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "phone",
+      "table": "users",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "invited_by",
+      "table": "users",
+      "entityType": "columns"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "city_id",
+      "table": "users",
+      "entityType": "columns"
+    },
+    {
+      "columns": [
+        "city_id"
+      ],
+      "tableTo": "cities",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "users_city_id_cities_id_fk",
+      "table": "users",
+      "entityType": "fks"
+    }
+  ],
+  "renames": []
+}

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rm, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
@@ -50,14 +50,12 @@ export const prepareCheckParams = async (
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
 
-	if (!config.out || !config.dialect) {
-		let text = `Please provide required params for AWS Data API driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('database', config.out));
-		console.log(wrapParam('secretArn', config.dialect));
+	if (!config.dialect) {
+		console.log(error('Please provide required params:'));
+		console.log(wrapParam('dialect', dialect));
 		process.exit(1);
 	}
-	return { out: config.out, dialect: config.dialect };
+	return { out: config.out || 'drizzle', dialect: config.dialect };
 };
 
 export const prepareDropParams = async (
@@ -74,11 +72,7 @@ export const prepareDropParams = async (
 		: options;
 
 	if (config.dialect === 'gel') {
-		console.log(
-			error(
-				`You can't use 'drop' command with Gel dialect`,
-			),
-		);
+		console.log(error(`You can't use 'drop' command with Gel dialect`));
 		process.exit(1);
 	}
 
@@ -165,7 +159,9 @@ export const prepareExportConfig = async (
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+	const config = from === 'config'
+		? await drizzleConfigFromFile(options.config, true)
+		: options;
 
 	const { schema, dialect, sql } = config;
 
@@ -216,7 +212,7 @@ export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
 ): Promise<
-	& (
+	(
 		| {
 			dialect: 'mysql';
 			credentials: MysqlCredentials;
@@ -245,8 +241,7 @@ export const preparePushConfig = async (
 			dialect: 'cockroach';
 			credentials: CockroachCredentials;
 		}
-	)
-	& {
+	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
 		force: boolean;
@@ -380,11 +375,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'gel') {
-		console.log(
-			error(
-				`You can't use 'push' command with Gel dialect`,
-			),
-		);
+		console.log(error(`You can't use 'push' command with Gel dialect`));
 		process.exit(1);
 	}
 
@@ -931,11 +922,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'gel') {
-		console.log(
-			error(
-				`You can't use 'migrate' command with Gel dialect`,
-			),
-		);
+		console.log(error(`You can't use 'migrate' command with Gel dialect`));
 		process.exit(1);
 	}
 
@@ -989,8 +976,12 @@ export const drizzleConfigFromFile = async (
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
-	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
-	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
+	const defaultTsConfigExists = existsSync(
+		resolve(join(prefix, 'drizzle.config.ts')),
+	);
+	const defaultJsConfigExists = existsSync(
+		resolve(join(prefix, 'drizzle.config.js')),
+	);
 	// const defaultJsonConfigExists = existsSync(
 	// 	join(resolve('drizzle.config.json')),
 	// );
@@ -1076,13 +1067,19 @@ export const migrateToFoldersV3 = (out: string) => {
 			const oldSql = readFileSync(oldSqlPath);
 
 			mkdirSync(join(out, `${folderName}_${migrationName}`));
-			writeFileSync(join(out, `${folderName}_${migrationName}/snapshot.json`), oldSnapshot);
-			writeFileSync(join(out, `${folderName}_${migrationName}/migration.sql`), oldSql);
+			writeFileSync(
+				join(out, `${folderName}_${migrationName}/snapshot.json`),
+				oldSnapshot,
+			);
+			writeFileSync(
+				join(out, `${folderName}_${migrationName}/migration.sql`),
+				oldSql,
+			);
 
 			unlinkSync(oldSqlPath);
 		}
 
-		rm(metaPath, { recursive: true, force: true }, () => {});
+		rmSync(metaPath, { recursive: true, force: true });
 		return true;
 	}
 	return false;

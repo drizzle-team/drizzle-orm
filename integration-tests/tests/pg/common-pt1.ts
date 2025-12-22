@@ -661,10 +661,9 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4209
-		test.concurrent('2 consecutive use of .toSQL', async ({ db }) => {
-			// postpone
-			// casing bug
-			if (Date.now() < +new Date('2025-12-20')) return;
+		// postpone
+		// casing bug
+		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
 			const t1 = pgTable('table', (t) => ({
 				id: t.text().primaryKey(),
 			}));

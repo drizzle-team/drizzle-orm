@@ -105,7 +105,7 @@ export const configMigrations = object({
 export const configCommonSchema = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]).optional(),
-	out: string().optional(),
+	out: string().default('drizzle'),
 	breakpoints: boolean().optional().default(true),
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
