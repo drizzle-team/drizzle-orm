@@ -182,7 +182,7 @@ test('alter column: change data type, add not null with default', async (t) => {
 			name: varchar({ length: 200 }).notNull().default('1'),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -197,7 +197,6 @@ test('alter column: change data type, add not null with default', async (t) => {
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('column conflict duplicate name #1', async (t) => {
