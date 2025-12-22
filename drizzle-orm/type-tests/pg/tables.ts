@@ -1475,3 +1475,24 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
 }
+
+{
+	const table = pgTable('test_enum', {
+		stockWithEnum: integer('stock', { enum: [1, 2, 3, 4, 5] as const }),
+		stockWithoutEnum: integer('stock2'),
+		varcharWithEnum: varchar('varchar', { enum: ['a', 'b', 'c'] as const }),
+	});
+
+	type SelectType = typeof table.$inferSelect;
+	Expect<Equal<SelectType['stockWithEnum'], 1 | 2 | 3 | 4 | 5 | null>>;
+	Expect<Equal<SelectType['stockWithoutEnum'], number | null>>;
+	Expect<Equal<SelectType['varcharWithEnum'], 'a' | 'b' | 'c' | null>>;
+
+	type IntegerEnumValues = typeof table.stockWithEnum._.enumValues;
+	type IntegerNoEnumValues = typeof table.stockWithoutEnum._.enumValues;
+	type VarcharEnumValues = typeof table.varcharWithEnum._.enumValues;
+
+	Expect<Equal<IntegerEnumValues, [1, 2, 3, 4, 5]>>;
+	Expect<Equal<IntegerNoEnumValues, [number, ...number[]]>>;
+	Expect<Equal<VarcharEnumValues, ['a', 'b', 'c']>>;
+}
