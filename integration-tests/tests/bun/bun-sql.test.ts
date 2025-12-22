@@ -2733,6 +2733,13 @@ test('transaction rollback', async () => {
 		});
 	})()).rejects.toThrowError(TransactionRollbackError);
 
+	await expect((async () => {
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
+			tx.rollback(new Error("my custom error"));
+		});
+	})()).rejects.toThrowError(new Error("my custom error"));
+
 	const result = await db.select().from(users);
 
 	expect(result).toEqual([]);
@@ -2788,6 +2795,13 @@ test('nested transaction rollback', async () => {
 				tx.rollback();
 			});
 		})()).rejects.toThrowError(TransactionRollbackError);
+
+		await expect((async () => {
+			await db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 100 });
+				tx.rollback(new Error("my custom error message"));
+			});
+		})()).rejects.toThrowError("my custom error message");
 	});
 
 	const result = await db.select().from(users);

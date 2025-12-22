@@ -255,7 +255,10 @@ export abstract class MySqlTransaction<
 		super(dialect, session, schema, mode);
 	}
 
-	rollback(): never {
+	rollback(error?: Error): never {
+		if (error) {
+			throw error;
+		}
 		throw new TransactionRollbackError();
 	}
 

@@ -255,7 +255,10 @@ export abstract class SingleStoreTransaction<
 		super(dialect, session, schema);
 	}
 
-	rollback(): never {
+	rollback(error?: Error): never {
+		if (error) {
+			throw error;
+		}
 		throw new TransactionRollbackError();
 	}
 
