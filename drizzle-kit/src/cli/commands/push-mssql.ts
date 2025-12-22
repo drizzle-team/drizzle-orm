@@ -197,6 +197,27 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
+		if (
+			statement.type === 'add_column' && statement.column.notNull
+			&& !ddl2.defaults.one({
+				column: statement.column.name,
+				schema: statement.column.schema,
+				table: statement.column.table,
+			})
+		) {
+			const column = statement.column;
+			const key = identifier({ schema: column.schema, table: column.table });
+			const res = await db.query(`select top(1) 1 from ${key};`);
+
+			if (res.length === 0) continue;
+			grouped.push({
+				hint:
+					`· You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`,
+			});
+
+			continue;
+		}
+
 		if (statement.type === 'drop_pk') {
 			const schema = statement.pk.schema ?? 'dbo';
 			const table = statement.pk.table;

@@ -175,6 +175,8 @@ export const push = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
+	force?: boolean;
+	expectError?: boolean;
 	ignoreSubsequent?: boolean;
 	explain?: boolean;
 }) => {
@@ -231,9 +233,16 @@ export const push = async (config: {
 		return { sqlStatements, statements, hints };
 	}
 
+	let error: Error | null = null;
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
-		await db.query(sql);
+		try {
+			await db.query(sql);
+		} catch (e) {
+			if (!config.expectError) throw e;
+			error = e as Error;
+			break;
+		}
 	}
 
 	// subsequent push
@@ -264,7 +273,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints };
+	return { sqlStatements, statements, hints, error };
 };
 
 export type TestDatabase = {
