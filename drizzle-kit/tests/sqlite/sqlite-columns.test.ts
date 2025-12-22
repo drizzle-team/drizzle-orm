@@ -234,7 +234,6 @@ test('added column not null and without default to table with data', async (t) =
 	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('drizzle');`);
 	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('turso');`);
 
-	// TODO: reivise
 	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,
@@ -305,6 +304,41 @@ test('add generated stored column', async (t) => {
 		+ '\t`gen_name` text GENERATED ALWAYS AS (123) STORED\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/1313#issuecomment-2753097290
+test('add a generated stored column and rename the existing one', async (t) => {
+	const from = {
+		users: sqliteTable('users', {
+			id: int('id'),
+		}),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			id: int('id1'),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`123`, { mode: 'stored' }),
+		}),
+	};
+	const renames = ['users.id->users.id1'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` RENAME COLUMN `id` TO `id1`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id1` integer,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS (123) STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id1`) SELECT `id1` FROM `users`;',
 		'DROP TABLE `users`;',
 		'ALTER TABLE `__new_users` RENAME TO `users`;',
 		'PRAGMA foreign_keys=ON;',
@@ -1288,6 +1322,46 @@ test('alter column add default not null', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('alter column add default not null to table with data', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull().default('dan'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	await db.run('insert into `table`(`id`) values (1);');
+	await db.run("insert into `table`(`id`,`name`) values (2,'alex');");
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		"CREATE TABLE `__new_table` (\n\t`id` integer,\n\t`name` text DEFAULT 'dan' NOT NULL\n);\n",
+		'INSERT INTO `__new_table`(`id`) SELECT `id` FROM `table`;', // I'm not sure what should be in this line
+		'DROP TABLE `table`;',
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query('select * from `table`;');
+	expect(res).toStrictEqual([
+		{ id: 1, name: 'dan' },
+		{ id: 2, name: 'alex' },
+	]);
 });
 
 test('alter column add default not null with indexes', async (t) => {

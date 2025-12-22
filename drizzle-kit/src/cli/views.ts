@@ -1318,7 +1318,7 @@ type EntityBase = { schema?: string; table?: string; name: string };
 
 const keyFor = (it: EntityBase, defaultSchema: 'dbo' | 'public' = 'public') => {
 	const schemaPrefix = it.schema && it.schema !== defaultSchema ? `${it.schema}.` : '';
-	const tablePrefix = it.table ? `${it.schema}.` : '';
+	const tablePrefix = it.table ? `${it.table}.` : '';
 	return `${schemaPrefix}${tablePrefix}${it.name}`;
 };
 

@@ -6,6 +6,7 @@ import {
 	foreignKey,
 	int,
 	integer,
+	primaryKey,
 	sqliteTable,
 	sqliteView,
 	text,
@@ -38,6 +39,38 @@ test('introspect tables with fk constraint', async () => {
 	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'fk-tables');
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3231
+test('introspect tables with fk constraint #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+	await db.run('CREATE TABLE `users`(`id` integer primary key);');
+	await db.run('CREATE TABLE `posts`(`user_id` integer references `users`);');
+
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+	expect(ddl.tables.list().length).toBe(2);
+	expect(ddl.columns.list().length).toBe(2);
+
+	expect(ddl.fks.list().length).toBe(1);
+	expect(ddl.fks.list()).toStrictEqual([
+		{
+			table: 'posts',
+			columns: ['user_id'],
+			tableTo: 'users',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+			nameExplicit: true,
+			name: 'fk_posts_user_id_users_id_fk',
+			entityType: 'fks',
+		},
+	]);
+
+	expect(ddl.pks.list().length).toBe(1);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4247
@@ -328,11 +361,42 @@ test('single quote default', async () => {
 		display_name: text().default('').notNull(),
 	});
 
-	const { sqlStatements } = await diffAfterPull(
-		sqlite,
-		{ group },
-		'single_quote_default',
-	);
+	const { sqlStatements } = await diffAfterPull(sqlite, { group }, 'single_quote_default');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2827
+test('introspect text type', async () => {
+	const sqlite = new Database(':memory:');
+
+	const table = sqliteTable('table', {
+		text1: text().notNull().default(sql`CURRENT_TIMESTAMP`),
+		text2: text().default(''),
+		text3: text().default('``'),
+	});
+
+	const { sqlStatements } = await diffAfterPull(sqlite, { table }, 'introspect_text_type');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3590
+test('introspect composite pk + check', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table2: sqliteTable('table2', {
+			column1: text().notNull(),
+			column2: text().notNull(),
+			column3: text().notNull(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2], name: 'table2_pk' }),
+			check('table2_check_1', sql`"column3" IN ('1', '2')`),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_text_type');
 
 	expect(sqlStatements).toStrictEqual([]);
 });

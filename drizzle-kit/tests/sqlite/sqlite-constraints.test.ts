@@ -1330,6 +1330,26 @@ test('composite pk multistep #1', async () => {
 	expect(pst2).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
+test('composite pk multistep #2', async () => {
+	const userAsyncTasks = sqliteTable('userAsyncTask', {
+		userId: text('userId').notNull(),
+		identifier: text('identifier').notNull(),
+		type: text('type').notNull(),
+	}, (t) => [
+		primaryKey({ columns: [t.userId, t.type, t.identifier] }),
+	]);
+	const schema = { userAsyncTasks };
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 test('fk #0', async () => {
 	const users = sqliteTable('users', {
 		id: int().references((): AnySQLiteColumn => users.id2),
@@ -1739,6 +1759,43 @@ test('fk #15', async () => {
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3653
+test('fk #16', async () => {
+	const services1 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks1 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		serviceId: integer().references(() => services1.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema1 = { services1, serviceLinks1 };
+
+	const casing = 'snake_case';
+	const { next: n1 } = await diff({}, schema1, [], casing);
+	await push({ db, to: schema1, casing });
+
+	const services2 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks2 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		clientId: integer().references(() => services2.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema2 = { services2, serviceLinks2 };
+
+	const renames = ['service_links.service_id->service_links.client_id'];
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames, casing);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, casing, renames });
+
+	const expectedSt2 = [
+		'ALTER TABLE `service_links` RENAME COLUMN `service_id` TO `client_id`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 test('fk multistep #1', async () => {
