@@ -26,7 +26,7 @@ export type Column = {
 	size?: number;
 	default?: any;
 	hasDefault: boolean;
-	enumValues?: string[];
+	enumValues?: string[] | number[];
 	isUnique: boolean;
 	notNull: boolean;
 	primary: boolean;

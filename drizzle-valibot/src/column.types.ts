@@ -46,7 +46,7 @@ export type GetValibotType<
 	TData,
 	TColumnType extends ColumnDataType,
 	TConstraint extends ColumnDataConstraint | undefined,
-	TEnum extends string[] | undefined,
+	TEnum extends string[] | number[] | undefined,
 	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
 > = TColumnType extends 'array'
