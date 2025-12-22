@@ -36,153 +36,153 @@ function mkTmp(): { tmp: string; fs: any; path: any; os: any } {
 }
 
 describe('commutativity integration (mysql)', () => {
-	test('Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
+	test.skipIf(Date.now() < +new Date('2026-01-15'))(
+		'Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B',
+		async () => {
+			const parentDDL = createDDL();
+			parentDDL.tables.push({ name: 'users' });
+			parentDDL.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
-		const parentDDL = createDDL();
-		parentDDL.tables.push({ name: 'users' });
-		parentDDL.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: false,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
+			const A = createDDL();
+			A.tables.push({ name: 'users' });
+			A.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: true,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
-		const A = createDDL();
-		A.tables.push({ name: 'users' });
-		A.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: true,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
+			const A2 = createDDL();
+			A2.tables.push({ name: 'users' });
+			A2.columns.push({
+				table: 'users',
+				name: 'email2',
+				type: 'varchar(255)',
+				notNull: true,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
-		const A2 = createDDL();
-		A2.tables.push({ name: 'users' });
-		A2.columns.push({
-			table: 'users',
-			name: 'email2',
-			type: 'varchar(255)',
-			notNull: true,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
+			const B = createDDL();
+			B.tables.push({ name: 'users' });
+			B.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			B.tables.push({ name: 'posts' });
+			B.columns.push({
+				table: 'posts',
+				name: 'content',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
-		const B = createDDL();
-		B.tables.push({ name: 'users' });
-		B.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: false,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		B.tables.push({ name: 'posts' });
-		B.columns.push({
-			table: 'posts',
-			name: 'content',
-			type: 'varchar(255)',
-			notNull: false,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
+			const B2 = createDDL();
+			B2.tables.push({ name: 'users' });
+			B2.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			B2.tables.push({ name: 'posts' });
+			B2.columns.push({
+				table: 'posts',
+				name: 'content',
+				type: 'varchar(255)',
+				notNull: true,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
-		const B2 = createDDL();
-		B2.tables.push({ name: 'users' });
-		B2.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: false,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		B2.tables.push({ name: 'posts' });
-		B2.columns.push({
-			table: 'posts',
-			name: 'content',
-			type: 'varchar(255)',
-			notNull: true,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
+			const B3 = createDDL();
+			B3.tables.push({ name: 'posts' });
+			B3.columns.push({
+				table: 'posts',
+				name: 'content',
+				type: 'varchar(255)',
+				notNull: true,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafB3 = makeSnapshot('b3', ['b2'], B3.entities.list());
 
-		const B3 = createDDL();
-		B3.tables.push({ name: 'posts' });
-		B3.columns.push({
-			table: 'posts',
-			name: 'content',
-			type: 'varchar(255)',
-			notNull: true,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafB3 = makeSnapshot('b3', ['b2'], B3.entities.list());
+			const os = require('os');
+			const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-mysql-'));
+			const pPath = writeTempSnapshot(tmp, '000_parent', parent);
+			const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
+			const a2Path = writeTempSnapshot(tmp, '001_leafA2', leafA2);
+			const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
+			const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
+			const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
 
-		const os = require('os');
-		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-mysql-'));
-		const pPath = writeTempSnapshot(tmp, '000_parent', parent);
-		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
-		const a2Path = writeTempSnapshot(tmp, '001_leafA2', leafA2);
-		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
-		const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
-		const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
-
-		const report = await detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path], 'mysql');
-		expect(report.conflicts.length).toBeGreaterThan(0);
-		expect(report.conflicts[0].parentId).toBe('p1');
-	});
+			const report = await detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path], 'mysql');
+			expect(report.conflicts.length).toBeGreaterThan(0);
+			expect(report.conflicts[0].parentId).toBe('p1');
+		},
+	);
 
 	test('Parent empty: detects conflict when last migration of branch A has a conflict with a first migration of branch B', async () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
@@ -300,56 +300,56 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
 
-	test('detects conflict when drop table in one branch and add column in other', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
+	test.skipIf(Date.now() < +new Date('2026-01-15'))(
+		'detects conflict when drop table in one branch and add column in other',
+		async () => {
+			const parentDDL = createDDL();
+			parentDDL.tables.push({ name: 'users' });
+			parentDDL.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
-		const parentDDL = createDDL();
-		parentDDL.tables.push({ name: 'users' });
-		parentDDL.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: false,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
+			const A = createDDL();
+			A.tables.push({ name: 'users' });
+			A.columns.push({
+				table: 'users',
+				name: 'email',
+				type: 'varchar(255)',
+				notNull: true,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any);
+			const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
-		const A = createDDL();
-		A.tables.push({ name: 'users' });
-		A.columns.push({
-			table: 'users',
-			name: 'email',
-			type: 'varchar(255)',
-			notNull: true,
-			autoIncrement: false,
-			default: null,
-			onUpdateNow: false,
-			onUpdateNowFsp: null,
-			charSet: null,
-			collation: null,
-			generated: null,
-		} as any);
-		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
+			const leafB = makeSnapshot('b1', ['p1'], createDDL().entities.list());
 
-		const leafB = makeSnapshot('b1', ['p1'], createDDL().entities.list());
+			const os = require('os');
+			const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-mysql-'));
+			const pPath = writeTempSnapshot(tmp, '000_parent', parent);
+			const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
+			const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const os = require('os');
-		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-mysql-'));
-		const pPath = writeTempSnapshot(tmp, '000_parent', parent);
-		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
-		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
-
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'mysql');
-		expect(report.conflicts.length).toBeGreaterThan(0);
-		expect(report.conflicts[0].parentId).toBe('p1');
-	});
+			const report = await detectNonCommutative([pPath, aPath, bPath], 'mysql');
+			expect(report.conflicts.length).toBeGreaterThan(0);
+			expect(report.conflicts[0].parentId).toBe('p1');
+		},
+	);
 
 	test('detects conflict when both branches alter same column', async () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
@@ -732,10 +732,7 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts.length).toBeGreaterThanOrEqual(0);
 	});
 
-	test('complex mixed: multiple tables and views diverging', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
-
+	test.skipIf(Date.now() < +new Date('2026-01-15'))('complex mixed: multiple tables and views diverging', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 

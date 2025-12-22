@@ -3,6 +3,7 @@ CREATE TABLE [cities_migration] (
 	[fullname_name] text,
 	[state] text
 );
+
 --> statement-breakpoint
 CREATE TABLE [users_migration] (
 	[id] int PRIMARY KEY NOT NULL,
@@ -12,6 +13,7 @@ CREATE TABLE [users_migration] (
 	[city_id] int,
 	[date] timestamp
 );
+
 --> statement-breakpoint
 CREATE TABLE [users12] (
 	[id] int identity PRIMARY KEY NOT NULL,

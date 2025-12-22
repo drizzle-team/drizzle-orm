@@ -2104,11 +2104,9 @@ test('.as in view select', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
-test('create view with snake_case', async () => {
-	// postpone cc: @AlexSherman
-	// casing bug
-	if (Date.now() < +new Date('2025-12-20')) return;
-
+// postpone cc: @AlexSherman
+// casing bug
+test.skipIf(Date.now() < +new Date('2026-01-15'))('create view with snake_case', async () => {
 	const test = pgTable('test', {
 		testId: serial().primaryKey(),
 		testName: text().notNull(),
@@ -2144,11 +2142,9 @@ test('create view with snake_case', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
-test('create view with camelCase', async () => {
-	// postpone cc: @AlexSherman
-	// casing bug
-	if (Date.now() < +new Date('2025-12-20')) return;
-
+// postpone cc: @AlexSherman
+// casing bug
+test.skipIf(Date.now() < +new Date('2026-01-15'))('create view with camelCase', async () => {
 	const test = pgTable('test', {
 		test_id: serial().primaryKey(),
 		test_name: text().notNull(),
