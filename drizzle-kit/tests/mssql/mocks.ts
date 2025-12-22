@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
@@ -175,11 +175,10 @@ export const push = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	force?: boolean;
-	expectError?: boolean;
 	ignoreSubsequent?: boolean;
+	explain?: boolean;
 }) => {
-	const { db, to, force, expectError, log } = config;
+	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const filterConfig: EntitiesFilterConfig = {
@@ -208,7 +207,7 @@ export const push = async (config: {
 
 	const renames = new Set(config.renames ?? []);
 
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -224,24 +223,17 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements, ddl2);
+	const hints = await suggestions(db, statements, ddl2);
 
-	if (force) {
-		for (const st of losses) {
-			await db.query(st);
-		}
+	if (config.explain) {
+		const explainMessage = explain('mssql', groupedStatements, false, []);
+		console.log(explainMessage);
+		return { sqlStatements, statements, hints };
 	}
 
-	let error: Error | null = null;
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
-		try {
-			await db.query(sql);
-		} catch (e) {
-			if (!expectError) throw e;
-			error = e as Error;
-			break;
-		}
+		await db.query(sql);
 	}
 
 	// subsequent push
@@ -272,7 +264,7 @@ export const push = async (config: {
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses, error };
+	return { sqlStatements, statements, hints };
 };
 
 export type TestDatabase = {
