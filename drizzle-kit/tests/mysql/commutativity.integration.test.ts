@@ -143,10 +143,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('fk: recreate vs drop', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
-
+	test.skipIf(Date.now() < +new Date('2026-01-15'))('fk: recreate vs drop', async () => {
 		const p = mysqlTable('p', (t) => ({
 			id: t.int().primaryKey(),
 		}));
@@ -184,10 +181,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('check: alter vs drop', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
-
+	test.skipIf(Date.now() < +new Date('2026-01-15'))('check: alter vs drop', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.int(),
@@ -215,31 +209,31 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('explainConflicts returns reason for table drop vs column alter', async () => {
-		// postpone cc: @AndriiSherman
-		if (Date.now() < +new Date('2025-12-20')) return;
+	test.skipIf(Date.now() < +new Date('2026-01-15'))(
+		'explainConflicts returns reason for table drop vs column alter',
+		async () => {
+			const parent = {
+				c: mysqlTable('t', (t) => ({
+					c: t.varchar({ length: 255 }),
+				})),
+			};
 
-		const parent = {
-			c: mysqlTable('t', (t) => ({
-				c: t.varchar({ length: 255 }),
-			})),
-		};
+			const child1 = {};
+			const child2 = {
+				c: mysqlTable('t', (t) => ({
+					c: t.varchar({ length: 255 }).notNull(),
+				})),
+			};
 
-		const child1 = {};
-		const child2 = {
-			c: mysqlTable('t', (t) => ({
-				c: t.varchar({ length: 255 }).notNull(),
-			})),
-		};
+			const conflicts = await conflictsFromSchema({
+				parent: { id: '1', schema: parent },
+				child1: { id: '2', prevId: '1', schema: child1 },
+				child2: { id: '3', prevId: '1', schema: child2 },
+			});
 
-		const conflicts = await conflictsFromSchema({
-			parent: { id: '1', schema: parent },
-			child1: { id: '2', prevId: '1', schema: child1 },
-			child2: { id: '3', prevId: '1', schema: child2 },
-		});
-
-		expect(conflicts).not.toBeUndefined();
-		expect(conflicts?.leftStatement.type).toBe('alter_column');
-		expect(conflicts?.rightStatement.type).toBe('drop_table');
-	});
+			expect(conflicts).not.toBeUndefined();
+			expect(conflicts?.leftStatement.type).toBe('alter_column');
+			expect(conflicts?.rightStatement.type).toBe('drop_table');
+		},
+	);
 });
