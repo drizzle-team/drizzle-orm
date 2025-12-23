@@ -160,7 +160,8 @@ export class PgDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -246,6 +247,23 @@ export class PgDialect {
 					} else {
 						chunk.push(field);
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+
+						if (fieldDecoder) {
+							field._.sql.decoder = fieldDecoder;
+						}
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
@@ -271,6 +289,7 @@ export class PgDialect {
 			}
 			const table = joinMeta.table;
 			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+			const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 			if (is(table, PgTable)) {
 				const tableName = table[PgTable.Symbol.Name];
@@ -280,7 +299,7 @@ export class PgDialect {
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else if (is(table, View)) {
 				const viewName = table[ViewBaseConfig].name;
@@ -290,11 +309,11 @@ export class PgDialect {
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else {
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 				);
 			}
 			if (index < joins.length - 1) {
@@ -412,7 +431,7 @@ export class PgDialect {
 				);
 			}
 			if (lockingClause.config.noWait) {
-				clauseSql.append(sql` no wait`);
+				clauseSql.append(sql` nowait`);
 			} else if (lockingClause.config.skipLocked) {
 				clauseSql.append(sql` skip locked`);
 			}

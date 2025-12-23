@@ -1159,6 +1159,78 @@ export function tests() {
 			expect(inserted).toEqual({ id: 1, name: 'John' });
 		});
 
+		test('select from a many subquery', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test('select from a one subquery', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
 		test('join subquery', async (ctx) => {
 			const { db } = ctx.sqlite;
 
@@ -2990,6 +3062,49 @@ export function tests() {
 			}
 		});
 
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const users = sqliteTable('users', {
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				name: text('name').notNull(),
+				updatedAt: integer('updated_at')
+					.notNull()
+					.$onUpdate(() =>
+						sql`(strftime('%s', 'now') * 1000) + (strftime('%f', 'now') - strftime('%S', 'now')) * 1000`
+					),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(
+				sql`
+					create table ${users} (
+						\`id\` integer primary key autoincrement,
+						\`name\` text not null,
+						\`updated_at\` integer not null
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const updateResp = await db.update(users).set({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+
+			expect(insertResp[0]?.updatedAt ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt ?? 0).greaterThan(now);
+		});
+
 		test('$count separate', async (ctx) => {
 			const { db } = ctx.sqlite;
 
@@ -3237,6 +3352,40 @@ export function tests() {
 			expect(result).toStrictEqual([
 				{ name: 'Barry', verified: false },
 				{ name: 'Carl', verified: false },
+			]);
+		});
+
+		test('cross join', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
 			]);
 		});
 

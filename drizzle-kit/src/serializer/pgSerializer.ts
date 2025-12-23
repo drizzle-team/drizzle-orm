@@ -6,6 +6,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	PgArray,
 	PgColumn,
 	PgDialect,
 	PgEnum,
@@ -158,7 +159,14 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const getEnumSchema = (column: PgColumn) => {
+				while (is(column, PgArray)) {
+					column = column.baseColumn;
+				}
+				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			};
+			const typeSchema: string | undefined = getEnumSchema(column);
+
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 
@@ -1249,7 +1257,8 @@ WHERE
 					WHERE 
 						tc.table_name = '${tableName}'
 						AND tc.constraint_schema = '${tableSchema}'
-						AND tc.constraint_type = 'CHECK';`);
+						AND tc.constraint_type = 'CHECK'
+						AND con.contype = 'c';`);
 
 					columnsCount += tableResponse.length;
 					if (progressCallback) {
@@ -1484,7 +1493,7 @@ WHERE
 							type:
 								// filter vectors, but in future we should filter any extension that was installed by user
 								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry'].includes(enumType)
+									&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
 							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
@@ -1536,14 +1545,7 @@ WHERE
         i.indisunique as is_unique,
         am.amname as method,
         ic.reloptions as with,
-        coalesce(a.attname,
-                  (('{' || pg_get_expr(
-                              i.indexprs,
-                              i.indrelid
-                          )
-                        || '}')::text[]
-                  )[k.i]
-                ) AS column_name,
+        coalesce(a.attname, pg_get_indexdef(i.indexrelid, k.i, false)) AS column_name,
           CASE
         WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1
         ELSE 0
@@ -1785,7 +1787,8 @@ WHERE
 							name: columnName,
 							type:
 								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED' && !['vector', 'geometry'].includes(enumType)
+								columnAdditionalDT === 'USER-DEFINED'
+									&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
 							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined

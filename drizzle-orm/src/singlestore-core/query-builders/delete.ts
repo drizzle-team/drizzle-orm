@@ -17,6 +17,7 @@ import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type SingleStoreDeleteWithout<
@@ -185,6 +186,13 @@ export class SingleStoreDeleteBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
+			undefined,
+			undefined,
+			undefined,
+			{
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			},
 		) as SingleStoreDeletePrepare<this>;
 	}
 

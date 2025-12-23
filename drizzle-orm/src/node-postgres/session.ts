@@ -1,5 +1,7 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -24,15 +26,21 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 	constructor(
 		private client: NodePgClient,
-		queryString: string,
+		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -137,7 +145,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 						'drizzle.query.text': rawQuery.text,
 						'drizzle.query.params': JSON.stringify(params),
 					});
-					return client.query(rawQuery, params);
+					return this.queryWithCache(rawQuery.text, params, async () => {
+						return await client.query(rawQuery, params);
+					});
 				});
 			}
 
@@ -147,7 +157,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': query.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return client.query(query, params);
+				return this.queryWithCache(query.text, params, async () => {
+					return await client.query(query, params);
+				});
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -168,7 +180,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': this.rawQueryConfig.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
+				return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
+					return this.client.query(this.rawQueryConfig, params);
+				}).then((result) => result.rows);
 			});
 		});
 	}
@@ -181,6 +195,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 export interface NodePgSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NodePgSession<
@@ -190,6 +205,7 @@ export class NodePgSession<
 	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NodePgClient,
@@ -199,6 +215,7 @@ export class NodePgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -207,12 +224,20 @@ export class NodePgSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new NodePgPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,
@@ -224,8 +249,9 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
-			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // eslint-disable-line no-instanceof/no-instanceof
+		const session = isPool
+			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
@@ -237,9 +263,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) { // eslint-disable-line no-instanceof/no-instanceof
-				(session.client as PoolClient).release();
-			}
+			if (isPool) (session.client as PoolClient).release();
 		}
 	}
 
