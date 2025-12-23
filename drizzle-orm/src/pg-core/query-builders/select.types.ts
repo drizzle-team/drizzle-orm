@@ -227,7 +227,7 @@ export type PgSelectWithout<
 	TDynamic extends boolean,
 	K extends keyof T & string,
 	TResetExcluded extends boolean = false,
-> = TDynamic extends true ? Omit<T, 'from'> : Omit<
+> = TDynamic extends true ? T : Omit<
 	PgSelectKind<
 		T['_']['hkt'],
 		T['_']['tableName'],
@@ -235,11 +235,11 @@ export type PgSelectWithout<
 		T['_']['selectMode'],
 		T['_']['nullabilityMap'],
 		TDynamic,
-		TResetExcluded extends true ? K | 'from' : T['_']['excludedMethods'] | K,
+		TResetExcluded extends true ? K : T['_']['excludedMethods'] | K,
 		T['_']['result'],
 		T['_']['selectedFields']
 	>,
-	TResetExcluded extends true ? K | 'from' : T['_']['excludedMethods'] | K
+	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
 export type PgSelectDynamic<T extends AnyPgSelectQueryBuilder> = PgSelectKind<

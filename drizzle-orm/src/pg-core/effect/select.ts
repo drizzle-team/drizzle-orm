@@ -66,7 +66,10 @@ export interface PgEffectSelectQueryBuilderBase<
 	// oxlint-disable-next-line no-unused-vars
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	// oxlint-disable-next-line no-unused-vars
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<ColumnsSelection, TNullabilityMap>,
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
+		Assume<TSelection, ColumnsSelection>,
+		TNullabilityMap
+	>,
 > extends QueryEffect<TResult> {
 }
 
@@ -79,7 +82,10 @@ export class PgEffectSelectQueryBuilderBase<
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<ColumnsSelection, TNullabilityMap>,
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
+		Assume<TSelection, ColumnsSelection>,
+		TNullabilityMap
+	>,
 > extends PgSelectQueryBuilderBase<
 	PgEffectSelectQueryBuilderHKT,
 	TTableName,

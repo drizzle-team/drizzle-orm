@@ -41,6 +41,7 @@ import {
 } from '~/sql/expressions/index.ts';
 import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
 
+import { PgAsyncSelect } from '~/pg-core/async/select.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
 
@@ -1001,7 +1002,7 @@ await db
 }
 
 {
-	function withFriends<T extends PgSelect>(qb: T) {
+	function withFriends<T extends PgAsyncSelect>(qb: T) {
 		const friends = alias(users, 'friends');
 		const friends2 = alias(users, 'friends2');
 		const friends3 = alias(users, 'friends3');
@@ -1030,7 +1031,7 @@ await db
 }
 
 {
-	function withFriends<T extends PgSelectQueryBuilder>(qb: T) {
+	function withFriends<T extends PgAsyncSelect>(qb: T) {
 		const friends = alias(users, 'friends');
 		const friends2 = alias(users, 'friends2');
 		const friends3 = alias(users, 'friends3');
@@ -1046,6 +1047,7 @@ await db
 
 	const qb = db.select().from(users).$dynamic();
 	const result = await withFriends(qb);
+
 	Expect<
 		Equal<typeof result, {
 			users_table: typeof users.$inferSelect;
@@ -1059,7 +1061,7 @@ await db
 }
 
 {
-	function dynamic<T extends PgSelect>(qb: T) {
+	function dynamic<T extends PgAsyncSelect>(qb: T) {
 		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
 	}
 
@@ -1070,7 +1072,7 @@ await db
 
 {
 	// TODO: add to docs
-	function dynamic<T extends PgSelectQueryBuilder>(qb: T) {
+	function dynamic<T extends PgSelect>(qb: T) {
 		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
 	}
 
@@ -1080,7 +1082,7 @@ await db
 
 {
 	// TODO: add to docs
-	function paginated<T extends PgSelect>(qb: T, page: number) {
+	function paginated<T extends PgAsyncSelect>(qb: T, page: number) {
 		return qb.limit(10).offset((page - 1) * 10);
 	}
 
