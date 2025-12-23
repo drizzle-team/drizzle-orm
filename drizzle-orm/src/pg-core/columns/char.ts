@@ -53,12 +53,14 @@ export interface PgCharConfig<
 
 export function char(): PgCharBuilder<undefined>;
 export function char(name: string): PgCharBuilder<undefined>;
+export function char(config: { length?: number }): PgCharBuilder<undefined>;
+export function char(name: string, config: { length?: number }): PgCharBuilder<undefined>;
 export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
-	config: PgCharConfig<T | Writable<T>>,
+	config: PgCharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgCharBuilder<Writable<T>>;
 export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: string,
-	config: PgCharConfig<T | Writable<T>>,
+	config: PgCharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgCharBuilder<Writable<T>>;
 export function char(a?: string | PgCharConfig, b: PgCharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgCharConfig>(a, b);

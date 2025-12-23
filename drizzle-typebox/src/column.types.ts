@@ -9,7 +9,30 @@ export interface GenericSchema<T> extends t.TSchema { // oxlint-disable-line imp
 	static: T;
 }
 
+type GetArrayDepth<T, Depth extends number = 0> = T extends readonly (infer U)[]
+	? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
+	: Depth;
+
+type WrapInTArray<TSchema extends t.TSchema, TDepth extends number> = TDepth extends 0 ? TSchema
+	: TDepth extends 1 ? t.TArray<TSchema>
+	: TDepth extends 2 ? t.TArray<t.TArray<TSchema>>
+	: TDepth extends 3 ? t.TArray<t.TArray<t.TArray<TSchema>>>
+	: TDepth extends 4 ? t.TArray<t.TArray<t.TArray<t.TArray<TSchema>>>>
+	: TDepth extends 5 ? t.TArray<t.TArray<t.TArray<t.TArray<t.TArray<TSchema>>>>>
+	: t.TArray<t.TAny>;
+
+type IsPgArrayColumn<TColumn extends Column, TType extends ColumnTypeData> = TType['type'] extends 'array' ? false // Already handled as explicit array type
+	: GetArrayDepth<TColumn['_']['data']> extends 0 ? false
+	: true;
+
 export type GetTypeboxType<
+	TColumn extends Column,
+	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
+> = IsPgArrayColumn<TColumn, TType> extends true
+	? WrapInTArray<GetBaseTypeboxType<TColumn, TType>, GetArrayDepth<TColumn['_']['data']>>
+	: GetBaseTypeboxType<TColumn, TType>;
+
+type GetBaseTypeboxType<
 	TColumn extends Column,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
 > = TType['type'] extends 'array' ? TType['constraint'] extends 'basecolumn' ? t.TArray<

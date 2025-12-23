@@ -52,12 +52,14 @@ export interface PgVarcharConfig<
 
 export function varchar(): PgVarcharBuilder<undefined>;
 export function varchar(name: string): PgVarcharBuilder<undefined>;
+export function varchar(config: { length?: number }): PgVarcharBuilder<undefined>;
+export function varchar(name: string, config: { length?: number }): PgVarcharBuilder<undefined>;
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
-	config: PgVarcharConfig<T | Writable<T>>,
+	config: PgVarcharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgVarcharBuilder<Writable<T>>;
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: string,
-	config: PgVarcharConfig<T | Writable<T>>,
+	config: PgVarcharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgVarcharBuilder<Writable<T>>;
 export function varchar(a?: string | PgVarcharConfig, b: PgVarcharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgVarcharConfig>(a, b);
