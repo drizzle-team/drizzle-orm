@@ -450,6 +450,18 @@ export const ddlDiff = async (
 
 	for (const pk of alters.filter((x) => x.entityType === 'pks')) {
 		if (pk.columns) {
+			const fks = ddl2.fks.list({ tableTo: pk.table });
+			const fksFound = fks.filter((fk) => {
+				if (fk.columnsTo.length !== pk.$left.columns.length) return false;
+
+				return fk.columnsTo.every((fkCol) => pk.$left.columns.includes(fkCol));
+			});
+
+			for (const fk of fksFound) {
+				dropFKStatements.push({ type: 'drop_constraint', table: fk.table, constraint: fk.name, dropAutoIndex: false });
+				createFKsStatements.push({ type: 'create_fk', fk: fk, cause: 'alter_pk' });
+			}
+
 			dropPKStatements.push({ type: 'drop_pk', pk: pk.$left });
 			createPKStatements.push({ type: 'create_pk', pk: pk.$right });
 		}
@@ -464,34 +476,36 @@ export const ddlDiff = async (
 	}
 
 	const statements = [
-		...createTableStatements,
-		...dropFKStatements,
-		...dropTableStatements,
-		...renameTableStatements,
+		...new Set([
+			...createTableStatements,
+			...dropFKStatements,
+			...dropTableStatements,
+			...renameTableStatements,
 
-		...renameColumnsStatement,
+			...renameColumnsStatement,
 
-		...dropViewStatements,
-		...renameViewStatements,
-		...alterViewStatements,
+			...dropViewStatements,
+			...renameViewStatements,
+			...alterViewStatements,
 
-		...dropCheckStatements,
+			...dropCheckStatements,
 
-		...dropIndexeStatements,
-		...dropPKStatements,
+			...dropIndexeStatements,
+			...dropPKStatements,
 
-		...columnAlterStatements,
-		...columnRecreateStatatements,
+			...columnAlterStatements,
+			...columnRecreateStatatements,
 
-		...addColumnsStatemets,
-		...createPKStatements,
+			...addColumnsStatemets,
+			...createPKStatements,
 
-		...createIndexesStatements,
-		...createFKsStatements,
-		...createCheckStatements,
+			...createIndexesStatements,
+			...createFKsStatements,
+			...createCheckStatements,
 
-		...dropColumnStatements,
-		...createViewStatements,
+			...dropColumnStatements,
+			...createViewStatements,
+		]),
 	];
 
 	const res = fromJson(statements);

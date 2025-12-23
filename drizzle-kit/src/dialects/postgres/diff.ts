@@ -1051,6 +1051,7 @@ export const ddlDiff = async (
 		.map((it) => {
 			const column = it.$right;
 			const wasSerial = isSerialType(it.$left.type);
+			const toSerial: boolean = !isSerialType(it.$left.type) && isSerialType(it.$right.type);
 			const isEnum = ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null;
 			const wasEnum =
 				(it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
@@ -1062,6 +1063,7 @@ export const ddlDiff = async (
 				isEnum,
 				wasEnum,
 				wasSerial,
+				toSerial,
 			});
 		});
 
