@@ -1,6 +1,6 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { AnySQLiteColumn, AnySQLiteTable, UpdateDeleteAction } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteColumn, AnySQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
 	getTableConfig,
 	getViewConfig,
@@ -10,7 +10,6 @@ import {
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { assertUnreachable } from 'src/utils';
 import { safeRegister } from 'src/utils/utils-node';
 import type { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../drizzle';
@@ -26,17 +25,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { Int, nameForForeignKey, nameForPk, nameForUnique, typeFor } from './grammar';
-
-export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {
-	if (on === 'no action') return 'NO ACTION';
-	if (on === 'cascade') return 'CASCADE';
-	if (on === 'restrict') return 'RESTRICT';
-	if (on === 'set default') return 'SET DEFAULT';
-	if (on === 'set null') return 'SET NULL';
-
-	assertUnreachable(on);
-};
+import { Int, nameForForeignKey, nameForPk, nameForUnique, transformOnUpdateDelete, typeFor } from './grammar';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],

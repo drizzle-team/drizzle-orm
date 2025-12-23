@@ -11,6 +11,7 @@ import {
 	customType,
 	date,
 	doublePrecision,
+	foreignKey,
 	index,
 	inet,
 	integer,
@@ -342,6 +343,7 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5149
 // https://github.com/drizzle-team/drizzle-orm/issues/3593
 // https://github.com/drizzle-team/drizzle-orm/issues/4349
 // https://github.com/drizzle-team/drizzle-orm/issues/4632
@@ -382,6 +384,7 @@ test('introspect all column types', async () => {
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			jsonb2: jsonb('jsonb2').default({}),
+			jsonb3: jsonb('jsonb3').default({ confirmed: true, not_received: true }).notNull(),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -409,6 +412,32 @@ test('introspect all column types', async () => {
 		db,
 		schema,
 		'introspect-all-columns-types',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5093
+test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect uuid column with custom default function', async () => {
+	await db.query(`CREATE OR REPLACE FUNCTION uuidv7()
+RETURNS uuid
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid;
+$$;`);
+
+	const schema = {
+		columns: pgTable('columns', {
+			uuid1: uuid().default(sql`uuidv7()`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-uuid-column-custom-default',
 	);
 
 	expect(statements).toStrictEqual([]);
@@ -1107,6 +1136,47 @@ test('introspect foreign keys', async () => {
 	})).not.toBeNull();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5082
+test('introspect foreign keys #2', async () => {
+	const test = pgTable('test', {
+		col1: integer(),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		unique('composite_unique').on(table.col2, table.col3),
+		unique('test_col1_key').on(table.col1),
+	]);
+
+	const test1 = pgTable('test1', {
+		col1: integer().references(() => test.col1),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		foreignKey({
+			columns: [table.col2, table.col3],
+			foreignColumns: [test.col2, test.col3],
+			name: 'composite_fk',
+		}),
+	]);
+
+	const schema = { test, test1 };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-foreign-keys-2',
+		['public'],
+	);
+	console.log(ddlAfterPull.fks);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	expect(ddlAfterPull.fks.list({ schema: 'public' }).length).toBe(2);
+	const predicate = ddlAfterPull.fks.list({ schema: 'public' }).map((fk) =>
+		fk.columns.length !== 0 && fk.columnsTo.length !== 0
+	).every((val) => val === true);
+	expect(predicate).toBe(true);
+});
+
 test('introspect table with self reference', async () => {
 	const users = pgTable('users', {
 		id: integer().primaryKey(),
@@ -1391,4 +1461,46 @@ test('introspect _{dataType} columns type as {dataType}[]', async () => {
 		'inet',
 	]);
 	expect(columnDimensions.every((dim) => dim === 1)).toBe(true);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5149
+test('jsonb default with boolean literals', async () => {
+	const JSONB = pgTable('organizations1', {
+		notifications: jsonb().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSON = pgTable('organizations2', {
+		notifications: json().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSONBARRAY = pgTable('organizations3', {
+		notifications: jsonb().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+	const JSONARRAY = pgTable('organizations4', {
+		notifications: json().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ JSONB, JSONBARRAY, JSON, JSONARRAY },
+		'jsonb_default_with_boolean_literals',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = pgTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });

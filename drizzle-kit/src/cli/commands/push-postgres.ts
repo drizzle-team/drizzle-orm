@@ -71,7 +71,7 @@ export const handle = async (
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors1.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

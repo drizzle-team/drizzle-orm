@@ -586,6 +586,7 @@ test('json', async () => {
 	expect.soft(res10).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2136
 test('timestamp', async () => {
 	const res1 = await diffDefault(_, timestamp({ mode: 'date' }).defaultNow(), `(now())`);
 	const res2 = await diffDefault(_, timestamp({ mode: 'string' }).defaultNow(), `(now())`);

@@ -315,7 +315,7 @@ test.concurrent('create composite primary key', async ({ dbc: db }) => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		'CREATE TABLE "table" (\n\t"col1" int4,\n\t"col2" int4,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
@@ -653,7 +653,7 @@ test.concurrent('add not null to a column', async ({ db }) => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = ['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;'];
 
@@ -662,8 +662,6 @@ test.concurrent('add not null to a column', async ({ db }) => {
 
 	// TODO: revise should I use suggestion func?
 	// const { losses, hints } = await suggestions(db, statements);
-
-	expect(losses).toStrictEqual([]);
 });
 
 test.concurrent('add not null to a column with null data. Should rollback', async ({ db }) => {

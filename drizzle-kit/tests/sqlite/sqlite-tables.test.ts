@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	blob,
+	customType,
 	foreignKey,
 	index,
 	int,
@@ -776,6 +777,45 @@ test('create table with custom name references', async (t) => {
 	expect(st).toStrictEqual([]);
 	expect(pst).toStrictEqual([]);
 	expect(phints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3047
+test.skipIf(Date.now() < +new Date('2025-12-24'))('create table with custom type column', async (t) => {
+	const f32Blob = customType<{
+		data: number[];
+		config: {
+			length: number;
+		};
+		configRequired: true;
+	}>({
+		dataType(conf: { length: number }) {
+			return `F32_BLOB(${conf.length})`;
+		},
+		fromDriver(value: Buffer) {
+			const fArr = new Float32Array(new Uint8Array(value).buffer);
+			return Array.from(fArr);
+		},
+
+		toDriver(value: number[]) {
+			return Buffer.from(new Float32Array(value).buffer);
+		},
+	});
+	const schema = {
+		table1: sqliteTable('table1', {
+			id: text('id').primaryKey(),
+			blob: f32Blob('blob', {
+				length: 10,
+			}),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
 
 test('rename table and change data type', async (t) => {

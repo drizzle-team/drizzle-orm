@@ -523,6 +523,7 @@ test('index #4', async (t) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2506
 // https://github.com/drizzle-team/drizzle-orm/issues/4790
 test('index #5', async (t) => {
 	const enum_ = pgEnum('enum', ['text', 'not_text']);

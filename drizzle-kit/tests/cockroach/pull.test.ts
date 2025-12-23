@@ -725,3 +725,21 @@ test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test.concurrent('single quote default', async ({ dbc: db }) => {
+	const group = cockroachTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});

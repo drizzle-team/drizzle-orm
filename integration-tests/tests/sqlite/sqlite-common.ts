@@ -4610,4 +4610,29 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		expect(updated).toStrictEqual(initial);
 	});
+
+	test.concurrent('integer default as string for timestamps', async ({ db }) => {
+		const integerDefAsString = sqliteTable('integer_def_as_string', {
+			id: integer('id').primaryKey({ autoIncrement: true }).notNull(),
+			timest: integer({ mode: 'timestamp' }).default(new Date('2023-12-12')),
+			timest_ms: integer({ mode: 'timestamp_ms' }).default(new Date('2023-12-12')),
+		});
+
+		await db.run(sql`DROP TABLE IF EXISTS ${integerDefAsString};`);
+		await db.run(sql`CREATE TABLE ${integerDefAsString} (
+			timest integer DEFAULT '"2023-12-12T00:00:00.000Z"',
+			timest_ms integer DEFAULT '"2023-12-12T00:00:00.000Z"',
+			id integer PRIMARY KEY
+		);`);
+
+		await db.run(sql`INSERT INTO ${integerDefAsString} (\`id\`) VALUES (1);`);
+
+		const res = await db.select().from(integerDefAsString);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			timest: new Date('2023-12-12T00:00:00.000Z'),
+			timest_ms: new Date('2023-12-12T00:00:00.000Z'),
+		}]);
+	});
 }

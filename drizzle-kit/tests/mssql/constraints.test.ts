@@ -65,6 +65,38 @@ test('drop primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop primary key with not null', async () => {
+	const schema1 = {
+		table: mssqlTable('table', {
+			id: int().primaryKey().notNull(),
+		}),
+	};
+
+	const schema2 = {
+		table: mssqlTable('table', {
+			id: int().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+
+	await push({
+		db,
+		to: schema1,
+	});
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE [table] DROP CONSTRAINT [table_pkey];',
+	];
+
+	expect(st1).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('drop unique', async () => {
 	const schema1 = {
 		table: mssqlTable('table', {

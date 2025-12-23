@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { blob, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
+import { blob, int, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
@@ -18,6 +18,7 @@ afterAll(async () => {
 	await _.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1406
 // https://github.com/drizzle-team/drizzle-orm/issues/4217
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer({ mode: 'number' }).default(10), '10');
@@ -26,8 +27,9 @@ test('integer', async () => {
 	const res4 = await diffDefault(_, integer({ mode: 'number' }).default(1e4), '10000');
 	const res5 = await diffDefault(_, integer({ mode: 'number' }).default(-1e4), '-10000');
 
-	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), '1');
-	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), '0');
+	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), 'true');
+	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), 'false');
+	const res71 = await diffDefault(_, int({ mode: 'boolean' }).default(false), 'false');
 
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
@@ -45,6 +47,7 @@ test('integer', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res71).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 });

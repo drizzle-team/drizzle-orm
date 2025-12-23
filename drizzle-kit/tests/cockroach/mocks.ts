@@ -36,7 +36,7 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
-import { EmptyProgressView, psqlExplain } from 'src/cli/views';
+import { EmptyProgressView, explain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
@@ -230,12 +230,12 @@ export const push = async (
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(db, statements);
+	const hints = await suggestions(db, statements);
 
 	if (config.explain) {
-		// const text = groupedStatements.map((x) => psqlExplain(x.jsonStatement, x.sqlStatements)).filter(Boolean).join('\n');
-		// console.log(text);
-		return { sqlStatements, statements, hints, losses };
+		const explainMessage = explain('cockroach', groupedStatements, false, []);
+		console.log(explainMessage);
+		return { sqlStatements, statements, hints };
 	}
 
 	for (const sql of sqlStatements) {
@@ -274,76 +274,7 @@ export const push = async (
 		}
 	}
 
-	return { sqlStatements, statements, hints, losses };
-};
-
-export const diffPush = async (config: {
-	db: DB;
-	from: CockroachDBSchema;
-	to: CockroachDBSchema;
-	renames?: string[];
-	schemas?: string[];
-	casing?: CasingType;
-	entities?: EntitiesFilter;
-	before?: string[];
-	after?: string[];
-	apply?: boolean;
-}) => {
-	const { db, from: initSchema, to: destination, casing, before, after, renames: rens, entities } = config;
-
-	const apply = typeof config.apply === 'undefined' ? true : config.apply;
-	const filterConfig: EntitiesFilterConfig = {
-		schemas: config.schemas,
-		tables: [],
-		entities: config.entities,
-		extensions: [],
-	};
-	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
-	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
-
-	const init = [] as string[];
-	if (before) init.push(...before);
-	if (apply) init.push(...inits);
-	if (after) init.push(...after);
-	const mViewsRefreshes = initDDL.views.list({ materialized: true }).map((it) =>
-		`REFRESH MATERIALIZED VIEW "${it.schema}"."${it.name}"${it.withNoData ? ' WITH NO DATA;' : ';'};`
-	);
-	init.push(...mViewsRefreshes);
-
-	for (const st of init) {
-		await db.query(st);
-	}
-
-	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
-
-	// do introspect into CockroachSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, filter);
-
-	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing, filterConfig);
-
-	// TODO: handle errors
-
-	const renames = new Set(rens);
-	const { sqlStatements, statements } = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		'push',
-	);
-
-	const { hints, losses } = await suggestions(db, statements);
-	return { sqlStatements, statements, hints, losses };
+	return { sqlStatements, statements, hints };
 };
 
 // init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file

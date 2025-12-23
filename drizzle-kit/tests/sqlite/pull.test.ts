@@ -6,6 +6,7 @@ import {
 	foreignKey,
 	int,
 	integer,
+	primaryKey,
 	sqliteTable,
 	sqliteView,
 	text,
@@ -38,6 +39,38 @@ test('introspect tables with fk constraint', async () => {
 	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'fk-tables');
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3231
+test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect tables with fk constraint #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+	await db.run('CREATE TABLE `users`(`id` integer primary key);');
+	await db.run('CREATE TABLE `posts`(`user_id` integer references `users`);');
+
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+	expect(ddl.tables.list().length).toBe(2);
+	expect(ddl.columns.list().length).toBe(2);
+
+	expect(ddl.fks.list().length).toBe(1);
+	expect(ddl.fks.list()).toStrictEqual([
+		{
+			table: 'posts',
+			columns: ['user_id'],
+			tableTo: 'users',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+			nameExplicit: true,
+			name: 'fk_posts_user_id_users_id_fk',
+			entityType: 'fks',
+		},
+	]);
+
+	expect(ddl.pks.list().length).toBe(1);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4247
@@ -242,6 +275,55 @@ test('view #1', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3674
+test('view #2', async () => {
+	const sqlite = new Database(':memory:');
+
+	const userLogs = sqliteTable('user_logs', {
+		id: text().primaryKey(),
+		userId: text('user_id').notNull(),
+		type: text().notNull(),
+		entry: text().notNull(),
+		dtTimestamp: integer('dt_timestamp').notNull(),
+	});
+
+	const latestUserLogs = sqliteView('latest_user_logs', {
+		id: text(),
+		userId: text(),
+		entry: text(),
+		dtTimestamp: integer(),
+	}).as(sql`WITH ranked_logs AS (
+  SELECT
+	ul.id,
+	ul.user_id,
+	ul.entry,
+	ul.dt_timestamp,
+	ROW_NUMBER() OVER (
+	  PARTITION BY
+		ul.user_id,
+		ul.type,
+		date(datetime(ul.dt_timestamp, 'unixepoch'))
+	  ORDER BY ul.dt_timestamp DESC
+	) AS rn
+  FROM user_logs ul
+)
+SELECT
+  id,
+  user_id,
+  entry,
+  dt_timestamp
+FROM ranked_logs
+WHERE rn = 1
+ORDER BY dt_timestamp DESC`);
+
+	const schema = { userLogs, latestUserLogs };
+
+	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-2');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('broken view', async () => {
 	const sqlite = new Database(':memory:');
 
@@ -266,4 +348,55 @@ test('broken view', async () => {
 	).toBeTypeOf('string');
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const sqlite = new Database(':memory:');
+
+	const group = sqliteTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffAfterPull(sqlite, { group }, 'single_quote_default');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2827
+test('introspect text type', async () => {
+	const sqlite = new Database(':memory:');
+
+	const table = sqliteTable('table', {
+		text1: text().notNull().default(sql`CURRENT_TIMESTAMP`),
+		text2: text().default(''),
+		text3: text().default('``'),
+	});
+
+	const { sqlStatements } = await diffAfterPull(sqlite, { table }, 'introspect_text_type');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3590
+test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + check', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table2: sqliteTable('table2', {
+			column1: text().notNull(),
+			column2: text().notNull(),
+			column3: text().notNull(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2], name: 'table2_pk' }),
+			check('table2_check_1', sql`"column3" IN ('1', '2')`),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_text_type');
+
+	expect(sqlStatements).toStrictEqual([]);
 });

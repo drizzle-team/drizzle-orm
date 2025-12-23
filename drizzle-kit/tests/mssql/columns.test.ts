@@ -182,7 +182,7 @@ test('alter column: change data type, add not null with default', async (t) => {
 			name: varchar({ length: 200 }).notNull().default('1'),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -197,7 +197,6 @@ test('alter column: change data type, add not null with default', async (t) => {
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('column conflict duplicate name #1', async (t) => {
@@ -434,11 +433,12 @@ test('rename column #3. Part of check constraint', async (t) => {
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
 	]);
 	expect(error).not.toBeNull();
-	expect(phints).toStrictEqual([
-		'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
-		+ '\n'
-		+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
-	]);
+	expect(phints).toStrictEqual([{
+		hint:
+			'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
+			+ '\n'
+			+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
+	}]);
 });
 
 test('drop column #1. Part of check constraint', async (t) => {
@@ -2398,6 +2398,219 @@ test('alter column change data type + drop not null', async (t) => {
 	});
 
 	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar;`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('same column names in two tables. Check for correct not null creation. Explicit column names', async (t) => {
+	const users = mssqlTable(
+		'users',
+		{
+			id: int('id').primaryKey().identity(),
+			departmentId: int('department_id').references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = mssqlTable(
+		'user_has_department_filter',
+		{
+			userId: int('user_id').references(() => users.id),
+			departmentId: int('department_id').references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = mssqlTable(
+		'departments',
+		{
+			id: int('id').primaryKey().identity(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE [departments] (
+\t[id] int IDENTITY(1, 1),
+\tCONSTRAINT [departments_pkey] PRIMARY KEY([id])
+);\n`,
+		`CREATE TABLE [user_has_department_filter] (
+\t[user_id] int,
+\t[department_id] int,
+\tCONSTRAINT [user_has_department_filter_pkey] PRIMARY KEY([user_id],[department_id])
+);\n`,
+		`CREATE TABLE [users] (
+\t[id] int IDENTITY(1, 1),
+\t[department_id] int,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id])
+);\n`,
+
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_user_id_users_id_fk] FOREIGN KEY ([user_id]) REFERENCES [users]([id]);`,
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_department_id_departments_id_fk] FOREIGN KEY ([department_id]) REFERENCES [departments]([id]);`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_department_id_departments_id_fk] FOREIGN KEY ([department_id]) REFERENCES [departments]([id]) ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #2. no casing', async (t) => {
+	const users = mssqlTable(
+		'users',
+		{
+			id: int().primaryKey().identity(),
+			departmentId: int().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = mssqlTable(
+		'user_has_department_filter',
+		{
+			userId: int().references(() => users.id),
+			departmentId: int().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = mssqlTable(
+		'departments',
+		{
+			id: int().primaryKey().identity(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE [departments] (
+\t[id] int IDENTITY(1, 1),
+\tCONSTRAINT [departments_pkey] PRIMARY KEY([id])
+);\n`,
+		`CREATE TABLE [user_has_department_filter] (
+\t[userId] int,
+\t[departmentId] int,
+\tCONSTRAINT [user_has_department_filter_pkey] PRIMARY KEY([userId],[departmentId])
+);\n`,
+		`CREATE TABLE [users] (
+\t[id] int IDENTITY(1, 1),
+\t[departmentId] int,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id])
+);\n`,
+
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_userId_users_id_fk] FOREIGN KEY ([userId]) REFERENCES [users]([id]);`,
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_departmentId_departments_id_fk] FOREIGN KEY ([departmentId]) REFERENCES [departments]([id]);`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_departmentId_departments_id_fk] FOREIGN KEY ([departmentId]) REFERENCES [departments]([id]) ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #3. camelCase', async (t) => {
+	const users = mssqlTable(
+		'users',
+		{
+			id: int().primaryKey().identity(),
+			departmentId: int().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = mssqlTable(
+		'user_has_department_filter',
+		{
+			userId: int().references(() => users.id),
+			departmentId: int().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = mssqlTable(
+		'departments',
+		{
+			id: int().primaryKey().identity(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'camelCase');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'camelCase' });
+
+	const st0 = [
+		`CREATE TABLE [departments] (
+\t[id] int IDENTITY(1, 1),
+\tCONSTRAINT [departments_pkey] PRIMARY KEY([id])
+);\n`,
+		`CREATE TABLE [user_has_department_filter] (
+\t[userId] int,
+\t[departmentId] int,
+\tCONSTRAINT [user_has_department_filter_pkey] PRIMARY KEY([userId],[departmentId])
+);\n`,
+		`CREATE TABLE [users] (
+\t[id] int IDENTITY(1, 1),
+\t[departmentId] int,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id])
+);\n`,
+
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_userId_users_id_fk] FOREIGN KEY ([userId]) REFERENCES [users]([id]);`,
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_departmentId_departments_id_fk] FOREIGN KEY ([departmentId]) REFERENCES [departments]([id]);`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_departmentId_departments_id_fk] FOREIGN KEY ([departmentId]) REFERENCES [departments]([id]) ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
+	const users = mssqlTable(
+		'users',
+		{
+			id: int().primaryKey().identity(),
+			departmentId: int().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = mssqlTable(
+		'user_has_department_filter',
+		{
+			userId: int().references(() => users.id),
+			departmentId: int().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = mssqlTable(
+		'departments',
+		{
+			id: int().primaryKey().identity(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'snake_case');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'snake_case' });
+
+	const st0 = [
+		`CREATE TABLE [departments] (
+\t[id] int IDENTITY(1, 1),
+\tCONSTRAINT [departments_pkey] PRIMARY KEY([id])
+);\n`,
+		`CREATE TABLE [user_has_department_filter] (
+\t[user_id] int,
+\t[department_id] int,
+\tCONSTRAINT [user_has_department_filter_pkey] PRIMARY KEY([user_id],[department_id])
+);\n`,
+		`CREATE TABLE [users] (
+\t[id] int IDENTITY(1, 1),
+\t[department_id] int,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id])
+);\n`,
+
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_user_id_users_id_fk] FOREIGN KEY ([user_id]) REFERENCES [users]([id]);`,
+		`ALTER TABLE [user_has_department_filter] ADD CONSTRAINT [user_has_department_filter_department_id_departments_id_fk] FOREIGN KEY ([department_id]) REFERENCES [departments]([id]);`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_department_id_departments_id_fk] FOREIGN KEY ([department_id]) REFERENCES [departments]([id]) ON DELETE SET NULL;`,
+	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

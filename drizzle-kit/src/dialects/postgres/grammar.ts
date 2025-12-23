@@ -2031,6 +2031,19 @@ export const isSerialType = (type: string) => {
 	return /^(?:serial|bigserial|smallserial)$/i.test(type);
 };
 
+export const mapSerialToInt = (type: string) => {
+	switch (type) {
+		case 'smallserial':
+			return 'smallint';
+		case 'serial':
+			return 'int';
+		case 'bigserial':
+			return 'bigint';
+		default:
+			throw new Error(`Unsupported type: ${type}`);
+	}
+};
+
 // map all to utc with saving precision
 function formatTimestampTz(date: string) {
 	if (!isTimestamp(date)) return date;

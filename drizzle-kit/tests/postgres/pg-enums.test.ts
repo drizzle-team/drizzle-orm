@@ -2392,6 +2392,7 @@ test('enums defaults', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5129
+// https://github.com/drizzle-team/drizzle-orm/issues/5121
 test('enums camelcase', async () => {
 	const en1 = pgEnum('camelCase', ['active', 'inactive']);
 
@@ -2408,5 +2409,29 @@ test('enums camelcase', async () => {
 	expect(res.sqlStatements).toStrictEqual([
 		"CREATE TYPE \"camelCase\" AS ENUM('active', 'inactive');",
 		'CREATE TABLE "table" (\n\t"col1" "camelCase" DEFAULT \'active\'::"camelCase"\n);\n',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5072
+// tests with enum recreations are handled above
+test('drop enum', async () => {
+	const en1 = pgEnum('camelCase', ['active', 'inactive']);
+
+	const to = {
+		en1,
+	};
+
+	const res = await diff({}, to, []);
+	await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		"CREATE TYPE \"camelCase\" AS ENUM('active', 'inactive');",
+	]);
+
+	const res2 = await diff(res.next, {}, []);
+	await push({ db, to: {} });
+
+	expect(res2.sqlStatements).toStrictEqual([
+		'DROP TYPE "camelCase";',
 	]);
 });

@@ -672,6 +672,40 @@ test('pk #1_0. drop table with pk', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3801
+test('pk #1_1. add column with pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			name: text(),
+			id: integer().primaryKey({ autoIncrement: true }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+	const st0 = [
+		'ALTER TABLE `users` ADD `id` integer;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (\n\t\`name\` text,\n\t\`id\` integer PRIMARY KEY AUTOINCREMENT\n);\n`,
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('pk #1_0. drop column with pk', async () => {
 	const from = {
 		users: sqliteTable('users', {
@@ -1259,6 +1293,63 @@ test('pk multistep #3', async () => {
 	expect(pst5).toStrictEqual(e5);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
+test.skipIf(Date.now() < +new Date('2025-12-24'))('composite pk multistep #1', async () => {
+	const organisations = sqliteTable('organisation', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const users = sqliteTable('user', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const organisationUsers = sqliteTable(
+		'organisationUser',
+		{
+			organisationId: int()
+				.notNull()
+				.references(() => organisations.id),
+			userId: int()
+				.notNull()
+				.references(() => users.id),
+			roles: text({ mode: 'json' }).$type<string[]>().default([]),
+		},
+		(t) => [
+			primaryKey({ columns: [t.userId, t.organisationId] }),
+		],
+	);
+
+	const schema1 = { users, organisations, organisationUsers };
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema1 });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
+test.skipIf(Date.now() < +new Date('2025-12-24'))('composite pk multistep #2', async () => {
+	const userAsyncTasks = sqliteTable('userAsyncTask', {
+		userId: text('userId').notNull(),
+		identifier: text('identifier').notNull(),
+		type: text('type').notNull(),
+	}, (t) => [
+		primaryKey({ columns: [t.userId, t.type, t.identifier] }),
+	]);
+	const schema = { userAsyncTasks };
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 test('fk #0', async () => {
 	const users = sqliteTable('users', {
 		id: int().references((): AnySQLiteColumn => users.id2),
@@ -1270,13 +1361,13 @@ test('fk #0', async () => {
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
-	// const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const e = [
 		`CREATE TABLE \`users\` (\n\t\`id\` integer,\n\t\`id2\` integer,\n\tCONSTRAINT \`fk_users_id_users_id2_fk\` FOREIGN KEY (\`id\`) REFERENCES \`users\`(\`id2\`)\n);\n`,
 	];
 	expect(sqlStatements).toStrictEqual(e);
-	// expect(pst).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
 });
 
 test('fk #1', async () => {
@@ -1668,6 +1759,43 @@ test('fk #15', async () => {
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3653
+test('fk #16', async () => {
+	const services1 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks1 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		serviceId: integer().references(() => services1.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema1 = { services1, serviceLinks1 };
+
+	const casing = 'snake_case';
+	const { next: n1 } = await diff({}, schema1, [], casing);
+	await push({ db, to: schema1, casing });
+
+	const services2 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks2 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		clientId: integer().references(() => services2.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema2 = { services2, serviceLinks2 };
+
+	const renames = ['service_links.service_id->service_links.client_id'];
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames, casing);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, casing, renames });
+
+	const expectedSt2 = [
+		'ALTER TABLE `service_links` RENAME COLUMN `service_id` TO `client_id`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 test('fk multistep #1', async () => {

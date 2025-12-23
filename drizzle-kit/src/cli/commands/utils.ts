@@ -316,7 +316,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 
@@ -334,7 +334,7 @@ export const preparePushConfig = async (
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 
@@ -352,7 +352,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 
@@ -370,7 +370,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 
@@ -393,7 +393,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 
@@ -412,7 +412,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			explain: false,
+			explain: (options.explain as boolean) ?? false,
 		};
 	}
 

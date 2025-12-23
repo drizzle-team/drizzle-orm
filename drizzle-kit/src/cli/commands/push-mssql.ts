@@ -21,13 +21,13 @@ import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { withStyle } from '../validations/outputs';
-import { mssqlSchemaError, ProgressView } from '../views';
+import { explain, mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -36,12 +36,14 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
+	explainFlag: boolean,
 ) => {
 	const { connectToMsSQL } = await import('../connections');
 	const { introspect } = await import('./pull-mssql');
 
 	const { db } = await connectToMsSQL(credentials);
 	const filenames = prepareFilenames(schemaPath);
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractMssqlExisting(res.schemas, res.views);
@@ -70,7 +72,7 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema', 'dbo'),
@@ -91,18 +93,13 @@ export const handle = async (
 		return;
 	}
 
-	const { losses, hints } = await suggestions(db, jsonStatements, ddl2);
+	const hints = await suggestions(db, jsonStatements, ddl2);
 
-	const statementsToExecute = [...losses, ...sqlStatements];
-	if (verbose) {
-		console.log();
-		console.log(withStyle.warning('You are about to execute these statements:'));
-		console.log();
-		console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
-		console.log();
-	}
+	const explainMessage = explain('mssql', groupedStatements, explainFlag, hints);
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
 
-	if (!force && hints.length === 0) {
+	if (!force && hints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -111,30 +108,19 @@ export const handle = async (
 		}
 	}
 
-	if (!force && hints.length > 0) {
-		console.log(withStyle.warning('Found data-loss statements:'));
-		console.log(hints.join('\n'));
-		console.log();
-		console.log(
-			chalk.red.bold(
-				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-			),
-		);
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
-		console.log(chalk.white('Do you still want to push changes?'));
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) console.log(highlightSQL(statement));
 
-		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
-		if (data?.index === 0) {
-			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
-		}
-	}
-
-	for (const statement of statementsToExecute) {
 		await db.query(statement);
 	}
 
-	render(`[${chalk.green('✓')}] Changes applied`);
+	if (sqlStatements.length > 0) {
+		render(`[${chalk.green('✓')}] Changes applied`);
+	} else {
+		render(`[${chalk.blue('i')}] No changes detected`);
+	}
 };
 
 const identifier = (it: { schema?: string; table: string }) => {
@@ -147,8 +133,7 @@ const identifier = (it: { schema?: string; table: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL) => {
-	const losses: string[] = [];
-	const hints = [] as string[];
+	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
 		if (it.type === 'alter_column' && it.diff.generated) return false;
@@ -161,7 +146,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
 			const res = await db.query(`select top(1) 1 from ${tableName};`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty [${statement.table.name}] table`);
+			if (res.length > 0) grouped.push({ hint: `· You're about to delete non-empty [${statement.table.name}] table` });
 			continue;
 		}
 
@@ -173,7 +158,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty [${column.name}] column in [${column.table}] table`);
+			grouped.push({ hint: `· You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
 			continue;
 		}
 
@@ -186,33 +171,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (count === 0) continue;
 
 			const tableGrammar = count === 1 ? 'table' : 'tables';
-			hints.push(
-				`· You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}`,
-			);
-			continue;
-		}
-
-		// add column with not null without default
-		if (
-			statement.type === 'add_column' && statement.column.notNull
-			&& !ddl2.defaults.one({
-				column: statement.column.name,
-				schema: statement.column.schema,
-				table: statement.column.table,
-			})
-		) {
-			const column = statement.column;
-			const key = identifier({ schema: column.schema, table: column.table });
-			const res = await db.query(`select top(1) 1 from ${key}`);
-
-			if (res.length === 0) continue;
-
-			hints.push(
-				`· You're about to add not-null [${column.name}] column without default value to a non-empty ${key} table`,
-			);
-
-			losses.push(`DELETE FROM ${key};`);
-
+			grouped.push({ hint: `· You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
 			continue;
 		}
 
@@ -230,11 +189,31 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
-			hints.push(
-				`· You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
-			);
+			grouped.push({
+				hint:
+					`· You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
+			});
 
-			losses.push(`DELETE FROM ${key};`);
+			continue;
+		}
+
+		if (
+			statement.type === 'add_column' && statement.column.notNull
+			&& !ddl2.defaults.one({
+				column: statement.column.name,
+				schema: statement.column.schema,
+				table: statement.column.table,
+			})
+		) {
+			const column = statement.column;
+			const key = identifier({ schema: column.schema, table: column.table });
+			const res = await db.query(`select top(1) 1 from ${key};`);
+
+			if (res.length === 0) continue;
+			grouped.push({
+				hint:
+					`· You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`,
+			});
 
 			continue;
 		}
@@ -248,11 +227,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			);
 
 			if (res.length > 0) {
-				hints.push(
-					`· You're about to drop ${
+				grouped.push({
+					hint: `· You're about to drop ${
 						chalk.underline(id)
 					} primary key, this statements may fail and your table may loose primary key`,
-				);
+				});
 			}
 
 			continue;
@@ -265,11 +244,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select top(1) 1 from ${id};`);
 			if (res.length === 0) continue;
 
-			hints.push(
-				`· You're about to add ${
+			grouped.push({
+				hint: `· You're about to add ${
 					chalk.underline(unique.name)
 				} unique constraint to a non-empty ${id} table which may fail`,
-			);
+			});
 
 			continue;
 		}
@@ -282,10 +261,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const left = statement.from;
 			const right = statement.to;
 
-			hints.push(
-				`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
+			grouped.push({
+				hint:
+					`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
 To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
-			);
+			});
 
 			continue;
 		}
@@ -294,33 +274,15 @@ To rename the column, first drop the check constraint, then rename the column, a
 			const left = statement.from;
 			const right = statement.to;
 
-			hints.push(
-				`· You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
+			grouped.push({
+				hint:
+					`· You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
 You should create new schema and transfer everything to it`,
-			);
+			});
 
 			continue;
 		}
-
-		// TODO add this in future for corner cases
-		// Probably we should add `isDrizzleSql` field to grammar.ts types
-		// This will help us to validate that if drizzle sql changed to other drizzle sql
-		// Then we should hint user that database can store this in different format and that probably can be same, but diff will be found anyway
-		// ex: drizzleSql: 10 + 10 + 10 => db: ((10) + (10)) + (10)
-		// if (statement.type === 'recreate_default' && statement.from.default && statement.to.default && statement.baseType) {
-		// 	hints.push(
-		// 		`· You are about to drop and recreate a DEFAULT constraint.
-		// Your current value: ${statement.to.default}
-		// Value returned from the database: ${statement.from.default}
-
-		// If both values are the same for you, it's recommended to replace your SQL with the value returned from the database to avoid unnecessary changes`,
-		// 	);
-		// 	continue;
-		// }
 	}
 
-	return {
-		losses,
-		hints,
-	};
+	return grouped;
 };
