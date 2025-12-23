@@ -44,6 +44,7 @@ import type {
 	PgSelectDynamic,
 	PgSelectHKTBase,
 	PgSelectJoinFn,
+	PgSelectKind,
 	PgSelectQueryBuilderHKT,
 	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
@@ -169,23 +170,21 @@ export class PgSelectQueryBuilderBase<
 				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
 			>
 			: TFrom,
-	): Omit<
-		PgSelectQueryBuilderBase<
-			PgSelectQueryBuilderHKT,
-			TConfig['tableName'],
-			TConfig['selection'],
-			TConfig['selectMode'],
-			TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
-			false,
-			'from',
-			SelectResult<TConfig['selection'], TConfig['selectMode'], TConfig['nullabilityMap']>[],
-			BuildSubquerySelection<
-				Assume<TConfig['selection'], ColumnsSelection>,
-				TConfig['nullabilityMap']
-			>
-		>,
-		'from'
-	> {
+	): this extends any ? Omit<
+			PgSelectKind<
+				THKT,
+				TConfig['tableName'],
+				TConfig['selection'],
+				TConfig['selectMode'],
+				TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
+				false,
+				'from',
+				SelectResult<TConfig['selection'], TConfig['selectMode'], TConfig['nullabilityMap']>[]
+			>,
+			'from'
+		>
+		: never
+	{
 		const { fields: initFields } = this.config;
 
 		const isPartialSelect = !!initFields;

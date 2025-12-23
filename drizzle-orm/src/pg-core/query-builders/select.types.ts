@@ -227,7 +227,7 @@ export type PgSelectWithout<
 	TDynamic extends boolean,
 	K extends keyof T & string,
 	TResetExcluded extends boolean = false,
-> = TDynamic extends true ? T : Omit<
+> = TDynamic extends true ? Omit<T, 'from'> : Omit<
 	PgSelectKind<
 		T['_']['hkt'],
 		T['_']['tableName'],

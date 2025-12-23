@@ -2,22 +2,18 @@ import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect
 import { entityKind } from '~/entity.ts';
 import type {
 	BuildSubquerySelection,
-	GetSelectTableName,
-	GetSelectTableSelection,
 	JoinNullability,
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type Assume, type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
 import { PgSelectQueryBuilderBase } from '../query-builders/select.ts';
-import type { PgSelectHKTBase, SelectedFields, TableLikeHasEmptySelection } from '../query-builders/select.types.ts';
+import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgTable } from '../table.ts';
-import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectSelectPrepare, PgEffectSession } from './session.ts';
 
 export interface PgEffectSelectQueryBuilderInit<
@@ -58,42 +54,6 @@ export interface PgEffectSelectQueryBuilderBase<
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<ColumnsSelection, TNullabilityMap>,
 > extends QueryEffect<TResult> {
-	/**
-	 * Specify the table, subquery, or other target that you're
-	 * building a select query against.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
-	 */
-	from<
-		TFrom extends PgTable | Subquery | PgViewBase | SQL,
-		TConfig extends Record<string, any> = {
-			selectedFields: TSelectedFields;
-			tableName: GetSelectTableName<TFrom>;
-			selection: TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection;
-			selectMode: TSelection extends undefined ? 'single' : 'partial';
-			nullabilityMap: TTableName extends string ? Record<TTableName, 'not-null'> : {};
-		},
-	>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
-	): Omit<
-		PgEffectSelectQueryBuilderBase<
-			TConfig['tableName'],
-			TConfig['selection'],
-			TConfig['selectMode'],
-			TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
-			false,
-			'from',
-			SelectResult<TConfig['selection'], TConfig['selectMode'], TConfig['nullabilityMap']>[],
-			BuildSubquerySelection<
-				Assume<TConfig['selection'], ColumnsSelection>,
-				TConfig['nullabilityMap']
-			>
-		>,
-		'from'
-	>;
 }
 
 export class PgEffectSelectQueryBuilderBase<
