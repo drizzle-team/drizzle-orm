@@ -12752,6 +12752,8 @@ test('alltypes', async () => {
 	await db.execute(sql`
 		CREATE TABLE \`all_types\` (
 				\`serial\` serial AUTO_INCREMENT,
+				\`blob\` blob,
+				\`blob_str\` blob,
 				\`bigint53\` bigint,
 				\`bigint64\` bigint,
 				\`bigint_string\` bigint,
@@ -12791,6 +12793,8 @@ test('alltypes', async () => {
 
 	await db.insert(allTypesTable).values({
 		serial: 1,
+		blob: Buffer.from('BYTES'),
+		blobStr: 'BYTES',
 		bigint53: 9007199254740991,
 		bigint64: 5044565289845416380n,
 		bigintString: '5044565289845416380',
@@ -12842,6 +12846,8 @@ test('alltypes', async () => {
 	const expectedRes = [
 		{
 			serial: 1,
+			blob: Buffer.from('BYTES'),
+			blobStr: 'BYTES',
 			bigint53: 9007199254740991,
 			bigint64: 5044565289845416380n,
 			bigintString: '5044565289845416380',
