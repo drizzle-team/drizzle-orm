@@ -728,7 +728,7 @@ export const auditLogsInCore = core.table('audit_logs', {
 	organizationId: uuid('organization_id'),
 	actorId: uuid('actor_id'),
 	objectType: text('object_type').notNull(),
-	objectId: uuid('object_id').array().array().array(),
+	objectId: uuid('object_id').array('[][][]'),
 	action: text().notNull(),
 	beforeState: jsonb('before_state'),
 	afterState: jsonb('after_state'),

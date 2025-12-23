@@ -4,8 +4,8 @@ import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './c
 import type { CoerceOptions } from './schema.types.ts';
 import type { Json } from './utils.ts';
 
-type GetArrayDepth<T, Depth extends number = 0> = T extends readonly (infer U)[]
-	? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
+type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
+	: T extends readonly (infer U)[] ? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
 	: Depth;
 
 type WrapInZodArray<TSchema extends z.ZodType, TDepth extends number> = TDepth extends 0 ? TSchema

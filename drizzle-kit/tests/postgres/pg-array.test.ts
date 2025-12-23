@@ -134,7 +134,7 @@ test('array #5: multi-dimensional array default', async (t) => {
 	const to = {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
-			values: integer('values').array().array().default([[1, 2], [3, 4]]),
+			values: integer('values').array('[][]').default([[1, 2], [3, 4]]),
 		}),
 	};
 

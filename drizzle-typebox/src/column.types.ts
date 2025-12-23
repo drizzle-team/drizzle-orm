@@ -9,8 +9,8 @@ export interface GenericSchema<T> extends t.TSchema { // oxlint-disable-line imp
 	static: T;
 }
 
-type GetArrayDepth<T, Depth extends number = 0> = T extends readonly (infer U)[]
-	? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
+type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
+	: T extends readonly (infer U)[] ? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
 	: Depth;
 
 type WrapInTArray<TSchema extends t.TSchema, TDepth extends number> = TDepth extends 0 ? TSchema

@@ -223,7 +223,12 @@ export abstract class PgColumnBuilder<
 	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
 	 */
 	default(
-		value: (T extends { $type: infer U } ? U : T['data']) | SQL,
+		value:
+			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 }
+				? WrapArray<T extends { $type: infer U } ? U : T['data'], T['dimensions']>
+				: T extends { $type: infer U } ? U
+				: T['data'])
+			| SQL,
 	): this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }> {
 		this.config.default = value;
 		this.config.hasDefault = true;
@@ -237,7 +242,14 @@ export abstract class PgColumnBuilder<
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
 	$defaultFn(
-		fn: () => (T extends { $type: infer U } ? U : T['data']) | SQL,
+		fn: () =>
+			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					T extends { $type: infer U } ? U : T['data'],
+					T['dimensions']
+				>
+				: T extends { $type: infer U } ? U
+				: T['data'])
+			| SQL,
 	):
 		& this
 		& PgColumnBuilder<Omit<T, 'hasDefault' | 'hasRuntimeDefault'> & { hasDefault: true; hasRuntimeDefault: true }>
@@ -262,7 +274,14 @@ export abstract class PgColumnBuilder<
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
 	$onUpdateFn(
-		fn: () => (T extends { $type: infer U } ? U : T['data']) | SQL,
+		fn: () =>
+			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					T extends { $type: infer U } ? U : T['data'],
+					T['dimensions']
+				>
+				: T extends { $type: infer U } ? U
+				: T['data'])
+			| SQL,
 	): this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }> {
 		this.config.onUpdateFn = fn;
 		this.config.hasDefault = true;
@@ -467,21 +486,21 @@ export abstract class PgColumn<
 				if (value === null) return value;
 				// Parse string representation if needed (e.g., from node-postgres for enum arrays)
 				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
-				return this.mapArrayElements(arr, originalFromDriver);
+				return this.mapArrayElements(arr, originalFromDriver, this.dimensions);
 			};
 
 			this.mapToDriverValue = (value: unknown): unknown => {
 				if (value === null) return value;
-				const mapped = this.mapArrayElements(value as unknown[], originalToDriver);
+				const mapped = this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
 				return makePgArray(mapped as any[]);
 			};
 		}
 	}
 
 	/** @internal */
-	private mapArrayElements(value: unknown, mapper: (v: unknown) => unknown): unknown {
-		if (Array.isArray(value)) {
-			return value.map((v) => v === null ? null : this.mapArrayElements(v, mapper));
+	private mapArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
+		if (depth > 0 && Array.isArray(value)) {
+			return value.map((v) => v === null ? null : this.mapArrayElements(v, mapper, depth - 1));
 		}
 		return mapper(value);
 	}

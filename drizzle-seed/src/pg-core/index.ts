@@ -1,6 +1,6 @@
 import { is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { PgArray, PgDatabase, PgSchema } from 'drizzle-orm/pg-core';
+import type { PgColumn, PgDatabase, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
@@ -96,27 +96,6 @@ export const mapPgColumns = (
 	tableConfig: TableConfigT,
 	dbToTsColumnNamesMap: { [key: string]: string },
 ): Column[] => {
-	const getAllBaseColumns = (
-		baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
-	): Column['baseColumn'] => {
-		const baseColumnResult: Column['baseColumn'] = {
-			name: baseColumn.name,
-			columnType: baseColumn.getSQLType(),
-			typeParams: getTypeParams(baseColumn.getSQLType()),
-			dataType: baseColumn.dataType.split(' ')[0]!,
-			size: (baseColumn as PgArray<any, any>).length,
-			hasDefault: baseColumn.hasDefault,
-			enumValues: baseColumn.enumValues,
-			default: baseColumn.default,
-			isUnique: baseColumn.isUnique,
-			notNull: baseColumn.notNull,
-			primary: baseColumn.primary,
-			baseColumn: baseColumn.baseColumn === undefined ? undefined : getAllBaseColumns(baseColumn.baseColumn),
-		};
-
-		return baseColumnResult;
-	};
-
 	const getTypeParams = (sqlType: string) => {
 		// get type params
 		const typeParams: Column['typeParams'] = {};
@@ -159,23 +138,30 @@ export const mapPgColumns = (
 		return typeParams;
 	};
 
-	const mappedColumns: Column[] = tableConfig.columns.map((column) => ({
-		name: dbToTsColumnNamesMap[column.name] as string,
-		columnType: column.getSQLType(),
-		typeParams: getTypeParams(column.getSQLType()),
-		dataType: column.dataType.split(' ')[0]!,
-		size: (column as PgArray<any, any>).length,
-		hasDefault: column.hasDefault,
-		default: column.default,
-		enumValues: column.enumValues,
-		isUnique: column.isUnique,
-		notNull: column.notNull,
-		primary: column.primary,
-		generatedIdentityType: column.generatedIdentity?.type,
-		baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
-			? undefined
-			: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
-	}));
+	const mappedColumns: Column[] = tableConfig.columns.map((column) => {
+		const pgCol = column as PgColumn;
+		const baseSqlType = column.getSQLType();
+		// Append array brackets based on dimensions
+		const arrayBrackets = pgCol.dimensions ? '[]'.repeat(pgCol.dimensions) : '';
+		const columnType = baseSqlType + arrayBrackets;
+
+		return {
+			name: dbToTsColumnNamesMap[column.name] as string,
+			columnType,
+			typeParams: getTypeParams(columnType),
+			dataType: column.dataType.split(' ')[0]!,
+			size: pgCol.length,
+			hasDefault: column.hasDefault,
+			default: column.default,
+			enumValues: column.enumValues,
+			isUnique: column.isUnique,
+			notNull: column.notNull,
+			primary: column.primary,
+			generatedIdentityType: column.generatedIdentity?.type,
+			// Note: PG arrays no longer use baseColumn - dimensions are in typeParams
+			baseColumn: undefined,
+		};
+	});
 
 	return mappedColumns;
 };

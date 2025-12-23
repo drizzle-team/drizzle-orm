@@ -163,25 +163,38 @@ test('all array data types test', async () => {
 });
 
 test('nd arrays', async () => {
-	await seed(db, { ndArrays: schema.ndArrays }, { count: 1000 });
+	// Reduced from 1000 to 100 to avoid PGLite WASM memory limits
+	// when inserting large multi-dimensional arrays
+	await seed(db, { ndArrays: schema.ndArrays }, { count: 100 });
 
 	const ndArrays = await db.select().from(schema.ndArrays);
 	// every value in each rows does not equal undefined.
 	const predicate0 = ndArrays.every((row) =>
 		Object.values(row).every((val) => val !== undefined && val !== null && val.length !== 0)
 	);
+
+	// Default array size is 10 per dimension
+	const defaultSize = 10;
 	let predicate1 = true, predicate2 = true, predicate3 = true, predicate4 = true;
 
 	for (const row of ndArrays) {
-		predicate1 = predicate1 && (row.integer1DArray?.length === 3);
+		// 1D array: [10]
+		predicate1 = predicate1 && (row.integer1DArray?.length === defaultSize);
 
-		predicate2 = predicate2 && (row.integer2DArray?.length === 4) && (row.integer2DArray[0]?.length === 3);
+		// 2D array: [10][10]
+		predicate2 = predicate2 && (row.integer2DArray?.length === defaultSize)
+			&& (row.integer2DArray[0]?.length === defaultSize);
 
-		predicate3 = predicate3 && (row.integer3DArray?.length === 5) && (row.integer3DArray[0]?.length === 4)
-			&& (row.integer3DArray[0][0]?.length === 3);
+		// 3D array: [10][10][10]
+		predicate3 = predicate3 && (row.integer3DArray?.length === defaultSize)
+			&& (row.integer3DArray[0]?.length === defaultSize)
+			&& (row.integer3DArray[0][0]?.length === defaultSize);
 
-		predicate4 = predicate4 && (row.integer4DArray?.length === 6) && (row.integer4DArray[0]?.length === 5)
-			&& (row.integer4DArray[0][0]?.length === 4) && (row.integer4DArray[0][0][0]?.length === 3);
+		// 4D array: [10][10][10][10]
+		predicate4 = predicate4 && (row.integer4DArray?.length === defaultSize)
+			&& (row.integer4DArray[0]?.length === defaultSize)
+			&& (row.integer4DArray[0][0]?.length === defaultSize)
+			&& (row.integer4DArray[0][0][0]?.length === defaultSize);
 	}
 
 	expect(predicate0 && predicate1 && predicate2 && predicate3 && predicate4).toBe(true);
