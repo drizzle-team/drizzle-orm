@@ -26,6 +26,20 @@ export interface PgEffectSelectQueryBuilderInit<
 	>['from'];
 }
 
+export type PgEffectSelect<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = PgEffectSelectQueryBuilderBase<
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap,
+	true,
+	never
+>;
+
 export interface PgEffectSelectQueryBuilderHKT extends PgSelectHKTBase {
 	_type: PgEffectSelectQueryBuilderBase<
 		this['tableName'],

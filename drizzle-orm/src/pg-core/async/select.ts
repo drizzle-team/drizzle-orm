@@ -27,6 +27,20 @@ export interface PgAsyncSelectQueryBuilderInit<
 	>['from'];
 }
 
+export type PgAsyncSelect<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = PgAsyncSelectQueryBuilderBase<
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap,
+	true,
+	never
+>;
+
 export interface PgAsyncSelectQueryBuilderHKT extends PgSelectHKTBase {
 	_type: PgAsyncSelectQueryBuilderBase<
 		this['tableName'],

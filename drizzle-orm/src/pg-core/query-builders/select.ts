@@ -170,21 +170,18 @@ export class PgSelectQueryBuilderBase<
 				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
 			>
 			: TFrom,
-	): this extends any ? Omit<
-			PgSelectKind<
-				THKT,
-				TConfig['tableName'],
-				TConfig['selection'],
-				TConfig['selectMode'],
-				TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
-				false,
-				'from',
-				SelectResult<TConfig['selection'], TConfig['selectMode'], TConfig['nullabilityMap']>[]
-			>,
+	): Omit<
+		PgSelectKind<
+			unknown extends THKT['_type'] ? PgSelectQueryBuilderHKT : THKT,
+			TConfig['tableName'],
+			TConfig['selection'],
+			TConfig['selectMode'],
+			TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
+			false,
 			'from'
-		>
-		: never
-	{
+		>,
+		'from'
+	> {
 		const { fields: initFields } = this.config;
 
 		const isPartialSelect = !!initFields;
