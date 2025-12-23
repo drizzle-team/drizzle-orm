@@ -173,11 +173,11 @@ Expect<
 export const salEmp = pgTable('sal_emp', {
 	name: text('name').notNull(),
 	payByQuarter: integer('pay_by_quarter').array().notNull(),
-	schedule: text('schedule').array().array().notNull(),
+	schedule: text('schedule').array('[][]').notNull(),
 });
 
 export const tictactoe = pgTable('tictactoe', {
-	squares: integer('squares').array(3).array(3).notNull(),
+	squares: integer('squares').array('[][]').notNull(),
 });
 
 export const customSchema = pgSchema('custom');

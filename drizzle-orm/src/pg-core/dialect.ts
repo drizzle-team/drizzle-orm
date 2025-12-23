@@ -12,7 +12,6 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import {
-	PgArray,
 	PgColumn,
 	type PgCustomColumn,
 	PgDate,
@@ -966,14 +965,9 @@ export class PgDialect {
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			let targetType = column.columnType;
-			let col = column;
-			let dimensionCnt = 0;
-			while (is(col, PgArray)) {
-				col = col.baseColumn;
-				targetType = col.columnType;
-				++dimensionCnt;
-			}
+			const targetType = column.columnType;
+			// Get dimension count directly from PgColumn.dimensions
+			const dimensionCnt = is(column, PgColumn) ? column.dimensions : 0;
 
 			switch (targetType) {
 				case 'PgNumeric':
@@ -992,7 +986,7 @@ export class PgDialect {
 				}
 				case 'PgCustomColumn': {
 					return sql`${
-						(<PgCustomColumn<any>> col).jsonSelectIdentifier(
+						(<PgCustomColumn<any>> column).jsonSelectIdentifier(
 							name,
 							sql,
 							dimensionCnt > 0 ? dimensionCnt : undefined,

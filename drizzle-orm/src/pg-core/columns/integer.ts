@@ -1,10 +1,9 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
-import { PgColumn } from './common.ts';
-import { PgIntColumnBaseBuilder } from './int.common.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
+export class PgIntegerBuilder extends PgColumnBuilder<{
 	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;

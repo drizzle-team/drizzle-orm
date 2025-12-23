@@ -5,8 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
-import { PgArray } from '~/pg-core/index.ts';
+import { PgColumn, type PgInsertConfig, type PgTable, type TableConfig } from '~/pg-core/index.ts';
 import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
@@ -61,11 +60,13 @@ export class AwsPgDialect extends PgDialect {
 			for (const value of (values as Record<string, Param | SQL>[])) {
 				for (const fieldName of Object.keys(columns)) {
 					const colValue = value[fieldName];
+					const column = columns[fieldName];
 					if (
-						is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+						is(colValue, Param) && colValue.value !== undefined
+						&& is(column, PgColumn) && column.dimensions
 						&& Array.isArray(colValue.value)
 					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())})`;
 					}
 				}
 			}
@@ -80,10 +81,11 @@ export class AwsPgDialect extends PgDialect {
 		for (const [colName, colValue] of Object.entries(set)) {
 			const currentColumn = columns[colName];
 			if (
-				currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+				currentColumn && is(colValue, Param) && colValue.value !== undefined
+				&& is(currentColumn, PgColumn) && currentColumn.dimensions
 				&& Array.isArray(colValue.value)
 			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())})`;
 			}
 		}
 		return super.buildUpdateSet(table, set);

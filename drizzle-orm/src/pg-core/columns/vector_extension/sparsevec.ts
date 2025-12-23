@@ -10,13 +10,13 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 		data: string;
 		driverParam: string;
 	},
-	{ dimensions: number | undefined }
+	{ vectorDimensions: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'PgSparseVectorBuilder';
 
 	constructor(name: string, config: PgSparseVectorConfig) {
 		super(name, 'string sparsevec', 'PgSparseVector');
-		this.config.dimensions = config.dimensions;
+		this.config.vectorDimensions = config.dimensions;
 	}
 
 	/** @internal */
@@ -29,14 +29,14 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 }
 
 export class PgSparseVector<T extends ColumnBaseConfig<'string sparsevec'>>
-	extends PgColumn<T, { dimensions: number | undefined }>
+	extends PgColumn<T, { vectorDimensions: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';
 
-	readonly dimensions = this.config.dimensions;
+	readonly vectorDimensions = this.config.vectorDimensions;
 
 	getSQLType(): string {
-		return `sparsevec(${this.dimensions})`;
+		return `sparsevec(${this.vectorDimensions})`;
 	}
 }
 

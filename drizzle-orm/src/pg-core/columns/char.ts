@@ -4,14 +4,17 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
+// Config type - only include enumValues when an actual enum is provided
+type PgCharBuilderConfig<TEnum extends [string, ...string[]]> = Equal<TEnum, [string, ...string[]]> extends true
+	? { dataType: 'string'; data: string; driverParam: string }
+	: { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string };
+
 export class PgCharBuilder<
 	TEnum extends [string, ...string[]],
-> extends PgColumnBuilder<{
-	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
-	data: TEnum[number];
-	enumValues: TEnum;
-	driverParam: string;
-}, { enumValues?: TEnum; length: number; setLength: boolean }> {
+> extends PgColumnBuilder<
+	PgCharBuilderConfig<TEnum>,
+	{ enumValues?: TEnum; length: number; setLength: boolean }
+> {
 	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: string, config: PgCharConfig<TEnum>) {
