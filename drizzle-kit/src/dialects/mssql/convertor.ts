@@ -336,7 +336,7 @@ const createView = convertor('create_view', (st) => {
 
 		statement += ` ${options.join(', ')}`;
 	}
-	statement += ` AS (${definition})`;
+	statement += ` AS ${definition}`;
 	statement += checkOption ? `\nWITH CHECK OPTION` : '';
 
 	statement += ';';
@@ -374,7 +374,7 @@ const alterView = convertor('alter_view', (st) => {
 
 		statement += ` ${options.join(', ')}`;
 	}
-	statement += ` AS (${definition})`;
+	statement += ` AS ${definition}`;
 	statement += checkOption ? `\nWITH CHECK OPTION` : '';
 
 	statement += ';';

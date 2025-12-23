@@ -1407,6 +1407,7 @@ test('pk multistep #4', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3380
 // https://github.com/drizzle-team/drizzle-orm/issues/3189
 test('pk multistep #5', async () => {
 	const table1 = pgTable('table1', {
@@ -1695,6 +1696,114 @@ test('add column with pk to table where was no pk', async (t) => {
 	const expectedSt2 = [
 		`ALTER TABLE "users" ADD COLUMN "age" bigint;`,
 		`ALTER TABLE "users" ADD PRIMARY KEY ("age");`,
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/1144#issuecomment-1960807398
+test('rename table with composite pk', async () => {
+	const users = pgTable('users', {
+		id: text('id').primaryKey(),
+		fullName: text('full_name'),
+		email: text('email').unique().notNull(),
+		phone: text('phone'),
+		hashedPassword: text('hashed_password'),
+		updatedAt: timestamp('updated_at').notNull().defaultNow(),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+	});
+
+	const session = pgTable('session', {
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id),
+		expiresAt: timestamp('expires_at', {
+			withTimezone: true,
+			mode: 'date',
+		}).notNull(),
+	});
+
+	const oauthAccount = pgTable(
+		'oauth_account',
+		{
+			providerId: text('provider_id').notNull(),
+			providerUserId: text('provider_user_id').notNull(),
+			userId: text('user_id')
+				.notNull()
+				.references(() => users.id),
+			createdAt: timestamp('created_at', {
+				withTimezone: true,
+				mode: 'date',
+			})
+				.notNull()
+				.defaultNow(),
+		},
+		(table) => {
+			return {
+				pk: primaryKey({ columns: [table.providerId, table.userId] }),
+			};
+		},
+	);
+
+	const schema1 = { oauthAccount, session, users };
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const user = pgTable('users', {
+		id: text('id').primaryKey(),
+		fullName: text('full_name'),
+		email: text('email').unique().notNull(),
+		phone: text('phone'),
+		hashedPassword: text('hashed_password'),
+		updatedAt: timestamp('updated_at').notNull().defaultNow(),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+	});
+
+	const session2 = pgTable('sessions', {
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id),
+		expiresAt: timestamp('expires_at', {
+			withTimezone: true,
+			mode: 'date',
+		}).notNull(),
+	});
+
+	const oauthAccount2 = pgTable(
+		'oauth_accounts',
+		{
+			providerId: text('provider_id').notNull(),
+			providerUserId: text('provider_user_id').notNull(),
+			userId: text('user_id')
+				.notNull()
+				.references(() => user.id),
+			createdAt: timestamp('created_at', {
+				withTimezone: true,
+				mode: 'date',
+			})
+				.notNull()
+				.defaultNow(),
+		},
+		(table) => [primaryKey({ columns: [table.providerId, table.userId] })],
+	);
+
+	const schema2 = { user, session2, oauthAccount2 };
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, [
+		'public.oauth_account->public.oauth_accounts',
+		'public.session->public.sessions',
+	]);
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to: schema2,
+		renames: ['public.oauth_account->public.oauth_accounts', 'public.session->public.sessions'],
+	});
+	const expectedSt2 = [
+		'ALTER TABLE "oauth_account" RENAME TO "oauth_accounts";',
+		'ALTER TABLE "session" RENAME TO "sessions";',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);

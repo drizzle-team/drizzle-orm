@@ -7,6 +7,7 @@ import { _prepareAddColumns, _prepareDropColumns } from './jsonStatements';
 import type { ViewSquashed } from './mysql-v5/mysqlSchema';
 import type { Policy, Role, View } from './postgres-v7/pgSchema';
 import { mergedViewWithOption, policySquashed, roleSchema, sequenceSquashed } from './postgres-v7/pgSchema';
+import type { View as SQLiteView } from './sqlite-v6/sqliteSchema';
 
 export type Named = { name: string };
 export type NamedWithSchema = {
@@ -207,7 +208,7 @@ export const alteredTableScheme = object({
 	),
 }).strict();
 
-const alteredViewCommon = object({
+export const alteredViewCommon = object({
 	name: string(),
 	alteredDefinition: object({
 		__old: string(),
@@ -432,6 +433,28 @@ export const tablesResolver = async (
 			input.created,
 			input.deleted,
 			'table',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const sqliteViewsResolver = async (
+	input: ResolverInput<SQLiteView & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<SQLiteView>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
 		);
 
 		return {

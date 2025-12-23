@@ -2501,6 +2501,36 @@ export function tests(test: Test) {
 			}]));
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5112
+		test.skipIf(Date.now() < +new Date('2025-12-24')).concurrent('view #1', async ({ push, createDB }) => {
+			const animal = pgTable('animal', (t) => ({
+				id: t.text().primaryKey(),
+				name: t.text().notNull(),
+				caretakerId: t.text().notNull(),
+			}));
+			const caretaker = pgTable('caretaker', (t) => ({
+				id: t.text().primaryKey(),
+				caretakerName: t.text().notNull(),
+			}));
+			const animalWithCaretakerView = pgView('animal_with_caretaker_view').as(
+				(qb) =>
+					qb
+						.select({
+							id: animal.id,
+							animalName: animal.name,
+							caretakerName: caretaker.caretakerName,
+						})
+						.from(animal)
+						.innerJoin(caretaker, eq(animal.caretakerId, caretaker.id)),
+			);
+
+			const schema = { animal, caretaker, animalWithCaretakerView };
+			const db = createDB(schema);
+
+			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
+			expect(sql).toEqual('select "id", "name", "caretakerName" from "animal_with_caretaker_view";');
+		});
+
 		test.concurrent('select from a many subquery', async ({ db, push }) => {
 			const citiesTable = pgTable('cities_many_subquery', {
 				id: serial('id').primaryKey(),

@@ -27,6 +27,7 @@ import {
 } from './commands/utils';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
+import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
@@ -277,7 +278,7 @@ export const push = command({
 		verbose: boolean()
 			.desc('Print all statements for each push')
 			.default(false),
-		strict: boolean().desc('Always ask for confirmation').default(false),
+		strict: boolean().desc('Always ask for confirmation'),
 		force: boolean()
 			.desc(
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
@@ -311,6 +312,13 @@ export const push = command({
 				'tlsSecurity',
 			],
 		);
+
+		if (typeof opts.strict !== 'undefined') {
+			console.log(withStyle.fullWarning(
+				"⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead",
+			));
+			process.exit(1);
+		}
 
 		return preparePushConfig(opts, from);
 	},
@@ -346,13 +354,13 @@ export const push = command({
 			await libSQLPush(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
-			await handle(schemaPath, credentials, filters, verbose, force, casing);
+			await handle(schemaPath, credentials, filters, verbose, force, casing, explain);
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
-			await handle(schemaPath, verbose, credentials, filters, force, casing);
+			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
-			await handle(schemaPath, verbose, credentials, filters, force, casing);
+			await handle(schemaPath, verbose, credentials, filters, force, casing, explain);
 		} else if (dialect === 'gel') {
 			console.log(error(`You can't use 'push' command with Gel dialect`));
 		} else {
