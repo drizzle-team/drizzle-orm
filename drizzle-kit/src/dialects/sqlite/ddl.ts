@@ -29,6 +29,14 @@ export const createDDL = () => {
 				'auto', // ='u' UNIQUE auto created
 			], // https://www.sqlite.org/pragma.html#pragma_index_list
 		},
+		// Names for fk was decided to leave as is after discussion with @AlexBlokh
+		// Discussion was about removing "name" from ts schema
+		//
+		// introspect will parse ddl and find names. Old kit (before beta v1) did not add names to fk in sql migrations
+		// after upping to beta v1 there would be recreate table to correct name for push if name was explicitly set by user
+		//
+		// We already have tests on preserving names after renaming tables/columns
+		// It was important that newcomers would not experience any issues
 		fks: {
 			table: 'required',
 			columns: 'string[]',
