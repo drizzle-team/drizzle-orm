@@ -1,5 +1,7 @@
 name: Release Router
 
+
+
 on:
   push:
     branches-ignore:
@@ -9,7 +11,7 @@ on:
 
 jobs:
   switch:
-    runs-on: self-hosted
+    runs-on: ubuntu-24.04
     outputs:
       target: ${{ steps.route.outputs.target }}
     steps:
