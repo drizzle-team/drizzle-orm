@@ -20,7 +20,6 @@ import {
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
-	PgArray,
 	PgDialect,
 	PgEnumColumn,
 	PgEnumObjectColumn,
@@ -114,9 +113,9 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 };
 
 export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
-	const { baseColumn, dimensions } = is(column, PgArray)
-		? unwrapArray(column)
-		: { baseColumn: column, dimensions: 0 };
+	// In the new architecture, columns have a dimensions property directly
+	const dimensions = (column as any).dimensions ?? 0;
+	const baseColumn = column;
 
 	const isEnum = is(baseColumn, PgEnumColumn) || is(baseColumn, PgEnumObjectColumn);
 	const typeSchema = isEnum
@@ -141,16 +140,6 @@ export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
 		baseType: type,
 		options,
 	};
-};
-
-export const unwrapArray = (
-	column: PgArray<any, any>,
-	dimensions: number = 1,
-): { baseColumn: AnyPgColumn; dimensions: number } => {
-	const baseColumn = column.baseColumn;
-	if (is(baseColumn, PgArray)) return unwrapArray(baseColumn, dimensions + 1);
-
-	return { baseColumn, dimensions };
 };
 
 export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {

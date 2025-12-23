@@ -83,15 +83,24 @@ type WrapArray<T, N extends number> = N extends 1 ? T[]
 	: N extends 5 ? T[][][][][]
 	: T;
 
-export type HasIdentity<T extends PgColumnBuilder, TType extends 'always' | 'byDefault'> =
-	& T
-	& PgColumnBuilder<
-		Omit<T[PgColumnBuilderBrand], 'notNull' | 'hasDefault' | 'identity'> & {
-			notNull: true;
-			hasDefault: true;
-			identity: TType;
-		}
-	>;
+export type SetNotNull<T> = T & { readonly [PgColumnBuilderBrand]: { notNull: true } };
+export type SetHasDefault<T> = T & { readonly [PgColumnBuilderBrand]: { hasDefault: true } };
+export type SetIsPrimaryKey<T> = T & { readonly [PgColumnBuilderBrand]: { isPrimaryKey: true; notNull: true } };
+export type SetHasRuntimeDefault<T> = T & {
+	readonly [PgColumnBuilderBrand]: { hasRuntimeDefault: true; hasDefault: true };
+};
+export type Set$Type<T, TType> = T & { readonly [PgColumnBuilderBrand]: { $type: TType } };
+export type SetHasGenerated<T> = T & {
+	readonly [PgColumnBuilderBrand]: { hasDefault: true; generated: { type: 'always' } };
+};
+export type SetDimensions<T, TDim extends PgArrayDimension> = T & {
+	readonly [PgColumnBuilderBrand]: { dimensions: TDim };
+};
+export type SetIdentity<T, TType extends 'always' | 'byDefault'> = T & {
+	readonly [PgColumnBuilderBrand]: { notNull: true; hasDefault: true; identity: TType };
+};
+
+export type HasIdentity<T extends PgColumnBuilder, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
 
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
@@ -167,7 +176,6 @@ export abstract class PgColumnBuilder<
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	/** @internal */
 	protected config: PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	constructor(name: string, dataType: ColumnType, columnType: string) {
@@ -201,8 +209,8 @@ export abstract class PgColumnBuilder<
 	 * });
 	 * ```
 	 */
-	$type<TType>(): this & PgColumnBuilder<Omit<T, '$type'> & { $type: TType }> {
-		return this as this & PgColumnBuilder<Omit<T, '$type'> & { $type: TType }>;
+	$type<TType>(): Set$Type<this, TType> {
+		return this as Set$Type<this, TType>;
 	}
 
 	/**
@@ -210,9 +218,9 @@ export abstract class PgColumnBuilder<
 	 *
 	 * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
 	 */
-	notNull(): this & PgColumnBuilder<Omit<T, 'notNull'> & { notNull: true }> {
+	notNull(): SetNotNull<this> {
 		this.config.notNull = true;
-		return this as this & PgColumnBuilder<Omit<T, 'notNull'> & { notNull: true }>;
+		return this as SetNotNull<this>;
 	}
 
 	/**
@@ -224,15 +232,17 @@ export abstract class PgColumnBuilder<
 	 */
 	default(
 		value:
-			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 }
-				? WrapArray<T extends { $type: infer U } ? U : T['data'], T['dimensions']>
-				: T extends { $type: infer U } ? U
-				: T['data'])
+			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
+					this[PgColumnBuilderBrand]['dimensions']
+				>
+				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
+				: this[PgColumnBuilderBrand]['data'])
 			| SQL,
-	): this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }> {
+	): SetHasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
-		return this as this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }>;
+		return this as SetHasDefault<this>;
 	}
 
 	/**
@@ -243,22 +253,17 @@ export abstract class PgColumnBuilder<
 	 */
 	$defaultFn(
 		fn: () =>
-			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					T extends { $type: infer U } ? U : T['data'],
-					T['dimensions']
+			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
+					this[PgColumnBuilderBrand]['dimensions']
 				>
-				: T extends { $type: infer U } ? U
-				: T['data'])
+				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
+				: this[PgColumnBuilderBrand]['data'])
 			| SQL,
-	):
-		& this
-		& PgColumnBuilder<Omit<T, 'hasDefault' | 'hasRuntimeDefault'> & { hasDefault: true; hasRuntimeDefault: true }>
-	{
+	): SetHasRuntimeDefault<this> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
-		return this as
-			& this
-			& PgColumnBuilder<Omit<T, 'hasDefault' | 'hasRuntimeDefault'> & { hasDefault: true; hasRuntimeDefault: true }>;
+		return this as SetHasRuntimeDefault<this>;
 	}
 
 	/**
@@ -275,17 +280,17 @@ export abstract class PgColumnBuilder<
 	 */
 	$onUpdateFn(
 		fn: () =>
-			| (T extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					T extends { $type: infer U } ? U : T['data'],
-					T['dimensions']
+			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
+					this[PgColumnBuilderBrand]['dimensions']
 				>
-				: T extends { $type: infer U } ? U
-				: T['data'])
+				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
+				: this[PgColumnBuilderBrand]['data'])
 			| SQL,
-	): this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }> {
+	): SetHasDefault<this> {
 		this.config.onUpdateFn = fn;
 		this.config.hasDefault = true;
-		return this as this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }>;
+		return this as SetHasDefault<this>;
 	}
 
 	/**
@@ -298,10 +303,10 @@ export abstract class PgColumnBuilder<
 	 *
 	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
-	primaryKey(): this & PgColumnBuilder<Omit<T, 'isPrimaryKey' | 'notNull'> & { isPrimaryKey: true; notNull: true }> {
+	primaryKey(): SetIsPrimaryKey<this> {
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as this & PgColumnBuilder<Omit<T, 'isPrimaryKey' | 'notNull'> & { isPrimaryKey: true; notNull: true }>;
+		return this as SetIsPrimaryKey<this>;
 	}
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
@@ -324,17 +329,17 @@ export abstract class PgColumnBuilder<
 	 * });
 	 * ```
 	 */
-	array(): this & PgColumnBuilder<Omit<T, 'dimensions'> & { dimensions: 1 }>;
+	array(): SetDimensions<this, 1>;
 	array<TDim extends PgArrayDimensionString>(
 		dimensions: TDim,
-	): this & PgColumnBuilder<Omit<T, 'dimensions'> & { dimensions: ArrayDimensionStringToNumber<TDim> }>;
+	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
 	array<TDim extends PgArrayDimensionString>(
 		dimensions?: TDim,
-	): this & PgColumnBuilder<Omit<T, 'dimensions'> & { dimensions: ArrayDimensionStringToNumber<TDim> }> {
+	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>> {
 		// Calculate dimensions as number from string notation
 		const dim = dimensions ?? '[]';
 		(this.config as any).dimensions = (dim.length / 2) as PgArrayDimension;
-		return this as this & PgColumnBuilder<Omit<T, 'dimensions'> & { dimensions: ArrayDimensionStringToNumber<TDim> }>;
+		return this as SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
 	}
 
 	references(
@@ -356,23 +361,29 @@ export abstract class PgColumnBuilder<
 	}
 
 	generatedAlwaysAs(
-		as: SQL | T['data'] | (() => SQL),
-	): this & PgColumnBuilder<Omit<T, 'generated' | 'hasDefault'> & { generated: { type: 'always' }; hasDefault: true }> {
+		as:
+			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
+					this[PgColumnBuilderBrand]['dimensions']
+				>
+				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
+				: this[PgColumnBuilderBrand]['data'])
+			| SQL
+			| (() => SQL),
+	): SetHasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
 			mode: 'stored',
 		};
-		return this as
-			& this
-			& PgColumnBuilder<Omit<T, 'generated' | 'hasDefault'> & { generated: { type: 'always' }; hasDefault: true }>;
+		return this as SetHasGenerated<this>;
 	}
 
 	/**
 	 * Adds a `default now()` clause to the column definition.
 	 * Available for date/time column types.
 	 */
-	defaultNow(): this & PgColumnBuilder<Omit<T, 'hasDefault'> & { hasDefault: true }> {
+	defaultNow(): SetHasDefault<this> {
 		return this.default(sql`now()`);
 	}
 
