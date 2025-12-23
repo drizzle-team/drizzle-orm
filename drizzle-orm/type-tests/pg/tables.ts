@@ -594,15 +594,15 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col2.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col3.enumValues>>;
+	Expect<Equal<undefined, typeof test.col3.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col4.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col5.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col6.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col7.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col8.enumValues>>;
+	Expect<Equal<undefined, typeof test.col8.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+	Expect<Equal<undefined, typeof test.col11.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col12.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col13.enumValues>>;
 }
@@ -633,15 +633,15 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col2.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col3.enumValues>>;
+	Expect<Equal<undefined, typeof test.col3.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col4.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col5.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col6.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col7.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col8.enumValues>>;
+	Expect<Equal<undefined, typeof test.col8.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
-	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+	Expect<Equal<undefined, typeof test.col11.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col12.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col13.enumValues>>;
 }
