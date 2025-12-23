@@ -21,7 +21,7 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 ]);
 export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
 
-export function mapEnumValues(values: string[]) {
+export function mapEnumValues(values: string[] | number[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 

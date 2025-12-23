@@ -19,7 +19,7 @@ export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), 
 TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
-export function mapEnumValues(values: string[]) {
+export function mapEnumValues(values: string[] | number[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 

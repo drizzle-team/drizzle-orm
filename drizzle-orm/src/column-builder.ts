@@ -166,7 +166,7 @@ export type MakeColumnConfig<
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
-	enumValues: T extends { enumValues: [string, ...string[]] } ? T['enumValues'] : undefined;
+	enumValues: T extends { enumValues: [any, ...any[]] } ? T['enumValues'] : undefined;
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, TDialect>
 		: never;
 	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;

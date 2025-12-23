@@ -1,7 +1,8 @@
 {
 	"name": "drizzle-seed",
 	"version": "1.0.0-beta.4",
-	"main": "index.js",
+	"main": "index.cjs",
+	"module": "index.mjs",
 	"type": "module",
 	"scripts": {
 		"build": "tsc -p ./tsconfig.json && tsx scripts/build.ts",

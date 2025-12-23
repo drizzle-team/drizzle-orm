@@ -582,3 +582,20 @@ Expect<
 		textdef: text().default(''),
 	});
 }
+
+{
+	const table = sqliteTable('test_enum', {
+		stockWithEnum: integer('stock', { mode: 'number', enum: [1, 2, 3, 4, 5] }),
+		stockWithoutEnum: integer('stock2'),
+	});
+
+	type SelectType = typeof table.$inferSelect;
+	Expect<Equal<SelectType['stockWithEnum'], 1 | 2 | 3 | 4 | 5 | null>>;
+	Expect<Equal<SelectType['stockWithoutEnum'], number | null>>;
+
+	type IntegerEnumValues = typeof table.stockWithEnum._.enumValues;
+	type IntegerNoEnumValues = typeof table.stockWithoutEnum._.enumValues;
+
+	Expect<Equal<IntegerEnumValues, [1, 2, 3, 4, 5]>>;
+	Expect<Equal<IntegerNoEnumValues, [number, ...number[]]>>;
+}
