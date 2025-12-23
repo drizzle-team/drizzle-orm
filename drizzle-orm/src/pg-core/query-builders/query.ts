@@ -31,7 +31,7 @@ export class RelationalQueryBuilder<
 		private parseJson: boolean,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields> = {}>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new PgRelationalQuery(
@@ -46,7 +46,7 @@ export class RelationalQueryBuilder<
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields> = {}>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new PgRelationalQuery(

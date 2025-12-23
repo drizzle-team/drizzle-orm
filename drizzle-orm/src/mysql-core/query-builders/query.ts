@@ -30,7 +30,7 @@ export class RelationalQueryBuilder<
 		private session: MySqlSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields> = {}>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
@@ -44,7 +44,7 @@ export class RelationalQueryBuilder<
 		);
 	}
 
-	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
+	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields> = {}>(
 		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
