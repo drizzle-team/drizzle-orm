@@ -1361,13 +1361,13 @@ test('fk #0', async () => {
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
-	// const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const e = [
 		`CREATE TABLE \`users\` (\n\t\`id\` integer,\n\t\`id2\` integer,\n\tCONSTRAINT \`fk_users_id_users_id2_fk\` FOREIGN KEY (\`id\`) REFERENCES \`users\`(\`id2\`)\n);\n`,
 	];
 	expect(sqlStatements).toStrictEqual(e);
-	// expect(pst).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
 });
 
 test('fk #1', async () => {
