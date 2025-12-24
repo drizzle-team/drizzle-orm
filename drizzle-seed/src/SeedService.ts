@@ -240,7 +240,7 @@ export class SeedService {
 							throw new Error("for now you can't specify generators for columns of dimension greater than 1.");
 						}
 
-						genObj.baseColumnDataType = col.baseColumn?.dataType;
+						genObj.baseColumnDataType = col.baseColumn?.dataType ?? col.dataType;
 					}
 
 					columnPossibleGenerator.generator = genObj;
