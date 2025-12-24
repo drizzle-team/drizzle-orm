@@ -711,6 +711,12 @@ test('jsonb + jsonb arrays', async () => {
 	const res8 = await diffDefault(_, jsonb().array().default([]), `'{}'::jsonb[]`);
 	const res12 = await diffDefault(_, jsonb().array('[][]').default([]), `'{}'::jsonb[]`);
 
+	const res13 = await diffDefault(
+		_,
+		jsonb().default({ confirmed: true, not_received: true }),
+		`'{"confirmed":true,"not_received":true}'`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -720,6 +726,7 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
 });
 
 test('timestamp + timestamp arrays', async () => {

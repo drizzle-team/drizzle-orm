@@ -233,7 +233,9 @@ const column = (
 		const { def, options } = typeof res === 'string' ? { def: res } : res;
 		const defaultStatement = def ? `.default(${def})` : '';
 		const opts = options ? `${JSON.stringify(options)}` : '';
-		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
+		return `${withCasing(name, casing)}: ${drizzleType}(${
+			dbColumnName({ name, casing, withMode: Boolean(opts) })
+		}${opts})${defaultStatement}`;
 	}
 
 	// TODO: ??
@@ -334,7 +336,6 @@ const createTableIndexes = (
 		const indexGeneratedName = `${tableName}_${columnNames.join('_')}_index`;
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${

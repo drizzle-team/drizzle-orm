@@ -102,6 +102,7 @@ export const stringify = ((): Stringify => {
 				// JSON numbers must be finite. Encode non-finite numbers as null.
 				return Number.isFinite(value) ? value.toString() : `null`;
 			case `boolean`:
+				return value.toString();
 			case `bigint`:
 				return n ? `${value.toString()}n` : value.toString();
 			case `object`: {

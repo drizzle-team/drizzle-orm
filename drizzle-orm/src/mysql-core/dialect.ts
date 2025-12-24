@@ -1240,6 +1240,11 @@ export class MySqlDialect {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
 				}
 
+				case 'MySqlBlob':
+				case 'MySqlBlobBuffer': {
+					return sql`to_base64(${name}) as ${sql.identifier(key)}`;
+				}
+
 				case 'MySqlCustomColumn': {
 					return sql`${(<MySqlCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}

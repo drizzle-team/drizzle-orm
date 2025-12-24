@@ -81,7 +81,7 @@ export const schemaTest = pgTable('schema_test', {
 export const allSmallIntsCustom = customSchema.table(
 	'schema_test2_custom',
 	{
-		column: smallint('column').notNull().array().generatedAlwaysAs([1]).default([124]),
+		column: smallint('column').notNull().array().generatedAlwaysAs([1]),
 		column1: smallint('column1').default(1),
 		column2: smallint('column2').notNull().array('[][]'),
 		column3: smallint('column3').notNull().array('[][]'),

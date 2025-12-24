@@ -10,6 +10,7 @@ import {
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
 import { v4 as uuid } from 'uuid';
+import { suggestions as diffSuggestions } from '../../src/cli/commands/generate-mysql';
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
@@ -85,7 +86,18 @@ export const diff = async (
 		'default',
 	);
 
-	return { sqlStatements, statements, next: ddl2, ddl1Err: err1, ddl2Err: err2, mappedErrors1, mappedErrors2 };
+	const { errors } = diffSuggestions(statements, ddl2);
+
+	return {
+		sqlStatements,
+		statements,
+		next: ddl2,
+		ddl1Err: err1,
+		ddl2Err: err2,
+		mappedErrors1,
+		mappedErrors2,
+		suggestion: { errors },
+	};
 };
 
 export const diffIntrospect = async (
@@ -152,8 +164,9 @@ export const push = async (config: {
 	casing?: CasingType;
 	log?: 'statements';
 	ignoreSubsequent?: boolean;
+	expectError?: boolean;
 }) => {
-	const { db, to, log } = config;
+	const { db, to, log, expectError } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { schema } = await introspect({
@@ -191,11 +204,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const res = await suggestions(db, statements);
+	const res = await suggestions(db, statements, ddl2);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
-		await db.query(sql);
+		await db.query(sql).catch((err) => {
+			if (!expectError) throw err;
+		});
 	}
 
 	// subsequent push
