@@ -16,7 +16,7 @@ import type {
 } from './ddl';
 import { typeFor } from './grammar';
 
-export const imports = ['integer', 'real', 'text', 'numeric', 'blob'] as const;
+export const imports = ['integer', 'real', 'text', 'numeric', 'blob', 'customType'] as const;
 export type Import = typeof imports[number];
 const sqliteImports = new Set([
 	'sqliteTable',
@@ -229,11 +229,12 @@ const column = (
 	const grammarType = typeFor(type);
 	if (grammarType) {
 		const drizzleType = grammarType.drizzleImport();
-		const res = grammarType.toTs(defaultValue);
-		const { def, options } = typeof res === 'string' ? { def: res } : res;
+		const res = grammarType.toTs(defaultValue, type);
+		const { def, options, customType } = typeof res === 'string' ? { def: res } : res;
+
 		const defaultStatement = def ? `.default(${def})` : '';
 		const opts = options ? `${JSON.stringify(options)}` : '';
-		return `${withCasing(name, casing)}: ${drizzleType}(${
+		return `${withCasing(name, casing)}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${
 			dbColumnName({ name, casing, withMode: Boolean(opts) })
 		}${opts})${defaultStatement}`;
 	}

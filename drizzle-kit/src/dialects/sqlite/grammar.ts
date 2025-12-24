@@ -1,5 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
+import { escapeForTsLiteral } from '../utils';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -24,7 +25,10 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	toTs(value: Column['default']): { def: string; options?: Record<string, string | number | boolean> } | string;
+	toTs(
+		value: Column['default'],
+		type: string,
+	): { def: string; options?: Record<string, string | number | boolean>; customType?: string } | string;
 }
 
 const intAffinities = [
@@ -230,7 +234,7 @@ export const Blob: SqlType = {
 	defaultFromIntrospect: function(value: string) {
 		return value;
 	},
-	toTs: function(value) {
+	toTs: function(value, type) {
 		if (value === null) return '';
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
@@ -251,7 +255,26 @@ export const Blob: SqlType = {
 			}
 		} catch {}
 
-		return Text.toTs(value);
+		return Text.toTs(value, type);
+	},
+};
+
+export const Custom: SqlType = {
+	is: (_type: string) => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		if (!value) return '';
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: function(value, type) {
+		if (!value) return { def: '', customType: type };
+		const escaped = escapeForTsLiteral(value);
+		return { def: escaped, customType: type };
 	},
 };
 
@@ -261,9 +284,10 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Numeric.is(sqlType)) return Numeric;
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
+	if (Numeric.is(sqlType)) return Numeric;
 
-	// If no specific type matches, default to Numeric
-	return Numeric;
+	// If no specific type matches, default to Custom
+	return Custom;
 };
 
 // https://www.sqlite.org/datatype3.html
