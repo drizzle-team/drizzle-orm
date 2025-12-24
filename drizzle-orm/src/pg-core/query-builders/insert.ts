@@ -184,8 +184,7 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 
 export type PgInsertPrepare<T extends AnyPgInsert> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
-			: T['_']['returning'][];
+		execute: T['_']['result'];
 	}
 >;
 
@@ -211,13 +210,14 @@ export interface PgInsertBase<
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
+	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 > extends
 	TypedQueryBuilder<
 		TSelectedFields,
-		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+		TResult
 	>,
-	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+	QueryPromise<TResult>,
+	RunnableQuery<TResult, 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -228,7 +228,7 @@ export interface PgInsertBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
-		readonly result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
+		readonly result: TResult;
 	};
 }
 
@@ -241,14 +241,14 @@ export class PgInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
-	implements
-		TypedQueryBuilder<
-			TSelectedFields,
-			TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
-		>,
-		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-		SQLWrapper
+	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+> extends QueryPromise<TResult> implements
+	TypedQueryBuilder<
+		TSelectedFields,
+		TResult
+	>,
+	RunnableQuery<TResult, 'pg'>,
+	SQLWrapper
 {
 	static override readonly [entityKind]: string = 'PgInsert';
 
@@ -405,7 +405,7 @@ export class PgInsertBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
+					execute: TResult;
 				}
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
 				type: 'insert',
