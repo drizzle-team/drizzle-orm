@@ -815,6 +815,9 @@ export const Uuid: SqlType = {
 
 		value = trimChar(value, "'");
 		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+		if (!value.startsWith("'") && !value.endsWith("'") && value.endsWith('()')) {
+			return { options, default: `sql\`${value}\`` };
+		}
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {

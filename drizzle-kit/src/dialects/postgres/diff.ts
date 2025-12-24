@@ -1,4 +1,5 @@
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import assert from 'assert';
+import { parse } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
@@ -743,11 +744,20 @@ export const ddlDiff = async (
 				|| (it.$left.type === 'jsonb' && it.$right.type === 'jsonb'))
 		) {
 			if (it.default.from !== null && it.default.to !== null) {
-				const left = stringify(parse(trimChar(it.default.from, "'")));
-				const right = stringify(parse(trimChar(it.default.to, "'")));
-				if (left === right) {
+				const parsedLeft = parse(trimChar(it.default.from, "'"));
+				const parsedRight = parse(trimChar(it.default.to, "'"));
+
+				try {
+					assert.deepStrictEqual(parsedLeft, parsedRight);
 					delete it.default;
-				}
+				} catch {}
+
+				// const left = stringify(parsedLeft);
+				// const right = stringify(parsedRight);
+
+				// if (left === right) {
+				// 	delete it.default;
+				// }
 			}
 		}
 
