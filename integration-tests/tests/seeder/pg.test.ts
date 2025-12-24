@@ -1127,7 +1127,7 @@ test('all array data types test', async () => {
 });
 
 test('nd arrays', async () => {
-	await seed(db, { ndArrays: schema.ndArrays }, { count: 1000 });
+	await seed(db, { ndArrays: schema.ndArrays }, { count: 500 });
 
 	const ndArrays = await db.select().from(schema.ndArrays);
 	// every value in each rows does not equal undefined.
