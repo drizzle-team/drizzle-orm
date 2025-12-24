@@ -35,12 +35,12 @@ export class PgReal<T extends ColumnBaseConfig<'number float' | 'number ufloat'>
 		return 'real';
 	}
 
-	override mapFromDriverValue = (value: string | number): number => {
+	override mapFromDriverValue(value: string | number): number {
 		if (typeof value === 'string') {
 			return Number.parseFloat(value);
 		}
 		return value;
-	};
+	}
 }
 
 export function real(name?: string): PgRealBuilder {

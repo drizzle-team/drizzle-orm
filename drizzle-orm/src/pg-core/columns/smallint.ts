@@ -27,12 +27,12 @@ export class PgSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint
 		return 'smallint';
 	}
 
-	override mapFromDriverValue = (value: number | string): number => {
+	override mapFromDriverValue(value: number | string): number {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	};
+	}
 }
 export function smallint(name?: string): PgSmallIntBuilder {
 	return new PgSmallIntBuilder(name ?? '');
