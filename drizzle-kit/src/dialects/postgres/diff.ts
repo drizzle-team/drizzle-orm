@@ -1,7 +1,7 @@
-import assert from 'assert';
 import { parse } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
+import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
@@ -748,7 +748,7 @@ export const ddlDiff = async (
 				const parsedRight = parse(trimChar(it.default.to, "'"));
 
 				try {
-					assert.deepStrictEqual(parsedLeft, parsedRight);
+					deepStrictEqual(parsedLeft, parsedRight);
 					delete it.default;
 				} catch {}
 

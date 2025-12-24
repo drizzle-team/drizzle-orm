@@ -42,11 +42,11 @@ test('introspect tables with fk constraint', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3231
-test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect tables with fk constraint #2', async () => {
+test('introspect tables with fk constraint #2', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);
 	await db.run('CREATE TABLE `users`(`id` integer primary key);');
-	await db.run('CREATE TABLE `posts`(`user_id` integer references `users`);');
+	await db.run('CREATE TABLE `posts`(`user_id` integer references `users` (`id`));');
 
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl, errors } = interimToDDL(schema);
@@ -382,7 +382,7 @@ test('introspect text type', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3590
-test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + check', async () => {
+test('introspect composite pk + check', async () => {
 	const sqlite = new Database(':memory:');
 
 	const schema = {
@@ -396,7 +396,7 @@ test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + che
 		]),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_text_type');
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_composite_pk_check');
 
 	expect(sqlStatements).toStrictEqual([]);
 });

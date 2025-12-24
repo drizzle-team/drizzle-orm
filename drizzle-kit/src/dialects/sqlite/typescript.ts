@@ -398,7 +398,7 @@ const createTablePK = (pk: PrimaryKey, casing: Casing): string => {
 
 	statement += `${pk.name ? `, name: "${pk.name}"` : ''}}`;
 	statement += ')';
-	statement += `\n`;
+	statement += `,\n`;
 	return statement;
 };
 

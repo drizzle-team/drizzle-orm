@@ -30,7 +30,7 @@ test('add columns #1', async (t) => {
 
 	const schema2 = {
 		users: mssqlTable('users', {
-			id: int('id'),
+			id: int('id').primaryKey(),
 			name: text('name').notNull().default('hey'),
 		}),
 	};
