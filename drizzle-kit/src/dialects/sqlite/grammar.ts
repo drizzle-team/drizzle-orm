@@ -164,12 +164,14 @@ export const Text: SqlType = {
 	is: function(type: string): boolean {
 		const lowered = type.toLowerCase();
 		return textAffinities.indexOf(lowered) >= 0
+			|| lowered.startsWith('text(')
 			|| lowered.startsWith('character(')
 			|| lowered.startsWith('varchar(')
 			|| lowered.startsWith('varying character(')
 			|| lowered.startsWith('nchar(')
 			|| lowered.startsWith('native character(')
-			|| lowered.startsWith('nvarchar(');
+			|| lowered.startsWith('nvarchar(')
+			|| lowered.startsWith('clob(');
 	},
 	drizzleImport: function(): Import {
 		return 'text';
