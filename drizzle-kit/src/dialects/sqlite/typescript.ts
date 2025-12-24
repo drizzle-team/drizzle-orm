@@ -265,7 +265,7 @@ const createTableColumns = (
 ): string => {
 	let statement = '';
 	for (const it of columns) {
-		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name;
+		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table;
 
 		statement += '\t';
 		statement += column(it.type, it.name, it.default, casing);
