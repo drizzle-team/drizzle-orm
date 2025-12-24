@@ -502,6 +502,7 @@ const column = (
 	let columnStatement = `${withCasing(name, casing)}: ${
 		isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
 	}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
+
 	if (dimensions > 0) {
 		const suffix = '[]'.repeat(dimensions);
 		columnStatement += dimensions === 1 ? '.array()' : `.array("${suffix}")`;
@@ -530,8 +531,11 @@ const createViewColumns = (
 		);
 		statement += '\t';
 		statement += columnStatement;
-		// Provide just this in column function
-		statement += '.array()'.repeat(it.dimensions + it.typeDimensions);
+		if (it.dimensions > 0 || it.typeDimensions > 0) {
+			const c = it.dimensions + it.typeDimensions;
+			const suffix = '[]'.repeat(it.dimensions + it.typeDimensions);
+			statement += c === 1 ? '.array()' : `.array("${suffix}")`;
+		}
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
@@ -582,7 +586,12 @@ const createTableColumns = (
 		let columnStatement = `${withCasing(name, casing)}: ${
 			isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
 		}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
-		columnStatement += '.array()'.repeat(dimensions);
+
+		if (it.dimensions > 0) {
+			const suffix = '[]'.repeat(it.dimensions);
+			columnStatement += it.dimensions === 1 ? '.array()' : `.array("${suffix}")`;
+		}
+
 		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
