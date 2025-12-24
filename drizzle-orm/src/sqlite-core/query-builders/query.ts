@@ -38,7 +38,7 @@ export class RelationalQueryBuilder<
 	) {
 	}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields> = {}>(
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return this.mode === 'sync'
@@ -66,7 +66,7 @@ export class RelationalQueryBuilder<
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields> = {}>(
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
 	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return this.mode === 'sync'

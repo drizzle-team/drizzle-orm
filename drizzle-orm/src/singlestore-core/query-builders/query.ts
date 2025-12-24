@@ -35,7 +35,7 @@ export class RelationalQueryBuilder<
 		private session: SingleStoreSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields> = {}>(
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new SingleStoreRelationalQuery(
@@ -49,7 +49,7 @@ export class RelationalQueryBuilder<
 		);
 	}
 
-	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields> = {}>(
+	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new SingleStoreRelationalQuery(
