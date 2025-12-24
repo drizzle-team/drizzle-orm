@@ -266,6 +266,7 @@ export const typeFor = (sqlType: string): SqlType => {
 	return Numeric;
 };
 
+// https://www.sqlite.org/datatype3.html
 export function sqlTypeFrom(sqlType: string): string {
 	const lowered = sqlType.toLowerCase();
 	if (
@@ -317,7 +318,14 @@ export function sqlTypeFrom(sqlType: string): string {
 		return 'real';
 	}
 
-	return 'numeric';
+	// https://www.sqlite.org/datatype3.html -> 3.1.1. Affinity Name Examples
+	if (
+		['numeric', 'decimal', 'boolean', 'date', 'datetime'].some((it) => lowered.startsWith(it))
+	) {
+		return 'numeric';
+	}
+
+	return sqlType;
 }
 
 export const parseDefault = (type: string, it: string): Column['default'] => {
