@@ -259,6 +259,7 @@ export type AnyPgSelectQueryBuilder = PgSelectQueryBuilderBase<any, any, any, an
 export type AnyPgSetOperatorInterface = PgSetOperatorInterface<any, any, any, any, any, any, any, any>;
 
 export interface PgSetOperatorInterface<
+	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -270,7 +271,7 @@ export interface PgSetOperatorInterface<
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > {
 	_: {
-		readonly hkt: PgSelectQueryBuilderHKT;
+		readonly hkt: THKT;
 		readonly tableName: TTableName;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
@@ -283,6 +284,7 @@ export interface PgSetOperatorInterface<
 }
 
 export type PgSetOperatorWithResult<TResult extends any[]> = PgSetOperatorInterface<
+	PgSelectQueryBuilderHKT,
 	any,
 	any,
 	any,
@@ -326,7 +328,7 @@ export type PgSetOperator<
 export type SetOperatorRightSelect<
 	TValue extends PgSetOperatorWithResult<TResult>,
 	TResult extends any[],
-> = TValue extends PgSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any> ? ValidateShape<
+> = TValue extends PgSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any> ? ValidateShape<
 		TValueResult[number],
 		TResult[number],
 		TypedQueryBuilder<any, TValueResult>
@@ -337,7 +339,7 @@ export type SetOperatorRestSelect<
 	TValue extends readonly PgSetOperatorWithResult<TResult>[],
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
-	? First extends PgSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any>
+	? First extends PgSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
 		? Rest extends AnyPgSetOperatorInterface[] ? [
 				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
 				...SetOperatorRestSelect<Rest, TResult>,
@@ -347,6 +349,7 @@ export type SetOperatorRestSelect<
 	: TValue;
 
 export type PgCreateSetOperatorFn = <
+	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -360,6 +363,7 @@ export type PgCreateSetOperatorFn = <
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 >(
 	leftSelect: PgSetOperatorInterface<
+		THKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -373,7 +377,7 @@ export type PgCreateSetOperatorFn = <
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
 ) => PgSelectWithout<
 	PgSelectQueryBuilderBase<
-		PgSelectQueryBuilderHKT,
+		THKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
