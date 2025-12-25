@@ -141,8 +141,8 @@ export class PgInsertBuilder<
 export interface PgInsertHKTBase {
 	table: PgTable;
 	queryResult: PgQueryResultHKT;
-	selectedFields: ColumnsSelection | undefined;
-	returning: Record<string, unknown> | undefined;
+	selectedFields: unknown;
+	returning: unknown;
 	dynamic: boolean;
 	excludedMethods: string;
 	result: unknown;
@@ -200,33 +200,35 @@ export type PgInsertReturning<
 	T extends AnyPgInsert,
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFieldsFlat,
-> = PgInsertWithout<
-	PgInsertKind<
-		T['_']['hkt'],
-		T['_']['table'],
-		T['_']['queryResult'],
-		TSelectedFields,
-		SelectResultFields<TSelectedFields>,
+> = T extends any ? PgInsertWithout<
+		PgInsertKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			TSelectedFields,
+			SelectResultFields<TSelectedFields>,
+			TDynamic,
+			T['_']['excludedMethods']
+		>,
 		TDynamic,
-		T['_']['excludedMethods']
-	>,
-	TDynamic,
-	'returning'
->;
+		'returning'
+	>
+	: never;
 
-export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean> = PgInsertWithout<
-	PgInsertKind<
-		T['_']['hkt'],
-		T['_']['table'],
-		T['_']['queryResult'],
-		T['_']['table']['_']['columns'],
-		T['_']['table']['$inferSelect'],
+export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean> = T extends any ? PgInsertWithout<
+		PgInsertKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			T['_']['table']['_']['columns'],
+			T['_']['table']['$inferSelect'],
+			TDynamic,
+			T['_']['excludedMethods']
+		>,
 		TDynamic,
-		T['_']['excludedMethods']
-	>,
-	TDynamic,
-	'returning'
->;
+		'returning'
+	>
+	: never;
 
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
@@ -263,8 +265,8 @@ export interface PgInsertBase<
 	THKT extends PgInsertHKTBase,
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TSelectedFields = undefined,
+	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
@@ -295,8 +297,8 @@ export class PgInsertBase<
 	THKT extends PgInsertHKTBase,
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TSelectedFields = undefined,
+	TReturning = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -354,9 +356,9 @@ export class PgInsertBase<
 	): PgInsertReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
-	): PgInsertWithout<AnyPgInsert, TDynamic, 'returning'> {
+	): PgInsertReturningAll<this, TDynamic> | PgInsertReturning<this, TDynamic, SelectedFieldsFlat> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(this.config.returningFields);
 		return this as any;
 	}
 
