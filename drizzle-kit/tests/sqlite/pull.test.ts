@@ -3,13 +3,16 @@ import { SQL, sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	check,
+	customType,
 	foreignKey,
+	index,
 	int,
 	integer,
 	primaryKey,
 	sqliteTable,
 	sqliteView,
 	text,
+	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
@@ -42,11 +45,11 @@ test('introspect tables with fk constraint', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3231
-test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect tables with fk constraint #2', async () => {
+test('introspect tables with fk constraint #2', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);
 	await db.run('CREATE TABLE `users`(`id` integer primary key);');
-	await db.run('CREATE TABLE `posts`(`user_id` integer references `users`);');
+	await db.run('CREATE TABLE `posts`(`user_id` integer references `users` (`id`));');
 
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl, errors } = interimToDDL(schema);
@@ -382,7 +385,7 @@ test('introspect text type', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3590
-test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + check', async () => {
+test('introspect composite pk + check', async () => {
 	const sqlite = new Database(':memory:');
 
 	const schema = {
@@ -396,7 +399,59 @@ test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + che
 		]),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_text_type');
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_composite_pk_check');
 
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect unique constraint', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table: sqliteTable('table', {
+			col1: text('col1'),
+			col2: integer('col2').unique(),
+		}, (t) => [
+			uniqueIndex('some_idx').on(t.col1),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_unique_constraint');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3047
+test('create table with custom type column', async (t) => {
+	const sqlite = new Database(':memory:');
+
+	const f32Blob = customType<{
+		data: number[];
+		config: {
+			length: number;
+		};
+		configRequired: true;
+	}>({
+		dataType(conf: { length: number }) {
+			return `F32_BLOB(${conf.length})`;
+		},
+		fromDriver(value: Buffer) {
+			const fArr = new Float32Array(new Uint8Array(value).buffer);
+			return Array.from(fArr);
+		},
+
+		toDriver(value: number[]) {
+			return Buffer.from(new Float32Array(value).buffer);
+		},
+	});
+	const schema = {
+		table1: sqliteTable('table1', {
+			id: text('id').primaryKey(),
+			blob: f32Blob('blob', {
+				length: 10,
+			}),
+		}),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'table-with-custom-type-column');
 	expect(sqlStatements).toStrictEqual([]);
 });

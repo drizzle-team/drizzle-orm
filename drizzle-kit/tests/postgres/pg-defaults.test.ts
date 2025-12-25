@@ -666,6 +666,7 @@ test('text + text arrays', async () => {
 	expect.soft(res14).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('json + json arrays', async () => {
 	const res1 = await diffDefault(_, json().default({}), `'{}'`);
 	const res2 = await diffDefault(_, json().default([]), `'[]'`);
@@ -674,6 +675,7 @@ test('json + json arrays', async () => {
 	const res5 = await diffDefault(_, json().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
 	const res6 = await diffDefault(_, json().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
 	const res7 = await diffDefault(_, json().default({ key: 'mo",\\`}{od' }), `'{"key":"mo\\\",\\\\\`}{od"}'`);
+	const res11 = await diffDefault(_, json().default({ b: 2, a: 1 }), `'{"b":2,"a":1}'`);
 
 	const res8 = await diffDefault(_, json().array().default([]), `'{}'::json[]`);
 	const res9 = await diffDefault(
@@ -694,11 +696,13 @@ test('json + json arrays', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('jsonb + jsonb arrays', async () => {
 	const res1 = await diffDefault(_, jsonb().default({}), `'{}'`);
 	const res2 = await diffDefault(_, jsonb().default([]), `'[]'`);
@@ -707,6 +711,7 @@ test('jsonb + jsonb arrays', async () => {
 	const res5 = await diffDefault(_, jsonb().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
 	const res6 = await diffDefault(_, jsonb().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
 	const res7 = await diffDefault(_, jsonb().default({ key: 'mo",\\`}{od' }), `'{"key":"mo\\\",\\\\\`}{od"}'`);
+	const res9 = await diffDefault(_, jsonb().default({ b: 2, a: 1 }), `'{"b":2,"a":1}'`);
 
 	const res8 = await diffDefault(_, jsonb().array().default([]), `'{}'::jsonb[]`);
 	const res12 = await diffDefault(_, jsonb().array('[][]').default([]), `'{}'::jsonb[]`);
@@ -724,6 +729,7 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
