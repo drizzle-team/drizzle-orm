@@ -83,7 +83,7 @@ export const ddlToTypeScript = (
 	for (const it of schema.entities.list()) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
-		if (it.entityType === 'uniques' && it.columns.length > 1) imports.add('unique');
+		if (it.entityType === 'uniques') imports.add('unique');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'columns') columnTypes.add(it.type);
 		if (it.entityType === 'views') imports.add('sqliteView');
@@ -325,14 +325,6 @@ const createTableIndexes = (
 	let statement = '';
 
 	for (const it of idxs) {
-		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
-			? it.name.slice(tableName.length + 1)
-			: it.name;
-		idxKey = idxKey.endsWith('_index')
-			? idxKey.slice(0, -'_index'.length) + '_idx'
-			: idxKey;
-		idxKey = withCasing(idxKey, casing);
-
 		const columnNames = it.columns.filter((c) => !c.isExpression).map((c) => c.value);
 		const indexGeneratedName = `${tableName}_${columnNames.join('_')}_index`;
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
@@ -357,9 +349,6 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${

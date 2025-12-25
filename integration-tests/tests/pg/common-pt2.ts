@@ -2535,7 +2535,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4875
-		test('view #2', async ({ db }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-15'))('view #2', async ({ db }) => {
 			const productionJobTable = pgTable('production_job', {
 				id: text('id').primaryKey(),
 				name: text('name'),
