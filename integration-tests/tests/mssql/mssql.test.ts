@@ -1949,7 +1949,7 @@ test('update with placeholder', async ({ db }) => {
 
 	await db.execute(sql`drop table if exists ${users};`);
 	await db.execute(sql`create table ${users} (
-				[id] serial primary key,
+				[id] int primary key,
 				[name] text not null,
 				[verified] bit not null default 0
 			);`);
