@@ -183,18 +183,11 @@ export type PgInsertKind<
 
 export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends keyof T & string> =
 	TDynamic extends true ? T
-		: Omit<
-			PgInsertKind<
-				T['_']['hkt'],
-				T['_']['table'],
-				T['_']['queryResult'],
-				T['_']['selectedFields'],
-				T['_']['returning'],
-				TDynamic,
-				T['_']['excludedMethods'] | K
-			>,
-			T['_']['excludedMethods'] | K
-		>;
+		: Omit<T, T['_']['excludedMethods'] | K> & {
+			readonly _: Omit<T['_'], 'excludedMethods'> & {
+				readonly excludedMethods: T['_']['excludedMethods'] | K;
+			};
+		};
 
 export type PgInsertReturning<
 	T extends AnyPgInsert,
