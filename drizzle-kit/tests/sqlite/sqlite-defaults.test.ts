@@ -35,8 +35,10 @@ test('integer', async () => {
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
 	const res9 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(date), `${date.getTime()}`);
-	const res10 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(new Date(2000, 1, 1)), `949356000000`);
-	// const res10 = await diffDefault(
+	// this test will fail in ci/cd due to different timezones
+	// const res10 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(new Date(2000, 1, 1)), `949356000000`);
+
+	// const res11 = await diffDefault(
 	// 	_,
 	// 	integer({ mode: 'timestamp_ms' }).defaultNow(),
 	// 	`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
@@ -52,7 +54,7 @@ test('integer', async () => {
 	expect.soft(res71).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	// expect.soft(res10).toStrictEqual([]);
 });
 
 test('text', async () => {
