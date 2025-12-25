@@ -1129,7 +1129,7 @@ test('defaults: timestamptz with precision', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5119
-test.skipIf(Date.now() < +new Date('2025-12-24'))('no diff for all column types', async () => {
+test('no diff for all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -1403,4 +1403,209 @@ test('alter integer type to serial type', async () => {
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('same column names in two tables. Check for correct not null creation. Explicit column names', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer('id').primaryKey(),
+			departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer('user_id').references(() => users.id),
+			departmentId: integer('department_id').references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer('id').primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"user_id" integer,
+\t"department_id" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("user_id","department_id")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"department_id" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #2. no casing', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"userId" integer,
+\t"departmentId" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("userId","departmentId")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"departmentId" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #3. camelCase', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'camelCase');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'camelCase' });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"userId" integer,
+\t"departmentId" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("userId","departmentId")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"departmentId" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'snake_case');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'snake_case' });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"user_id" integer,
+\t"department_id" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("user_id","department_id")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"department_id" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

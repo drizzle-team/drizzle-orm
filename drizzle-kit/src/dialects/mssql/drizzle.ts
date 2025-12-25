@@ -130,8 +130,12 @@ export const fromDrizzleSchema = (
 		for (const column of columns) {
 			const columnName = getColumnCasing(column, casing);
 
-			const isPk = result.pks.find((it) => it.columns.includes(columnName));
-			const notNull: boolean = column.notNull || Boolean(column.generated) || Boolean(isPk);
+			const isPk = result.pks.find((it) =>
+				it.columns.includes(columnName) && it.table === tableName && it.schema === schema
+			) !== undefined;
+
+			// if column is part of composite primary key, it is implicitly not null in db
+			const notNull: boolean = column.notNull || Boolean(isPk);
 
 			// @ts-expect-error
 			// Drizzle ORM gives this value in runtime, but not in types.

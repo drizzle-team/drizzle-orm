@@ -419,7 +419,7 @@ test('introspect all column types', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5093
-test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect uuid column with custom default function', async () => {
+test('introspect uuid column with custom default function', async () => {
 	await db.query(`CREATE OR REPLACE FUNCTION uuidv7()
 RETURNS uuid
 LANGUAGE sql
@@ -431,6 +431,9 @@ $$;`);
 	const schema = {
 		columns: pgTable('columns', {
 			uuid1: uuid().default(sql`uuidv7()`),
+			text: text().default(sql`uuidv7()`),
+			char: char().default(sql`uuidv7()`),
+			varchar: varchar().default(sql`uuidv7()`),
 		}),
 	};
 
