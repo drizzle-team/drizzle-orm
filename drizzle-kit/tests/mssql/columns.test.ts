@@ -35,17 +35,19 @@ test('add columns #1', async (t) => {
 		}),
 	};
 
+	const { sqlStatements: st0 } = await diff({}, schema1, []);
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1, schemas: ['dbo'] });
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
-	const st0 = [
+	const expected2 = [
 		`ALTER TABLE [users] ADD [name] text NOT NULL CONSTRAINT [users_name_default] DEFAULT ('hey');`,
 	];
 
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	// expect(st0).toStrictEqual([]);
+	expect(st).toStrictEqual(expected2);
+	expect(pst).toStrictEqual(expected2);
 });
 
 test('add columns #2', async (t) => {

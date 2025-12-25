@@ -43,12 +43,6 @@ export const handle = async (config: GenerateConfig) => {
 			'default',
 		);
 
-		// for (const { jsonStatement } of groupedStatements) {
-		// 	const msg = sqliteExplain(jsonStatement);
-		// 	console.log(msg?.title);
-		// 	console.log(msg?.cause);
-		// }
-
 		for (const w of warnings) {
 			warning(w);
 		}

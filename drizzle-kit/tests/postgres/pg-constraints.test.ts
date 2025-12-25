@@ -2574,3 +2574,24 @@ test('enums in check', async () => {
 	]);
 	expect(res2.sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
+test('composite pk multistep #2', async () => {
+	const userAsyncTasks = pgTable('userAsyncTask', {
+		userId: text('userId').notNull(),
+		identifier: text('identifier').notNull(),
+		type: text('type').notNull(),
+	}, (t) => [
+		primaryKey({ columns: [t.identifier, t.userId, t.type] }),
+	]);
+	const schema = { userAsyncTasks };
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});

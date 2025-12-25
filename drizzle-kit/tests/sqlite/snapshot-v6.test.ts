@@ -40,7 +40,7 @@ test('s02', async (t) => {
 
 // fk namings
 // old kit did not store fk names
-// that is okay for introspect, but for push db will not have any name
+// that is okay for generate, but for push db will not have any name
 test('s03', async (t) => {
 	const res1 = await diffSnapshotV6(db, s03newGenerate, s03Generate, 'generate');
 

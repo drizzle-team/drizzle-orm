@@ -1293,8 +1293,9 @@ test('pk multistep #3', async () => {
 	expect(pst5).toStrictEqual(e5);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
 // https://github.com/drizzle-team/drizzle-orm/issues/3844
-test.skipIf(Date.now() < +new Date('2025-12-24'))('composite pk multistep #1', async () => {
+test('composite pk multistep #1', async () => {
 	const organisations = sqliteTable('organisation', {
 		id: int().primaryKey({ autoIncrement: true }),
 	});
@@ -1330,8 +1331,9 @@ test.skipIf(Date.now() < +new Date('2025-12-24'))('composite pk multistep #1', a
 	expect(pst2).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
 // https://github.com/drizzle-team/drizzle-orm/issues/3103
-test.skipIf(Date.now() < +new Date('2025-12-24'))('composite pk multistep #2', async () => {
+test('composite pk multistep #2', async () => {
 	const userAsyncTasks = sqliteTable('userAsyncTask', {
 		userId: text('userId').notNull(),
 		identifier: text('identifier').notNull(),

@@ -1,5 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
+import { escapeForTsLiteral } from '../utils';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -24,7 +25,10 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	toTs(value: Column['default']): { def: string; options?: Record<string, string | number | boolean> } | string;
+	toTs(
+		value: Column['default'],
+		type: string,
+	): { def: string; options?: Record<string, string | number | boolean>; customType?: string } | string;
 }
 
 const intAffinities = [
@@ -160,12 +164,14 @@ export const Text: SqlType = {
 	is: function(type: string): boolean {
 		const lowered = type.toLowerCase();
 		return textAffinities.indexOf(lowered) >= 0
+			|| lowered.startsWith('text(')
 			|| lowered.startsWith('character(')
 			|| lowered.startsWith('varchar(')
 			|| lowered.startsWith('varying character(')
 			|| lowered.startsWith('nchar(')
 			|| lowered.startsWith('native character(')
-			|| lowered.startsWith('nvarchar(');
+			|| lowered.startsWith('nvarchar(')
+			|| lowered.startsWith('clob(');
 	},
 	drizzleImport: function(): Import {
 		return 'text';
@@ -230,7 +236,7 @@ export const Blob: SqlType = {
 	defaultFromIntrospect: function(value: string) {
 		return value;
 	},
-	toTs: function(value) {
+	toTs: function(value, type) {
 		if (value === null) return '';
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
@@ -251,7 +257,26 @@ export const Blob: SqlType = {
 			}
 		} catch {}
 
-		return Text.toTs(value);
+		return Text.toTs(value, type);
+	},
+};
+
+export const Custom: SqlType = {
+	is: (_type: string) => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		if (!value) return '';
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: function(value, type) {
+		if (!value) return { def: '', customType: type };
+		const escaped = escapeForTsLiteral(value);
+		return { def: escaped, customType: type };
 	},
 };
 
@@ -261,11 +286,13 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Numeric.is(sqlType)) return Numeric;
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
+	if (Numeric.is(sqlType)) return Numeric;
 
-	// If no specific type matches, default to Numeric
-	return Numeric;
+	// If no specific type matches, default to Custom
+	return Custom;
 };
 
+// https://www.sqlite.org/datatype3.html
 export function sqlTypeFrom(sqlType: string): string {
 	const lowered = sqlType.toLowerCase();
 	if (
@@ -317,7 +344,14 @@ export function sqlTypeFrom(sqlType: string): string {
 		return 'real';
 	}
 
-	return 'numeric';
+	// https://www.sqlite.org/datatype3.html -> 3.1.1. Affinity Name Examples
+	if (
+		['numeric', 'decimal', 'boolean', 'date', 'datetime'].some((it) => lowered.startsWith(it))
+	) {
+		return 'numeric';
+	}
+
+	return sqlType;
 }
 
 export const parseDefault = (type: string, it: string): Column['default'] => {

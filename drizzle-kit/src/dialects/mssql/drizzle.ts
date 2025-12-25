@@ -134,6 +134,7 @@ export const fromDrizzleSchema = (
 				it.columns.includes(columnName) && it.table === tableName && it.schema === schema
 			) !== undefined;
 
+			// if column is part of composite primary key, it is implicitly not null in db
 			const notNull: boolean = column.notNull || Boolean(isPk);
 
 			// @ts-expect-error

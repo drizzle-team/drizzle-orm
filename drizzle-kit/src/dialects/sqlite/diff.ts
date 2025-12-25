@@ -238,6 +238,14 @@ export const ddlDiff = async (
 			delete it.nameExplicit;
 		}
 
+		if (
+			it.columns && it.columns.to && it.columns.from && it.columns.from.length === it.columns.to.length
+		) {
+			const unique = new Set(it.columns.to);
+
+			if (it.columns.from.every((col) => unique.has(col))) delete it.columns;
+		}
+
 		return ddl2.pks.hasDiff(it);
 	});
 

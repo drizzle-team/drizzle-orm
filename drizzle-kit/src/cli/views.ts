@@ -757,29 +757,44 @@ export const sqliteExplain = (
 			const columnsAltered = fksAlters.filter((it) => it.columns);
 			const columnsToAltered = fksAlters.filter((it) => it.columnsTo);
 			const tablesToAltered = fksAlters.filter((it) => it.tableTo);
+			const onUpdateAltered = fksAlters.filter((it) => it.onUpdate);
+			const onDeleteAltered = fksAlters.filter((it) => it.onDelete);
 
-			res += `│ Foreign key constraint was altered:\n`;
-			if (columnsAltered) {
+			res += columnsAltered.length > 0 && columnsToAltered.length > 0 && tablesToAltered.length > 0
+					&& onUpdateAltered.length > 0 && onDeleteAltered.length > 0
+				? `│ Foreign key constraint was altered:\n`
+				: '';
+			if (columnsAltered.length) {
 				res += `${
 					columnsAltered.map((it) =>
 						`│ name: ${it.name} => columns: [${it.columns?.from.join(',')}] -> [${it.columns?.to.join(',')}]`
 					)
 				}\n`;
 			}
-			if (columnsToAltered) {
+			if (columnsToAltered.length) {
 				res += ` ${
 					columnsToAltered.map((it) =>
 						`│ name: ${it.name} => columnsTo: [${it.columnsTo?.from.join(',')}] -> [${it.columnsTo?.to.join(',')}]`
 					)
 				}\n`;
 			}
-			if (tablesToAltered) {
+			if (tablesToAltered.length) {
 				res += `${
 					tablesToAltered.map((it) => `│ name: ${it.name} => tableTo: [${it.tableTo?.from}] -> [${it.tableTo?.to}]`)
 				}\n`;
 			}
+			if (onUpdateAltered.length) {
+				res += `${
+					onUpdateAltered.map((it) => `│ name: ${it.name} => onUpdate: [${it.onUpdate?.from}] -> [${it.onUpdate?.to}]`)
+				}\n`;
+			}
+			if (onDeleteAltered.length) {
+				res += `${
+					onDeleteAltered.map((it) => `│ name: ${it.name} => onDelete: [${it.onDelete?.from}] -> [${it.onDelete?.to}]`)
+				}\n`;
+			}
 
-			blocks.push([res]);
+			if (res) blocks.push([res]);
 		}
 
 		if (fksDiff.length) {

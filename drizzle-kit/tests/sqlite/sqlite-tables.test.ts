@@ -728,7 +728,6 @@ test('nothing changed in schema', async (t) => {
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema1, []);
-
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema1 });
 
@@ -780,7 +779,7 @@ test('create table with custom name references', async (t) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3047
-test.skipIf(Date.now() < +new Date('2025-12-24'))('create table with custom type column', async (t) => {
+test('create table with custom type column', async (t) => {
 	const f32Blob = customType<{
 		data: number[];
 		config: {
