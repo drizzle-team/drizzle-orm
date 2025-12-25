@@ -22,6 +22,10 @@ on:
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
 
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
+
 jobs:
   test:
     strategy:
