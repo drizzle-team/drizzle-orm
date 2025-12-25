@@ -575,7 +575,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 		const urls = envUrl.split(';').filter(Boolean);
 		if (urls.length > 1) {
 			// Use VITEST_POOL_ID to distribute workers across containers
-			const poolId = parseInt(process.env.VITEST_POOL_ID || '0', 10);
+			const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
 			url = urls[poolId % urls.length]!;
 		} else {
 			url = urls[0]!;

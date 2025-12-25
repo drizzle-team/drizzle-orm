@@ -61,13 +61,12 @@
 		"valibot": ">=1.0.0-beta.7"
 	},
 	"devDependencies": {
-		"@rollup/plugin-typescript": "^11.1.0",
 		"@types/node": "^18.15.10",
 		"cpy": "^10.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
 		"json-rules-engine": "^7.3.1",
 		"rimraf": "^5.0.0",
-		"rollup": "^3.29.5",
+		"tsdown": "^0.18.3",
 		"valibot": "1.0.0-beta.7",
 		"zx": "^7.2.2"
 	}
