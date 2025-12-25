@@ -1,13 +1,15 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
+#!/usr/bin/env bun
+import { $ } from 'bun';
 import cpy from 'cpy';
 import { globSync } from 'glob';
+import { mkdirSync, renameSync, rmSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { build as tsdown } from 'tsdown';
 
 const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 
 async function updateAndCopyPackageJson() {
-	const pkg = await fs.readJSON('package.json');
+	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 
 	pkg.exports = entries.reduce<
 		Record<string, {
@@ -45,7 +47,7 @@ async function updateAndCopyPackageJson() {
 		{},
 	);
 
-	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
+	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 
 async function buildJS() {
@@ -79,7 +81,7 @@ async function buildJS() {
 
 async function buildDeclarations() {
 	// Use tsc for declaration generation (fast and reliable)
-	await $`tsc -p tsconfig.dts.json`.stdio('pipe', 'pipe', 'pipe');
+	await $`tsc -p tsconfig.dts.json`.quiet();
 
 	// Copy .d.ts files and also create .d.cts copies
 	await cpy('dist-dts/**/*.d.ts', 'dist.new', {
@@ -92,7 +94,7 @@ async function buildDeclarations() {
 
 async function fixImports() {
 	// Fix CJS imports to use .cjs extension
-	await $`scripts/fix-imports.ts`.stdio('pipe', 'pipe', 'pipe');
+	await $`bun scripts/fix-imports.ts`.quiet();
 	console.log('  Fixed import extensions');
 }
 
@@ -106,7 +108,7 @@ export declare const compatibilityVersion = 12;
 	await fs.writeFile('dist.new/version.d.cts', versionDts);
 
 	// Also create the virtual package module declarations that rolldown creates
-	await fs.ensureDir('dist.new/drizzle-orm');
+	mkdirSync('dist.new/drizzle-orm', { recursive: true });
 	const packageDts = `export declare const version: string;
 `;
 	await fs.writeFile('dist.new/drizzle-orm/package.d.ts', packageDts);
@@ -117,10 +119,10 @@ async function main() {
 	const startTime = Date.now();
 
 	// Run prisma generate first
-	await $`pnpm p`.stdio('pipe', 'pipe', 'pipe');
+	await $`pnpm p`.quiet();
 
-	await fs.remove('dist.new');
-	await fs.ensureDir('dist.new');
+	rmSync('dist.new', { recursive: true, force: true });
+	mkdirSync('dist.new', { recursive: true });
 
 	// Build JS and declarations in parallel
 	await Promise.all([
@@ -136,13 +138,13 @@ async function main() {
 
 	// Copy README and update package.json
 	await Promise.all([
-		fs.copy('../README.md', 'dist.new/README.md'),
+		fs.copyFile('../README.md', 'dist.new/README.md'),
 		updateAndCopyPackageJson(),
 	]);
 
 	// Swap dist folders
-	await fs.remove('dist');
-	await fs.rename('dist.new', 'dist');
+	rmSync('dist', { recursive: true, force: true });
+	renameSync('dist.new', 'dist');
 
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
 	console.log(`Build completed successfully in ${elapsed}s`);

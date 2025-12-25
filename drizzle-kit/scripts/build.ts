@@ -1,5 +1,6 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
+#!/usr/bin/env bun
+import { existsSync, rmSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
 import { rolldown } from 'rolldown';
 import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
@@ -95,7 +96,7 @@ async function buildDeclarations() {
 		entry: ['./src/index.ts'],
 		outDir: './dist',
 		external: [...driversPackages, /^drizzle-orm\/?/],
-		dts: { only: true },
+		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
 		clean: false,
@@ -111,7 +112,7 @@ async function buildDeclarations() {
 		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
 		outDir: './dist',
 		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
-		dts: { only: true },
+		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
 		clean: false,
@@ -130,7 +131,7 @@ async function postProcessApiFiles() {
 	const apiFiles = ['dist/api-postgres.js', 'dist/api-mysql.js', 'dist/api-sqlite.js'];
 	await Promise.all(
 		apiFiles.map(async (file) => {
-			if (await fs.pathExists(file)) {
+			if (existsSync(file)) {
 				const content = await fs.readFile(file, 'utf8');
 				await fs.writeFile(file, content.replace(/await import\(/g, 'require('));
 			}
@@ -140,7 +141,7 @@ async function postProcessApiFiles() {
 
 async function main() {
 	const startTime = Date.now();
-	await fs.remove('dist');
+	rmSync('dist', { recursive: true, force: true });
 
 	await Promise.all([
 		buildCli(),
@@ -200,7 +201,7 @@ async function main() {
 
 	await Promise.all([
 		postProcessApiFiles(),
-		fs.copy('package.json', 'dist/package.json'),
+		fs.copyFile('package.json', 'dist/package.json'),
 	]);
 
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
