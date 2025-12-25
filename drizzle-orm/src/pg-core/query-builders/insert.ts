@@ -81,11 +81,11 @@ export class PgInsertBuilder<
 		return this as any;
 	}
 
-	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
+	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
 	values(
 		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
-	): PgInsertBase<TTable, TQueryResult> {
+	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -111,16 +111,18 @@ export class PgInsertBuilder<
 		).setToken(this.authToken) as any;
 	}
 
-	select(selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
-	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertBase<TTable, TQueryResult>;
-	select(selectQuery: SQL): PgInsertBase<TTable, TQueryResult>;
-	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertBase<TTable, TQueryResult>;
+	select(
+		selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>,
+	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: SQL): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
 			| PgInsertSelectQueryBuilder<TTable>
 			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
-	): PgInsertBase<TTable, TQueryResult> {
+	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
 		if (
@@ -136,10 +138,54 @@ export class PgInsertBuilder<
 	}
 }
 
+export interface PgInsertHKTBase {
+	table: PgTable;
+	queryResult: PgQueryResultHKT;
+	selectedFields: ColumnsSelection | undefined;
+	returning: Record<string, unknown> | undefined;
+	dynamic: boolean;
+	excludedMethods: string;
+	result: unknown;
+	_type: unknown;
+}
+
+export interface PgInsertQueryBuilderHKT extends PgInsertHKTBase {
+	_type: PgInsertBase<
+		PgInsertQueryBuilderHKT,
+		this['table'],
+		this['queryResult'],
+		this['selectedFields'],
+		this['returning'],
+		this['dynamic'],
+		this['excludedMethods'],
+		this['result']
+	>;
+}
+
+export type PgInsertKind<
+	T extends PgInsertHKTBase,
+	TTable extends PgTable,
+	TQueryResult extends PgQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+> = (T & {
+	table: TTable;
+	queryResult: TQueryResult;
+	selectedFields: TSelectedFields;
+	returning: TReturning;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+	result: TResult;
+})['_type'];
+
 export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends keyof T & string> =
 	TDynamic extends true ? T
 		: Omit<
-			PgInsertBase<
+			PgInsertKind<
+				T['_']['hkt'],
 				T['_']['table'],
 				T['_']['queryResult'],
 				T['_']['selectedFields'],
@@ -154,22 +200,32 @@ export type PgInsertReturning<
 	T extends AnyPgInsert,
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFieldsFlat,
-> = PgInsertBase<
-	T['_']['table'],
-	T['_']['queryResult'],
-	TSelectedFields,
-	SelectResultFields<TSelectedFields>,
+> = PgInsertWithout<
+	PgInsertKind<
+		T['_']['hkt'],
+		T['_']['table'],
+		T['_']['queryResult'],
+		TSelectedFields,
+		SelectResultFields<TSelectedFields>,
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
 	TDynamic,
-	T['_']['excludedMethods']
+	'returning'
 >;
 
-export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean> = PgInsertBase<
-	T['_']['table'],
-	T['_']['queryResult'],
-	T['_']['table']['_']['columns'],
-	T['_']['table']['$inferSelect'],
+export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean> = PgInsertWithout<
+	PgInsertKind<
+		T['_']['hkt'],
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['table']['_']['columns'],
+		T['_']['table']['$inferSelect'],
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
 	TDynamic,
-	T['_']['excludedMethods']
+	'returning'
 >;
 
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
@@ -194,16 +250,17 @@ export type PgInsertDynamic<T extends AnyPgInsert> = PgInsert<
 	T['_']['returning']
 >;
 
-export type AnyPgInsert = PgInsertBase<any, any, any, any, any, any>;
+export type AnyPgInsert = PgInsertBase<any, any, any, any, any, any, any, any>;
 
 export type PgInsert<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = PgInsertBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
+> = PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 
 export interface PgInsertBase<
+	THKT extends PgInsertHKTBase,
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
@@ -222,6 +279,7 @@ export interface PgInsertBase<
 {
 	readonly _: {
 		readonly dialect: 'pg';
+		readonly hkt: THKT;
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly selectedFields: TSelectedFields;
@@ -233,6 +291,8 @@ export interface PgInsertBase<
 }
 
 export class PgInsertBase<
+	// oxlint-disable-next-line no-unused-vars
+	THKT extends PgInsertHKTBase,
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
@@ -288,10 +348,10 @@ export class PgInsertBase<
 	 *   .returning({ id: cars.id });
 	 * ```
 	 */
-	returning(): PgInsertWithout<PgInsertReturningAll<this, TDynamic>, TDynamic, 'returning'>;
+	returning(): PgInsertReturningAll<this, TDynamic>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
-	): PgInsertWithout<PgInsertReturning<this, TDynamic, TSelectedFields>, TDynamic, 'returning'>;
+	): PgInsertReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertWithout<AnyPgInsert, TDynamic, 'returning'> {
