@@ -1942,7 +1942,7 @@ test('update undefined', async ({ db }) => {
 
 test('update with placeholder', async ({ db }) => {
 	const users = mssqlTable('userstest_update_p', {
-		id: int('id').identity().primaryKey(),
+		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 		verified: bit('verified').notNull().default(false),
 	});
@@ -1955,9 +1955,9 @@ test('update with placeholder', async ({ db }) => {
 			);`);
 
 	await db.insert(users).values([
-		{ name: 'Barry', verified: false },
-		{ name: 'Alan', verified: false },
-		{ name: 'Carl', verified: false },
+		{ id: 1, name: 'Barry', verified: false },
+		{ id: 2, name: 'Alan', verified: false },
+		{ id: 3, name: 'Carl', verified: false },
 	]);
 
 	await db.update(users).set({ verified: sql.placeholder('verified') }).execute({
