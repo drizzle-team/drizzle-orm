@@ -1965,11 +1965,11 @@ test('update with placeholder', async ({ db }) => {
 	});
 
 	const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
-		asc(users.name),
+		asc(users.id),
 	);
 	expect(result).toStrictEqual([
-		{ name: 'Alan', verified: true },
 		{ name: 'Barry', verified: true },
+		{ name: 'Alan', verified: true },
 		{ name: 'Carl', verified: true },
 	]);
 });
