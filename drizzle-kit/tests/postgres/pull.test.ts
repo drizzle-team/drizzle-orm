@@ -29,6 +29,7 @@ import {
 	pgSequence,
 	pgTable,
 	pgView,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -1104,6 +1105,27 @@ test('introspect without any schema', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect composite pk', async () => {
+	const firstToSecondTable = pgTable(
+		'firstToSecond',
+		{
+			firstId: integer('firstId'),
+			secondId: integer('secondId'),
+		},
+		(table) => [primaryKey({ columns: [table.firstId, table.secondId] })],
+	);
+
+	const schema = { firstToSecondTable };
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-composite-pk',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect foreign keys', async () => {

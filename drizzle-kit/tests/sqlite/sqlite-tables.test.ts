@@ -15,6 +15,8 @@ import {
 	unique,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { connectToSQLite } from 'src/cli/connections';
+import { SQLiteDB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -999,4 +1001,23 @@ test('rename table with composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 
 	expect(phints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5083
+test('push after migrate with migrationsTable set', async () => {
+	const { migrate, query, run } = await connectToSQLite({ url: ':memory:' });
+	const migratorDb: SQLiteDB = { query, run };
+
+	await migrate({ migrationsFolder: 'tests/sqlite/drizzle2', migrationsTable: 'migrations' });
+
+	const schema = {
+		table: sqliteTable('table1', { col1: integer() }),
+	};
+	// TODO: revise test with @AlexBlokh: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: pst1 } = await push({ db: migratorDb, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`col1` integer\n);\n',
+		'DROP TABLE `table`;',
+	];
+	expect(pst1).toStrictEqual(expectedSt1);
 });

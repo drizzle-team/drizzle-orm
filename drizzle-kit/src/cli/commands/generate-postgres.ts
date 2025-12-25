@@ -65,7 +65,7 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	const explainMessage = explain('mysql', groupedStatements, false, []);
+	const explainMessage = explain('postgres', groupedStatements, false, []);
 	if (explainMessage) console.log(explainMessage);
 
 	writeResult({
