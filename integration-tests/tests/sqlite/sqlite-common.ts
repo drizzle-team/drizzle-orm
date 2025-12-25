@@ -608,6 +608,19 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(users).toEqual([{ name: 'JANE' }]);
 		});
 
+		test.concurrent('update placeholder', async ({ db }) => {
+			await db.insert(usersTable).values({ name: 'John' }).run();
+			const users = await db.update(usersTable).set({ name: sql.placeholder('name') }).where(
+				eq(usersTable.name, 'John'),
+			).returning({
+				name: sql`upper(${usersTable.name})`,
+			}).all({
+				name: 'Jane',
+			});
+
+			expect(users).toEqual([{ name: 'JANE' }]);
+		});
+
 		test.concurrent('insert with auto increment', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'John' },
@@ -1000,7 +1013,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5084
 		// it's needed to fix the type error below.
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent(
+		test.concurrent(
 			'prepared statement with placeholder in .onConflictDoUpdate',
 			async ({ db }) => {
 				await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();
@@ -1013,12 +1026,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					.onConflictDoUpdate({
 						target: usersTable.id,
 						set: {
-							// Casts necessary as `set` does not accept placeholders, even though
-							// it works at runtime
-
-							// @ts-expect-error
 							id: sql.placeholder('id'),
-							// @ts-expect-error
 							name: sql.placeholder('name'),
 						},
 					})

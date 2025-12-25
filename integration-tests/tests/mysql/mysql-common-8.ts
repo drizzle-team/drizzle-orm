@@ -285,6 +285,25 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(res).toStrictEqual([{ id: 1, name: 'John1' }]);
 	});
 
+	test.concurrent('insert with onDuplicate placeholder', async ({ db, push }) => {
+		const users = createUserTable('users_98_p');
+		await push({ users });
+
+		await db.insert(users)
+			.values({ name: 'John' });
+
+		await db.insert(users)
+			.values({ id: 1, name: 'John' })
+			.onDuplicateKeyUpdate({ set: { name: sql.placeholder('name') } })
+			.execute({ name: 'John1' });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+			eq(users.id, 1),
+		);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John1' }]);
+	});
+
 	test.concurrent('insert conflict', async ({ db, push }) => {
 		const users = createUserTable('users_99');
 		await push({ users });
@@ -620,6 +639,30 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			{ name: 'Alan', verified: true },
 			{ name: 'Barry', verified: true },
 			{ name: 'Carl', verified: false },
+		]);
+	});
+
+	test.concurrent('update with placeholder', async ({ db, push }) => {
+		const users = createUserTable('users_112_p');
+		await push({ users });
+
+		await db.insert(users).values([
+			{ name: 'Barry', verified: false },
+			{ name: 'Alan', verified: false },
+			{ name: 'Carl', verified: false },
+		]);
+
+		await db.update(users).set({ verified: sql.placeholder('verified') }).execute({
+			verified: true,
+		});
+
+		const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+			asc(users.name),
+		);
+		expect(result).toStrictEqual([
+			{ name: 'Alan', verified: true },
+			{ name: 'Barry', verified: true },
+			{ name: 'Carl', verified: true },
 		]);
 	});
 

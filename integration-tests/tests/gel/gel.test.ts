@@ -897,6 +897,25 @@ describe('some', async () => {
 		]);
 	});
 
+	test('update with placeholder returning all fields', async (ctx) => {
+		const { db } = ctx.gel;
+		const users = usersTable;
+		const now = Date.now();
+
+		await db.insert(users).values({ id1: 1, name: 'John' });
+		const usersResult = await db
+			.update(users)
+			.set({ name: sql.placeholder('name') })
+			.where(eq(users.name, 'John'))
+			.returning().execute({ name: 'Jane' });
+
+		expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
+		expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+		expect(usersResult).toEqual([
+			{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
+		]);
+	});
+
 	test('update with returning partial', async (ctx) => {
 		const { db } = ctx.gel;
 
