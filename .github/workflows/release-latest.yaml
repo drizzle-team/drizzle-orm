@@ -150,6 +150,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
       - name: Install dependencies
         run: pnpm install
 
@@ -313,6 +319,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
       - name: Install dependencies
         run: pnpm install
 
@@ -393,6 +405,12 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
 
       - name: Install dependencies
         run: pnpm install
@@ -489,6 +507,12 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
 
       - name: Install dependencies
         run: pnpm install
