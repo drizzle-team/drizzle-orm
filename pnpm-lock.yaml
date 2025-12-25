@@ -488,6 +488,9 @@ importers:
       react:
         specifier: ^18.2.0
         version: 18.3.1
+      rolldown:
+        specifier: ^1.0.0-beta.57
+        version: 1.0.0-beta.57
       sql.js:
         specifier: ^1.8.0
         version: 1.13.0
@@ -497,6 +500,9 @@ importers:
       ts-morph:
         specifier: ^25.0.1
         version: 25.0.1
+      tsdown:
+        specifier: ^0.18.3
+        version: 0.18.3(typescript@5.9.2)
       tslib:
         specifier: ^2.5.2
         version: 2.8.1
@@ -17140,6 +17146,22 @@ snapshots:
     dependencies:
       glob: 10.5.0
 
+  rolldown-plugin-dts@0.20.0(rolldown@1.0.0-beta.57)(typescript@5.9.2):
+    dependencies:
+      '@babel/generator': 7.28.5
+      '@babel/parser': 7.28.5
+      '@babel/types': 7.28.5
+      ast-kit: 2.2.0
+      birpc: 4.0.0
+      dts-resolver: 2.1.3
+      get-tsconfig: 4.13.0
+      obug: 2.1.1
+      rolldown: 1.0.0-beta.57
+    optionalDependencies:
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - oxc-resolver
+
   rolldown-plugin-dts@0.20.0(rolldown@1.0.0-beta.57)(typescript@5.9.3):
     dependencies:
       '@babel/generator': 7.28.5
@@ -17890,6 +17912,33 @@ snapshots:
   tsconfck@3.1.6(typescript@5.9.2):
     optionalDependencies:
       typescript: 5.9.2
+
+  tsdown@0.18.3(typescript@5.9.2):
+    dependencies:
+      ansis: 4.2.0
+      cac: 6.7.14
+      defu: 6.1.4
+      empathic: 2.0.0
+      hookable: 6.0.1
+      import-without-cache: 0.2.5
+      obug: 2.1.1
+      picomatch: 4.0.3
+      rolldown: 1.0.0-beta.57
+      rolldown-plugin-dts: 0.20.0(rolldown@1.0.0-beta.57)(typescript@5.9.2)
+      semver: 7.7.3
+      tinyexec: 1.0.2
+      tinyglobby: 0.2.15
+      tree-kill: 1.2.2
+      unconfig-core: 7.4.2
+      unrun: 0.2.21
+    optionalDependencies:
+      typescript: 5.9.2
+    transitivePeerDependencies:
+      - '@ts-macro/tsc'
+      - '@typescript/native-preview'
+      - oxc-resolver
+      - synckit
+      - vue-tsc
 
   tsdown@0.18.3(typescript@5.9.3):
     dependencies:
