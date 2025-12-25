@@ -165,9 +165,9 @@ importers:
       esbuild:
         specifier: ^0.25.10
         version: 0.25.12
-      esbuild-register:
-        specifier: ^3.6.0
-        version: 3.6.0(esbuild@0.25.12)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
     devDependencies:
       '@aws-sdk/client-rds-data':
         specifier: ^3.556.0
@@ -346,9 +346,6 @@ importers:
       tsdown:
         specifier: ^0.18.3
         version: 0.18.3(typescript@5.9.3)
-      tsx:
-        specifier: ^4.20.6
-        version: 4.20.6
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
