@@ -15,7 +15,7 @@
 		},
 		"test:types": {
 			"dependsOn": [
-				"^test:types"
+				"drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -23,6 +23,12 @@
 				"tsconfig.json",
 				"tests/tsconfig.json",
 				"../tsconfig.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"build": {
+			"dependsOn": [
+				"drizzle-orm#build"
 			],
 			"outputLogs": "new-only"
 		},
