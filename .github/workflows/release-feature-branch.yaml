@@ -127,7 +127,7 @@ jobs:
           - shard: kit:postgres
             dbs: [postgres, postgres-postgis]
           - shard: kit:cockroach
-            dbs: [cockroach]
+            dbs: [cockroach-many]
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
@@ -159,6 +159,7 @@ jobs:
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+              cockroach-many)      compose_files+=("-f" "compose/cockroach-many.yml") ;;
               gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
@@ -255,7 +256,10 @@ jobs:
             
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+            kit:cockroach)
+              export COCKROACH_CONNECTION_STRING="postgresql://root@127.0.0.1:26260/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26261/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26262/defaultdb?sslmode=disable"
+              cd ../drizzle-kit && pnpm --stream run test:cockroach
+            ;;
             kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
             validators) 
               (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)

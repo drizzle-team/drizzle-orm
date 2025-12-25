@@ -47,7 +47,7 @@
 		"publish": "npm publish package.tgz",
 		"test:postgres": "vitest run ./postgres/",
 		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
-		"test:cockroach": "vitest run ./cockroach",
+		"test:cockroach": "vitest run ./cockroach --fileParallelism --maxWorkers=3",
 		"test:mssql": "vitest run ./mssql",
 		"test:gel": "vitest run ./gel",
 		"test:singlestore": "vitest run ./singlestore"
