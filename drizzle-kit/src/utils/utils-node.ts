@@ -376,25 +376,10 @@ export class InMemoryMutex {
 
 const registerMutex = new InMemoryMutex();
 
+// tsx is registered globally via bootstrap.ts
 export const safeRegister = async <T>(fn: () => Promise<T>) => {
 	return registerMutex.withLock(async () => {
-		const { register } = await import('esbuild-register/dist/node');
-		let res: { unregister: () => void };
-		try {
-			const { unregister } = register();
-			res = { unregister };
-		} catch {
-			// tsx fallback
-			res = {
-				unregister: () => {},
-			};
-		}
-		// has to be outside try catch to be able to run with tsx
 		await assertES5();
-
-		const result = await fn();
-		res.unregister();
-
-		return result;
+		return await fn();
 	});
 };

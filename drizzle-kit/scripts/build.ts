@@ -62,7 +62,7 @@ async function buildBundle(options: {
 
 async function buildCli() {
 	const build = await rolldown({
-		input: './src/cli/index.ts',
+		input: './src/bootstrap.ts',
 		platform: 'node',
 		external,
 		tsconfig: 'tsconfig.json',
