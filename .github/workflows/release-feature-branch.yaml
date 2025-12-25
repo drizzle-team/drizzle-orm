@@ -103,12 +103,6 @@ jobs:
         include:
           - shard: int:gel
             dbs: [gel]
-          - shard: int:singlestore
-            dbs: [singlestore]
-          - shard: int:singlestore-core
-            dbs: [singlestore-many]
-          - shard: int:singlestore-proxy
-            dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -116,7 +110,7 @@ jobs:
           - shard: int:sqlite
             dbs: []
           - shard: int:other
-            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
+            dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
             dbs: []
           - shard: int:cockroach
@@ -137,7 +131,7 @@ jobs:
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
+            dbs: [cockroach, mysql, mssql, postgres-postgis]
           - shard: validators
             dbs: []
          
@@ -163,8 +157,6 @@ jobs:
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
-              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
-              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
               gel)                 compose_files+=("-f" "compose/gel.yml") ;;
@@ -221,8 +213,6 @@ jobs:
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
-          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
@@ -241,9 +231,6 @@ jobs:
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
-            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
@@ -287,7 +274,6 @@ jobs:
                 --exclude ./tests/gel/ \
                 --exclude ./tests/mysql/ \
                 --exclude ./tests/cockroach/ \
-                --exclude ./tests/singlestore/ \
                 --exclude ./tests/mssql/ \
                 --exclude ./tests/pg/ \
                 --exclude ./tests/sqlite/ \
