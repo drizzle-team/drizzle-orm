@@ -364,6 +364,9 @@ importers:
       zod:
         specifier: ^3.20.2
         version: 3.25.1
+      zx:
+        specifier: ^8.8.5
+        version: 8.8.5
 
   drizzle-orm:
     dependencies:
