@@ -29,7 +29,8 @@ const driversPackages = [
 
 const external = [
 	'esbuild',
-	'esbuild-register',
+	'tsx',
+	/^tsx\//,
 	/^drizzle-orm\/?/,
 	...driversPackages,
 ];
@@ -62,7 +63,7 @@ async function buildBundle(options: {
 
 async function buildCli() {
 	const build = await rolldown({
-		input: './src/bootstrap.ts',
+		input: './src/cli/index.ts',
 		platform: 'node',
 		external,
 		tsconfig: 'tsconfig.json',

@@ -376,24 +376,26 @@ export class InMemoryMutex {
 
 const registerMutex = new InMemoryMutex();
 
-// Register tsx for TypeScript transpilation
-// In production, tsx is registered globally via bootstrap.ts
-// In tests/dev, we register it here if not already running under tsx
-// Bun has native TypeScript support, so we skip registration
+let tsxRegistered = false;
+const ensureTsxRegistered = () => {
+	if (tsxRegistered) return;
+
+	const isBun = typeof (globalThis as any).Bun !== 'undefined';
+	const isDeno = typeof (globalThis as any).Deno !== 'undefined';
+	if (isBun || isDeno) {
+		tsxRegistered = true;
+		return;
+	}
+
+	const tsx = require('tsx/cjs/api');
+	tsx.register();
+	tsxRegistered = true;
+};
+
 export const safeRegister = async <T>(fn: () => Promise<T>) => {
 	return registerMutex.withLock(async () => {
-		const isBun = typeof globalThis.Bun !== 'undefined';
-		let unregister: (() => void) | undefined;
-
-		if (!isBun) {
-			const tsx = require('tsx/cjs/api');
-			unregister = tsx.register();
-		}
-
+		ensureTsxRegistered();
 		await assertES5();
-		const result = await fn();
-
-		unregister?.();
-		return result;
+		return fn();
 	});
 };

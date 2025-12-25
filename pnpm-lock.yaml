@@ -286,6 +286,9 @@ importers:
       env-paths:
         specifier: ^3.0.0
         version: 3.0.0
+      esbuild-register:
+        specifier: ^3.6.0
+        version: 3.6.0(esbuild@0.25.12)
       gel:
         specifier: ^2.0.0
         version: 2.2.0
