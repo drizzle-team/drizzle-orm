@@ -1256,6 +1256,43 @@ test('alter column add default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2095
+test('alter column add default #2', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			name: text(),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			name: text().default('dan'),
+			age: integer(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(
+		from,
+		to,
+		[],
+	);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `age` integer;',
+		'PRAGMA foreign_keys=OFF;',
+		"CREATE TABLE `__new_table` (\n\t`name` text DEFAULT 'dan',\n\t`age` integer\n);\n",
+		'INSERT INTO `__new_table`(`name`) SELECT `name` FROM `table`;',
+		'DROP TABLE `table`;',
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('alter column drop default', async (t) => {
 	const from = {
 		users: sqliteTable('table', {

@@ -998,6 +998,33 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5084
+		test.concurrent('prepared statement with placeholder in .onConflictDoUpdate', async ({ db }) => {
+			throw new Error(`it's needed to fix the type error below.`);
+			await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();
+			const stmt = db
+				.insert(usersTable)
+				.values({
+					id: sql.placeholder('id'),
+					name: sql.placeholder('name'),
+				})
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					set: {
+						// Casts necessary as `set` does not accept placeholders, even though
+						// it works at runtime
+						id: sql.placeholder('id'),
+						name: sql.placeholder('name'),
+					},
+				})
+				.prepare();
+
+			await stmt.run({ id: 1, name: 'John1' });
+
+			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).all();
+			expect(result).toEqual([{ id: 1, name: 'John1' }]);
+		});
+
 		test.concurrent('prepared statement built using $dynamic', async ({ db }) => {
 			function withLimitOffset(qb: any) {
 				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));

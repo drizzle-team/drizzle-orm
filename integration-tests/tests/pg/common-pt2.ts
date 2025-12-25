@@ -5,7 +5,9 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	eq,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -2529,6 +2531,62 @@ export function tests(test: Test) {
 
 			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
 			expect(sql).toEqual('select "id", "name", "caretakerName" from "animal_with_caretaker_view";');
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4875
+		test('view #2', async ({ db }) => {
+			const productionJobTable = pgTable('production_job', {
+				id: text('id').primaryKey(),
+				name: text('name'),
+			});
+
+			const rfidTagTable = pgTable(
+				'rfid_tag',
+				{
+					createdAt: timestamp('created_at')
+						.notNull()
+						.default(sql`now()`),
+					epc: text('epc').notNull(),
+					locationId: text('location_id')
+						.notNull(),
+					id: text('id').notNull().unique().$default(() => 'abc'),
+				},
+			);
+
+			const productionJobWithLocationView = pgView(
+				'production_job_with_location',
+			).as((qb) => {
+				const productionColumns = getColumns(productionJobTable);
+				const sub = qb
+					.selectDistinctOn([rfidTagTable.epc])
+					.from(rfidTagTable)
+					.as('r');
+				return qb
+					.select({
+						...productionColumns,
+						locationId: sub.locationId,
+						tagId: sub.id.as('tag_id'),
+						tagCreatedAt: sub.createdAt.as('tag_created_at'),
+					})
+					.from(productionJobTable)
+					.leftJoin(
+						sub,
+						and(
+							eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+							sql`${sub.epc} ~ '^0?[0-9]+'`,
+						),
+					);
+			});
+
+			const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+			const query = db.select().from(sub);
+			expect(query.toSQL().sql).toEqual(
+				'select "id", "name", "location_id", "tag_id", "tag_created_at" from "production_job_with_location" as p;',
+			);
+
+			const res = await query;
+			expect(res).toStrictEqual([]);
 		});
 
 		test.concurrent('select from a many subquery', async ({ db, push }) => {

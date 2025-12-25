@@ -4,12 +4,14 @@ import {
 	AnySQLiteColumn,
 	check,
 	foreignKey,
+	index,
 	int,
 	integer,
 	primaryKey,
 	sqliteTable,
 	sqliteView,
 	text,
+	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
@@ -397,6 +399,23 @@ test.skipIf(Date.now() < +new Date('2025-12-24'))('introspect composite pk + che
 	};
 
 	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_text_type');
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect unique constraint', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table: sqliteTable('table', {
+			col1: text('col1'),
+			col2: integer('col2').unique(),
+		}, (t) => [
+			uniqueIndex('some_idx').on(t.col1),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_unique_constraint');
 
 	expect(sqlStatements).toStrictEqual([]);
 });
