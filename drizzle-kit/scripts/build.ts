@@ -1,6 +1,7 @@
 #!/usr/bin/env -S pnpm tsx
 import 'zx/globals';
 import { rolldown } from 'rolldown';
+import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
 
 const driversPackages = [
@@ -89,21 +90,38 @@ async function buildCli() {
 }
 
 async function buildDeclarations() {
-	try {
-		await $`tsc -p tsconfig.build.json`;
-	} catch {
-		console.log(
-			'  Warning: TypeScript declaration generation had errors (this may be expected if drizzle-orm is not built)',
-		);
-	}
+	// Use tsdown for declaration bundling - it handles path resolution and creates bundled .d.ts files
+	await tsdown({
+		entry: ['./src/index.ts'],
+		outDir: './dist',
+		external: [...driversPackages, /^drizzle-orm\/?/],
+		dts: { only: true },
+		format: ['cjs', 'es'],
+		logLevel: 'silent',
+		clean: false,
+		outExtensions: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return { dts: '.d.ts', js: '.js' };
+			}
+			return { dts: '.d.mts', js: '.mjs' };
+		},
+	});
 
-	const dtsFiles = await glob('dist/**/*.d.ts');
-	await Promise.all(
-		dtsFiles.map(async (file) => {
-			const content = await fs.readFile(file, 'utf8');
-			await fs.writeFile(file.replace(/\.d\.ts$/, '.d.mts'), content);
-		}),
-	);
+	await tsdown({
+		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
+		outDir: './dist',
+		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
+		dts: { only: true },
+		format: ['cjs', 'es'],
+		logLevel: 'silent',
+		clean: false,
+		outExtensions: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return { dts: '.d.ts', js: '.js' };
+			}
+			return { dts: '.d.mts', js: '.mjs' };
+		},
+	});
 
 	console.log('  Built declarations');
 }
