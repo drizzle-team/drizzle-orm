@@ -85,6 +85,7 @@ export abstract class Column<
 	readonly enumValues: T['enumValues'] = undefined;
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
+	readonly meta: Record<string, unknown> | undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -108,6 +109,7 @@ export abstract class Column<
 		this.columnType = config.columnType;
 		this.generated = config.generated;
 		this.generatedIdentity = config.generatedIdentity;
+		this.meta = config.meta;
 	}
 
 	abstract getSQLType(): string;
