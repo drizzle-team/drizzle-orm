@@ -169,7 +169,7 @@ export interface ReferenceConfig {
 }
 
 export abstract class PgColumnBuilder<
-	T extends PgColumnBuilderConfig = PgColumnBuilderConfig,
+	out T extends PgColumnBuilderConfig = PgColumnBuilderConfig,
 	TRuntimeConfig extends object = object,
 > {
 	static readonly [entityKind]: string = 'PgColumnBuilder';
@@ -474,7 +474,7 @@ export abstract class PgColumnBuilder<
 // TODO: we should potenitally do column to be
 // in charge of map value/array of values/json value and json array of values in 1 place
 export abstract class PgColumn<
-	T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
+	out T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';

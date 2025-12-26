@@ -251,14 +251,14 @@ export type IsIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 };
 
 export interface ColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
+	out T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 > {
 	_: T;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnType>,
+	out T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {

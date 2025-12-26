@@ -29,7 +29,7 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 }
 
 export interface Column<
-	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
+	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRuntimeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
@@ -44,7 +44,7 @@ export interface Column<
 	See `GetColumnData` for example usage of inferring.
 */
 export abstract class Column<
-	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
+	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';

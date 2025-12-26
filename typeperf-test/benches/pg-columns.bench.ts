@@ -4,8 +4,9 @@
  * These benchmarks measure the type instantiation cost of various drizzle-orm operations.
  * Run with: tsx benches/pg-columns.bench.ts
  *
- * Baselines reflect optimized drizzle-orm with direct property access in RequiredKeyOnly/OptionalKeyOnly.
- * Optimizations applied: added generated/identity to ColumnBaseConfig, converted structural extends to direct property access.
+ * Baselines reflect optimized drizzle-orm with:
+ * - Direct property access in RequiredKeyOnly/OptionalKeyOnly
+ * - Variance annotations (out keyword) on Column, ColumnBuilder, PgColumn, PgColumnBuilder
  */
 import { bench } from '@ark/attest';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
@@ -82,7 +83,7 @@ bench('select query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.select().from(users);
-}).types([1015, 'instantiations']);
+}).types([925, 'instantiations']);
 
 bench('insert query - simple', () => {
 	const users = pgTable('users', {
@@ -94,7 +95,7 @@ bench('insert query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.insert(users).values({ id: 1, name: 'test', email: 'test@test.com' });
-}).types([1519, 'instantiations']);
+}).types([1421, 'instantiations']);
 
 bench('update query - simple', () => {
 	const users = pgTable('users', {
@@ -106,7 +107,7 @@ bench('update query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.update(users).set({ name: 'updated' }).where(eq(users.id, 1));
-}).types([2143, 'instantiations']);
+}).types([2053, 'instantiations']);
 
 // --- Relational Query Benchmarks ---
 
@@ -216,7 +217,7 @@ bench('rqb - findFirst with where', () => {
 			posts: true,
 		},
 	});
-}).types([1634, 'instantiations']);
+}).types([1630, 'instantiations']);
 
 // --- Relational Query Benchmarks (with inline table definitions) ---
 
