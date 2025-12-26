@@ -40,7 +40,7 @@ export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, un
 		if (is(value, Column)) return new Proxy(value, new ColumnTableAliasProxyHandler(this.view, this.ignoreColumnAlias));
 		if (
 			is(value, Subquery) || is(value, SQL) || is(value, SQL.Aliased) || isSQLWrapper(value)
-			|| (typeof value !== 'object' && value !== null)
+			|| (typeof value !== 'object' || value === null)
 		) return value;
 
 		return new Proxy(value as Record<string, unknown>, this);
