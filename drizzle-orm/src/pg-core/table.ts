@@ -42,7 +42,7 @@ export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 /** @internal */
 export const EnableRLS = Symbol.for('drizzle:EnableRLS');
 
-export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
+export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'PgTable';
 
 	/** @internal */

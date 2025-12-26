@@ -6,7 +6,7 @@
  *
  * Baselines reflect optimized drizzle-orm with:
  * - Direct property access in RequiredKeyOnly/OptionalKeyOnly
- * - Variance annotations (out keyword) on Column, ColumnBuilder, PgColumn, PgColumnBuilder
+ * - Variance annotations (out keyword) on Column, ColumnBuilder, PgColumn, PgColumnBuilder, Table, PgTable
  */
 import { bench } from '@ark/attest';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
@@ -83,7 +83,7 @@ bench('select query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.select().from(users);
-}).types([925, 'instantiations']);
+}).types([915, 'instantiations']);
 
 bench('insert query - simple', () => {
 	const users = pgTable('users', {
@@ -95,7 +95,7 @@ bench('insert query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.insert(users).values({ id: 1, name: 'test', email: 'test@test.com' });
-}).types([1421, 'instantiations']);
+}).types([1411, 'instantiations']);
 
 bench('update query - simple', () => {
 	const users = pgTable('users', {
@@ -107,7 +107,7 @@ bench('update query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.update(users).set({ name: 'updated' }).where(eq(users.id, 1));
-}).types([2053, 'instantiations']);
+}).types([2043, 'instantiations']);
 
 // --- Relational Query Benchmarks ---
 
