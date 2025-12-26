@@ -2150,3 +2150,49 @@ test('case - #5125', async () => {
 
 	await push({ db, to });
 });
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrations = {
+		table: undefined,
+	};
+	const migrationsTable = mysqlTable('__drizzle_migrations', { id: int(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: mysqlTable('table1', { col1: int() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #2', async () => {
+	const migrations = {
+		table: 'migrations',
+	};
+	const migrationsTable = mysqlTable(migrations.table, { id: int(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: mysqlTable('table1', { col1: int() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
