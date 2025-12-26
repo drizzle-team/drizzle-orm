@@ -24,6 +24,8 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
+	generated: unknown;
+	identity: undefined | 'always' | 'byDefault';
 }
 
 export interface Column<
@@ -47,9 +49,7 @@ export abstract class Column<
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
-	declare readonly _: T & {
-		identity: undefined | 'always' | 'byDefault';
-	};
+	declare readonly _: T;
 
 	readonly name: string;
 	readonly keyAsName: boolean;

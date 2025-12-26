@@ -4,8 +4,8 @@
  * These benchmarks measure the type instantiation cost of various drizzle-orm operations.
  * Run with: tsx benches/pg-columns.bench.ts
  *
- * Baselines are captured from drizzle-orm@1.0.0-beta.1-c0277c0 (drizzle-beta).
- * Current version should perform at or better than these baselines.
+ * Baselines reflect optimized drizzle-orm with direct property access in RequiredKeyOnly/OptionalKeyOnly.
+ * Optimizations applied: added generated/identity to ColumnBaseConfig, converted structural extends to direct property access.
  */
 import { bench } from '@ark/attest';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
@@ -28,7 +28,7 @@ bench('pg table - 5 columns with modifiers', () => {
 		createdAt: timestamp().defaultNow(),
 	});
 	return {} as typeof users;
-}).types([471, 'instantiations']);
+}).types([126, 'instantiations']);
 
 bench('pg table - 10 columns', () => {
 	const table = pgTable('table_10_cols', {
@@ -44,7 +44,7 @@ bench('pg table - 10 columns', () => {
 		deletedAt: timestamp(),
 	});
 	return {} as typeof table;
-}).types([907, 'instantiations']);
+}).types([202, 'instantiations']);
 
 // --- Type Inference Benchmarks ---
 
@@ -57,7 +57,7 @@ bench('infer select model - 5 columns', () => {
 		createdAt: timestamp().defaultNow(),
 	});
 	return {} as InferSelectModel<typeof users>;
-}).types([5418, 'instantiations']);
+}).types([541, 'instantiations']);
 
 bench('infer insert model - 5 columns', () => {
 	const users = pgTable('users', {
@@ -68,7 +68,7 @@ bench('infer insert model - 5 columns', () => {
 		createdAt: timestamp().defaultNow(),
 	});
 	return {} as InferInsertModel<typeof users>;
-}).types([5478, 'instantiations']);
+}).types([1078, 'instantiations']);
 
 // --- Query Benchmarks ---
 
@@ -82,7 +82,7 @@ bench('select query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.select().from(users);
-}).types([7132, 'instantiations']);
+}).types([1015, 'instantiations']);
 
 bench('insert query - simple', () => {
 	const users = pgTable('users', {
@@ -94,7 +94,7 @@ bench('insert query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.insert(users).values({ id: 1, name: 'test', email: 'test@test.com' });
-}).types([8176, 'instantiations']);
+}).types([1519, 'instantiations']);
 
 bench('update query - simple', () => {
 	const users = pgTable('users', {
@@ -106,7 +106,7 @@ bench('update query - simple', () => {
 	});
 	const db = drizzle({ connection: 'postgres://...' });
 	return db.update(users).set({ name: 'updated' }).where(eq(users.id, 1));
-}).types([7518, 'instantiations']);
+}).types([2143, 'instantiations']);
 
 // --- Relational Query Benchmarks ---
 
@@ -172,7 +172,7 @@ const relations = defineRelations(schema, (r) => ({
 bench('rqb - findMany simple', () => {
 	const db = drizzle({ connection: 'postgres://...', relations });
 	return db.query.users.findMany();
-}).types([1430, 'instantiations']);
+}).types([1387, 'instantiations']);
 
 bench('rqb - findMany with columns', () => {
 	const db = drizzle({ connection: 'postgres://...', relations });
@@ -182,7 +182,7 @@ bench('rqb - findMany with columns', () => {
 			name: true,
 		},
 	});
-}).types([1532, 'instantiations']);
+}).types([1443, 'instantiations']);
 
 bench('rqb - findMany with one relation', () => {
 	const db = drizzle({ connection: 'postgres://...', relations });
@@ -191,7 +191,7 @@ bench('rqb - findMany with one relation', () => {
 			author: true,
 		},
 	});
-}).types([3491, 'instantiations']);
+}).types([1540, 'instantiations']);
 
 bench('rqb - findMany with nested relations', () => {
 	const db = drizzle({ connection: 'postgres://...', relations });
@@ -204,7 +204,7 @@ bench('rqb - findMany with nested relations', () => {
 			},
 		},
 	});
-}).types([2713, 'instantiations']);
+}).types([1455, 'instantiations']);
 
 bench('rqb - findFirst with where', () => {
 	const db = drizzle({ connection: 'postgres://...', relations });
@@ -216,7 +216,7 @@ bench('rqb - findFirst with where', () => {
 			posts: true,
 		},
 	});
-}).types([2547, 'instantiations']);
+}).types([1634, 'instantiations']);
 
 // --- Relational Query Benchmarks (with inline table definitions) ---
 
@@ -253,7 +253,7 @@ bench('rqb inline - findMany simple', () => {
 
 	const db = drizzle({ connection: 'postgres://...', relations });
 	return db.query.users.findMany();
-}).types([5130, 'instantiations']);
+}).types([1812, 'instantiations']);
 
 bench('rqb inline - findMany with relation', () => {
 	const users = pgTable('users', {
@@ -292,4 +292,4 @@ bench('rqb inline - findMany with relation', () => {
 			author: true,
 		},
 	});
-}).types([7168, 'instantiations']);
+}).types([1965, 'instantiations']);

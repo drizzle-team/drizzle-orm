@@ -74,6 +74,8 @@ export interface PgColumnBaseConfig<TDataType extends ColumnType = ColumnType> {
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
+	generated: unknown;
+	identity: undefined | 'always' | 'byDefault';
 }
 
 type WrapArray<T, N extends number> = N extends 1 ? T[]
