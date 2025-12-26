@@ -6,6 +6,9 @@
  */
 import { bench } from '@ark/attest';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { drizzle } from 'drizzle-orm/postgres-js';
+
+const db = drizzle.mock();
 
 // Define a table once
 const cachedTable = pgTable('cached', {
@@ -19,7 +22,7 @@ bench('same table - 3 references', () => {
 		t2: {} as typeof cachedTable,
 		t3: {} as typeof cachedTable,
 	};
-}).types([14, 'instantiations']);
+}).types([24, 'instantiations']);
 
 bench('same table - 5 references', () => {
 	return {
@@ -29,14 +32,14 @@ bench('same table - 5 references', () => {
 		t4: {} as typeof cachedTable,
 		t5: {} as typeof cachedTable,
 	};
-}).types([14, 'instantiations']);
+}).types([24, 'instantiations']);
 
 bench('inline tables - 1 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
 	return {
 		table: {} as typeof t1,
 	};
-}).types([31, 'instantiations']);
+}).types([41, 'instantiations']);
 
 bench('inline tables - 2 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -45,7 +48,7 @@ bench('inline tables - 2 times', () => {
 		t1: {} as typeof t1,
 		t2: {} as typeof t2,
 	};
-}).types([53, 'instantiations']);
+}).types([63, 'instantiations']);
 
 bench('inline tables - 3 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -56,32 +59,38 @@ bench('inline tables - 3 times', () => {
 		t2: {} as typeof t2,
 		t3: {} as typeof t3,
 	};
-}).types([75, 'instantiations']);
+}).types([85, 'instantiations']);
 
-bench('access inferSelect once', () => {
+bench('inferSelect once', () => {
 	return {} as typeof cachedTable.$inferSelect;
-}).types([46, 'instantiations']);
+}).types([60, 'instantiations']);
 
-bench('access inferSelect 3 times', () => {
-	return {
-		t1: {} as typeof cachedTable.$inferSelect,
-		t2: {} as typeof cachedTable.$inferSelect,
-		t3: {} as typeof cachedTable.$inferSelect,
-	};
-}).types([46, 'instantiations']);
+bench('inferSelect+select 2', () => {
+	const _ = {} as typeof cachedTable.$inferSelect;
+	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);
+	return {};
+}).types([1666, 'instantiations']);
+
+// hmm, it's indeed cached
+bench('inferSelect+select', () => {
+	const _ = {} as typeof cachedTable.$inferSelect;
+	const res1 = db.select().from(cachedTable);
+	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);
+	return {};
+}).types([1666, 'instantiations']);
 
 bench('access inferInsert', () => {
 	return {
 		ins: {} as typeof cachedTable.$inferInsert,
 	};
-}).types([445, 'instantiations']);
+}).types([384, 'instantiations']); // down from 445
 
 bench('access inferInsert', () => {
 	return {
 		in: {} as typeof cachedTable.$inferInsert,
 		ins: {} as typeof cachedTable.$inferInsert,
 	};
-}).types([445, 'instantiations']);
+}).types([384, 'instantiations']); // down from 445
 
 bench('inline $ - 1 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -90,7 +99,7 @@ bench('inline $ - 1 times', () => {
 		sel: {} as typeof t1.$inferSelect,
 		ins: {} as typeof t1.$inferInsert,
 	};
-}).types([494, 'instantiations']);
+}).types([436, 'instantiations']); // from 494
 
 bench('inline $ - 2 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -103,4 +112,4 @@ bench('inline $ - 2 times', () => {
 		t2Sel: {} as typeof t2.$inferSelect,
 		t2Ins: {} as typeof t2.$inferInsert,
 	};
-}).types([733, 'instantiations']);
+}).types([664, 'instantiations']); // from 733

@@ -1,10 +1,7 @@
 import { entityKind } from '~/entity.ts';
-import {
-	type InferTableColumnsModels,
-	Table,
-	type TableConfig as TableConfigBase,
-	type UpdateTableConfig,
-} from '~/table.ts';
+import type { InferModelFromColumns } from '~/table.ts';
+import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import type { Simplify } from '~/utils.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
 import type {
@@ -30,10 +27,7 @@ export type PgTableExtraConfigValue =
 	| UniqueConstraintBuilder
 	| PgPolicy;
 
-export type PgTableExtraConfig = Record<
-	string,
-	PgTableExtraConfigValue
->;
+export type PgTableExtraConfig = Record<string, PgTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<PgColumns>;
 
@@ -67,12 +61,32 @@ export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
 
-export type PgTableWithColumns<
-	T extends TableConfig,
-> =
+export type InfeInsertColumns<TColumns extends PgColumns> = Simplify<
+	& {
+		// Required keys: insertType does not include undefined or null
+		[
+			Key in keyof TColumns & string as TColumns[Key]['_']['insertType'] extends never ? never
+				: undefined extends TColumns[Key]['_']['insertType'] ? never
+				: Key
+		]: TColumns[Key]['_']['insertType'];
+	}
+	& {
+		// Optional keys: insertType includes undefined
+		[
+			Key in keyof TColumns & string as TColumns[Key]['_']['insertType'] extends never ? never
+				: undefined extends TColumns[Key]['_']['insertType'] ? Key
+				: never
+		]?: TColumns[Key]['_']['insertType'];
+	}
+>;
+
+export type PgTableWithColumns<T extends TableConfig> =
 	& PgTable<T>
 	& T['columns']
-	& InferTableColumnsModels<T['columns']>
+	& {
+		readonly $inferSelect: InferModelFromColumns<T['columns'], 'select'>;
+		readonly $inferInsert: InfeInsertColumns<T['columns']>;
+	}
 	& {
 		/** @deprecated use `pgTable.withRLS()` instead*/
 		enableRLS: () => Omit<

@@ -109,22 +109,27 @@ type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer
 export type ResolvePgColumnConfig<
 	T extends PgColumnBuilderConfig,
 	TTableName extends string,
+	TData extends unknown = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
+		: GetBaseData<T>,
 > = {
 	name: string;
 	tableName: TTableName;
 	dataType: T['dataType'];
-	data: T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
-		: GetBaseData<T>;
+	data: TData;
 	driverParam: T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<T['driverParam'], T['dimensions']> | string
 		: T['driverParam'];
 	notNull: T['notNull'] extends true ? true : false;
 	hasDefault: T['hasDefault'] extends true ? true : false;
-	isPrimaryKey: T['isPrimaryKey'] extends true ? true : false;
-	isAutoincrement: T['isAutoincrement'] extends true ? true : false;
-	hasRuntimeDefault: T['hasRuntimeDefault'] extends true ? true : false;
+	isPrimaryKey: false;
+	isAutoincrement: false;
+	hasRuntimeDefault: false;
 	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
 	identity: T['identity'] extends 'always' | 'byDefault' ? T['identity'] : undefined;
-	generated: T extends { generated: infer G } ? unknown extends G ? undefined : G : undefined;
+	generated: T['generated'] extends { type: 'always' } ? T['generated'] : undefined;
+	insertType: T['generated'] extends { type: 'always' } ? never
+		: T['identity'] extends 'always' ? never
+		: T['notNull'] extends true ? T['hasDefault'] extends true ? TData | undefined : TData
+		: TData | null | undefined;
 } & {};
 
 export interface AnyPgColumnBuilder {
