@@ -1,5 +1,5 @@
 import type { ConnectionOptions } from 'tls';
-import type { Driver, Prefix } from './cli/validations/common';
+import type { Driver } from './cli/validations/common';
 import type { Dialect } from './utils/schemaValidator';
 
 // import {SslOptions} from 'mysql2'
@@ -121,7 +121,6 @@ export type Config =
 		migrations?: {
 			table?: string;
 			schema?: string;
-			prefix?: Prefix;
 		};
 		introspect?: {
 			casing: 'camel' | 'preserve';
