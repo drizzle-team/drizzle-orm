@@ -3992,7 +3992,7 @@ test('column.as', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4878
-test.concurrent('.where with isNull in it', async ({ db }) => {
+test('.where with isNull in it', async ({ db }) => {
 	const table = mssqlTable('table_where_is_null', {
 		col1: bit(),
 		col2: text(),
@@ -4011,7 +4011,7 @@ test.concurrent('.where with isNull in it', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4875
-test.concurrent('select aliased view', async ({ db }) => {
+test('select aliased view', async ({ db }) => {
 	const productionJobTable = mssqlTable('production_job', {
 		id: text('id').primaryKey(),
 		name: text('name'),
