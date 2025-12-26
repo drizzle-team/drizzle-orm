@@ -1,7 +1,7 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
+import type { PgColumnBaseConfig } from '../common.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export class PgSparseVectorBuilder extends PgColumnBuilder<
@@ -28,8 +28,8 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgSparseVector<T extends ColumnBaseConfig<'string sparsevec'>>
-	extends PgColumn<T, { vectorDimensions: number | undefined }>
+export class PgSparseVector
+	extends PgColumn<'string sparsevec', PgColumnBaseConfig<'string sparsevec'>, { vectorDimensions: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';
 

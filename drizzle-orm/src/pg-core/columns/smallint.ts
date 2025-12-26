@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -20,7 +19,7 @@ export class PgSmallIntBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint16'>> extends PgColumn<T> {
+export class PgSmallInt extends PgColumn<'number int16'> {
 	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {

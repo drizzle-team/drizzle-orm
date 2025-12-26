@@ -15,6 +15,9 @@ import { makePgArray, parsePgArray } from '../utils/array.ts';
 declare const PgColumnBuilderBrand: unique symbol;
 export type PgColumnBuilderBrand = typeof PgColumnBuilderBrand;
 
+declare const PgColumnBrand: unique symbol;
+export type PgColumnBrand = typeof PgColumnBrand;
+
 export type PgArrayDimension = 0 | 1 | 2 | 3 | 4 | 5;
 type PgArrayDimensionString = '[]' | '[][]' | '[][][]' | '[][][][]' | '[][][][][]';
 
@@ -76,6 +79,7 @@ export interface PgColumnBaseConfig<TDataType extends ColumnType = ColumnType> {
 	enumValues: string[] | undefined;
 	generated: unknown;
 	identity: undefined | 'always' | 'byDefault';
+	insertType: unknown;
 }
 
 type WrapArray<T, N extends number> = N extends 1 ? T[]
@@ -93,7 +97,7 @@ export type SetHasRuntimeDefault<T> = T & {
 };
 export type Set$Type<T, TType> = T & { readonly [PgColumnBuilderBrand]: { $type: TType } };
 export type SetHasGenerated<T> = T & {
-	readonly [PgColumnBuilderBrand]: { hasDefault: true; generated: { type: 'always' } };
+	readonly [PgColumnBuilderBrand]: { hasDefault: true; generated: true };
 };
 export type SetDimensions<T, TDim extends PgArrayDimension> = T & {
 	readonly [PgColumnBuilderBrand]: { dimensions: TDim };
@@ -125,8 +129,8 @@ export type ResolvePgColumnConfig<
 	hasRuntimeDefault: false;
 	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
 	identity: T['identity'] extends 'always' | 'byDefault' ? T['identity'] : undefined;
-	generated: T['generated'] extends { type: 'always' } ? T['generated'] : undefined;
-	insertType: T['generated'] extends { type: 'always' } ? never
+	generated: T['generated'] extends true ? true : undefined;
+	insertType: T['generated'] extends true ? never
 		: T['identity'] extends 'always' ? never
 		: T['notNull'] extends true ? T['hasDefault'] extends true ? TData | undefined : TData
 		: TData | null | undefined;
@@ -136,6 +140,10 @@ export interface AnyPgColumnBuilder {
 	readonly [PgColumnBuilderBrand]: PgColumnBuilderConfig;
 }
 
+export interface AnyPostgresColumn {
+	readonly [PgColumnBrand]: PgColumnBaseConfig;
+}
+
 export type PgBuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyPgColumnBuilder,
@@ -143,7 +151,7 @@ export type PgBuildColumn<
 		TBuilder[PgColumnBuilderBrand],
 		TTableName
 	>,
-> = PgColumn<TBuiltConfig, {}>;
+> = PgColumn<ColumnType, TBuiltConfig, {}>;
 
 export type PgBuildColumns<
 	TTableName extends string,
@@ -162,7 +170,7 @@ export type PgBuildExtraConfigColumns<
 	}
 	& {};
 
-export type PgColumns = Record<string, PgColumn<any>>;
+export type PgColumns = Record<string, PgColumn>;
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
@@ -479,7 +487,8 @@ export abstract class PgColumnBuilder<
 // TODO: we should potenitally do column to be
 // in charge of map value/array of values/json value and json array of values in 1 place
 export abstract class PgColumn<
-	out T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
+	TColumnType extends ColumnType = any,
+	T extends PgColumnBaseConfig<TColumnType> = PgColumnBaseConfig<TColumnType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
@@ -530,7 +539,7 @@ export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' |
 
 export class ExtraConfigColumn<
 	T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
-> extends PgColumn<T, IndexedExtraConfigType> {
+> extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	override getSQLType(): string {
@@ -623,6 +632,9 @@ export class IndexedColumn {
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyPgColumn<TPartial extends Partial<PgColumnBaseConfig<ColumnType>> = {}> = PgColumn<
+export type AnyPgColumn<
+	TPartial extends Partial<PgColumnBaseConfig<ColumnType>> = {},
+> = PgColumn<
+	any,
 	Required<Update<PgColumnBaseConfig<ColumnType>, TPartial>>
 >;

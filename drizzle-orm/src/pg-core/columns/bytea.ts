@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -20,7 +19,7 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBytea<T extends ColumnBaseConfig<'object buffer'>> extends PgColumn<T> {
+export class PgBytea extends PgColumn<'object buffer'> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {

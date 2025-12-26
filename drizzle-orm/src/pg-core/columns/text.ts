@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
@@ -28,7 +27,9 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] | undefined = und
 	}
 }
 
-export class PgText<T extends ColumnBaseConfig<'string' | 'string enum'>> extends PgColumn<T> {
+export class PgText<TEnum extends [string, ...string[]] | undefined = undefined> extends PgColumn<
+	TEnum extends [string, ...string[]] ? 'string enum' : 'string'
+> {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 

@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
@@ -31,7 +30,7 @@ export class PgTimeBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgTime<T extends ColumnBaseConfig<'string time'>> extends PgColumn<T> {
+export class PgTime extends PgColumn<'string time'> {
 	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;

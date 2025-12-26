@@ -41,6 +41,13 @@ bench('inline tables - 1 times', () => {
 	};
 }).types([41, 'instantiations']);
 
+bench('inline tables - 1 times', () => {
+	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text({ enum: ['one', 'two'] }).notNull() });
+	return {
+		table: {} as typeof t1,
+	};
+}).types([168, 'instantiations']);
+
 bench('inline tables - 2 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
 	const t2 = pgTable('t2', { id: integer().primaryKey(), name: text().notNull() });
@@ -65,14 +72,20 @@ bench('inferSelect once', () => {
 	return {} as typeof cachedTable.$inferSelect;
 }).types([60, 'instantiations']);
 
-bench('inferSelect+select 2', () => {
+bench('inferSelect+select', () => {
+	const _ = {} as typeof cachedTable.$inferSelect;
+	const res2 = db.select().from(cachedTable);
+	return {};
+}).types([617, 'instantiations']);
+
+bench('inferSelect+select2', () => {
 	const _ = {} as typeof cachedTable.$inferSelect;
 	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);
 	return {};
 }).types([1666, 'instantiations']);
 
 // hmm, it's indeed cached
-bench('inferSelect+select', () => {
+bench('inferSelect+select3', () => {
 	const _ = {} as typeof cachedTable.$inferSelect;
 	const res1 = db.select().from(cachedTable);
 	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);

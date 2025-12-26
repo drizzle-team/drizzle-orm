@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
@@ -32,15 +31,22 @@ export class PgCharBuilder<
 	}
 }
 
-export class PgChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
-	extends PgColumn<T, { enumValues: T['enumValues']; length: number; setLength: boolean }>
+export class PgChar<TEnum extends [string, ...string[]] | undefined = undefined>
+	extends PgColumn<TEnum extends [string, ...string[]] ? 'string enum' : 'string'>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 
-	override readonly enumValues = this.config.enumValues;
+	override readonly enumValues: TEnum;
+	private readonly setLength: boolean;
+
+	constructor(table: PgTable<any>, config: PgCharBuilder<TEnum>['config']) {
+		super(table, config as any);
+		this.enumValues = config.enumValues;
+		this.setLength = config.setLength;
+	}
 
 	getSQLType(): string {
-		return this.config.setLength ? `char(${this.length})` : `char`;
+		return this.setLength ? `char(${this.length})` : `char`;
 	}
 }
 

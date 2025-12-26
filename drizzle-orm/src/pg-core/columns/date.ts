@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
@@ -21,7 +20,7 @@ export class PgDateBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
+export class PgDate extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {
@@ -59,7 +58,7 @@ export class PgDateStringBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig<'string date'>> extends PgColumn<T> {
+export class PgDateString extends PgColumn<'string date'> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {

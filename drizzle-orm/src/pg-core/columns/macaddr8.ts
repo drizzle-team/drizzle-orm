@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -20,7 +19,7 @@ export class PgMacaddr8Builder extends PgColumnBuilder<{
 	}
 }
 
-export class PgMacaddr8<T extends ColumnBaseConfig<'string macaddr8'>> extends PgColumn<T> {
+export class PgMacaddr8 extends PgColumn<'string macaddr8'> {
 	static override readonly [entityKind]: string = 'PgMacaddr8';
 
 	getSQLType(): string {

@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -24,7 +23,7 @@ export class PgRealBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig<'number float' | 'number ufloat'>> extends PgColumn<T> {
+export class PgReal extends PgColumn<'number float'> {
 	static override readonly [entityKind]: string = 'PgReal';
 
 	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {

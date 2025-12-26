@@ -1,5 +1,4 @@
 import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
@@ -48,7 +47,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> 
 	}
 }
 
-export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColumn<T> {
+export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends PgColumn<'custom'> {
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
@@ -61,7 +60,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColu
 		table: PgTable<any>,
 		config: PgCustomColumnBuilder<T>['config'],
 	) {
-		super(table, config);
+		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
