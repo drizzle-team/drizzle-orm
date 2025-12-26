@@ -1,4 +1,5 @@
 import {
+	and,
 	asc,
 	avg,
 	avgDistinct,
@@ -6,6 +7,7 @@ import {
 	countDistinct,
 	desc,
 	eq,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -22,12 +24,14 @@ import {
 import {
 	alias,
 	bit,
+	date,
 	except,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
 	int,
 	intersect,
+	type MsSqlDialect,
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
@@ -2786,9 +2790,9 @@ test('mySchema :: partial join with alias', async ({ db }) => {
 });
 
 test('mySchema :: full join with alias', async ({ db }) => {
-	const mysqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
+	const mssqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mssqlTable('users', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -2819,9 +2823,9 @@ test('mySchema :: full join with alias', async ({ db }) => {
 });
 
 test('mySchema :: select from alias', async ({ db }) => {
-	const mysqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
+	const mssqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mssqlTable('users', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -2971,7 +2975,7 @@ test('mySchema :: select from tables with same name from different schema using 
 	}]);
 });
 
-test('mySchema :: Mysql enum test case #1', async ({ db }) => {
+test('mySchema :: Mssql enum test case #1', async ({ db }) => {
 	await db.execute(sql`
 		create table ${tableWithEnums} (
 			[id] int primary key,
@@ -4004,4 +4008,63 @@ test.concurrent('.where with isNull in it', async ({ db }) => {
 	});
 	const res = await query;
 	expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4875
+test.concurrent('select aliased view', async ({ db }) => {
+	const productionJobTable = mssqlTable('production_job', {
+		id: text('id').primaryKey(),
+		name: text('name'),
+	});
+
+	const rfidTagTable = mssqlTable(
+		'rfid_tag',
+		{
+			createdAt: date('created_at')
+				.notNull()
+				.default(sql`now()`),
+			epc: text('epc').notNull(),
+			locationId: text('location_id')
+				.notNull(),
+			id: text('id').notNull().unique().$default(() => 'abc'),
+		},
+	);
+
+	const productionJobWithLocationView = mssqlView(
+		'production_job_with_location',
+	).as((qb) => {
+		const productionColumns = getColumns(productionJobTable);
+		const sub = qb
+			.selectDistinct()
+			.from(rfidTagTable)
+			.as('r');
+		return qb
+			.select({
+				...productionColumns,
+				locationId: sub.locationId,
+				tagId: sub.id.as('tag_id'),
+				tagCreatedAt: sub.createdAt.as('tag_created_at'),
+			})
+			.from(productionJobTable)
+			.leftJoin(
+				sub,
+				and(
+					eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+					sql`${sub.epc} ~ '^0?[0-9]+'`,
+				),
+			);
+	});
+
+	const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+	const query = db.select().from(sub);
+	expect(query.toSQL().sql).toStrictEqual(
+		(<{ dialect: MsSqlDialect }> <any> db).dialect.sqlToQuery(
+			sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
+				sql.identifier('tag_id')
+			}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
+				sql.identifier('p')
+			}`,
+		).sql,
+	);
 });

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, getTableColumns, gt, isNull, Name, sql } from 'drizzle-orm';
+import { and, asc, eq, getColumns, getTableColumns, gt, isNull, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	bigint,
@@ -8,6 +8,7 @@ import {
 	datetime,
 	index,
 	int,
+	type MySqlDialect,
 	mysqlEnum,
 	mysqlTable,
 	mysqlTableCreator,
@@ -972,5 +973,64 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}]);
 
 		expect(updated).toStrictEqual(initial);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4875
+	test.concurrent('select aliased view', async ({ db }) => {
+		const productionJobTable = mysqlTable('production_job', {
+			id: text('id').primaryKey(),
+			name: text('name'),
+		});
+
+		const rfidTagTable = mysqlTable(
+			'rfid_tag',
+			{
+				createdAt: timestamp('created_at')
+					.notNull()
+					.default(sql`now()`),
+				epc: text('epc').notNull(),
+				locationId: text('location_id')
+					.notNull(),
+				id: text('id').notNull().unique().$default(() => 'abc'),
+			},
+		);
+
+		const productionJobWithLocationView = mysqlView(
+			'production_job_with_location',
+		).as((qb) => {
+			const productionColumns = getColumns(productionJobTable);
+			const sub = qb
+				.selectDistinct()
+				.from(rfidTagTable)
+				.as('r');
+			return qb
+				.select({
+					...productionColumns,
+					locationId: sub.locationId,
+					tagId: sub.id.as('tag_id'),
+					tagCreatedAt: sub.createdAt.as('tag_created_at'),
+				})
+				.from(productionJobTable)
+				.leftJoin(
+					sub,
+					and(
+						eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+						sql`${sub.epc} ~ '^0?[0-9]+'`,
+					),
+				);
+		});
+
+		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+		const query = db.select().from(sub);
+		expect(query.toSQL().sql).toStrictEqual(
+			(<{ dialect: MySqlDialect }> <any> db).dialect.sqlToQuery(
+				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
+					sql.identifier('tag_id')
+				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
+					sql.identifier('p')
+				}`,
+			).sql,
+		);
 	});
 }
