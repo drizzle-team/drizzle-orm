@@ -31,7 +31,7 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 export interface Column<
 	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TRuntimeConfig extends object = object,
+	out TRuntimeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
 	// `as` runtime implementation is defined in 'alias.ts'
@@ -45,7 +45,7 @@ export interface Column<
 */
 export abstract class Column<
 	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
-	TRuntimeConfig extends object = object,
+	out TRuntimeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 

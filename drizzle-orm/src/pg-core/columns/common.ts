@@ -65,7 +65,7 @@ export interface PgColumnBuilderRuntimeConfig<TData> {
 }
 
 // TODO: remove isAutoincrement and hasRuntimeDefault
-export interface PgColumnBaseConfig<TDataType extends ColumnType = ColumnType> {
+export interface PgColumnBaseConfig<out TDataType extends ColumnType = ColumnType> {
 	name: string;
 	dataType: TDataType;
 	tableName: string;
@@ -111,9 +111,9 @@ export type HasIdentity<T extends PgColumnBuilder, TType extends 'always' | 'byD
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
 export type ResolvePgColumnConfig<
-	T extends PgColumnBuilderConfig,
-	TTableName extends string,
-	TData extends unknown = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
+	out T extends PgColumnBuilderConfig,
+	out TTableName extends string,
+	out TData extends unknown = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
 		: GetBaseData<T>,
 > = {
 	name: string;
@@ -154,8 +154,8 @@ export type PgBuildColumn<
 > = PgColumn<ColumnType, TBuiltConfig, {}>;
 
 export type PgBuildColumns<
-	TTableName extends string,
-	TConfigMap extends Record<string, AnyPgColumnBuilder>,
+	out TTableName extends string,
+	out TConfigMap extends Record<string, AnyPgColumnBuilder>,
 > =
 	& {
 		[Key in keyof TConfigMap]: PgBuildColumn<TTableName, TConfigMap[Key]>;
@@ -163,7 +163,7 @@ export type PgBuildColumns<
 	& {};
 
 export type PgBuildExtraConfigColumns<
-	TConfigMap extends Record<string, AnyPgColumnBuilder>,
+	out TConfigMap extends Record<string, AnyPgColumnBuilder>,
 > =
 	& {
 		[Key in keyof TConfigMap]: ExtraConfigColumn;
@@ -183,7 +183,7 @@ export interface ReferenceConfig {
 
 export abstract class PgColumnBuilder<
 	out T extends PgColumnBuilderConfig = PgColumnBuilderConfig,
-	TRuntimeConfig extends object = object,
+	out TRuntimeConfig extends object = object,
 > {
 	static readonly [entityKind]: string = 'PgColumnBuilder';
 
@@ -487,9 +487,9 @@ export abstract class PgColumnBuilder<
 // TODO: we should potenitally do column to be
 // in charge of map value/array of values/json value and json array of values in 1 place
 export abstract class PgColumn<
-	TColumnType extends ColumnType = any,
-	T extends PgColumnBaseConfig<TColumnType> = PgColumnBaseConfig<TColumnType>,
-	TRuntimeConfig extends object = {},
+	out TColumnType extends ColumnType = any,
+	out T extends PgColumnBaseConfig<TColumnType> = PgColumnBaseConfig<TColumnType>,
+	out TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
@@ -538,7 +538,7 @@ export abstract class PgColumn<
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class ExtraConfigColumn<
-	T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
+	out T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
 > extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 

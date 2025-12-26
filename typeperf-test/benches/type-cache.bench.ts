@@ -76,13 +76,13 @@ bench('inferSelect+select', () => {
 	const _ = {} as typeof cachedTable.$inferSelect;
 	const res2 = db.select().from(cachedTable);
 	return {};
-}).types([617, 'instantiations']);
+}).types([514, 'instantiations']); // 617
 
 bench('inferSelect+select2', () => {
 	const _ = {} as typeof cachedTable.$inferSelect;
 	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);
 	return {};
-}).types([1666, 'instantiations']);
+}).types([1534, 'instantiations']); // 1666
 
 // hmm, it's indeed cached
 bench('inferSelect+select3', () => {
@@ -90,20 +90,20 @@ bench('inferSelect+select3', () => {
 	const res1 = db.select().from(cachedTable);
 	const res2 = db.select().from(cachedTable).where(undefined).limit(10).offset(10);
 	return {};
-}).types([1666, 'instantiations']);
+}).types([1534, 'instantiations']);
 
 bench('access inferInsert', () => {
 	return {
 		ins: {} as typeof cachedTable.$inferInsert,
 	};
-}).types([384, 'instantiations']); // down from 445
+}).types([378, 'instantiations']); // down from 445
 
 bench('access inferInsert', () => {
 	return {
 		in: {} as typeof cachedTable.$inferInsert,
 		ins: {} as typeof cachedTable.$inferInsert,
 	};
-}).types([384, 'instantiations']); // down from 445
+}).types([378, 'instantiations']); // down from 445
 
 bench('inline $ - 1 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -112,7 +112,7 @@ bench('inline $ - 1 times', () => {
 		sel: {} as typeof t1.$inferSelect,
 		ins: {} as typeof t1.$inferInsert,
 	};
-}).types([436, 'instantiations']); // from 494
+}).types([430, 'instantiations']); // from 494
 
 bench('inline $ - 2 times', () => {
 	const t1 = pgTable('t1', { id: integer().primaryKey(), name: text().notNull() });
@@ -125,4 +125,4 @@ bench('inline $ - 2 times', () => {
 		t2Sel: {} as typeof t2.$inferSelect,
 		t2Ins: {} as typeof t2.$inferInsert,
 	};
-}).types([664, 'instantiations']); // from 733
+}).types([658, 'instantiations']); // from 733
