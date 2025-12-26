@@ -9,9 +9,16 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T['_']['not
 	? T['_']['hasDefault'] extends false ? TKey : never
 	: never;
 
-// Optimized: Direct property access instead of structural extends check
+// Optimized: Inline the required check instead of referencing RequiredKeyOnly
+// This avoids computing RequiredKeyOnly twice per key
 export type OptionalKeyOnly<TKey extends string, T extends Column, OverrideT extends boolean | undefined = false> =
-	TKey extends RequiredKeyOnly<TKey, T> ? never
+	// First check if it would be required (notNull=true && hasDefault=false)
+	T['_']['notNull'] extends true ? T['_']['hasDefault'] extends false ? never // It's required, not optional
+		: T['_']['generated'] extends undefined ? T['_']['identity'] extends undefined ? TKey
+			: T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
+			: TKey
+		: never
+		// Not notNull, so check generated/identity
 		: T['_']['generated'] extends undefined ? T['_']['identity'] extends undefined ? TKey
 			: T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
 			: TKey
