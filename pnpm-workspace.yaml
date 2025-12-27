@@ -13,6 +13,7 @@ onlyBuiltDependencies:
   - '@newrelic/native-metrics'
   - '@prisma/client'
   - '@prisma/engines'
+  - aws-sdk
   - better-sqlite3
   - bufferutil
   - cpu-features
