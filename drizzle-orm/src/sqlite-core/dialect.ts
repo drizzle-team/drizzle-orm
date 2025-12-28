@@ -107,7 +107,8 @@ export abstract class SQLiteDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const onUpdateFnResult = col.onUpdateFn?.();
+			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -185,11 +186,35 @@ export abstract class SQLiteDialect {
 					}
 				} else if (is(field, Column)) {
 					const tableName = field.table[Table.Symbol.Name];
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					if (field.columnType === 'SQLiteNumericBigInt') {
+						if (isSingleTable) {
+							chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`);
+						} else {
+							chunk.push(
+								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							);
+						}
 					} else {
-						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
+						if (isSingleTable) {
+							chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						} else {
+							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
+						}
 					}
+				} else if (is(field, Subquery)) {
+					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+
+					if (entries.length === 1) {
+						const entry = entries[0]![1];
+
+						const fieldDecoder = is(entry, SQL)
+							? entry.decoder
+							: is(entry, Column)
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
+						if (fieldDecoder) field._.sql.decoder = fieldDecoder;
+					}
+					chunk.push(field);
 				}
 
 				if (i < columnsLen - 1) {
@@ -215,6 +240,7 @@ export abstract class SQLiteDialect {
 					joinsArray.push(sql` `);
 				}
 				const table = joinMeta.table;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SQLiteTable)) {
 					const tableName = table[SQLiteTable.Symbol.Name];
@@ -224,11 +250,11 @@ export abstract class SQLiteDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
 							sql.identifier(origTableName)
-						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
@@ -265,8 +291,10 @@ export abstract class SQLiteDialect {
 	private buildFromTable(
 		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-			return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+				sql.identifier(table[Table.Symbol.OriginalName])
+			} ${sql.identifier(table[Table.Symbol.Name])}`;
 		}
 
 		return table;
@@ -487,7 +515,9 @@ export abstract class SQLiteDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		const onConflictSql = onConflict?.length
+			? sql.join(onConflict)
+			: undefined;
 
 		// if (isSingleValue && valuesSqlList.length === 0){
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;

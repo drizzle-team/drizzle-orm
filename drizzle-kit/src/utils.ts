@@ -7,6 +7,7 @@ import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleGelSchema } from './serializer/gelSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
@@ -15,9 +16,7 @@ import type { ProxyParams } from './serializer/studio';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 
-export type SqliteProxy = {
-	proxy: (params: ProxyParams) => Promise<any[] | RunResult>;
-};
+export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
@@ -125,6 +124,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
 		case 'singlestore':
 			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'gel':
+			return { validator: backwardCompatibleGelSchema, version: 1 };
 	}
 };
 

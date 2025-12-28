@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -25,7 +26,7 @@ import { SQLiteCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithBuilder, WithSubqueryWithSelection } from './subquery.ts';
+import type { WithBuilder } from './subquery.ts';
 import type { SQLiteViewBase } from './view-base.ts';
 
 export class BaseSQLiteDatabase<
@@ -85,6 +86,7 @@ export class BaseSQLiteDatabase<
 				) as typeof query[keyof TSchema];
 			}
 		}
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -470,6 +472,8 @@ export class BaseSQLiteDatabase<
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
 	}
 
+	$cache: { invalidate: Cache['onMutate'] };
+
 	/**
 	 * Creates an insert query.
 	 *
@@ -590,7 +594,7 @@ export class BaseSQLiteDatabase<
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q };
+export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
@@ -633,6 +637,7 @@ export const withReplicas = <
 		values,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,

@@ -1,3 +1,4 @@
+import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -26,6 +27,8 @@ export function mapResultRow<TResult>(
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
+			} else if (is(field, Subquery)) {
+				decoder = field._.sql.decoder;
 			} else {
 				decoder = field.sql.decoder;
 			}
@@ -80,7 +83,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
@@ -145,6 +148,21 @@ export type Simplify<T> =
 	}
 	& {};
 
+export type Not<T extends boolean> = T extends true ? false : true;
+
+export type IsNever<T> = [T] extends [never] ? true : false;
+
+export type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false
+	: true;
+
+export type SingleKeyObject<T, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: T;
+
+export type FromSingleKeyObject<T, Result, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: Result;
+
 export type SimplifyMappedType<T> = [T] extends [unknown] ? T : never;
 
 export type ShallowRecord<K extends keyof any, T> = SimplifyMappedType<{ [P in K]: T }>;
@@ -184,6 +202,8 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
@@ -217,6 +237,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
+	cache?: Cache;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -278,14 +299,14 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('schema' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['schema'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
 
 	if ('casing' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['casing'];
 		if (type !== 'string' && type !== 'undefined') return false;
 
 		return true;
@@ -317,3 +338,5 @@ export function isConfig(data: any): boolean {
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();

@@ -14,7 +14,7 @@
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "0.15.3",
-		"@trivago/prettier-plugin-sort-imports": "^4.2.0",
+		"@trivago/prettier-plugin-sort-imports": "^5.2.2",
 		"@typescript-eslint/eslint-plugin": "^6.7.3",
 		"@typescript-eslint/experimental-utils": "^5.62.0",
 		"@typescript-eslint/parser": "^6.7.3",
@@ -34,10 +34,10 @@
 		"prettier": "^3.0.3",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
-		"tsup": "^7.2.0",
+		"tsup": "^8.3.5",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
 		"typescript": "5.6.3"
 	},
-	"packageManager": "pnpm@9.7.0"
+	"packageManager": "pnpm@10.6.3"
 }

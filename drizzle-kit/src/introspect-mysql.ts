@@ -405,9 +405,7 @@ const column = (
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: int(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: int(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -419,9 +417,7 @@ const column = (
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out: string = `${casing(name)}: tinyint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -432,9 +428,7 @@ const column = (
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: smallint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -445,9 +439,7 @@ const column = (
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: mediumint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -923,7 +915,7 @@ const createTableIndexes = (
 
 		idxKey = casing(idxKey);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `"${it.name}")`;
 		statement += `.on(${

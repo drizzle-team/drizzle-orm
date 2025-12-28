@@ -115,6 +115,14 @@ export type SQLiteSelectJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => SQLiteSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
+export type SQLiteSelectCrossJoinFn<
+	T extends AnySQLiteSelectQueryBuilder,
+	TDynamic extends boolean,
+> = <
+	TJoinedTable extends SQLiteTable | Subquery | SQLiteViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(table: TJoinedTable) => SQLiteSelectJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
+
 export type SelectedFieldsFlat = SelectFieldsFlatBase<SQLiteColumn>;
 
 export type SelectedFields = SelectFieldsBase<SQLiteColumn, SQLiteTable>;

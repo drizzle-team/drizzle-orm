@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, textDecoder } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
@@ -41,18 +41,19 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 	}
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): bigint {
-		if (Buffer.isBuffer(value)) {
-			return BigInt(value.toString());
+		if (typeof Buffer !== 'undefined' && Buffer.from) {
+			const buf = Buffer.isBuffer(value)
+				? value
+				// eslint-disable-next-line no-instanceof/no-instanceof
+				: value instanceof ArrayBuffer
+				? Buffer.from(value)
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
+			return BigInt(buf.toString('utf8'));
 		}
 
-		// for sqlite durable objects
-		// eslint-disable-next-line no-instanceof/no-instanceof
-		if (value instanceof ArrayBuffer) {
-			const decoder = new TextDecoder();
-			return BigInt(decoder.decode(value));
-		}
-
-		return BigInt(String.fromCodePoint(...value));
+		return BigInt(textDecoder!.decode(value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -97,18 +98,19 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 	}
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
-		if (Buffer.isBuffer(value)) {
-			return JSON.parse(value.toString());
+		if (typeof Buffer !== 'undefined' && Buffer.from) {
+			const buf = Buffer.isBuffer(value)
+				? value
+				// eslint-disable-next-line no-instanceof/no-instanceof
+				: value instanceof ArrayBuffer
+				? Buffer.from(value)
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
+			return JSON.parse(buf.toString('utf8'));
 		}
 
-		// for sqlite durable objects
-		// eslint-disable-next-line no-instanceof/no-instanceof
-		if (value instanceof ArrayBuffer) {
-			const decoder = new TextDecoder();
-			return JSON.parse(decoder.decode(value));
-		}
-
-		return JSON.parse(String.fromCodePoint(...value));
+		return JSON.parse(textDecoder!.decode(value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
@@ -144,6 +146,14 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
+
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (Buffer.isBuffer(value)) {
+			return value;
+		}
+
+		return Buffer.from(value as Uint8Array);
+	}
 
 	getSQLType(): string {
 		return 'blob';

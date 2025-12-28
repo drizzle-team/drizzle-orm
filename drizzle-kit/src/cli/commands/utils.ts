@@ -18,8 +18,12 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { LibSQLCredentials, libSQLCredentials } from '../validations/libsql';
-import { printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
+import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import {
+	LibSQLCredentials,
+	libSQLCredentials,
+	printConfigConnectionIssues as printIssuesLibSQL,
+} from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -42,7 +46,7 @@ import {
 	sqliteCredentials,
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error, grey } from '../views';
+import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -112,12 +116,22 @@ export const prepareDropParams = async (
 		config?: string;
 		out?: string;
 		driver?: Driver;
+		dialect?: Dialect;
 	},
 	from: 'cli' | 'config',
 ): Promise<{ out: string; bundle: boolean }> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
+
+	if (config.dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'drop' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
+	}
 
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
@@ -387,7 +401,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesSqlite(config, 'pull');
+			printIssuesSqlite(config, 'push');
 			process.exit(1);
 		}
 		return {
@@ -406,7 +420,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesSqlite(config, 'pull');
+			printIssuesSqlite(config, 'push');
 			process.exit(1);
 		}
 		return {
@@ -420,6 +434,15 @@ export const preparePushConfig = async (
 			tablesFilter,
 			schemasFilter,
 		};
+	}
+
+	if (config.dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'push' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(config.dialect);
@@ -449,6 +472,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
+		}
+		| {
+			dialect: 'gel';
+			credentials?: GelCredentials;
 		}
 	) & {
 		out: string;
@@ -582,7 +609,26 @@ export const preparePullConfig = async (
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesLibSql(config, 'pull');
+			printIssuesLibSQL(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
+	if (dialect === 'gel') {
+		const parsed = gelCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesGel(config);
 			process.exit(1);
 		}
 		return {
@@ -617,7 +663,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema } = result.data;
+	const { dialect, schema, casing } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -633,6 +679,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -649,6 +696,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -665,6 +713,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -681,13 +730,14 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSql(flattened as Record<string, unknown>, 'studio');
+			printIssuesLibSQL(flattened as Record<string, unknown>, 'studio');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -697,7 +747,17 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
+	}
+
+	if (dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'studio' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
@@ -788,7 +848,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSql(flattened as Record<string, unknown>, 'migrate');
+			printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -799,6 +859,15 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			schema,
 			table,
 		};
+	}
+
+	if (dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'migrate' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
