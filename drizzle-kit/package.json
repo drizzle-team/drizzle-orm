@@ -42,7 +42,7 @@
 		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
 		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
-		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cp package.json README.md dist/ && (cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
 		"test:postgres": "vitest run ./postgres/",
