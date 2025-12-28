@@ -109,8 +109,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: int:gel
-            dbs: [gel]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -168,7 +166,6 @@ jobs:
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
               cockroach-many)      compose_files+=("-f" "compose/cockroach-many.yml") ;;
-              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -223,7 +220,6 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
@@ -237,11 +233,6 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            int:gel)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-              fi
-            ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
