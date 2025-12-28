@@ -42,11 +42,6 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
       - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v4
-        name: Cache node_modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
