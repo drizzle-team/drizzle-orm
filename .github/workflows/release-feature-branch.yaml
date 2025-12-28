@@ -23,8 +23,6 @@ on:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
-      # TURBO_TOKEN:
-        # required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}

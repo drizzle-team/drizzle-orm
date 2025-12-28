@@ -1,7 +1,5 @@
 name: Release Router
 
-
-
 on:
   push:
     branches-ignore:
@@ -44,7 +42,6 @@ jobs:
       LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
       SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
-      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
   run-latest:
     needs: switch
@@ -61,4 +58,3 @@ jobs:
       LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
       SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
-      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
