@@ -44,11 +44,6 @@ jobs:
       TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
-      - uses: oven-sh/setup-bun@v2
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -145,10 +140,6 @@ jobs:
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -207,7 +198,6 @@ jobs:
       # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
 
-      - uses: oven-sh/setup-bun@v2
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
@@ -303,12 +293,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
       
       # Restore packages from local filesystem
       - name: Restore packages locally
@@ -336,12 +321,7 @@ jobs:
         package: [node10, node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
       
       # Restore packages from local filesystem
       - name: Restore packages locally
@@ -369,10 +349,6 @@ jobs:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v5
-
-      # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
       
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc
