@@ -29,7 +29,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ARTIFACTS_DIR: ${{ vars.LOCAL_ARTIFACTS_DIR || '/opt/actions-runner/cache/artifacts' }}/${{ github.run_id }}
+  ARTIFACTS_DIR: ${{ '/opt/actions-runner/cache/artifacts' }}/${{ github.run_id }}
+  PNPM_STORE_DIR: /opt/actions-runner/cache/pnpm-store
+  TURBO_CACHE_DIR: /opt/actions-runner/cache/turbo
+  npm_config_cache: /opt/actions-runner/cache/npm
+  BUN_INSTALL_CACHE_DIR: /opt/actions-runner/cache/bun
 
 jobs:
   prepare:
@@ -144,7 +148,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
       - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24' }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -302,7 +306,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
       - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24' }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       
@@ -335,8 +339,8 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
       - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
+        with: { node-version: '24' }
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
       
       # Restore packages from local filesystem
