@@ -7,7 +7,7 @@
 		"test": "vitest run",
 		"build:artifact": "pnpm run build",
 		"build": "tsc -b && pnpm cpy readme.md dist/",
-		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},

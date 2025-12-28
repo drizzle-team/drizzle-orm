@@ -8,7 +8,7 @@
 	"scripts": {
 		"build": "tsx scripts/build.ts",
 		"build:artifact": "pnpm run build",
-		"pack": "(cd dist && pnpm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"test": "vitest --config ./vitest.config.ts",
 		"test:types": "cd type-tests && tsc -p ./../tsconfig.json",

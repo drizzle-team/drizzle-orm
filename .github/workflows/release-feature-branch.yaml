@@ -39,6 +39,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24' }
       - uses: oven-sh/setup-bun@v2
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
