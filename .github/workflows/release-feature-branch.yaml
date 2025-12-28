@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 25
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -92,7 +92,7 @@ jobs:
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 45
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -289,7 +289,7 @@ jobs:
   attw:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -317,7 +317,7 @@ jobs:
   attw-orm:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     strategy:
       matrix:
@@ -342,7 +342,7 @@ jobs:
   release:
     needs: [test, prepare, attw, attw-orm]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
     
