@@ -29,9 +29,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Volta and bun bin paths for self-hosted runners
-  VOLTA_HOME: /home/alex/.volta
-  BUN_INSTALL: /home/alex/.bun
   # Shared local artifacts directory
   ARTIFACTS_DIR: /opt/runners/cache/artifacts/${{ github.run_id }}
   # Shared cache directories for self-hosted runners
