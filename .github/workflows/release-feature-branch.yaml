@@ -29,11 +29,16 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ARTIFACTS_DIR: ${{ '/opt/actions-runner/cache/artifacts' }}/${{ github.run_id }}
-  PNPM_STORE_DIR: /opt/actions-runner/cache/pnpm-store
-  TURBO_CACHE_DIR: /opt/actions-runner/cache/turbo
-  npm_config_cache: /opt/actions-runner/cache/npm
-  BUN_INSTALL_CACHE_DIR: /opt/actions-runner/cache/bun
+  # Volta and bun bin paths for self-hosted runners
+  VOLTA_HOME: /home/alex/.volta
+  BUN_INSTALL: /home/alex/.bun
+  # Shared local artifacts directory
+  ARTIFACTS_DIR: /opt/runners/cache/artifacts/${{ github.run_id }}
+  # Shared cache directories for self-hosted runners
+  PNPM_STORE_DIR: /opt/runners/cache/pnpm-store
+  TURBO_CACHE_DIR: /opt/runners/cache/turbo
+  npm_config_cache: /opt/runners/cache/npm
+  BUN_INSTALL_CACHE_DIR: /opt/runners/cache/bun
 
 jobs:
   prepare:
@@ -43,6 +48,10 @@ jobs:
       # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
@@ -139,6 +148,10 @@ jobs:
          
     name: ${{ matrix.shard }}
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
       - run: pnpm install --frozen-lockfile --prefer-offline
 
@@ -292,6 +305,10 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 20
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v4
       - run: pnpm install --frozen-lockfile --prefer-offline
       
@@ -320,6 +337,10 @@ jobs:
       matrix:
         package: [node10, node16-cjs, node16-esm, bundler]
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v4
       - run: pnpm install --frozen-lockfile --prefer-offline
       
@@ -348,6 +369,10 @@ jobs:
       matrix:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
       
       # nuke, so npm can use OIDC
