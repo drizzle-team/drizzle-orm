@@ -24,7 +24,7 @@ import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
-import type { PgSelectQueryBuilderBase } from './select.ts';
+import type { PgSelectBase } from './select.ts';
 
 export interface PgSelectJoinConfig {
 	on: SQL | undefined;
@@ -198,7 +198,7 @@ export type PgSelectKind<
 })['_type'];
 
 export interface PgSelectQueryBuilderHKT extends PgSelectHKTBase {
-	_type: PgSelectQueryBuilderBase<
+	_type: PgSelectBase<
 		PgSelectQueryBuilderHKT,
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -254,7 +254,7 @@ export type PgSelectDynamic<T extends AnyPgSelectQueryBuilder> = PgSelectKind<
 	T['_']['selectedFields']
 >;
 
-export type AnyPgSelectQueryBuilder = PgSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
+export type AnyPgSelectQueryBuilder = PgSelectBase<any, any, any, any, any, any, any, any, any>;
 
 export type AnyPgSetOperatorInterface = PgSetOperatorInterface<any, any, any, any, any, any, any, any>;
 
@@ -300,7 +300,7 @@ export type PgSelect<
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = PgSelectQueryBuilderBase<
+> = PgSelectBase<
 	PgSelectQueryBuilderHKT,
 	TTableName,
 	TSelection,
@@ -315,7 +315,7 @@ export type PgSetOperator<
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = PgSelectQueryBuilderBase<
+> = PgSelectBase<
 	PgSelectQueryBuilderHKT,
 	TTableName,
 	TSelection,
@@ -376,7 +376,7 @@ export type PgCreateSetOperatorFn = <
 	rightSelect: SetOperatorRightSelect<TValue, TResult>,
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
 ) => PgSelectWithout<
-	PgSelectQueryBuilderBase<
+	PgSelectBase<
 		THKT,
 		TTableName,
 		TSelection,

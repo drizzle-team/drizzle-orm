@@ -16,13 +16,6 @@ import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import { PgBasePreparedQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
-import type { AnyPgAsyncSelectQueryBuilder } from './select.ts';
-
-export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelectQueryBuilder> = PgAsyncPreparedQuery<
-	PreparedQueryConfig & {
-		execute: T['_']['result'];
-	}
->;
 
 export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';

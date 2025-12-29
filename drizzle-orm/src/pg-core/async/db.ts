@@ -23,7 +23,8 @@ import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgMaterializedView } from '../view.ts';
-import { PgAsyncSelectQueryBuilderBase, type PgAsyncSelectQueryBuilderInit } from './select.ts';
+import { PgAsyncInsertBase, type PgAsyncInsertHKT } from './insert.ts';
+import { PgAsyncSelectBase, type PgAsyncSelectInit } from './select.ts';
 
 export class PgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
@@ -239,12 +240,12 @@ export class PgAsyncDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgAsyncSelectQueryBuilderInit<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+		function select(): PgAsyncSelectInit<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgAsyncSelectQueryBuilderBase({
+		): PgAsyncSelectInit<TSelection | undefined> {
+			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -276,14 +277,14 @@ export class PgAsyncDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgAsyncSelectQueryBuilderInit<undefined>;
+		function selectDistinct(): PgAsyncSelectInit<undefined>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): PgAsyncSelectQueryBuilderInit<TSelection>;
+		): PgAsyncSelectInit<TSelection>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgAsyncSelectQueryBuilderBase({
+		): PgAsyncSelectInit<TSelection | undefined> {
+			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -317,16 +318,16 @@ export class PgAsyncDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectQueryBuilderInit<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectInit<undefined>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgAsyncSelectQueryBuilderInit<TSelection>;
+		): PgAsyncSelectInit<TSelection>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgAsyncSelectQueryBuilderBase({
+		): PgAsyncSelectInit<TSelection | undefined> {
+			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
@@ -390,8 +391,10 @@ export class PgAsyncDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult> {
-			return new PgInsertBuilder(table, self.session, self.dialect, queries);
+		function insert<TTable extends PgTable>(
+			table: TTable,
+		): PgInsertBuilder<TTable, TQueryResult, false, PgAsyncInsertHKT> {
+			return new PgInsertBuilder(table, self.session, self.dialect, queries, undefined, PgAsyncInsertBase);
 		}
 
 		/**
@@ -461,16 +464,16 @@ export class PgAsyncDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgAsyncSelectQueryBuilderInit<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+	select(): PgAsyncSelectInit<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgAsyncSelectQueryBuilderInit<TSelection> {
-		return new PgAsyncSelectQueryBuilderBase({
+	): PgAsyncSelectInit<TSelection> {
+		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
-		}) as PgAsyncSelectQueryBuilderInit<TSelection>;
+		}) as PgAsyncSelectInit<TSelection>;
 	}
 
 	/**
@@ -497,12 +500,12 @@ export class PgAsyncDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgAsyncSelectQueryBuilderInit<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectQueryBuilderInit<TSelection>;
+	selectDistinct(): PgAsyncSelectInit<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgAsyncSelectQueryBuilderInit<TSelection | undefined> {
-		return new PgAsyncSelectQueryBuilderBase({
+	): PgAsyncSelectInit<TSelection | undefined> {
+		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
@@ -535,16 +538,16 @@ export class PgAsyncDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectQueryBuilderInit<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectInit<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgAsyncSelectQueryBuilderInit<TSelection>;
+	): PgAsyncSelectInit<TSelection>;
 	selectDistinctOn<TSelection extends SelectedFields | undefined>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgAsyncSelectQueryBuilderInit<TSelection> {
-		return new PgAsyncSelectQueryBuilderBase({
+	): PgAsyncSelectInit<TSelection> {
+		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
@@ -607,8 +610,8 @@ export class PgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult> {
-		return new PgInsertBuilder(table, this.session, this.dialect);
+	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult, false, PgAsyncInsertHKT> {
+		return new PgInsertBuilder(table, this.session, this.dialect, undefined, undefined, PgAsyncInsertBase);
 	}
 
 	/**

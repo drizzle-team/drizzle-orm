@@ -2,23 +2,18 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
-import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
@@ -54,19 +49,33 @@ export type PgInsertSelectQueryBuilder<
 	{ [K in keyof TModel]: AnyPgColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
+export interface PgInsertBuilderConstructor {
+	new(
+		table: PgTable,
+		values: PgInsertConfig['values'],
+		session: PgSession,
+		dialect: PgDialect,
+		withList?: Subquery[],
+		select?: boolean,
+		overridingSystemValue_?: boolean,
+	): AnyPgInsert;
+}
+
 export class PgInsertBuilder<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	OverrideT extends boolean = false,
+	TBuilderHKT extends PgInsertHKTBase = PgInsertQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
 	constructor(
 		private table: TTable,
-		private session: PgAsyncSession,
+		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 		private overridingSystemValue_?: boolean,
+		private builder: PgInsertBuilderConstructor = PgInsertBase,
 	) {}
 
 	private authToken?: NeonAuthToken;
@@ -81,11 +90,11 @@ export class PgInsertBuilder<
 		return this as any;
 	}
 
-	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	values(value: PgInsertValue<TTable, OverrideT>): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	values(
 		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
-	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult> {
+	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -100,7 +109,7 @@ export class PgInsertBuilder<
 			return result;
 		});
 
-		return new PgInsertBase(
+		const builder = new this.builder(
 			this.table,
 			mappedValues,
 			this.session,
@@ -108,21 +117,27 @@ export class PgInsertBuilder<
 			this.withList,
 			false,
 			this.overridingSystemValue_,
-		).setToken(this.authToken) as any;
+		);
+
+		if ('setToken' in builder) {
+			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
+		}
+
+		return builder as any;
 	}
 
 	select(
 		selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>,
-	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
-	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
-	select(selectQuery: SQL): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
-	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult>;
+	): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: SQL): PgInsertBase<TBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
 			| PgInsertSelectQueryBuilder<TTable>
 			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
-	): PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult> {
+	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
 		if (
@@ -134,7 +149,13 @@ export class PgInsertBuilder<
 			);
 		}
 
-		return new PgInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
+		const builder = new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
+
+		if ('setToken' in builder) {
+			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
+		}
+
+		return builder as any;
 	}
 }
 
@@ -181,13 +202,13 @@ export type PgInsertKind<
 	result: TResult;
 })['_type'];
 
-export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends keyof T & string> =
-	TDynamic extends true ? T
-		: Omit<T, T['_']['excludedMethods'] | K> & {
-			readonly _: Omit<T['_'], 'excludedMethods'> & {
-				readonly excludedMethods: T['_']['excludedMethods'] | K;
-			};
+export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends string> = TDynamic extends true
+	? T
+	: Omit<T, T['_']['excludedMethods'] | K> & {
+		readonly _: Omit<T['_'], 'excludedMethods'> & {
+			readonly excludedMethods: T['_']['excludedMethods'] | K;
 		};
+	};
 
 export type PgInsertReturning<
 	T extends AnyPgInsert,
@@ -233,16 +254,14 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	set: PgUpdateSetSource<T['_']['table']>;
 }
 
-export type PgInsertPrepare<T extends AnyPgInsert> = PgAsyncPreparedQuery<
-	PreparedQueryConfig & {
-		execute: T['_']['result'];
-	}
->;
-
-export type PgInsertDynamic<T extends AnyPgInsert> = PgInsert<
+export type PgInsertDynamic<T extends AnyPgInsert> = PgInsertKind<
+	T['_']['hkt'],
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['returning']
+	T['_']['selectedFields'],
+	T['_']['returning'],
+	true,
+	never
 >;
 
 export type AnyPgInsert = PgInsertBase<any, any, any, any, any, any, any, any>;
@@ -268,8 +287,6 @@ export interface PgInsertBase<
 		TSelectedFields,
 		TResult
 	>,
-	QueryPromise<TResult>,
-	RunnableQuery<TResult, 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -297,29 +314,27 @@ export class PgInsertBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
-> extends QueryPromise<TResult> implements
+> implements
 	TypedQueryBuilder<
 		TSelectedFields,
 		TResult
 	>,
-	RunnableQuery<TResult, 'pg'>,
 	SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgInsert';
+	static readonly [entityKind]: string = 'PgInsert';
 
-	private config: PgInsertConfig<TTable>;
+	protected config: PgInsertConfig<TTable>;
 	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
 		values: PgInsertConfig['values'],
-		private session: PgAsyncSession,
-		private dialect: PgDialect,
+		protected session: PgSession,
+		protected dialect: PgDialect,
 		withList?: Subquery[],
 		select?: boolean,
 		overridingSystemValue_?: boolean,
 	) {
-		super();
 		this.config = { table, values: values as any, withList, select, overridingSystemValue_ };
 	}
 
@@ -454,38 +469,6 @@ export class PgInsertBase<
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
-
-	/** @internal */
-	_prepare(name?: string): PgInsertPrepare<this> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery<
-				PreparedQueryConfig & {
-					execute: TResult;
-				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
-		});
-	}
-
-	prepare(name: string): PgInsertPrepare<this> {
-		return this._prepare(name);
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			// @ts-ignore - TODO
-			return this._prepare().execute(placeholderValues, this.authToken);
-		});
-	};
 
 	/** @internal */
 	getSelectedFields(): this['_']['selectedFields'] {

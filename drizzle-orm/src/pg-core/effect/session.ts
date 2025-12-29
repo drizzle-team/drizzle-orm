@@ -12,13 +12,6 @@ import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import { PgBasePreparedQuery, PgSession, type PreparedQueryConfig } from '../session.ts';
-import type { AnyPgEffectSelectQueryBuilder } from './select.ts';
-
-export type PgEffectSelectPrepare<T extends AnyPgEffectSelectQueryBuilder> = PgEffectPreparedQuery<
-	PreparedQueryConfig & {
-		execute: T['_']['result'];
-	}
->;
 
 export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgEffectPreparedQuery';

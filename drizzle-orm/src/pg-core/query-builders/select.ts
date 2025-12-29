@@ -58,7 +58,7 @@ export interface PgSelectQueryBuilderInit<
 	TSelection extends SelectedFields | undefined,
 	THKT extends PgSelectHKTBase = PgSelectQueryBuilderHKT,
 > {
-	from: PgSelectQueryBuilderBase<
+	from: PgSelectBase<
 		THKT,
 		undefined,
 		TSelection,
@@ -74,7 +74,7 @@ export type PgSelectQueryBuilder<
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> = PgSelectQueryBuilderBase<
+> = PgSelectBase<
 	THKT,
 	TTableName,
 	TSelection,
@@ -86,7 +86,7 @@ export type PgSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export class PgSelectQueryBuilderBase<
+export class PgSelectBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,

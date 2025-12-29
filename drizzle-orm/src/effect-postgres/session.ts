@@ -15,6 +15,10 @@ import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 
+export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
+	type: readonly object[];
+}
+
 export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends PgEffectPreparedQuery<T>
 {
@@ -114,10 +118,6 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	isResponseInArrayMode(): boolean {
 		return this._isResponseInArrayMode;
 	}
-}
-
-export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
-	type: (readonly unknown[])[];
 }
 
 export class EffectPgSession<

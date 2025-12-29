@@ -1,8 +1,8 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import type { PgAsyncInsert } from '~/pg-core/async/insert.ts';
 import { boolean, pgTable, QueryBuilder, serial, text } from '~/pg-core/index.ts';
-import type { PgInsert } from '~/pg-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { identityColumnsTable, users } from './tables.ts';
@@ -176,7 +176,7 @@ Expect<
 >;
 
 {
-	function dynamic<T extends PgInsert>(qb: T) {
+	function dynamic<T extends PgAsyncInsert>(qb: T) {
 		return qb.returning().onConflictDoNothing().onConflictDoUpdate({ set: {}, target: users.id, where: sql`` });
 	}
 
@@ -187,7 +187,7 @@ Expect<
 }
 
 {
-	function withReturning<T extends PgInsert>(qb: T) {
+	function withReturning<T extends PgAsyncInsert>(qb: T) {
 		return qb.returning();
 	}
 

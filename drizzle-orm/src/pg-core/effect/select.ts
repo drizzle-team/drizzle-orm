@@ -11,21 +11,27 @@ import type { Subquery } from '~/subquery.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
-import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
+import { PgSelectBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgEffectSelectPrepare, PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
-export type PgEffectSelectQueryBuilderInit<
+export type PgEffectSelectPrepare<T extends AnyPgEffectSelect> = PgEffectPreparedQuery<
+	PreparedQueryConfig & {
+		execute: T['_']['result'];
+	}
+>;
+
+export type PgEffectSelectInit<
 	TSelection extends SelectedFields | undefined,
-> = PgSelectQueryBuilderInit<TSelection, PgEffectSelectQueryBuilderHKT>;
+> = PgSelectQueryBuilderInit<TSelection, PgEffectSelectHKT>;
 
 export type PgEffectSelect<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = PgEffectSelectQueryBuilderBase<
+> = PgEffectSelectBase<
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -34,8 +40,8 @@ export type PgEffectSelect<
 	never
 >;
 
-export interface PgEffectSelectQueryBuilderHKT extends PgSelectHKTBase {
-	_type: PgEffectSelectQueryBuilderBase<
+export interface PgEffectSelectHKT extends PgSelectHKTBase {
+	_type: PgEffectSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -47,7 +53,7 @@ export interface PgEffectSelectQueryBuilderHKT extends PgSelectHKTBase {
 	>;
 }
 
-export interface PgEffectSelectQueryBuilderBase<
+export interface PgEffectSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -67,7 +73,7 @@ export interface PgEffectSelectQueryBuilderBase<
 > extends QueryEffect<TResult> {
 }
 
-export class PgEffectSelectQueryBuilderBase<
+export class PgEffectSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -80,8 +86,8 @@ export class PgEffectSelectQueryBuilderBase<
 		Assume<TSelection, ColumnsSelection>,
 		TNullabilityMap
 	>,
-> extends PgSelectQueryBuilderBase<
-	PgEffectSelectQueryBuilderHKT,
+> extends PgSelectBase<
+	PgEffectSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -146,6 +152,6 @@ export class PgEffectSelectQueryBuilderBase<
 	};
 }
 
-applyEffectWrapper(PgEffectSelectQueryBuilderBase);
+applyEffectWrapper(PgEffectSelectBase);
 
-export type AnyPgEffectSelectQueryBuilder = PgEffectSelectQueryBuilderBase<any, any, any, any, any, any, any, any>;
+export type AnyPgEffectSelect = PgEffectSelectBase<any, any, any, any, any, any, any, any>;

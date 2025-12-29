@@ -1,16 +1,19 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import * as V1 from '~/_relations.ts';
-import type { Cache } from '~/cache/core/cache.ts';
-import { DefaultLogger, type Logger } from '~/logger.ts';
+import { entityKind } from '~/entity.ts';
+import { DefaultLogger } from '~/logger.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
+import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { EffectPgDatabase } from './db.ts';
-import { EffectPgSession } from './session.ts';
+import { type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
 
-export interface PgDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
+export class EffectPgDatabase<
+	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgEffectDatabase<EffectPgQueryResultHKT, TFullSchema, TRelations> {
+	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
 
 function construct<

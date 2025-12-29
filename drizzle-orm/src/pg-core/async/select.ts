@@ -12,21 +12,27 @@ import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
-import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
+import { PgSelectBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgAsyncSelectPrepare, PgAsyncSession } from './session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
-export type PgAsyncSelectQueryBuilderInit<
+export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelect> = PgAsyncPreparedQuery<
+	PreparedQueryConfig & {
+		execute: T['_']['result'];
+	}
+>;
+
+export type PgAsyncSelectInit<
 	TSelection extends SelectedFields | undefined,
-> = PgSelectQueryBuilderInit<TSelection, PgAsyncSelectQueryBuilderHKT>;
+> = PgSelectQueryBuilderInit<TSelection, PgAsyncSelectHKT>;
 
 export type PgAsyncSelect<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = PgAsyncSelectQueryBuilderBase<
+> = PgAsyncSelectBase<
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -35,8 +41,8 @@ export type PgAsyncSelect<
 	never
 >;
 
-export interface PgAsyncSelectQueryBuilderHKT extends PgSelectHKTBase {
-	_type: PgAsyncSelectQueryBuilderBase<
+export interface PgAsyncSelectHKT extends PgSelectHKTBase {
+	_type: PgAsyncSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -48,7 +54,7 @@ export interface PgAsyncSelectQueryBuilderHKT extends PgSelectHKTBase {
 	>;
 }
 
-export interface PgAsyncSelectQueryBuilderBase<
+export interface PgAsyncSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -68,7 +74,7 @@ export interface PgAsyncSelectQueryBuilderBase<
 > extends QueryPromise<TResult> {
 }
 
-export class PgAsyncSelectQueryBuilderBase<
+export class PgAsyncSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection | undefined,
 	TSelectMode extends SelectMode,
@@ -81,8 +87,8 @@ export class PgAsyncSelectQueryBuilderBase<
 		Assume<TSelection, ColumnsSelection>,
 		TNullabilityMap
 	>,
-> extends PgSelectQueryBuilderBase<
-	PgAsyncSelectQueryBuilderHKT,
+> extends PgSelectBase<
+	PgAsyncSelectHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -163,6 +169,6 @@ export class PgAsyncSelectQueryBuilderBase<
 	}
 }
 
-applyMixins(PgAsyncSelectQueryBuilderBase, [QueryPromise]);
+applyMixins(PgAsyncSelectBase, [QueryPromise]);
 
-export type AnyPgAsyncSelectQueryBuilder = PgAsyncSelectQueryBuilderBase<any, any, any, any, any, any, any, any>;
+export type AnyPgAsyncSelect = PgAsyncSelectBase<any, any, any, any, any, any, any, any>;

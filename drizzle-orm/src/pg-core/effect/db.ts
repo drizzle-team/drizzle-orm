@@ -2,18 +2,22 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
-import { PgEffectSelectQueryBuilderBase, type PgEffectSelectQueryBuilderInit } from '~/pg-core/effect/select.ts';
-import type { SelectedFields } from '~/pg-core/index.ts';
+import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
+import { PgEffectSelectBase, type PgEffectSelectInit } from '~/pg-core/effect/select.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
+import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
 import type { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { PgViewBase } from '~/pg-core/view-base.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import type { EffectPgSession } from './session.ts';
+import type { SelectedFields } from '../query-builders/select.types.ts';
+import type { PgQueryResultHKT } from '../session.ts';
+import type { PgEffectSession } from './session.ts';
 
-export class EffectPgDatabase<
+export class PgEffectDatabase<
+	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
@@ -25,7 +29,7 @@ export class EffectPgDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: EffectPgSession<TFullSchema, TRelations, TSchema>;
+		readonly session: PgEffectSession<TFullSchema, TRelations, TSchema>;
 	};
 
 	/** @deprecated */
@@ -47,7 +51,7 @@ export class EffectPgDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: EffectPgSession<any, any, any>,
+		readonly session: PgEffectSession<any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		_parseRqbJson: boolean = false,
@@ -146,15 +150,43 @@ export class EffectPgDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgEffectSelectQueryBuilderInit<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectQueryBuilderInit<TSelection>;
+	select(): PgEffectSelectInit<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectInit<TSelection>;
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgEffectSelectQueryBuilderInit<TSelection> {
-		return new PgEffectSelectQueryBuilderBase({
+	): PgEffectSelectInit<TSelection> {
+		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 		});
+	}
+
+	/**
+	 * Creates an insert query.
+	 *
+	 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert}
+	 *
+	 * @param table The table to insert into.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Insert one row
+	 * yield* db.insert(cars).values({ brand: 'BMW' });
+	 *
+	 * // Insert multiple rows
+	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert with returning clause
+	 * const insertedCar: Car[] = yield* db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning();
+	 * ```
+	 */
+	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT> {
+		return new PgInsertBuilder(table, this.session, this.dialect, undefined, undefined, PgEffectInsertBase);
 	}
 }

@@ -7,7 +7,7 @@ import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { WithBuilder } from '../subquery.ts';
-import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from './select.ts';
+import { PgSelectBase, type PgSelectQueryBuilderInit } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
@@ -54,7 +54,7 @@ export class QueryBuilder {
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgSelectQueryBuilderBase({
+			return new PgSelectBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -69,7 +69,7 @@ export class QueryBuilder {
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgSelectQueryBuilderBase({
+			return new PgSelectBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -86,7 +86,7 @@ export class QueryBuilder {
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
 		): PgSelectQueryBuilderInit<TSelection | undefined> {
-			return new PgSelectQueryBuilderBase({
+			return new PgSelectBase({
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
@@ -102,7 +102,7 @@ export class QueryBuilder {
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): PgSelectQueryBuilderInit<TSelection | undefined> {
-		return new PgSelectQueryBuilderBase({
+		return new PgSelectBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
@@ -114,7 +114,7 @@ export class QueryBuilder {
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
 	): PgSelectQueryBuilderInit<TSelection | undefined> {
-		return new PgSelectQueryBuilderBase({
+		return new PgSelectBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
@@ -131,7 +131,7 @@ export class QueryBuilder {
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
 	): PgSelectQueryBuilderInit<TSelection | undefined> {
-		return new PgSelectQueryBuilderBase({
+		return new PgSelectBase({
 			fields: fields ?? undefined,
 			session: undefined,
 			dialect: this.getDialect(),
