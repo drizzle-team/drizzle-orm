@@ -12,20 +12,14 @@ import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
-import { PgSelectQueryBuilderBase } from '../query-builders/select.ts';
+import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgAsyncSelectPrepare, PgAsyncSession } from './session.ts';
 
-export interface PgAsyncSelectQueryBuilderInit<
+export type PgAsyncSelectQueryBuilderInit<
 	TSelection extends SelectedFields | undefined,
-> {
-	from: PgAsyncSelectQueryBuilderBase<
-		undefined,
-		TSelection,
-		SelectMode
-	>['from'];
-}
+> = PgSelectQueryBuilderInit<TSelection, PgAsyncSelectQueryBuilderHKT>;
 
 export type PgAsyncSelect<
 	TTableName extends string | undefined = string | undefined,

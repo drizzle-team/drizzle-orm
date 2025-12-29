@@ -11,20 +11,14 @@ import type { Subquery } from '~/subquery.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
-import { PgSelectQueryBuilderBase } from '../query-builders/select.ts';
+import { PgSelectQueryBuilderBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgEffectSelectPrepare, PgEffectSession } from './session.ts';
 
-export interface PgEffectSelectQueryBuilderInit<
+export type PgEffectSelectQueryBuilderInit<
 	TSelection extends SelectedFields | undefined,
-> {
-	from: PgEffectSelectQueryBuilderBase<
-		undefined,
-		TSelection,
-		SelectMode
-	>['from'];
-}
+> = PgSelectQueryBuilderInit<TSelection, PgEffectSelectQueryBuilderHKT>;
 
 export type PgEffectSelect<
 	TTableName extends string | undefined = string | undefined,

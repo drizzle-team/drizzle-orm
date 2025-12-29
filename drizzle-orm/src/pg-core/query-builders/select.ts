@@ -56,9 +56,10 @@ import type {
 
 export interface PgSelectQueryBuilderInit<
 	TSelection extends SelectedFields | undefined,
+	THKT extends PgSelectHKTBase = PgSelectQueryBuilderHKT,
 > {
 	from: PgSelectQueryBuilderBase<
-		PgSelectHKTBase,
+		THKT,
 		undefined,
 		TSelection,
 		SelectMode
