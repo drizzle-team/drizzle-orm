@@ -144,8 +144,8 @@ test('push #5', async (t) => {
 		force: false,
 		verbose: false,
 		casing: undefined,
-		migrationsSchema: undefined,
-		migrationsTable: undefined,
+		migrationsSchema: 'custom',
+		migrationsTable: 'custom',
 	});
 });
 
