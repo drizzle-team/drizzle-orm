@@ -12,7 +12,7 @@ import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import type { Casing, CasingType, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { GelCredentials } from '../validations/gel';
@@ -85,7 +85,6 @@ export type GenerateConfig = {
 	out: string;
 	breakpoints: boolean;
 	name?: string;
-	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
 	casing?: CasingType;
@@ -109,7 +108,6 @@ export const prepareGenerateConfig = async (
 		name?: string;
 		dialect?: Dialect;
 		driver?: Driver;
-		prefix?: Prefix;
 		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
@@ -132,14 +130,10 @@ export const prepareGenerateConfig = async (
 		process.exit(0);
 	}
 
-	const prefix = ('migrations' in config ? config.migrations?.prefix : options.prefix)
-		|| 'index';
-
 	return {
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
-		prefix,
 		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
@@ -469,7 +463,6 @@ export const preparePullConfig = async (
 		out: string;
 		breakpoints: boolean;
 		casing: Casing;
-		prefix: Prefix;
 		filters: EntitiesFilterConfig;
 		init: boolean;
 		migrationsSchema: string | undefined;
@@ -513,7 +506,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -533,7 +525,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -554,7 +545,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -574,7 +564,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -594,7 +583,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -614,7 +602,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			init: !!options.init,
 			migrationsSchema: schema,
 			migrationsTable: table,
@@ -635,7 +622,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,
@@ -656,7 +642,6 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
 			migrationsSchema: schema,

@@ -1000,3 +1000,50 @@ test('rename table with composite primary key', async () => {
 
 	expect(phints).toStrictEqual([]);
 });
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrations = {
+		table: undefined,
+	};
+	const migrationsTable = sqliteTable('__drizzle_migrations', { id: integer(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.run(sti);
+	}
+
+	const to = {
+		table: sqliteTable('table1', { col1: integer() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5083
+test('push after migrate with custom migrations table #2', async () => {
+	const migrations = {
+		table: 'migrations',
+	};
+	const migrationsTable = sqliteTable(migrations.table, { id: integer(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.run(sti);
+	}
+
+	const to = {
+		table: sqliteTable('table1', { col1: integer() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});

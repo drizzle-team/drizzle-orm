@@ -1138,3 +1138,102 @@ test.concurrent('rename table with composite primary key', async ({ dbc: db }) =
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test.concurrent('push after migrate with custom migrations table #1', async ({ dbc: db }) => {
+	const migrations = {
+		schema: undefined,
+		table: undefined,
+	};
+	const migrationsSchema = cockroachSchema('drizzle');
+	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: int4(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #2', async ({ dbc: db }) => {
+	const migrations = {
+		schema: undefined,
+		table: 'migrations',
+	};
+	const migrationsTable = cockroachTable(migrations.table, { id: int4(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #3', async ({ dbc: db }) => {
+	const migrations = {
+		schema: 'migrations_schema',
+		table: undefined,
+	};
+	const migrationsSchema = cockroachSchema(migrations.schema);
+	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: int4(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #4', async ({ dbc: db }) => {
+	const migrations = {
+		schema: 'migrations_schema',
+		table: 'migrations',
+	};
+	const migrationsSchema = cockroachSchema(migrations.schema);
+	const migrationsTable = migrationsSchema.table(migrations.table, { id: int4(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});

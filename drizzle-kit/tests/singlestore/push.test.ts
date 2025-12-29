@@ -26,7 +26,7 @@ import {
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
-import { diffPush, prepareTestDatabase, TestDatabase } from './mocks';
+import { diff, diffPush, prepareTestDatabase, TestDatabase } from './mocks';
 
 let _: TestDatabase;
 let db: DB;
@@ -762,4 +762,50 @@ test('add column. add default to column without not null', async (t) => {
 		`ALTER TABLE \`users\` MODIFY COLUMN \`name\` text DEFAULT 'drizzle';`,
 		`ALTER TABLE \`users\` ADD \`age\` int;`,
 	]);
+});
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrations = {
+		table: undefined,
+	};
+	const migrationsTable = singlestoreTable('__drizzle_migrations', { id: int(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: singlestoreTable('table1', { col1: int() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #2', async () => {
+	const migrations = {
+		table: 'migrations',
+	};
+	const migrationsTable = singlestoreTable(migrations.table, { id: int(), hash: text() });
+	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
+	for (const sti of migrationsTableDdl) {
+		await db.query(sti);
+	}
+
+	const to = {
+		table: singlestoreTable('table1', { col1: int() }),
+	};
+	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

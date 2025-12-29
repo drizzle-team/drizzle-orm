@@ -30,7 +30,7 @@ import type { prepareCockroach } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
@@ -41,7 +41,6 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -100,7 +99,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {

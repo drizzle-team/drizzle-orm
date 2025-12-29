@@ -102,7 +102,6 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
-			prefixMode: config.prefix,
 			renames: [],
 			snapshots,
 		});
@@ -133,7 +132,6 @@ export const handle = async (config: GenerateConfig) => {
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
-		prefixMode: config.prefix,
 		renames,
 		snapshots,
 	});

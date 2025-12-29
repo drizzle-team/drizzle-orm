@@ -26,7 +26,7 @@ import {
 	prepareStudioConfig,
 } from './commands/utils';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
-import { assertCollisions, drivers, prefixes } from './validations/common';
+import { assertCollisions, drivers } from './validations/common';
 import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
 
@@ -61,15 +61,12 @@ export const generate = command({
 		custom: boolean()
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
-		prefix: string()
-			.enum(...prefixes)
-			.default('index'),
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['prefix', 'name', 'custom'],
+			['name', 'custom'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -488,7 +485,6 @@ export const pull = command({
 			out,
 			casing,
 			breakpoints,
-			prefix,
 			filters,
 			init,
 			migrationsSchema,
@@ -524,56 +520,56 @@ export const pull = command({
 			migrate = db.migrate;
 
 			const { handle: introspectPostgres } = await import('./commands/pull-postgres');
-			await introspectPostgres(casing, out, breakpoints, credentials, filters, prefix, db);
+			await introspectPostgres(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'mysql') {
 			const { connectToMySQL } = await import('./connections');
 			const db = await connectToMySQL(credentials);
 			migrate = db.migrate;
 
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
-			await introspectMysql(casing, out, breakpoints, credentials, filters, prefix, db);
+			await introspectMysql(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'sqlite') {
 			const { connectToSQLite } = await import('./connections');
 			const db = await connectToSQLite(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-sqlite');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, 'sqlite', db);
+			await handle(casing, out, breakpoints, credentials, filters, 'sqlite', db);
 		} else if (dialect === 'turso') {
 			const { connectToLibSQL } = await import('./connections');
 			const db = await connectToLibSQL(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-libsql');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, 'libsql', db);
+			await handle(casing, out, breakpoints, credentials, filters, 'libsql', db);
 		} else if (dialect === 'singlestore') {
 			const { connectToSingleStore } = await import('./connections');
 			const db = await connectToSingleStore(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-singlestore');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, db);
+			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'gel') {
 			const { prepareGelDB } = await import('./connections');
 			const db = await prepareGelDB(credentials);
 			// migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-gel');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, db);
+			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'mssql') {
 			const { connectToMsSQL } = await import('./connections');
 			const db = await connectToMsSQL(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-mssql');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, db);
+			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'cockroach') {
 			const { prepareCockroach } = await import('./connections');
 			const db = await prepareCockroach(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-cockroach');
-			await handle(casing, out, breakpoints, credentials, filters, prefix, db);
+			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else {
 			assertUnreachable(dialect);
 		}

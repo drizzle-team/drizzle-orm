@@ -15,7 +15,7 @@ import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSQLite } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
@@ -27,7 +27,6 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
 	type: 'sqlite' | 'libsql' = 'sqlite',
 	db?: Awaited<ReturnType<typeof connectToSQLite>>,
 ) => {
@@ -65,7 +64,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {

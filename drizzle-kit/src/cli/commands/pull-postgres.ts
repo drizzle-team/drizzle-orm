@@ -32,7 +32,7 @@ import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
 import { IntrospectProgress } from '../views';
@@ -45,7 +45,6 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: PostgresCredentials,
 	filtersConfig: EntitiesFilterConfig,
-	prefix: Prefix,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
 	if (!db) {
@@ -110,7 +109,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
