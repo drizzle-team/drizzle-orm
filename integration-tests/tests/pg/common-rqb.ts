@@ -229,6 +229,7 @@ export function tests(test: Test) {
 					user: r.one.user({
 						from: r.userSession.userId,
 						to: r.user.id,
+						optional: false,
 					}),
 				},
 			}));
@@ -238,7 +239,6 @@ export function tests(test: Test) {
 				with: { user: true },
 			});
 
-			throw new Error(`it's needed to fix type error below`);
 			expectTypeOf(query).resolves.toEqualTypeOf<
 				{
 					id: string;

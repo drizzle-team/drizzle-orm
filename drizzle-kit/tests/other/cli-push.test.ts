@@ -32,6 +32,8 @@ test('push #1', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrationsSchema: undefined,
+		migrationsTable: undefined,
 	});
 });
 
@@ -55,6 +57,8 @@ test('push #2', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrationsSchema: undefined,
+		migrationsTable: undefined,
 	});
 });
 
@@ -80,6 +84,8 @@ test('push #3', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrationsSchema: undefined,
+		migrationsTable: undefined,
 	});
 });
 
@@ -106,6 +112,8 @@ test('push #4', async (t) => {
 		schemaPath: './schema.ts',
 		verbose: false,
 		casing: undefined,
+		migrationsSchema: undefined,
+		migrationsTable: undefined,
 	});
 });
 
@@ -136,6 +144,8 @@ test('push #5', async (t) => {
 		force: false,
 		verbose: false,
 		casing: undefined,
+		migrationsSchema: undefined,
+		migrationsTable: undefined,
 	});
 });
 
