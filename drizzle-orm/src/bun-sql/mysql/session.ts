@@ -126,6 +126,8 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		const { client, query, customResultMapper } = this;
 		const rows = await client.unsafe(query, params);
 
+		if (!rows[0]) return;
+
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 

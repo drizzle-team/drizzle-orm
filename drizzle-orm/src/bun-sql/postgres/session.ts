@@ -106,6 +106,8 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 				return client.unsafe(query, params as any[]);
 			});
 
+			if (!rows[0]) return;
+
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 			});
