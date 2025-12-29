@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
@@ -17,13 +18,17 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/postgres/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase<PGlite>['client'];
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase();
+	_ = await prepareTestDatabase(false); // due to migrate function from orm in tests
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -1371,23 +1376,25 @@ test('rename 2 tables', async () => {
 });
 
 test('push after migrate with custom migrations table #1', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		schema: undefined,
 		table: undefined,
 	};
-	const migrationsSchema = pgSchema('drizzle');
-	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: pgTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
 	];
@@ -1396,22 +1403,25 @@ test('push after migrate with custom migrations table #1', async () => {
 });
 
 test('push after migrate with custom migrations table #2', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		schema: undefined,
 		table: 'migrations',
 	};
-	const migrationsTable = pgTable(migrations.table, { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: pgTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
 	];
@@ -1420,23 +1430,25 @@ test('push after migrate with custom migrations table #2', async () => {
 });
 
 test('push after migrate with custom migrations table #3', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		schema: 'migrations_schema',
 		table: undefined,
 	};
-	const migrationsSchema = pgSchema(migrations.schema);
-	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: pgTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
 	];
@@ -1445,23 +1457,25 @@ test('push after migrate with custom migrations table #3', async () => {
 });
 
 test('push after migrate with custom migrations table #4', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		schema: 'migrations_schema',
 		table: 'migrations',
 	};
-	const migrationsSchema = pgSchema(migrations.schema);
-	const migrationsTable = migrationsSchema.table(migrations.table, { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: pgTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
 	];

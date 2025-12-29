@@ -31,7 +31,7 @@ import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { Casing } from '../validations/common';
-import { IntrospectProgress } from '../views';
+import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -41,6 +41,8 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -51,9 +53,15 @@ export const handle = async (
 	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	});
+	const task = fromDatabaseForDrizzle(
+		db,
+		filter,
+		(stage, count, status) => {
+			progress.update(stage, count, status);
+		},
+		migrationsSchema,
+		migrationsTable,
+	);
 	const res = await renderWithTask(progress, task);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -135,7 +143,13 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
+	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, callback, migrationsSchema, migrationsTable),
+	);
 	return { schema };
 };

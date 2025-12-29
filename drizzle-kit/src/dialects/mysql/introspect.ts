@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
@@ -13,6 +14,7 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrationsTable: string = '__drizzle_migrations',
 ): Promise<InterimSchema> => {
 	const res = await fromDatabase(db, schema, filter, progressCallback);
 	res.indexes = res.indexes.filter((x) => {
@@ -21,6 +23,8 @@ export const fromDatabaseForDrizzle = async (
 		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
 		return !skip;
 	});
+
+	filterMigrationsSchema(res, migrationsTable);
 
 	return res;
 };

@@ -22,6 +22,7 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
+	migrationsTable: string | undefined,
 ) => {
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
@@ -39,7 +40,7 @@ export const handle = async (
 	);
 	const interimFromDB = await renderWithTask(
 		progress,
-		fromDatabaseForDrizzle(db, database, filter),
+		fromDatabaseForDrizzle(db, database, filter, () => {}, migrationsTable),
 	);
 
 	const filenames = prepareFilenames(schemaPath);

@@ -165,6 +165,9 @@ export const push = async (config: {
 	log?: 'statements';
 	ignoreSubsequent?: boolean;
 	expectError?: boolean;
+	migrationsConfig?: {
+		table?: string;
+	};
 }) => {
 	const { db, to, log, expectError } = config;
 	const casing = config.casing ?? 'camelCase';
@@ -174,6 +177,7 @@ export const push = async (config: {
 		database: 'drizzle',
 		filter: () => true,
 		progress: new EmptyProgressView(),
+		migrationsTable: config.migrationsConfig?.table,
 	});
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
@@ -221,6 +225,7 @@ export const push = async (config: {
 				database: 'drizzle',
 				filter: () => true,
 				progress: new EmptyProgressView(),
+				migrationsTable: config.migrationsConfig?.table,
 			});
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 			const { sqlStatements, statements } = await ddlDiff(
@@ -381,6 +386,7 @@ export const createDockerDB = async (): Promise<{ url: string; container: Contai
 
 export type TestDatabase = {
 	db: DB;
+	client: Connection;
 	db_url: string;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
@@ -415,7 +421,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				await client.query(`create database \`drizzle\`;`);
 				await client.query(`use \`drizzle\`;`);
 			};
-			return { db, close, clear, db_url: url };
+			return { db, close, clear, db_url: url, client };
 		} catch (e) {
 			console.error(e);
 			await new Promise((resolve) => setTimeout(resolve, sleep));

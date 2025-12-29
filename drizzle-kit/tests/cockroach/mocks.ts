@@ -179,6 +179,10 @@ export const push = async (
 		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
 		explain?: true;
+		migrationsConfig?: {
+			schema?: string;
+			table?: string;
+		};
 	},
 ) => {
 	const { db, to } = config;
@@ -198,7 +202,14 @@ export const push = async (
 
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
 
-	const { schema } = await introspect(db, filter, new EmptyProgressView());
+	const { schema } = await introspect(
+		db,
+		filter,
+		new EmptyProgressView(),
+		() => {},
+		config.migrationsConfig?.schema,
+		config.migrationsConfig?.table,
+	);
 
 	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
 
@@ -246,7 +257,14 @@ export const push = async (
 	// subsequent push
 	if (!config.ignoreSubsequent) {
 		{
-			const { schema } = await introspect(db, filter, new EmptyProgressView());
+			const { schema } = await introspect(
+				db,
+				filter,
+				new EmptyProgressView(),
+				() => {},
+				config.migrationsConfig?.schema,
+				config.migrationsConfig?.table,
+			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 			const { sqlStatements, statements, groupedStatements } = await ddlDiff(
@@ -467,6 +485,7 @@ export type TestDatabase = DB & {
 	batch: (sql: string[]) => Promise<void>;
 	close: () => void;
 	clear: () => Promise<void>;
+	client: PoolClient;
 };
 
 export type TestDatabaseKit = {
@@ -560,6 +579,7 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 		close: async () => {
 			client.release();
 		},
+		client,
 	};
 	return db;
 };

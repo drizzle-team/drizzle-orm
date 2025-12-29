@@ -24,6 +24,7 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: SingleStoreCredentials,
 	filters: EntitiesFilterConfig,
+	migrationsTable: string | undefined,
 	db?: Awaited<ReturnType<typeof connectToSingleStore>>,
 ) => {
 	if (!db) {
@@ -36,7 +37,7 @@ export const handle = async (
 	const progress = new IntrospectProgress();
 	const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
 		progress.update(stage, count, status);
-	});
+	}, migrationsTable);
 	const res = await renderWithTask(progress, task);
 
 	const { ddl } = interimToDDL(res);

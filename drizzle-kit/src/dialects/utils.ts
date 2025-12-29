@@ -171,3 +171,33 @@ export const preserveEntityNames = <
 		});
 	}
 };
+
+export const filterMigrationsSchema = (
+	interim: {
+		schemas?: { name: string }[];
+		columns: { table: string; schema?: string }[];
+		pks: { table: string; schema?: string }[];
+		tables: { name: string; schema?: string }[];
+	},
+	migrationsTable: string,
+	migrationsSchema?: string,
+) => {
+	interim.tables = interim.tables.filter((table) =>
+		table.name !== migrationsTable && (table.schema ? table.schema !== migrationsSchema : true)
+	);
+	interim.columns = interim.columns.filter((column) =>
+		column.table !== migrationsTable && (column.schema ? column.schema !== migrationsSchema : true)
+	);
+	interim.pks = interim.pks.filter((pk) =>
+		pk.table !== migrationsTable && (pk.schema ? pk.schema !== migrationsSchema : true)
+	);
+
+	if (interim.schemas) {
+		let tablesInMigrationSchema = interim.tables.filter((table) => table.schema === migrationsSchema);
+		if (!tablesInMigrationSchema.length) {
+			interim.schemas = interim.schemas.filter((schema) => schema.name !== migrationsSchema);
+		}
+	}
+
+	return interim;
+};

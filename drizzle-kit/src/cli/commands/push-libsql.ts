@@ -11,8 +11,9 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
+	migrationsTable: string | undefined,
 ) => {
 	const { connectToLibSQL } = await import('../connections');
 	const db = await connectToLibSQL(credentials);
-	return sqliteHandle(schemaPath, verbose, credentials, filters, force, casing, explainFlag, db);
+	return sqliteHandle(schemaPath, verbose, credentials, filters, force, casing, explainFlag, migrationsTable, db);
 };

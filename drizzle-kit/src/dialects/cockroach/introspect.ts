@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -1123,11 +1124,15 @@ export const fromDatabaseForDrizzle = async (
 	db: DB,
 	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrationsSchema = 'drizzle',
+	migrationsTable = '__drizzle_migrations',
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK);
+
+	filterMigrationsSchema(res, migrationsTable, migrationsSchema);
 
 	return res;
 };

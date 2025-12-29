@@ -197,6 +197,10 @@ export const push = async (config: {
 	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
 	explain?: true;
+	migrationsConfig?: {
+		schema?: string;
+		table?: string;
+	};
 }) => {
 	const { db, to } = config;
 
@@ -217,7 +221,14 @@ export const push = async (config: {
 		: drizzleToDDL(to, casing, filterConfig);
 
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
-	const { schema } = await introspect(db, filter, new EmptyProgressView());
+	const { schema } = await introspect(
+		db,
+		filter,
+		new EmptyProgressView(),
+		() => {},
+		config.migrationsConfig?.schema,
+		config.migrationsConfig?.table,
+	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
@@ -276,6 +287,9 @@ export const push = async (config: {
 				db,
 				filter,
 				new EmptyProgressView(),
+				() => {},
+				config.migrationsConfig?.schema,
+				config.migrationsConfig?.table,
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 

@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { areStringArraysEqual, type DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -35,9 +36,12 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrationsTable = '__drizzle_migrations',
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
+
+	filterMigrationsSchema(res, migrationsTable);
 
 	return res;
 };

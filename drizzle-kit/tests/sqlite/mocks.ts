@@ -126,11 +126,18 @@ export const push = async (config: {
 	expectError?: boolean;
 	log?: 'statements';
 	ignoreSubsequent?: boolean;
+	migrationsConfig?: { table?: string };
 }) => {
 	const { db, to, expectError, force, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
-	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
+	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(
+		db,
+		() => true,
+		new EmptyProgressView(),
+		() => {},
+		config.migrationsConfig?.table,
+	);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as SQLiteDDL, errors: [] }
 		: drizzleToDDL(to, casing);
@@ -182,7 +189,13 @@ export const push = async (config: {
 
 	// subsequent push
 	if (!config.ignoreSubsequent) {
-		const { ddl: ddl1, errors, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
+		const { ddl: ddl1, errors, viewColumns } = await introspect(
+			db,
+			() => true,
+			new EmptyProgressView(),
+			() => {},
+			config.migrationsConfig?.table,
+		);
 
 		const { sqlStatements, statements } = await ddlDiff(
 			ddl1,
@@ -312,6 +325,7 @@ export type TestDatabase = {
 	db: SQLiteDB;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
+	getClient: () => Database;
 };
 
 export const prepareTestDatabase = () => {
@@ -346,7 +360,8 @@ export const prepareTestDatabase = () => {
 		client.close();
 		client = new BetterSqlite3(':memory:');
 	};
-	return { db, close, clear };
+	const getClient = () => client;
+	return { db, close, clear, getClient };
 };
 
 export const diffSnapshotV6 = async (

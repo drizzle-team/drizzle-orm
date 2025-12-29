@@ -107,6 +107,9 @@ export const diffPush = async (config: {
 	before?: string[];
 	after?: string[];
 	apply?: boolean;
+	migrationsConfig?: {
+		table?: string;
+	};
 }) => {
 	const { db, init: initSchema, destination, casing, before, after, renames: rens } = config;
 	const apply = config.apply ?? true;
@@ -123,7 +126,13 @@ export const diffPush = async (config: {
 	}
 
 	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, 'drizzle');
+	const introspectedSchema = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		undefined,
+		() => {},
+		config.migrationsConfig?.table,
+	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
@@ -177,6 +186,7 @@ export type TestDatabase = {
 	db: DB;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
+	client: Connection;
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
@@ -207,7 +217,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				await client.query(`create database \`drizzle\`;`);
 				await client.query(`use \`drizzle\`;`);
 			};
-			return { db, close, clear };
+			return { db, close, clear, client };
 		} catch (e) {
 			lastError = e;
 			await new Promise((resolve) => setTimeout(resolve, sleep));

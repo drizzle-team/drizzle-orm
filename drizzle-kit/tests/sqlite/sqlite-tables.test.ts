@@ -21,10 +21,12 @@ import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: ReturnType<TestDatabase['getClient']>;
 
 beforeAll(() => {
 	_ = prepareTestDatabase();
 	db = _.db;
+	client = _.getClient();
 });
 
 afterAll(async () => {
@@ -33,6 +35,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
 	await _.clear();
+	client = _.getClient();
 });
 
 test('add table #1', async () => {
@@ -1002,21 +1005,24 @@ test('rename table with composite primary key', async () => {
 });
 
 test('push after migrate with custom migrations table #1', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		table: undefined,
 	};
-	const migrationsTable = sqliteTable('__drizzle_migrations', { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.run(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
+	const { drizzle } = await import('drizzle-orm/better-sqlite3');
+
+	migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: sqliteTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE `table1` (\n\t`col1` integer\n);\n',
 	];
@@ -1026,21 +1032,24 @@ test('push after migrate with custom migrations table #1', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5083
 test('push after migrate with custom migrations table #2', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		table: 'migrations',
 	};
-	const migrationsTable = sqliteTable(migrations.table, { id: integer(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.run(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
+	const { drizzle } = await import('drizzle-orm/better-sqlite3');
+
+	migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: sqliteTable('table1', { col1: integer() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE `table1` (\n\t`col1` integer\n);\n',
 	];

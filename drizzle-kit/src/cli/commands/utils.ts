@@ -242,6 +242,8 @@ export const preparePushConfig = async (
 		explain: boolean;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
+		migrationsSchema?: string;
+		migrationsTable?: string;
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -263,6 +265,8 @@ export const preparePushConfig = async (
 	}
 
 	const config = parsed.data;
+
+	const { schema: migrationsSchema, table: migrationsTable } = config.migrations ?? {};
 
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
@@ -293,6 +297,8 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -311,6 +317,8 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -329,6 +337,8 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -347,6 +357,8 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -365,6 +377,8 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -388,6 +402,8 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 
@@ -407,6 +423,8 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrationsSchema,
+			migrationsTable,
 		};
 	}
 

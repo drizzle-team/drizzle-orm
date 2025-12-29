@@ -38,6 +38,8 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 	db?: Awaited<ReturnType<typeof connectToMsSQL>>,
 ) => {
 	if (!db) {
@@ -48,9 +50,15 @@ export const handle = async (
 	const filter = prepareEntityFilter('mssql', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(db.db, filter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	});
+	const task = fromDatabaseForDrizzle(
+		db.db,
+		filter,
+		(stage, count, status) => {
+			progress.update(stage, count, status);
+		},
+		migrationsSchema,
+		migrationsTable,
+	);
 
 	const res = await renderWithTask(progress, task);
 
@@ -120,8 +128,13 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, () => {}, migrationsSchema, migrationsTable),
+	);
 
 	return { schema };
 };

@@ -18,10 +18,12 @@ import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase['client'];
 
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -950,103 +952,4 @@ test('optional db aliases (camel case)', async () => {
 
 	expect(st).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 	expect(pst).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
-});
-
-test('push after migrate with custom migrations table #1', async () => {
-	const migrations = {
-		schema: undefined,
-		table: undefined,
-	};
-	const migrationsSchema = mssqlSchema('drizzle');
-	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
-
-	const to = {
-		table: mssqlTable('table1', { col1: int() }),
-	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
-	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
-	const expectedSt2 = [
-		'CREATE TABLE [table1] (\n\t[col1] int\n);\n',
-	];
-	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
-});
-
-test('push after migrate with custom migrations table #2', async () => {
-	const migrations = {
-		schema: undefined,
-		table: 'migrations',
-	};
-	const migrationsTable = mssqlTable(migrations.table, { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
-
-	const to = {
-		table: mssqlTable('table1', { col1: int() }),
-	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
-	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
-	const expectedSt2 = [
-		'CREATE TABLE [table1] (\n\t[col1] int\n);\n',
-	];
-	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
-});
-
-test('push after migrate with custom migrations table #3', async () => {
-	const migrations = {
-		schema: 'migrations_schema',
-		table: undefined,
-	};
-	const migrationsSchema = mssqlSchema(migrations.schema);
-	const migrationsTable = migrationsSchema.table('__drizzle_migrations', { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
-
-	const to = {
-		table: mssqlTable('table1', { col1: int() }),
-	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
-	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
-	const expectedSt2 = [
-		'CREATE TABLE [table1] (\n\t[col1] int\n);\n',
-	];
-	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
-});
-
-test('push after migrate with custom migrations table #4', async () => {
-	const migrations = {
-		schema: 'migrations_schema',
-		table: 'migrations',
-	};
-	const migrationsSchema = mssqlSchema(migrations.schema);
-	const migrationsTable = migrationsSchema.table(migrations.table, { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsSchema, migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
-
-	const to = {
-		table: mssqlTable('table1', { col1: int() }),
-	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
-	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to });
-	const expectedSt2 = [
-		'CREATE TABLE [table1] (\n\t[col1] int\n);\n',
-	];
-	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
 });

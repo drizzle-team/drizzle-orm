@@ -45,6 +45,8 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: PostgresCredentials,
 	filtersConfig: EntitiesFilterConfig,
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
 	if (!db) {
@@ -57,9 +59,16 @@ export const handle = async (
 
 	const { schema: res } = await renderWithTask(
 		progress,
-		introspect(db, entityFilter, progress, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
+		introspect(
+			db,
+			entityFilter,
+			progress,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+			migrationsSchema,
+			migrationsTable,
+		),
 	);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -145,8 +154,13 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
-	callback?: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void,
+	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrationsSchema: string | undefined,
+	migrationsTable: string | undefined,
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, callback));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, callback, migrationsSchema, migrationsTable),
+	);
 	return { schema };
 };

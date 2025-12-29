@@ -179,6 +179,10 @@ export const push = async (config: {
 	expectError?: boolean;
 	ignoreSubsequent?: boolean;
 	explain?: boolean;
+	migrationsConfig?: {
+		schema?: string;
+		table?: string;
+	};
 }) => {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
@@ -195,7 +199,13 @@ export const push = async (config: {
 
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
 
-	const { schema } = await introspect(db, filter, new EmptyProgressView());
+	const { schema } = await introspect(
+		db,
+		filter,
+		new EmptyProgressView(),
+		config.migrationsConfig?.schema,
+		config.migrationsConfig?.table,
+	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
@@ -248,7 +258,13 @@ export const push = async (config: {
 	// subsequent push
 	if (!config.ignoreSubsequent) {
 		{
-			const { schema } = await introspect(db, filter, new EmptyProgressView());
+			const { schema } = await introspect(
+				db,
+				filter,
+				new EmptyProgressView(),
+				config.migrationsConfig?.schema,
+				config.migrationsConfig?.table,
+			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
 			const { sqlStatements, statements } = await ddlDiff(
@@ -280,6 +296,7 @@ export type TestDatabase = {
 	db: DB;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
+	client: mssql.ConnectionPool;
 };
 
 export const diffDefault = async <T extends MsSqlColumnBuilder>(
@@ -412,7 +429,7 @@ export function parseMssqlUrl(urlString: string) {
 	};
 }
 
-export const prepareTestDatabase = async (): Promise<TestDatabase> => {
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
 	const envUrl = process.env.MSSQL_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 	const params = parseMssqlUrl(url);
@@ -432,35 +449,49 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			await client.query(`create database [drizzle];`);
 			await client.query(`use [drizzle];`);
 
-			let tx = client.transaction();
-			let req = new mssql.Request(tx);
-			await tx.begin();
+			let transaction: mssql.Transaction | null = null;
+			let req: mssql.Request | null = null;
+			if (tx) {
+				transaction = client.transaction();
+				req = new mssql.Request(transaction);
+				await transaction.begin();
+			}
 
 			const db = {
 				query: async (sql: string, params: any[] = []) => {
-					const res = await req.query(sql).catch((e) => {
+					const res = await (req ?? client).query(sql).catch((e) => {
 						throw new Error(e.message);
 					});
 					return res.recordset as any[];
 				},
 			};
 			const close = async () => {
-				await tx.rollback().catch((e) => {});
+				if (transaction) {
+					await transaction.rollback().catch((e) => {});
+				}
 				await client?.close().catch(console.error);
 				await container?.stop().catch(console.error);
 			};
 
 			const clear = async () => {
-				try {
-					await tx.rollback();
-					await tx.begin();
-				} catch {
-					tx = client.transaction();
-					await tx.begin();
-					req = new mssql.Request(tx);
+				if (transaction) {
+					try {
+						await transaction.rollback();
+						await transaction.begin();
+					} catch {
+						transaction = client.transaction();
+						await transaction.begin();
+						req = new mssql.Request(transaction);
+					}
+					return;
 				}
+
+				await client.query(`use [master];`);
+				await client.query(`drop database if exists [drizzle];`);
+				await client.query(`create database [drizzle];`);
+				await client.query(`use [drizzle];`);
 			};
-			return { db, close, clear };
+			return { db, close, clear, client };
 		} catch (e) {
 			console.error(e);
 			throw e;

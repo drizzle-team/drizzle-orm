@@ -23,6 +23,7 @@ import {
 	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
+import { Connection } from 'mysql2/promise';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
@@ -30,10 +31,12 @@ import { diff, diffPush, prepareTestDatabase, TestDatabase } from './mocks';
 
 let _: TestDatabase;
 let db: DB;
+let client: Connection;
 
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -765,21 +768,24 @@ test('add column. add default to column without not null', async (t) => {
 });
 
 test('push after migrate with custom migrations table #1', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		table: undefined,
 	};
-	const migrationsTable = singlestoreTable('__drizzle_migrations', { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+
+	const { migrate } = await import('drizzle-orm/singlestore/migrator');
+	const { drizzle } = await import('drizzle-orm/singlestore');
+
+	await migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: singlestoreTable('table1', { col1: int() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to });
+	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
 	];
@@ -788,21 +794,23 @@ test('push after migrate with custom migrations table #1', async () => {
 });
 
 test('push after migrate with custom migrations table #2', async () => {
-	const migrations = {
+	const migrationsConfig = {
 		table: 'migrations',
 	};
-	const migrationsTable = singlestoreTable(migrations.table, { id: int(), hash: text() });
-	const { sqlStatements: migrationsTableDdl } = await diff({}, { migrationsTable }, []);
-	for (const sti of migrationsTableDdl) {
-		await db.query(sti);
-	}
+	const { migrate } = await import('drizzle-orm/singlestore/migrator');
+	const { drizzle } = await import('drizzle-orm/singlestore');
+
+	await migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
 
 	const to = {
 		table: singlestoreTable('table1', { col1: int() }),
 	};
-	// TODO: test is not valid, because `push` doesn't know about migrationsTable
+
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to });
+	const { sqlStatements: pst2 } = await diffPush({ db, init: {}, destination: to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
 	];
