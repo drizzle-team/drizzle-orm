@@ -292,7 +292,7 @@ export class BunSQLitePreparedQuery<
 		const rows = await client.unsafe(query.sql, params);
 		const row = rows[0];
 
-		if (row === undefined) return row;
+		if (!row) return;
 
 		return (customResultMapper as (
 			rows: unknown[][],
