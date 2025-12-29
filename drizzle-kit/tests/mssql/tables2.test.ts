@@ -15,6 +15,8 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/mssql/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
@@ -46,7 +48,7 @@ test('push after migrate with custom migrations table #1', async () => {
 	await migrate(drizzle({ client }), {
 		migrationsSchema: migrationsConfig.schema,
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mssql/migrations',
 	});
 
 	const to = {
@@ -73,7 +75,7 @@ test('push after migrate with custom migrations table #2', async () => {
 	await migrate(drizzle({ client }), {
 		migrationsSchema: migrationsConfig.schema,
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mssql/migrations',
 	});
 
 	const to = {
@@ -100,7 +102,7 @@ test('push after migrate with custom migrations table #3', async () => {
 	await migrate(drizzle({ client }), {
 		migrationsSchema: migrationsConfig.schema,
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mssql/migrations',
 	});
 
 	const to = {
@@ -127,7 +129,7 @@ test('push after migrate with custom migrations table #4', async () => {
 	await migrate(drizzle({ client }), {
 		migrationsSchema: migrationsConfig.schema,
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mssql/migrations',
 	});
 	const to = {
 		table: mssqlTable('table1', { col1: int() }),

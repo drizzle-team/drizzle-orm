@@ -18,6 +18,8 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/sqlite/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
@@ -1014,7 +1016,7 @@ test('push after migrate with custom migrations table #1', async () => {
 
 	migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/sqlite/migrations',
 	});
 
 	const to = {
@@ -1041,7 +1043,7 @@ test('push after migrate with custom migrations table #2', async () => {
 
 	migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/sqlite/migrations',
 	});
 
 	const to = {

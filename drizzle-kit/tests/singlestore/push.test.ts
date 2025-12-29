@@ -29,6 +29,8 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
 import { diff, diffPush, prepareTestDatabase, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/singlestore/migrations', { recursive: true });
+
 let _: TestDatabase;
 let db: DB;
 let client: Connection;
@@ -777,7 +779,7 @@ test('push after migrate with custom migrations table #1', async () => {
 
 	await migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/singlestore/migrations',
 	});
 
 	const to = {
@@ -802,7 +804,7 @@ test('push after migrate with custom migrations table #2', async () => {
 
 	await migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/singlestore/migrations',
 	});
 
 	const to = {

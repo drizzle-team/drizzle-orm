@@ -41,6 +41,8 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/mysql/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
@@ -2163,7 +2165,7 @@ test('push after migrate with custom migrations table #1', async () => {
 
 	await migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mysql/migrations',
 	});
 
 	const to = {
@@ -2189,7 +2191,7 @@ test('push after migrate with custom migrations table #2', async () => {
 
 	await migrate(drizzle({ client }), {
 		migrationsTable: migrationsConfig.table,
-		migrationsFolder: './tests/postgres/migrations',
+		migrationsFolder: './tests/mysql/migrations',
 	});
 
 	const to = {
