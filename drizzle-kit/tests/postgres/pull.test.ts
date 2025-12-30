@@ -1564,3 +1564,19 @@ test('introspect enum within schema', async () => {
 	expect(enums).toStrictEqual([]);
 	expect(views).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5196
+test('index with option', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer(),
+		column2: integer(),
+		column3: integer(),
+	}, (t) => [
+		index('book_author_id').using('btree', t.column1.asc().nullsLast()).with({ deduplicate_items: true }),
+		index('book_title_search').using('btree', t.column2.asc().nullsLast()),
+		index('created_at').using('brin', t.column3.asc().nullsLast()).with({ autosummarize: false }),
+	]);
+
+	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
+	expect(sqlStatements).toStrictEqual([]);
+});
