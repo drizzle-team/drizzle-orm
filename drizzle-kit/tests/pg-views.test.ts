@@ -625,6 +625,100 @@ test('create table and materialized view #5', async () => {
 	);
 });
 
+test('create materialized views in dependency order', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const baseView = pgMaterializedView('base_view', { id: integer('id') }).as(sql`SELECT "id" FROM ${users}`);
+	const aggView = pgMaterializedView('agg_view', { id: integer('id') })
+		.dependsOn(baseView)
+		.as(sql`SELECT "id" FROM "base_view"`);
+
+	const to = {
+		users,
+		baseView,
+		aggView,
+	};
+
+	const { sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY NOT NULL
+);\n`,
+		`CREATE MATERIALIZED VIEW "public"."base_view" AS (SELECT "id" FROM "users");`,
+		`CREATE MATERIALIZED VIEW "public"."agg_view" AS (SELECT "id" FROM "base_view");`,
+	]);
+});
+
+test('drop materialized views in dependency order', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const baseView = pgMaterializedView('base_view', { id: integer('id') }).as(sql`SELECT "id" FROM ${users}`);
+	const aggView = pgMaterializedView('agg_view', { id: integer('id') })
+		.dependsOn(baseView)
+		.as(sql`SELECT "id" FROM "base_view"`);
+
+	const from = {
+		users,
+		baseView,
+		aggView,
+	};
+
+	const to = {
+		users,
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`DROP MATERIALIZED VIEW "public"."agg_view";`,
+		`DROP MATERIALIZED VIEW "public"."base_view";`,
+	]);
+});
+
+test('recreate dependent materialized views when base changes', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const baseViewV1 = pgMaterializedView('base_view', { id: integer('id') }).as(sql`SELECT "id" FROM ${users}`);
+	const aggViewV1 = pgMaterializedView('agg_view', { id: integer('id') })
+		.dependsOn(baseViewV1)
+		.as(sql`SELECT "id" FROM "base_view"`);
+
+	const baseViewV2 = pgMaterializedView('base_view', { id: integer('id') }).as(
+		sql`SELECT "id" + 1 AS "id" FROM ${users}`,
+	);
+	const aggViewV2 = pgMaterializedView('agg_view', { id: integer('id') })
+		.dependsOn(baseViewV2)
+		.as(sql`SELECT "id" FROM "base_view"`);
+
+	const from = {
+		users,
+		baseViewV1,
+		aggViewV1,
+	};
+
+	const to = {
+		users,
+		baseViewV2,
+		aggViewV2,
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`DROP MATERIALIZED VIEW "public"."agg_view";`,
+		`DROP MATERIALIZED VIEW "public"."base_view";`,
+		`CREATE MATERIALIZED VIEW "public"."base_view" AS (SELECT "id" + 1 AS "id" FROM "users");`,
+		`CREATE MATERIALIZED VIEW "public"."agg_view" AS (SELECT "id" FROM "base_view");`,
+	]);
+});
+
 test('create materialized view with existing flag', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
