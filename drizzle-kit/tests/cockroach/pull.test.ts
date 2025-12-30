@@ -33,7 +33,9 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import { diffIntrospect, test } from 'tests/cockroach/mocks';
+import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { diffIntrospect, push, test } from 'tests/cockroach/mocks';
 import { expect } from 'vitest';
 
 test.concurrent('basic introspect test', async ({ dbc: db }) => {
@@ -742,4 +744,35 @@ test.concurrent('single quote default', async ({ dbc: db }) => {
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5193
+test('check definition', async ({ db }) => {
+	const table1 = cockroachTable('table1', {
+		column1: int4().primaryKey(),
+	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const schema = { table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('cockroach', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+
+	const { checks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	);
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'check_positive',
+			table: 'table1',
+			value: '(column1 > 0)',
+		},
+	]);
 });

@@ -918,7 +918,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition,
+			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
 		});
 	}
 

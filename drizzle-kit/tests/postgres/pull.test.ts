@@ -1580,3 +1580,33 @@ test('index with option', async () => {
 	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5193
+test('check definition', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const schema = { table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { checks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+	);
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'check_positive',
+			table: 'table1',
+			value: '(column1 > 0)',
+		},
+	]);
+});
