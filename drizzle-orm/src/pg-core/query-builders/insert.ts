@@ -12,7 +12,7 @@ import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
-import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { type Assume, haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -160,8 +160,8 @@ export class PgInsertBuilder<
 }
 
 export interface PgInsertHKTBase {
-	table: PgTable;
-	queryResult: PgQueryResultHKT;
+	table: unknown;
+	queryResult: unknown;
 	selectedFields: unknown;
 	returning: unknown;
 	dynamic: boolean;
@@ -173,13 +173,12 @@ export interface PgInsertHKTBase {
 export interface PgInsertQueryBuilderHKT extends PgInsertHKTBase {
 	_type: PgInsertBase<
 		PgInsertQueryBuilderHKT,
-		this['table'],
-		this['queryResult'],
+		Assume<this['table'], PgTable>,
+		Assume<this['queryResult'], PgQueryResultHKT>,
 		this['selectedFields'],
 		this['returning'],
 		this['dynamic'],
-		this['excludedMethods'],
-		this['result']
+		this['excludedMethods']
 	>;
 }
 
@@ -191,7 +190,6 @@ export type PgInsertKind<
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 > = (T & {
 	table: TTable;
 	queryResult: TQueryResult;
@@ -199,16 +197,22 @@ export type PgInsertKind<
 	returning: TReturning;
 	dynamic: TDynamic;
 	excludedMethods: TExcludedMethods;
-	result: TResult;
 })['_type'];
 
 export type PgInsertWithout<T extends AnyPgInsert, TDynamic extends boolean, K extends string> = TDynamic extends true
 	? T
-	: Omit<T, T['_']['excludedMethods'] | K> & {
-		readonly _: Omit<T['_'], 'excludedMethods'> & {
-			readonly excludedMethods: T['_']['excludedMethods'] | K;
-		};
-	};
+	: Omit<
+		PgInsertKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			T['_']['selectedFields'],
+			T['_']['returning'],
+			TDynamic,
+			T['_']['excludedMethods'] | K
+		>,
+		T['_']['excludedMethods'] | K
+	>;
 
 export type PgInsertReturning<
 	T extends AnyPgInsert,
@@ -264,7 +268,7 @@ export type PgInsertDynamic<T extends AnyPgInsert> = PgInsertKind<
 	never
 >;
 
-export type AnyPgInsert = PgInsertBase<any, any, any, any, any, any, any, any>;
+export type AnyPgInsert = PgInsertBase<any, any, any, any, any, any, any>;
 
 export type PgInsert<
 	TTable extends PgTable = PgTable,
@@ -281,11 +285,10 @@ export interface PgInsertBase<
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 > extends
 	TypedQueryBuilder<
 		TSelectedFields,
-		TResult
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
 	SQLWrapper
 {
@@ -298,7 +301,7 @@ export interface PgInsertBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
-		readonly result: TResult;
+		readonly result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 	};
 }
 
@@ -313,11 +316,10 @@ export class PgInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 > implements
 	TypedQueryBuilder<
 		TSelectedFields,
-		TResult
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
 	SQLWrapper
 {

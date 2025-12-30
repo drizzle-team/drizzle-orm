@@ -5,7 +5,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins, type Assume, type NeonAuthToken } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -13,17 +13,16 @@ import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
 export interface PgAsyncInsertHKT extends PgInsertHKTBase {
 	_type: PgAsyncInsertBase<
-		this['table'],
-		this['queryResult'],
+		Assume<this['table'], PgTable>,
+		Assume<this['queryResult'], PgQueryResultHKT>,
 		this['selectedFields'],
 		this['returning'],
 		this['dynamic'],
-		this['excludedMethods'],
-		this['result']
+		this['excludedMethods']
 	>;
 }
 
-export type AnyPgAsyncInsert = PgAsyncInsertBase<any, any, any, any, any, any, any>;
+export type AnyPgAsyncInsert = PgAsyncInsertBase<any, any, any, any, any, any>;
 
 export type PgInsertPrepare<T extends AnyPgAsyncInsert> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
@@ -49,8 +48,7 @@ export interface PgAsyncInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
-> extends QueryPromise<TResult> {
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {
 }
 
 export class PgAsyncInsertBase<
@@ -62,7 +60,6 @@ export class PgAsyncInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-	TResult = TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
 > extends PgInsertBase<
 	PgAsyncInsertHKT,
 	TTable,
@@ -70,9 +67,8 @@ export class PgAsyncInsertBase<
 	TSelectedFields,
 	TReturning,
 	TDynamic,
-	TExcludedMethods,
-	TResult
-> implements RunnableQuery<TResult, 'pg'> {
+	TExcludedMethods
+> implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgAsyncInsert';
 
 	declare protected session: PgAsyncSession;
@@ -82,7 +78,7 @@ export class PgAsyncInsertBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
-					execute: TResult;
+					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
 				type: 'insert',
@@ -104,8 +100,7 @@ export class PgAsyncInsertBase<
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			// @ts-ignore - TODO
-			return this._prepare().execute(placeholderValues, this.authToken);
+			return this._prepare().setToken(this.authToken).execute(placeholderValues);
 		});
 	};
 }
