@@ -1217,16 +1217,16 @@ test('time generator test', async () => {
 	expect(predicate).toBe(true);
 
 	// seed with parameters
-	const minTime = '13:12:13';
-	const maxTime = '15:12:13';
+	const min = '13:12:13';
+	const max = '15:12:13';
 	await reset(db, { timeTable: schema.timeTable });
 	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
 		timeTable: {
 			count,
 			columns: {
 				time: funcs.time({
-					minTime,
-					maxTime,
+					min,
+					max,
 				}),
 			},
 		},
@@ -1239,8 +1239,8 @@ test('time generator test', async () => {
 	predicate = data.length !== 0
 		&& data.every((row) =>
 			Object.values(row).every((val) =>
-				val !== null && getDateFromTime(val) >= getDateFromTime(minTime)
-				&& getDateFromTime(val) <= getDateFromTime(maxTime)
+				val !== null && getDateFromTime(val) >= getDateFromTime(min)
+				&& getDateFromTime(val) <= getDateFromTime(max)
 			)
 		);
 
@@ -1252,8 +1252,8 @@ test('time generator test', async () => {
 			count,
 			columns: {
 				time: funcs.time({
-					minTime,
-					maxTime: minTime,
+					min,
+					max: min,
 				}),
 			},
 		},
@@ -1264,7 +1264,7 @@ test('time generator test', async () => {
 	predicate = data.length !== 0
 		&& data.every((row) =>
 			Object.values(row).every((val) =>
-				val !== null && getDateFromTime(val).getTime() === getDateFromTime(minTime).getTime()
+				val !== null && getDateFromTime(val).getTime() === getDateFromTime(min).getTime()
 			)
 		);
 	expect(predicate).toBe(true);
@@ -1275,8 +1275,8 @@ test('time generator test', async () => {
 			count,
 			columns: {
 				time: funcs.time({
-					minTime: getDateFromTime(minTime),
-					maxTime: getDateFromTime(minTime),
+					min: getDateFromTime(min),
+					max: getDateFromTime(min),
 				}),
 			},
 		},
@@ -1287,7 +1287,7 @@ test('time generator test', async () => {
 	predicate = data.length !== 0
 		&& data.every((row) =>
 			Object.values(row).every((val) =>
-				val !== null && getDateFromTime(val).getTime() === getDateFromTime(minTime).getTime()
+				val !== null && getDateFromTime(val).getTime() === getDateFromTime(min).getTime()
 			)
 		);
 	expect(predicate).toBe(true);
@@ -1327,16 +1327,16 @@ test('timestamp generator test', async () => {
 	expect(predicate).toBe(true);
 
 	// seed with parameters
-	const minTimestamp = '2025-03-07 13:12:13.123Z';
-	const maxTimestamp = '2025-03-09 15:12:13.456Z';
+	const min = '2025-03-07 13:12:13.123Z';
+	const max = '2025-03-09 15:12:13.456Z';
 	await reset(db, { timestampTable: schema.timestampTable });
 	await seed(db, { timestampTable: schema.timestampTable }).refine((funcs) => ({
 		timestampTable: {
 			count,
 			columns: {
 				timestamp: funcs.timestamp({
-					minTimestamp,
-					maxTimestamp,
+					min,
+					max,
 				}),
 			},
 		},
@@ -1347,8 +1347,8 @@ test('timestamp generator test', async () => {
 	predicate = data.length !== 0
 		&& data.every((row) =>
 			Object.values(row).every((val) =>
-				val !== null && val >= new Date(minTimestamp)
-				&& val <= new Date(maxTimestamp)
+				val !== null && val >= new Date(min)
+				&& val <= new Date(max)
 			)
 		);
 
@@ -1360,8 +1360,8 @@ test('timestamp generator test', async () => {
 			count,
 			columns: {
 				timestamp: funcs.timestamp({
-					minTimestamp,
-					maxTimestamp: minTimestamp,
+					min,
+					max: min,
 				}),
 			},
 		},
@@ -1371,7 +1371,7 @@ test('timestamp generator test', async () => {
 	// every value in each row does not equal undefined.
 	predicate = data.length !== 0
 		&& data.every((row) =>
-			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minTimestamp).getTime())
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(min).getTime())
 		);
 
 	expect(predicate).toBe(true);
@@ -1382,8 +1382,8 @@ test('timestamp generator test', async () => {
 			count,
 			columns: {
 				timestamp: funcs.timestamp({
-					minTimestamp: new Date(minTimestamp),
-					maxTimestamp: new Date(minTimestamp),
+					min: new Date(min),
+					max: new Date(min),
 				}),
 			},
 		},
@@ -1393,7 +1393,7 @@ test('timestamp generator test', async () => {
 	// every value in each row does not equal undefined.
 	predicate = data.length !== 0
 		&& data.every((row) =>
-			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minTimestamp).getTime())
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(min).getTime())
 		);
 
 	expect(predicate).toBe(true);

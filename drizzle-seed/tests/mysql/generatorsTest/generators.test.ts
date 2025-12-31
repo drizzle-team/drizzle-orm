@@ -52,16 +52,16 @@ test('datetime generator test', async ({ db }) => {
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 	expect(predicate).toBe(true);
 
-	const minDatetime = '2025-03-07 13:12:13Z';
-	const maxDatetime = '2025-03-09 15:12:13Z';
+	const min = '2025-03-07 13:12:13Z';
+	const max = '2025-03-09 15:12:13Z';
 	await reset(db, { datetimeTable: schema.datetimeTable });
 	await seed(db, { datetimeTable: schema.datetimeTable }).refine((funcs) => ({
 		datetimeTable: {
 			count,
 			columns: {
 				datetime: funcs.datetime({
-					minDatetime,
-					maxDatetime,
+					min,
+					max,
 				}),
 			},
 		},
@@ -72,8 +72,8 @@ test('datetime generator test', async ({ db }) => {
 	predicate = data.length !== 0
 		&& data.every((row) =>
 			Object.values(row).every((val) =>
-				val !== null && val >= new Date(minDatetime)
-				&& val <= new Date(maxDatetime)
+				val !== null && val >= new Date(min)
+				&& val <= new Date(max)
 			)
 		);
 
@@ -85,8 +85,8 @@ test('datetime generator test', async ({ db }) => {
 			count,
 			columns: {
 				datetime: funcs.datetime({
-					minDatetime,
-					maxDatetime: minDatetime,
+					min,
+					max: min,
 				}),
 			},
 		},
@@ -96,7 +96,7 @@ test('datetime generator test', async ({ db }) => {
 	// every value in each row does not equal undefined.
 	predicate = data.length !== 0
 		&& data.every((row) =>
-			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDatetime).getTime())
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(min).getTime())
 		);
 
 	expect(predicate).toBe(true);
@@ -107,8 +107,8 @@ test('datetime generator test', async ({ db }) => {
 			count,
 			columns: {
 				datetime: funcs.datetime({
-					minDatetime: new Date(minDatetime),
-					maxDatetime: new Date(minDatetime),
+					min: new Date(min),
+					max: new Date(min),
 				}),
 			},
 		},
@@ -118,7 +118,7 @@ test('datetime generator test', async ({ db }) => {
 	// every value in each row does not equal undefined.
 	predicate = data.length !== 0
 		&& data.every((row) =>
-			Object.values(row).every((val) => val !== null && val.getTime() === new Date(minDatetime).getTime())
+			Object.values(row).every((val) => val !== null && val.getTime() === new Date(min).getTime())
 		);
 
 	expect(predicate).toBe(true);
