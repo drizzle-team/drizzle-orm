@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
-import { CasingType } from 'src/cli/validations/common';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
@@ -57,7 +57,10 @@ export const pullDiff = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, 'drizzle');
+	const schema = await fromDatabaseForDrizzle(db, 'drizzle', () => true, () => {}, {
+		table: 'drizzle_migrations',
+		schema: 'drizzle',
+	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/singlestore/tmp/${testName}.ts`;
@@ -116,6 +119,8 @@ export const diffPush = async (config: {
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
+	const migrations = configMigrations.parse(config.migrationsConfig);
+
 	const init = [] as string[];
 	if (before) init.push(...before);
 	if (apply) init.push(...inits);
@@ -131,7 +136,7 @@ export const diffPush = async (config: {
 		'drizzle',
 		undefined,
 		() => {},
-		config.migrationsConfig?.table,
+		migrations,
 	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);

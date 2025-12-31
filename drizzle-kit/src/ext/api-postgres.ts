@@ -3,7 +3,7 @@ import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
 import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { upToV8 } from 'src/dialects/postgres/versions';
-import { type CasingType, configMigrations } from '../cli/validations/common';
+import type { CasingType } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
@@ -127,7 +127,10 @@ export const pushSchema = async (
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
 
-	const migrations = configMigrations.parse(migrationsConfig);
+	const migrations = {
+		schema: migrationsConfig?.schema || 'drizzle',
+		table: migrationsConfig?.table || '__drizzle_migrations',
+	};
 
 	const db: DB = {
 		query: async (query: string, _params?: any[]) => {

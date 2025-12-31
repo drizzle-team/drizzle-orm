@@ -543,15 +543,15 @@ test('single quote default', async () => {
 test('pull after migrate with custom migrations table #1', async () => {
 	await db.query(`CREATE SCHEMA drizzle;`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE drizzle.__drizzle_migrations (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
 			name TEXT NOT NULL,
-			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			applied_at DATETIME
 		);
 	`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS drizzle.users (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE drizzle.users (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
@@ -573,7 +573,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 		},
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
+
 			name: 'users',
 			schema: 'drizzle',
 		},
@@ -594,15 +594,15 @@ test('pull after migrate with custom migrations table #1', async () => {
 test('pull after migrate with custom migrations table #2', async () => {
 	await db.query(`CREATE SCHEMA drizzle;`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE drizzle.__drizzle_migrations (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
 			name TEXT NOT NULL,
-			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			applied_at DATETIME
 		);
 	`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS public.users (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE dbo.users (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
@@ -620,9 +620,9 @@ test('pull after migrate with custom migrations table #2', async () => {
 	expect([...schemas, ...tables, ...pks]).toStrictEqual([
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
+
 			name: 'users',
-			schema: 'public',
+			schema: 'dbo',
 		},
 		{
 			columns: [
@@ -631,7 +631,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
-			schema: 'public',
+			schema: 'dbo',
 			table: 'users',
 		},
 	]);
@@ -639,23 +639,23 @@ test('pull after migrate with custom migrations table #2', async () => {
 
 // other tables in custom migration schema
 test('pull after migrate with custom migrations table #3', async () => {
-	await db.query(`CREATE SCHEMA custom;`);
+	await db.query(`CREATE SCHEMA [custom];`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS custom.custom_migrations (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE [custom].[custom_migrations] (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
 			name TEXT NOT NULL,
-			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			applied_at DATETIME
 		);
 	`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS custom.users (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE [custom].[users] (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
 	await db.query(`
-		CREATE TABLE IF NOT EXISTS public.users (
-			id SERIAL PRIMARY KEY,
+		CREATE TABLE [users] (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
@@ -677,15 +677,13 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
 			name: 'users',
 			schema: 'custom',
 		},
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
 			name: 'users',
-			schema: 'public',
+			schema: 'dbo',
 		},
 		{
 			columns: [
@@ -704,7 +702,7 @@ test('pull after migrate with custom migrations table #3', async () => {
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
-			schema: 'public',
+			schema: 'dbo',
 			table: 'users',
 		},
 	]);
