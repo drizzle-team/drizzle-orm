@@ -3,7 +3,7 @@ import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
 import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { upToV8 } from 'src/dialects/postgres/versions';
-import type { CasingType } from '../cli/validations/common';
+import { type CasingType, configMigrations } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
@@ -113,6 +113,10 @@ export const pushSchema = async (
 	drizzleInstance: PgDatabase<any>,
 	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
+	migrationsConfig?: {
+		table?: string;
+		schema?: string;
+	},
 ) => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { resolver } = await import('../cli/prompts');
@@ -122,6 +126,8 @@ export const pushSchema = async (
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
+
+	const migrations = configMigrations.parse(migrationsConfig);
 
 	const db: DB = {
 		query: async (query: string, _params?: any[]) => {
@@ -140,7 +146,7 @@ export const pushSchema = async (
 	const existing = extractPostgresExisting(prepared.schemas, prepared.views, prepared.matViews);
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 
-	const prev = await fromDatabaseForDrizzle(db, filter);
+	const prev = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
 
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
