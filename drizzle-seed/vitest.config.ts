@@ -18,11 +18,6 @@ export default defineConfig({
 		testTimeout: 100000,
 		hookTimeout: 100000,
 		isolate: true,
-		poolOptions: {
-			threads: {
-				singleThread: true,
-			},
-		},
 		maxWorkers: 1,
 		fileParallelism: false,
 	},
