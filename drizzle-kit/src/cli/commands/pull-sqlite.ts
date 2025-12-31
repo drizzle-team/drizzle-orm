@@ -28,7 +28,10 @@ export const handle = async (
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
 	type: 'sqlite' | 'libsql' = 'sqlite',
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToSQLite>>,
 ) => {
 	if (!db) {
@@ -40,7 +43,7 @@ export const handle = async (
 	const filter = prepareEntityFilter('sqlite', filters, []);
 	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
 		progress.update(stage, count, status);
-	}, migrationsTable);
+	}, migrations);
 
 	const ts = ddlToTypeScript(ddl, casing, viewColumns, type);
 	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(ddl), casing);
@@ -106,9 +109,12 @@ export const introspect = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
-	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback, migrationsTable));
+	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback, migrations));
 	const res = interimToDDL(schema);
 	return { ...res, viewColumns: schema.viewsToColumns };
 };

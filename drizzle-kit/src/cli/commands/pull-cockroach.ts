@@ -41,8 +41,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
-	migrationsSchema: string | undefined,
-	migrationsTable: string | undefined,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -59,8 +61,7 @@ export const handle = async (
 		(stage, count, status) => {
 			progress.update(stage, count, status);
 		},
-		migrationsSchema,
-		migrationsTable,
+		migrations,
 	);
 	const res = await renderWithTask(progress, task);
 
@@ -144,12 +145,14 @@ export const introspect = async (
 	filter: EntityFilter,
 	progress: TaskView,
 	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
-	migrationsSchema: string | undefined,
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const schema = await renderWithTask(
 		progress,
-		fromDatabaseForDrizzle(db, filter, callback, migrationsSchema, migrationsTable),
+		fromDatabaseForDrizzle(db, filter, callback, migrations),
 	);
 	return { schema };
 };

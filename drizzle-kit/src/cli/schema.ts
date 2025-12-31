@@ -332,8 +332,7 @@ export const push = command({
 			casing,
 			filters,
 			explain,
-			migrationsSchema,
-			migrationsTable,
+			migrations,
 		} = config;
 
 		if (dialect === 'mysql') {
@@ -346,7 +345,7 @@ export const push = command({
 				casing,
 				filters,
 				explain,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'postgresql') {
 			if ('driver' in credentials) {
@@ -370,8 +369,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsSchema,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'sqlite') {
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
@@ -383,7 +381,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'turso') {
 			const { handle: libSQLPush } = await import('./commands/push-libsql');
@@ -395,7 +393,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
@@ -407,7 +405,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
@@ -419,8 +417,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsSchema,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
@@ -432,8 +429,7 @@ export const push = command({
 				force,
 				casing,
 				explain,
-				migrationsSchema,
-				migrationsTable,
+				migrations,
 			);
 		} else if (dialect === 'gel') {
 			console.log(error(`You can't use 'push' command with Gel dialect`));
@@ -564,8 +560,7 @@ export const pull = command({
 			breakpoints,
 			filters,
 			init,
-			migrationsSchema,
-			migrationsTable,
+			migrations,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -597,35 +592,35 @@ export const pull = command({
 			migrate = db.migrate;
 
 			const { handle: introspectPostgres } = await import('./commands/pull-postgres');
-			await introspectPostgres(casing, out, breakpoints, credentials, filters, migrationsSchema, migrationsTable, db);
+			await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else if (dialect === 'mysql') {
 			const { connectToMySQL } = await import('./connections');
 			const db = await connectToMySQL(credentials);
 			migrate = db.migrate;
 
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
-			await introspectMysql(casing, out, breakpoints, credentials, filters, migrationsTable, db);
+			await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else if (dialect === 'sqlite') {
 			const { connectToSQLite } = await import('./connections');
 			const db = await connectToSQLite(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-sqlite');
-			await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrationsTable, db);
+			await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, db);
 		} else if (dialect === 'turso') {
 			const { connectToLibSQL } = await import('./connections');
 			const db = await connectToLibSQL(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-libsql');
-			await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrationsTable, db);
+			await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, db);
 		} else if (dialect === 'singlestore') {
 			const { connectToSingleStore } = await import('./connections');
 			const db = await connectToSingleStore(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-singlestore');
-			await handle(casing, out, breakpoints, credentials, filters, migrationsTable, db);
+			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else if (dialect === 'gel') {
 			const { prepareGelDB } = await import('./connections');
 			const db = await prepareGelDB(credentials);
@@ -639,14 +634,14 @@ export const pull = command({
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-mssql');
-			await handle(casing, out, breakpoints, credentials, filters, migrationsSchema, migrationsTable, db);
+			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else if (dialect === 'cockroach') {
 			const { prepareCockroach } = await import('./connections');
 			const db = await prepareCockroach(credentials);
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-cockroach');
-			await handle(casing, out, breakpoints, credentials, filters, migrationsSchema, migrationsTable, db);
+			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -659,8 +654,8 @@ export const pull = command({
 
 			const migrateInput = {
 				migrationsFolder: out,
-				migrationsTable,
-				migrationsSchema,
+				migrationsTable: migrations.table,
+				migrationsSchema: migrations.schema,
 				// Internal param - won't be displayed in types. Do not remove.
 				init: true,
 			};

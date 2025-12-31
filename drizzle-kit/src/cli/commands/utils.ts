@@ -242,8 +242,10 @@ export const preparePushConfig = async (
 		explain: boolean;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
-		migrationsSchema?: string;
-		migrationsTable?: string;
+		migrations: {
+			table: string;
+			schema: string;
+		};
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -265,8 +267,6 @@ export const preparePushConfig = async (
 	}
 
 	const config = parsed.data;
-
-	const { schema: migrationsSchema, table: migrationsTable } = config.migrations ?? {};
 
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
@@ -297,8 +297,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -317,8 +316,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -337,8 +335,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -357,8 +354,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -377,8 +373,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -402,8 +397,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -423,8 +417,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
-			migrationsSchema,
-			migrationsTable,
+			migrations: config.migrations,
 		};
 	}
 
@@ -483,8 +476,10 @@ export const preparePullConfig = async (
 		casing: Casing;
 		filters: EntitiesFilterConfig;
 		init: boolean;
-		migrationsSchema: string | undefined;
-		migrationsTable: string | undefined;
+		migrations: {
+			table: string;
+			schema: string;
+		};
 	}
 > => {
 	const raw = flattenPull(
@@ -502,7 +497,8 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
-	const { schema, table } = parsed.data.migrations || {};
+
+	const migrations = config.migrations;
 
 	const filters = {
 		tables: config.tablesFilter,
@@ -526,8 +522,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -545,8 +540,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -565,8 +559,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -584,8 +577,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -603,8 +595,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -621,8 +612,7 @@ export const preparePullConfig = async (
 			casing: config.casing,
 			credentials: parsed.data,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 			filters,
 		};
 	}
@@ -642,8 +632,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -662,8 +651,7 @@ export const preparePullConfig = async (
 			credentials: parsed.data,
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 

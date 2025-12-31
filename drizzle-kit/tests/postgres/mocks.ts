@@ -30,7 +30,7 @@ import {
 	PgTable as PgTableOld,
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
-import { CasingType } from 'src/cli/validations/common';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { createDDL, fromEntities, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
 import {
@@ -209,6 +209,8 @@ export const push = async (config: {
 	const schemas = config.schemas ?? [];
 	const tables = config.tables ?? [];
 
+	const migrations = configMigrations.parse(config.migrationsConfig);
+
 	const filterConfig = {
 		tables,
 		schemas,
@@ -226,8 +228,7 @@ export const push = async (config: {
 		filter,
 		new EmptyProgressView(),
 		() => {},
-		config.migrationsConfig?.schema,
-		config.migrationsConfig?.table,
+		migrations,
 	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -288,8 +289,7 @@ export const push = async (config: {
 				filter,
 				new EmptyProgressView(),
 				() => {},
-				config.migrationsConfig?.schema,
-				config.migrationsConfig?.table,
+				migrations,
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
@@ -342,7 +342,10 @@ export const diffIntrospect = async (
 		extensions: [],
 	}, []);
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, filter);
+	const schema = await fromDatabaseForDrizzle(db, filter, () => true, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/postgres/tmp/${testName}.ts`;
@@ -463,6 +466,10 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		db,
 		filter ?? (() => true),
 		schemasFilter ? (it: string) => schemasFilter.some((x) => x === it) : ((_) => true),
+		{
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 

@@ -83,9 +83,9 @@ export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
 
 export const configMigrations = object({
-	table: string().optional(),
-	schema: string().optional(),
-}).optional();
+	table: string().default('__drizzle_migrations'),
+	schema: string().default('drizzle'),
+}).default({ table: '__drizzle_migrations', schema: 'drizzle' });
 
 export const configCommonSchema = object({
 	dialect: dialect,

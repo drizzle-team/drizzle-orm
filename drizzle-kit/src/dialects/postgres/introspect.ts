@@ -1243,15 +1243,17 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
-	migrationsSchema: string = 'drizzle',
-	migrationsTable: string = '__drizzle_migrations',
+	migrations: {
+		schema: string;
+		table: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
 	res.privileges = [];
 
-	filterMigrationsSchema(res, migrationsTable, migrationsSchema);
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };

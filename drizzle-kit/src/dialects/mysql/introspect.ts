@@ -14,7 +14,10 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
-	migrationsTable: string = '__drizzle_migrations',
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ): Promise<InterimSchema> => {
 	const res = await fromDatabase(db, schema, filter, progressCallback);
 	res.indexes = res.indexes.filter((x) => {
@@ -24,7 +27,7 @@ export const fromDatabaseForDrizzle = async (
 		return !skip;
 	});
 
-	filterMigrationsSchema(res, migrationsTable);
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };

@@ -179,17 +179,22 @@ export const filterMigrationsSchema = (
 		pks: { table: string; schema?: string }[];
 		tables: { name: string; schema?: string }[];
 	},
-	migrationsTable: string,
-	migrationsSchema?: string,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 ) => {
+	const migrationsSchema = migrations.schema;
+	const migrationsTable = migrations.table;
+
 	interim.tables = interim.tables.filter((table) =>
-		table.name !== migrationsTable && (table.schema ? table.schema !== migrationsSchema : true)
+		!(table.name === migrationsTable && (table.schema ? table.schema === migrationsSchema : true))
 	);
 	interim.columns = interim.columns.filter((column) =>
-		column.table !== migrationsTable && (column.schema ? column.schema !== migrationsSchema : true)
+		!(column.table === migrationsTable && (column.schema ? column.schema === migrationsSchema : true))
 	);
 	interim.pks = interim.pks.filter((pk) =>
-		pk.table !== migrationsTable && (pk.schema ? pk.schema !== migrationsSchema : true)
+		!(pk.table === migrationsTable && (pk.schema ? pk.schema === migrationsSchema : true))
 	);
 
 	if (interim.schemas) {

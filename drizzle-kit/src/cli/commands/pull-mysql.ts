@@ -29,7 +29,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: MysqlCredentials,
 	filters: EntitiesFilterConfig,
-	migrationsTable: string | undefined,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToMySQL>>,
 ) => {
 	if (!db) {
@@ -47,7 +50,7 @@ export const handle = async (
 			progress.update(stage, count, status);
 		},
 		filter,
-		migrationsTable,
+		migrations,
 	});
 	const { ddl } = interimToDDL(schema);
 
@@ -122,11 +125,14 @@ export const introspect = async (props: {
 		count: number,
 		status: IntrospectStatus,
 	) => void;
-	migrationsTable: string | undefined;
+	migrations: {
+		table: string;
+		schema: string;
+	};
 }) => {
-	const { db, database, progress, filter } = props;
+	const { db, database, progress, filter, migrations } = props;
 	const pcb = props.progressCallback ?? (() => {});
 
-	const res = await renderWithTask(progress, fromDatabaseForDrizzle(db, database, filter, pcb, props.migrationsTable));
+	const res = await renderWithTask(progress, fromDatabaseForDrizzle(db, database, filter, pcb, migrations));
 	return { schema: res };
 };

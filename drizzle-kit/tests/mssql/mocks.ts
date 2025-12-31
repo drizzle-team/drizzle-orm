@@ -1,6 +1,6 @@
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
-import { CasingType } from 'src/cli/validations/common';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
@@ -128,7 +128,10 @@ export const diffIntrospect = async (
 
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
 
-	const schema = await fromDatabaseForDrizzle(db, filter);
+	const schema = await fromDatabaseForDrizzle(db, filter, () => true, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -187,6 +190,8 @@ export const push = async (config: {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
+	const migrations = configMigrations.parse(config.migrationsConfig);
+
 	const filterConfig: EntitiesFilterConfig = {
 		schemas: config.schemas,
 		entities: undefined,
@@ -203,8 +208,7 @@ export const push = async (config: {
 		db,
 		filter,
 		new EmptyProgressView(),
-		config.migrationsConfig?.schema,
-		config.migrationsConfig?.table,
+		migrations,
 	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -262,8 +266,7 @@ export const push = async (config: {
 				db,
 				filter,
 				new EmptyProgressView(),
-				config.migrationsConfig?.schema,
-				config.migrationsConfig?.table,
+				migrations,
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
@@ -339,7 +342,10 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	await db.query('INSERT INTO [table] ([column]) VALUES (default);');
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, () => true);
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => true, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');

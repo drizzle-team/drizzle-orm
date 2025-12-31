@@ -36,12 +36,15 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
-	migrationsTable = '__drizzle_migrations',
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
 
-	filterMigrationsSchema(res, migrationsTable);
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };

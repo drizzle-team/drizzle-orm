@@ -11,9 +11,12 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { connectToLibSQL } = await import('../connections');
 	const db = await connectToLibSQL(credentials);
-	return sqliteHandle(schemaPath, verbose, credentials, filters, force, casing, explainFlag, migrationsTable, db);
+	return sqliteHandle(schemaPath, verbose, credentials, filters, force, casing, explainFlag, migrations, db);
 };

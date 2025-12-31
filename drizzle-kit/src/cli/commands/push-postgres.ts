@@ -40,8 +40,10 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
-	migrationsSchema: string | undefined,
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -71,8 +73,7 @@ export const handle = async (
 		entityFilter,
 		progress,
 		() => {},
-		migrationsSchema,
-		migrationsTable,
+		migrations,
 	);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);

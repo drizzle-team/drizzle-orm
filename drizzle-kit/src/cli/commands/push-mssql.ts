@@ -37,8 +37,10 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
-	migrationsSchema: string | undefined,
-	migrationsTable: string | undefined,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { connectToMsSQL } = await import('../connections');
 	const { introspect } = await import('./pull-mssql');
@@ -59,7 +61,7 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, filter, progress, migrationsSchema, migrationsTable);
+	const { schema: schemaFrom } = await introspect(db, filter, progress, migrations);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

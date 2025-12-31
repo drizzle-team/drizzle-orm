@@ -728,12 +728,14 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
-	migrationsSchema: string = 'drizzle',
-	migrationsTable: string = '__drizzle_migrations',
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback, () => {});
 
-	filterMigrationsSchema(res, migrationsTable, migrationsSchema);
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };
