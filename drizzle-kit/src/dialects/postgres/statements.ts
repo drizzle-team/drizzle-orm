@@ -61,7 +61,12 @@ export interface JsonRenameEnum {
 export interface JsonRecreateEnum {
 	type: 'recreate_enum';
 	to: Enum;
-	columns: Column[];
+	columns: (Omit<Column, 'default'> & {
+		default: {
+			left: Column['default'];
+			right: Column['default'];
+		};
+	})[];
 	from: Enum;
 }
 
@@ -273,6 +278,7 @@ export interface JsonAlterPrimaryKey {
 	type: 'alter_pk';
 	pk: PrimaryKey;
 	diff: DiffEntities['pks'];
+	deleted?: boolean;
 }
 
 export interface JsonMoveTable {
@@ -318,6 +324,8 @@ export interface JsonAlterColumn {
 	to: Column;
 	wasEnum: boolean;
 	isEnum: boolean;
+	wasSerial: boolean;
+	toSerial: boolean;
 	diff: DiffEntities['columns'];
 }
 
@@ -367,6 +375,7 @@ export interface JsonCreateView {
 export interface JsonDropView {
 	type: 'drop_view';
 	view: View;
+	cause: View | null;
 }
 
 export interface JsonRenameView {
@@ -388,12 +397,6 @@ export interface JsonAlterView {
 	view: View;
 }
 
-export interface JsonRecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-}
-
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -403,7 +406,6 @@ export type JsonStatement =
 	| JsonRecreateColumn
 	| JsonMoveView
 	| JsonAlterView
-	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum

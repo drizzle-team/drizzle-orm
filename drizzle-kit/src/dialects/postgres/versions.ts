@@ -19,7 +19,9 @@ import type {
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
-export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; hints: string[] } => {
+export const upToV8 = (
+	it: Record<string, any>,
+): { snapshot: PostgresSnapshot; hints: string[] } => {
 	if (Number(it.version) < 7) return upToV8(updateUpToV7(it));
 	const json = it as PgSchemaV7;
 
@@ -31,24 +33,29 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 		ddl.schemas.push({ name: schema });
 	}
 
-	for (const seq of Object.values(json.sequences)) {
-		ddl.sequences.push({
-			schema: seq.schema!,
-			name: seq.name,
-			startWith: seq.startWith ?? null,
-			incrementBy: seq.increment ?? null,
-			minValue: seq.minValue ?? null,
-			maxValue: seq.maxValue ?? null,
-			cacheSize: seq.cache ? Number(seq.cache) : null,
-			cycle: seq.cycle ?? null,
-		});
+	if (json.sequences) {
+		for (const seq of Object.values(json.sequences)) {
+			ddl.sequences.push({
+				schema: seq.schema!,
+				name: seq.name,
+				startWith: seq.startWith ?? null,
+				incrementBy: seq.increment ?? null,
+				minValue: seq.minValue ?? null,
+				maxValue: seq.maxValue ?? null,
+				cacheSize: seq.cache ? Number(seq.cache) : null,
+				cycle: seq.cycle ?? null,
+			});
+		}
 	}
 
 	for (const table of Object.values(json.tables)) {
 		const schema = table.schema || 'public';
 
-		const isRlsEnabled = table.isRLSEnabled || Object.keys(table.policies).length > 0
-			|| Object.values(json.policies).some((it) => it.on === table.name && (it.schema ?? 'public') === schema);
+		const isRlsEnabled = table.isRLSEnabled
+			|| Object.keys(table.policies).length > 0
+			|| Object.values(json.policies).some(
+				(it) => it.on === table.name && (it.schema ?? 'public') === schema,
+			);
 
 		ddl.tables.push({
 			schema,
@@ -69,7 +76,9 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 
 			const [baseType, dimensions] = extractBaseTypeAndDimensions(column.type);
 
-			let fixedType = baseType.startsWith('numeric(') ? baseType.replace(', ', ',') : baseType;
+			let fixedType = baseType.startsWith('numeric(')
+				? baseType.replace(', ', ',')
+				: baseType;
 
 			ddl.columns.push({
 				schema,
@@ -88,42 +97,54 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 						minValue: column.identity.minValue ?? null,
 						maxValue: column.identity.maxValue ?? null,
 						increment: column.identity.increment ?? null,
-						cache: column.identity.cache ? Number(column.identity.cache) : null,
+						cache: column.identity.cache
+							? Number(column.identity.cache)
+							: null,
 						cycle: column.identity.cycle ?? null,
 					}
 					: null,
-				default: typeof column.default === 'undefined' ? null : trimDefaultValueSuffix(String(column.default)),
+				default: typeof column.default === 'undefined'
+					? null
+					: trimDefaultValueSuffix(String(column.default)),
 			});
 		}
 
-		for (const pk of Object.values(table.compositePrimaryKeys)) {
-			const nameExplicit = `${table.name}_${pk.columns.join('_')}_pk` !== pk.name;
-			if (!nameExplicit) {
-				hints.push(`update pk name: ${pk.name} -> ${defaultNameForPK(table.name)}`);
+		if (table.compositePrimaryKeys) {
+			for (const pk of Object.values(table.compositePrimaryKeys)) {
+				const nameExplicit = `${table.name}_${pk.columns.join('_')}_pk` !== pk.name;
+				if (!nameExplicit) {
+					hints.push(
+						`update pk name: ${pk.name} -> ${defaultNameForPK(table.name)}`,
+					);
+				}
+				ddl.pks.push({
+					schema: schema,
+					table: table.name,
+					name: pk.name,
+					columns: pk.columns,
+					nameExplicit, // TODO: ??
+				});
 			}
-			ddl.pks.push({
-				schema: schema,
-				table: table.name,
-				name: pk.name,
-				columns: pk.columns,
-				nameExplicit, // TODO: ??
-			});
 		}
 
-		for (const unique of Object.values(table.uniqueConstraints)) {
-			const nameExplicit = `${table.name}_${unique.columns.join('_')}_unique` !== unique.name;
-			if (!nameExplicit) {
-				hints.push(`update unique name: ${unique.name} -> ${defaultNameForUnique(table.name, ...unique.columns)}`);
-			}
+		if (table.uniqueConstraints) {
+			for (const unique of Object.values(table.uniqueConstraints)) {
+				const nameExplicit = `${table.name}_${unique.columns.join('_')}_unique` !== unique.name;
+				if (!nameExplicit) {
+					hints.push(
+						`update unique name: ${unique.name} -> ${defaultNameForUnique(table.name, ...unique.columns)}`,
+					);
+				}
 
-			ddl.uniques.push({
-				schema,
-				table: table.name,
-				columns: unique.columns,
-				name: unique.name,
-				nameExplicit: nameExplicit,
-				nullsNotDistinct: unique.nullsNotDistinct ?? defaults.nullsNotDistinct,
-			});
+				ddl.uniques.push({
+					schema,
+					table: table.name,
+					columns: unique.columns,
+					name: unique.name,
+					nameExplicit: nameExplicit,
+					nullsNotDistinct: unique.nullsNotDistinct ?? defaults.nullsNotDistinct,
+				});
+			}
 		}
 
 		for (const check of Object.values(table.checkConstraints)) {
@@ -136,7 +157,9 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 		}
 
 		for (const idx of Object.values(table.indexes)) {
-			const columns: Index['columns'][number][] = idx.columns.map<Index['columns'][number]>((it) => {
+			const columns: Index['columns'][number][] = idx.columns.map<
+				Index['columns'][number]
+			>((it) => {
 				return {
 					value: it.expression,
 					isExpression: it.isExpression,
@@ -152,11 +175,17 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			});
 
 			const nameExplicit = columns.some((it) => it.isExpression === true)
-				|| `${table.name}_${columns.map((it) => it.value).join('_')}_index` !== idx.name;
+				|| `${table.name}_${columns.map((it) => it.value).join('_')}_index`
+					!== idx.name;
 
 			if (!nameExplicit) {
 				hints.push(
-					`rename index name: ${idx.name} -> ${defaultNameForIndex(table.name, idx.columns.map((x) => x.expression))}`,
+					`rename index name: ${idx.name} -> ${
+						defaultNameForIndex(
+							table.name,
+							idx.columns.map((x) => x.expression),
+						)
+					}`,
 				);
 			}
 
@@ -170,15 +199,17 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 				concurrently: idx.concurrently,
 				where: idx.where ?? null,
 				with: idx.with && Object.keys(idx.with).length > 0
-					? Object.entries(idx.with).map((it) => `${it[0]}=${it[1]}`).join(',')
+					? Object.entries(idx.with)
+						.map((it) => `${it[0]}=${it[1]}`)
+						.join(',')
 					: '',
 				nameExplicit,
 			});
 		}
 
 		for (const fk of Object.values(table.foreignKeys)) {
-			const nameExplicit =
-				`${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk` !== fk.name;
+			const nameExplicit = `${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`
+				!== fk.name;
 			const name = fk.name.length < 63 ? fk.name : fk.name.slice(0, 63);
 			ddl.fks.push({
 				schema,
@@ -189,8 +220,8 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 				schemaTo: fk.schemaTo || 'public',
 				tableTo: fk.tableTo,
 				columnsTo: fk.columnsTo,
-				onDelete: fk.onDelete?.toUpperCase() as any ?? 'NO ACTION',
-				onUpdate: fk.onUpdate?.toUpperCase() as any ?? 'NO ACTION',
+				onDelete: (fk.onDelete?.toUpperCase() as any) ?? 'NO ACTION',
+				onUpdate: (fk.onUpdate?.toUpperCase() as any) ?? 'NO ACTION',
 			});
 		}
 
@@ -260,16 +291,43 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 					autovacuumEnabled: getOrNull(opt, 'autovacuumEnabled'),
 					autovacuumFreezeMaxAge: getOrNull(opt, 'autovacuumFreezeMaxAge'),
 					autovacuumFreezeMinAge: getOrNull(opt, 'autovacuumFreezeMinAge'),
-					autovacuumFreezeTableAge: getOrNull(opt, 'autovacuumFreezeTableAge'),
-					autovacuumMultixactFreezeMaxAge: getOrNull(opt, 'autovacuumMultixactFreezeMaxAge'),
-					autovacuumMultixactFreezeMinAge: getOrNull(opt, 'autovacuumMultixactFreezeMinAge'),
-					autovacuumMultixactFreezeTableAge: getOrNull(opt, 'autovacuumMultixactFreezeTableAge'),
-					autovacuumVacuumCostDelay: getOrNull(opt, 'autovacuumVacuumCostDelay'),
-					autovacuumVacuumCostLimit: getOrNull(opt, 'autovacuumVacuumCostLimit'),
-					autovacuumVacuumScaleFactor: getOrNull(opt, 'autovacuumVacuumScaleFactor'),
-					autovacuumVacuumThreshold: getOrNull(opt, 'autovacuumVacuumThreshold'),
+					autovacuumFreezeTableAge: getOrNull(
+						opt,
+						'autovacuumFreezeTableAge',
+					),
+					autovacuumMultixactFreezeMaxAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeMaxAge',
+					),
+					autovacuumMultixactFreezeMinAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeMinAge',
+					),
+					autovacuumMultixactFreezeTableAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeTableAge',
+					),
+					autovacuumVacuumCostDelay: getOrNull(
+						opt,
+						'autovacuumVacuumCostDelay',
+					),
+					autovacuumVacuumCostLimit: getOrNull(
+						opt,
+						'autovacuumVacuumCostLimit',
+					),
+					autovacuumVacuumScaleFactor: getOrNull(
+						opt,
+						'autovacuumVacuumScaleFactor',
+					),
+					autovacuumVacuumThreshold: getOrNull(
+						opt,
+						'autovacuumVacuumThreshold',
+					),
 					fillfactor: getOrNull(opt, 'fillfactor'),
-					logAutovacuumMinDuration: getOrNull(opt, 'logAutovacuumMinDuration'),
+					logAutovacuumMinDuration: getOrNull(
+						opt,
+						'logAutovacuumMinDuration',
+					),
 					parallelWorkers: getOrNull(opt, 'parallelWorkers'),
 					toastTupleTarget: getOrNull(opt, 'toastTupleTarget'),
 					userCatalogTable: getOrNull(opt, 'userCatalogTable'),
@@ -318,19 +376,30 @@ export const updateUpToV7 = (it: Record<string, any>): PgSchema => {
 			const mappedIndexes = Object.fromEntries(
 				Object.entries(table.indexes).map((idx) => {
 					const { columns, ...rest } = idx[1];
-					const mappedColumns = columns.map<LegacyIndex['columns'][number]>((it) => {
-						return {
-							expression: it,
-							isExpression: false,
-							asc: true,
-							nulls: 'last',
-							opClass: undefined,
-						};
-					});
+					const mappedColumns = columns.map<LegacyIndex['columns'][number]>(
+						(it) => {
+							return {
+								expression: it,
+								isExpression: false,
+								asc: true,
+								nulls: 'last',
+								opClass: undefined,
+							};
+						},
+					);
 					return [idx[0], { columns: mappedColumns, with: {}, ...rest }];
 				}),
 			);
-			return [it[0], { ...table, indexes: mappedIndexes, policies: {}, isRLSEnabled: false, checkConstraints: {} }];
+			return [
+				it[0],
+				{
+					...table,
+					indexes: mappedIndexes,
+					policies: {},
+					isRLSEnabled: false,
+					checkConstraints: {},
+				},
+			];
 		}),
 	);
 
@@ -348,7 +417,7 @@ export const updateUpToV7 = (it: Record<string, any>): PgSchema => {
 
 export const updateUpToV6 = (it: Record<string, any>): PgSchemaV6 => {
 	if (Number(it.version) < 5) return updateUpToV6(updateToV5(it));
-	const schema = it as PgSchemaV6;
+	const schema = it as PgSchemaV5;
 
 	const tables = Object.fromEntries(
 		Object.entries(schema.tables).map((it) => {

@@ -4,15 +4,18 @@ import {
 	bigserial,
 	boolean,
 	char,
+	cidr,
 	customType,
 	date,
 	doublePrecision,
 	geometry,
-	index,
+	inet,
 	integer,
 	interval,
 	json,
 	jsonb,
+	macaddr,
+	macaddr8,
 	numeric,
 	pgEnum,
 	pgSchema,
@@ -21,6 +24,7 @@ import {
 	real,
 	serial,
 	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -200,10 +204,178 @@ test('alter column type to custom type', async (t) => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE text;',
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE text USING "column1"::text;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4245
+test('alter text type to jsonb type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('{"b":2}');`);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			column1: jsonb(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst, hints } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE jsonb USING "column1"::jsonb;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toStrictEqual({ b: 2 });
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2856
+test('alter text type to timestamp type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('2024-01-01 09:00:00.123456');`);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			column1: timestamp({ withTimezone: true }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst, hints } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE timestamp with time zone USING "column1"::timestamp with time zone;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toBeDefined();
+	expect(res[0].column1).not.toBe(null);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2751
+test('alter text type to enum type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			column1: text(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('admin');`);
+
+	const roles = ['admin', 'participant'] as const;
+	const roleEnum = pgEnum('role', roles);
+	const schema2 = {
+		roleEnum,
+		table1: pgTable('table1', {
+			column1: roleEnum(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
+
+	const st0 = [
+		`CREATE TYPE "role" AS ENUM('admin', 'participant');`,
+		'ALTER TABLE "table1" ALTER COLUMN "column1" SET DATA TYPE "role" USING "column1"::"role";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toBeDefined();
+	expect(res[0].column1).not.toBe(null);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3589
+// postpone cc: @AlexSherman
+// After discussion it was decided to postpone this feature
+test.skipIf(Date.now() < +new Date('2026-01-15'))('alter integer type to text type with fk constraints', async () => {
+	const users1 = pgTable('users', {
+		id: serial().primaryKey(),
+	});
+
+	const schema1 = {
+		users1,
+		sessions: pgTable('sessions', {
+			id: text().primaryKey(),
+			userId: integer().notNull().references(() => users1.id),
+		}),
+		content: pgTable('content', {
+			id: text().primaryKey(),
+			userId: integer().notNull().references(() => users1.id),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+	await db.query('insert into "users" values (1);');
+	await db.query('insert into "sessions" values (1,1);');
+	await db.query('insert into "content" values (1,1);');
+
+	const users2 = pgTable('users', {
+		id: text().primaryKey(),
+	});
+	const schema2 = {
+		users2,
+		sessions: pgTable('sessions', {
+			id: text().primaryKey(),
+			userId: text().notNull().references(() => users2.id),
+		}),
+		content: pgTable('content', {
+			id: text().primaryKey(),
+			userId: text().notNull().references(() => users2.id),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "sessions" DROP CONSTRAINT "sessions_userId_users_id_fkey";',
+		'ALTER TABLE "content" DROP CONSTRAINT "content_userId_users_id_fkey";',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE text;',
+		'ALTER TABLE "sessions" ALTER COLUMN "userId" SET DATA TYPE text;',
+		'ALTER TABLE "content" ALTER COLUMN "userId" SET DATA TYPE text;',
+		'ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");',
+		'ALTER TABLE "content" ADD CONSTRAINT "content_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 test('alter table add composite pk', async (t) => {
@@ -896,7 +1068,7 @@ test('geometry point with srid', async () => {
 		});
 
 		const st0: string[] = [
-			'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE geometry(point,12);',
+			'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE geometry(point,12) USING "id3"::geometry(point,12);',
 		];
 
 		expect(st).toStrictEqual(st0);
@@ -956,184 +1128,200 @@ test('defaults: timestamptz with precision', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('no diffs for all database types', async () => {
-	const customSchema = pgSchema('schemass');
-
-	const transactionStatusEnum = customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']);
-
-	const enumname = pgEnum('enumname', ['three', 'two', 'one']);
-
-	const schema1 = {
-		test: pgEnum('test', ['ds']),
-		testHello: pgEnum('test_hello', ['ds']),
-		enumname: pgEnum('enumname', ['three', 'two', 'one']),
-
-		customSchema: customSchema,
-		transactionStatusEnum: customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']),
-
-		allSmallSerials: pgTable('schema_test', {
-			columnAll: uuid('column_all').defaultRandom(),
-			column: transactionStatusEnum('column').notNull(),
-		}),
-
-		allSmallInts: customSchema.table(
-			'schema_test2',
-			{
-				columnAll: smallint('column_all').default(124).notNull(),
-				column: smallint('columns').array(),
-				column1: smallint('column1').array().array(),
-				column2: smallint('column2').array().array(),
-				column3: smallint('column3').array(),
-			},
-			(t: any) => [uniqueIndex('testdfds').on(t.column)],
-		),
-
-		allEnums: customSchema.table(
-			'all_enums',
-			{
-				columnAll: enumname('column_all').default('three').notNull(),
-				column: enumname('columns'),
-			},
-			(t: any) => [index('ds').on(t.column)],
-		),
-
-		allTimestamps: customSchema.table('all_timestamps', {
-			columnDateNow: timestamp('column_date_now', {
-				precision: 1,
-				withTimezone: true,
-				mode: 'string',
-			}).defaultNow(),
-			columnAll: timestamp('column_all', { mode: 'string' }).default('2023-03-01 12:47:29.792'),
-			column: timestamp('column', { mode: 'string' }).default(sql`'2023-02-28 16:18:31.18'`),
-			column2: timestamp('column2', { mode: 'string', precision: 3 }).default(sql`'2023-02-28 16:18:31.18'`),
-		}),
-
-		allUuids: customSchema.table('all_uuids', {
-			columnAll: uuid('column_all').defaultRandom().notNull(),
-			column: uuid('column'),
-		}),
-
-		allDates: customSchema.table('all_dates', {
-			column_date_now: date('column_date_now').defaultNow(),
-			column_all: date('column_all', { mode: 'date' }).default(new Date()).notNull(),
-			column: date('column'),
-		}),
-
-		allReals: customSchema.table('all_reals', {
-			columnAll: real('column_all').default(32).notNull(),
-			column: real('column'),
-			columnPrimary: real('column_primary').primaryKey().notNull(),
-		}),
-
-		allBigints: pgTable('all_bigints', {
-			columnAll: bigint('column_all', { mode: 'number' }).default(124).notNull(),
-			column: bigint('column', { mode: 'number' }),
-		}),
-
-		allBigserials: customSchema.table('all_bigserials', {
-			columnAll: bigserial('column_all', { mode: 'bigint' }).notNull(),
-			column: bigserial('column', { mode: 'bigint' }).notNull(),
-		}),
-
-		allIntervals: customSchema.table('all_intervals', {
-			columnAllConstrains: interval('column_all_constrains', {
-				fields: 'month',
-			})
-				.default('1 mon')
-				.notNull(),
-			columnMinToSec: interval('column_min_to_sec', {
-				fields: 'minute to second',
-			}),
-			columnWithoutFields: interval('column_without_fields').default('00:00:01').notNull(),
-			column: interval('column'),
-			column5: interval('column5', {
-				fields: 'minute to second',
-				precision: 3,
-			}),
-			column6: interval('column6'),
-		}),
-
-		allSerials: customSchema.table('all_serials', {
-			columnAll: serial('column_all').notNull(),
-			column: serial('column').notNull(),
-		}),
-
-		allTexts: customSchema.table(
-			'all_texts',
-			{
-				columnAll: text('column_all').default('text').notNull(),
-				column: text('columns').primaryKey(),
-			},
-			(t: any) => [index('test').on(t.column)],
-		),
-
-		allBools: customSchema.table('all_bools', {
-			columnAll: boolean('column_all').default(true).notNull(),
-			column: boolean('column'),
-		}),
-
-		allVarchars: customSchema.table('all_varchars', {
-			columnAll: varchar('column_all').default('text').notNull(),
-			column: varchar('column', { length: 200 }),
-		}),
-
-		allTimes: customSchema.table('all_times', {
-			columnDateNow: time('column_date_now').defaultNow(),
-			columnAll: time('column_all').default('22:12:12').notNull(),
-			column: time('column'),
-		}),
-
-		allChars: customSchema.table('all_chars', {
-			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
-			column: char('column', { length: 1 }),
-		}),
-
-		allDoublePrecision: customSchema.table('all_double_precision', {
-			columnAll: doublePrecision('column_all').default(33.2).notNull(),
-			column: doublePrecision('column'),
-		}),
-
-		allJsonb: customSchema.table('all_jsonb', {
-			columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
-			columnDefaultArray: jsonb('column_default_array').default({
-				hello: { 'world world': ['foo', 'bar'] },
-			}),
-			column: jsonb('column'),
-		}),
-
-		allJson: customSchema.table('all_json', {
-			columnDefaultObject: json('column_default_object').default({ hello: 'world world' }).notNull(),
-			columnDefaultArray: json('column_default_array').default({
-				hello: { 'world world': ['foo', 'bar'] },
-				foo: 'bar',
-				fe: 23,
-			}),
-			column: json('column'),
-		}),
-
-		allIntegers: customSchema.table('all_integers', {
-			columnAll: integer('column_all').primaryKey(),
-			column: integer('column'),
-			columnPrimary: integer('column_primary'),
-		}),
-
-		allNumerics: customSchema.table('all_numerics', {
-			columnAll: numeric('column_all', { precision: 1, scale: 1 }).default('32').notNull(),
-			column: numeric('column'),
-			columnPrimary: numeric('column_primary').primaryKey().notNull(),
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
+test('no diff for all column types', async () => {
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		enum_: myEnum,
+		columns: pgTable('columns', {
+			enum: myEnum('my_enum').default('a'),
+			smallint: smallint().default(10),
+			integer: integer().default(10),
+			numeric: numeric().default('99.9'),
+			numeric1: numeric({ precision: 3, scale: 1 }).default('99.9'),
+			numeric2: numeric({ precision: 1, scale: 1 }).default('99.9'),
+			numeric3: numeric({ precision: 78 }).default('999'),
+			bigint: bigint({ mode: 'number' }).default(100),
+			bigint1: bigint({ mode: 'bigint' }).default(100n),
+			boolean: boolean().default(true),
+			text: text().default('abc'),
+			text1: text().default(sql`gen_random_uuid()`),
+			text2: text().default('``'),
+			text3: text().default(''),
+			varchar: varchar({ length: 25 }).default('abc'),
+			varchar1: varchar({ length: 25 }).default(''),
+			varchar2: varchar({ length: 25 }).default('``'),
+			char: char({ length: 3 }).default('abc'),
+			char1: char({ length: 3 }).default(''),
+			char2: char({ length: 3 }).default('``'),
+			serial: serial(),
+			bigserial: bigserial({ mode: 'number' }),
+			smallserial: smallserial(),
+			doublePrecision: doublePrecision().default(100.12),
+			real: real().default(100.123),
+			json: json().default({ attr: 'value' }),
+			json1: json().default({ b: 2, a: 1 }),
+			jsonb: jsonb().default({ attr: 'value' }),
+			jsonb1: jsonb().default(sql`jsonb_build_object()`),
+			jsonb2: jsonb().default({}),
+			jsonb3: jsonb().default({ b: 2, a: 1 }),
+			time1: time().default('00:00:00'),
+			time2: time().defaultNow(),
+			timestamp1: timestamp({ withTimezone: true, precision: 6 }).default(new Date()),
+			timestamp2: timestamp({ withTimezone: true, precision: 6 }).defaultNow(),
+			timestamp3: timestamp({ withTimezone: true, precision: 6 }).default(sql`timezone('utc'::text, now())`),
+			date1: date().default('2024-01-01'),
+			date2: date().defaultNow(),
+			date3: date().default(sql`CURRENT_TIMESTAMP`),
+			uuid1: uuid().default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
+			uuid2: uuid().defaultRandom(),
+			inet: inet().default('127.0.0.1'),
+			cidr: cidr().default('127.0.0.1/32'),
+			macaddr: macaddr().default('00:00:00:00:00:00'),
+			macaddr8: macaddr8().default('00:00:00:ff:fe:00:00:00'),
+			interval: interval().default('1 day 01:00:00'),
 		}),
 	};
 
-	const schemas = ['public', 'schemass'];
-	const { sqlStatements: st } = await diff(schema1, schema1, []);
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
 
-	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema1, schemas });
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 
-	const st0: string[] = [];
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
 
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.test.ts
+test('no diff for all column array types', async () => {
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		enum_: myEnum,
+		columns: pgTable('columns', {
+			enum: myEnum().array().default([]),
+			enum1: myEnum().array().default(['a', 'b']),
+			smallint: smallint().array().default([]),
+			smallint1: smallint().array().default([10, 20]),
+			integer: integer().array().default([]),
+			integer1: integer().array().default([10, 20]),
+			numeric: numeric({ precision: 3, scale: 1 }).array().default([]),
+			numeric1: numeric({ precision: 3, scale: 1 }).array().default(['99.9', '88.8']),
+			bigint: bigint({ mode: 'number' }).array().default([]),
+			bigint1: bigint({ mode: 'number' }).array().default([100, 200]),
+			boolean: boolean().array().default([]),
+			boolean1: boolean().array().default([true, false]),
+			text: text().array().default([]),
+			text1: text().array().default(['abc', 'def']),
+			varchar: varchar({ length: 25 }).array().default([]),
+			varchar1: varchar({ length: 25 }).array().default(['abc', 'def']),
+			char: char({ length: 3 }).array().default([]),
+			char1: char({ length: 3 }).array().default(['abc', 'def']),
+			doublePrecision: doublePrecision().array().default([]),
+			doublePrecision1: doublePrecision().array().default([100, 200]),
+			real: real().array().default([]),
+			real1: real().array().default([100, 200]),
+			json: json().array().default([]),
+			json1: json().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb: jsonb().array().default([]),
+			jsonb1: jsonb().array().default(sql`'{}'`),
+			// jsonb2: jsonb().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
+			time: time().array().default([]),
+			time1: time().array().default(['00:00:00', '01:00:00']),
+			timestamp: timestamp({ withTimezone: true, precision: 6 }).array().default([]),
+			timestamp1: timestamp({ withTimezone: true, precision: 6 }).array().default([
+				new Date(),
+				new Date(),
+			]),
+			date: date().array().default([]),
+			date1: date().array().default(['2024-01-01', '2024-01-02']),
+			uuid: uuid().array().default([]),
+			uuid1: uuid().array().default([
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+			]),
+			inet: inet().array().default([]),
+			inet1: inet().array().default(['127.0.0.1', '127.0.0.2']),
+			cidr: cidr().array().default([]),
+			cidr1: cidr().array().default(['127.0.0.1/32', '127.0.0.2/32']),
+			macaddr: macaddr().array().default([]),
+			macaddr1: macaddr().array().default(['00:00:00:00:00:00', '00:00:00:00:00:01']),
+			macaddr8: macaddr8().array().default([]),
+			macaddr8_1: macaddr8().array().default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
+			interval: interval().array().default([]),
+			interval1: interval().array().default(['1 day 01:00:00', '1 day 02:00:00']),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test('no diff for enum and custom type in different schemas', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().default('a'),
+			mySchemaCustomType: customType({
+				dataType: () => 'tsvector',
+			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
+		}),
+		myEnum,
+		table: pgTable('table', {
+			enum: myEnum().default('a'),
+			customType: customType({
+				dataType: () => 'tsvector',
+			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
+		}),
+	};
+
+	const schemas = ['public', 'my_schema'];
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema, schemas });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema, schemas });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test('no diff for enum array type in different schemas', async () => {
+	const mySchema = pgSchema('my_schema');
+	const mySchemaEnum = mySchema.enum('my_schema_enum', ['a', 'b', 'c']);
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		mySchema,
+		mySchemaEnum,
+		mySchemaTable: mySchema.table('my_schema_table', {
+			mySchemaEnum: mySchemaEnum().array().default(['a']),
+			mySchemaEnum1: mySchemaEnum().array().default([]),
+		}),
+		myEnum,
+		table: pgTable('table', {
+			enum: myEnum().array().default([]),
+			enum1: myEnum().array().default(['a', 'b']),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
 
 test('column with not null was renamed and dropped not null', async () => {
@@ -1164,4 +1352,260 @@ test('column with not null was renamed and dropped not null', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 	expect(sbsqSt).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2856
+test('alter text to timestamp', async () => {
+	const from = {
+		users: pgTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			name: timestamp(),
+		}),
+	};
+
+	await push({ db, to: from });
+	const res = await push({ db, to });
+
+	expect(res.sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "name" SET DATA TYPE timestamp USING "name"::timestamp;',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2183
+test('alter integer type to serial type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			col1: integer(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			col1: serial(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'CREATE SEQUENCE "table1_col1_seq";',
+		`ALTER TABLE "table1" ALTER COLUMN \"col1\" SET DEFAULT nextval('table1_col1_seq')`,
+		'ALTER SEQUENCE "table1_col1_seq" OWNED BY "public"."table1"."col1";',
+		'ALTER TABLE "table1" ALTER COLUMN "col1" SET DATA TYPE int USING "col1"::int;',
+		'ALTER TABLE "table1" ALTER COLUMN "col1" SET NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('same column names in two tables. Check for correct not null creation. Explicit column names', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer('id').primaryKey(),
+			departmentId: integer('department_id').references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer('user_id').references(() => users.id),
+			departmentId: integer('department_id').references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer('id').primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"user_id" integer,
+\t"department_id" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("user_id","department_id")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"department_id" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #2. no casing', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"userId" integer,
+\t"departmentId" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("userId","departmentId")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"departmentId" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #3. camelCase', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'camelCase');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'camelCase' });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"userId" integer,
+\t"departmentId" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("userId","departmentId")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"departmentId" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_userId_users_id_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_departmentId_departments_id_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
+	const users = pgTable(
+		'users',
+		{
+			id: integer().primaryKey(),
+			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
+		},
+	);
+	const userHasDepartmentFilter = pgTable(
+		'user_has_department_filter',
+		{
+			userId: integer().references(() => users.id),
+			departmentId: integer().references(() => departments.id),
+		},
+		(table) => {
+			return [primaryKey({ columns: [table.userId, table.departmentId] })];
+		},
+	);
+	const departments = pgTable(
+		'departments',
+		{
+			id: integer().primaryKey(),
+		},
+	);
+
+	// order matters here
+	const schema1 = { departments, userHasDepartmentFilter, users };
+	const { sqlStatements: st } = await diff({}, schema1, [], 'snake_case');
+	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'snake_case' });
+
+	const st0 = [
+		`CREATE TABLE "departments" (
+\t"id" integer PRIMARY KEY
+);\n`,
+		`CREATE TABLE "user_has_department_filter" (
+\t"user_id" integer,
+\t"department_id" integer,
+\tCONSTRAINT "user_has_department_filter_pkey" PRIMARY KEY("user_id","department_id")
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" integer PRIMARY KEY,
+\t"department_id" integer
+);\n`,
+
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");`,
+		`ALTER TABLE "user_has_department_filter" ADD CONSTRAINT "user_has_department_filter_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id");`,
+		`ALTER TABLE "users" ADD CONSTRAINT "users_department_id_departments_id_fkey" FOREIGN KEY ("department_id") REFERENCES "departments"("id") ON DELETE SET NULL;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

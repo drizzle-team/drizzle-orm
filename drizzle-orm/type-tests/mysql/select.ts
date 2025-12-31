@@ -36,6 +36,7 @@ import {
 	QueryBuilder,
 	text,
 } from '~/mysql-core/index.ts';
+import { unique } from '~/mysql-core/unique-constraint.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -1185,4 +1186,29 @@ await db
 	await db.select().from(table1)
 		// @ts-expect-error
 		.crossJoinLateral(view);
+}
+
+{
+	const users = mysqlTable('users', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	}, () => [idx]);
+	const idx = index('name_index').on(users.name);
+	const unq = unique('name_unique').on(users.name);
+	const unq_without_name = unique().on(users.name);
+
+	db.select().from(users, { useIndex: [idx, unq], forceIndex: [idx, unq], ignoreIndex: [idx, unq] });
+	db.select().from(users, { useIndex: idx, forceIndex: idx, ignoreIndex: idx });
+	db.select().from(users, { useIndex: unq, forceIndex: unq, ignoreIndex: unq });
+
+	db.select().from(users, {
+		// @ts-expect-error
+		useIndex: [unq_without_name],
+		// @ts-expect-error
+		forceIndex: [unq_without_name],
+		// @ts-expect-error
+		ignoreIndex: [unq_without_name],
+	});
+	// @ts-expect-error
+	db.select().from(users, { useIndex: unq_without_name, forceIndex: unq_without_name, ignoreIndex: unq_without_name });
 }

@@ -40,6 +40,10 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -64,14 +68,20 @@ export const handle = async (
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 
-	const { schema: schemaFrom } = await introspect(db, entityFilter, progress);
+	const { schema: schemaFrom } = await introspect(
+		db,
+		entityFilter,
+		progress,
+		() => {},
+		migrations,
+	);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2 } = interimToDDL(schemaTo);
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors1.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -137,8 +147,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
-		// discussion -
-		if (it.type === 'recreate_view') return false;
+		// TODO: discussion -
+		if (it.type === 'drop_view' && it.cause) return false;
 
 		/*
 			drizzle-kit push does not handle alternations of postgres views definitions

@@ -1,6 +1,7 @@
-import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import { parse } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
+import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
@@ -26,8 +27,8 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative } from './grammar';
-import type { JsonRecreateIndex, JsonStatement } from './statements';
+import { defaults, defaultsCommutative, isSerialType } from './grammar';
+import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
@@ -728,7 +729,10 @@ export const ddlDiff = async (
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
-			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
+			// if pk existed before and new column now has pk, this will trigger alter_pk, that will automatically add pk
+			// this flag is needed for column recreation (generated)
+			// see tests: "drizzle-kit/tests/postgres/pg-constraints.test.ts" => "remove/add pk" and below
+			isPK: false, // ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})
 	);
@@ -740,11 +744,20 @@ export const ddlDiff = async (
 				|| (it.$left.type === 'jsonb' && it.$right.type === 'jsonb'))
 		) {
 			if (it.default.from !== null && it.default.to !== null) {
-				const left = stringify(parse(trimChar(it.default.from, "'")));
-				const right = stringify(parse(trimChar(it.default.to, "'")));
-				if (left === right) {
+				const parsedLeft = parse(trimChar(it.default.from, "'"));
+				const parsedRight = parse(trimChar(it.default.to, "'"));
+
+				try {
+					deepStrictEqual(parsedLeft, parsedRight);
 					delete it.default;
-				}
+				} catch {}
+
+				// const left = stringify(parsedLeft);
+				// const right = stringify(parsedRight);
+
+				// if (left === right) {
+				// 	delete it.default;
+				// }
 			}
 		}
 
@@ -845,7 +858,11 @@ export const ddlDiff = async (
 	});
 
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
-	const jsonAlteredPKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it, pk: it.$right }));
+	const jsonAlteredPKs: JsonAlterPrimaryKey[] = alteredPKs.map((it) => {
+		const deleted = columnsToDelete.some((x) => it.columns?.from.includes(x.name));
+
+		return prepareStatement('alter_pk', { diff: it, pk: it.$right, deleted });
+	});
 
 	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
 		if (
@@ -1004,8 +1021,12 @@ export const ddlDiff = async (
 				.map((it) => {
 					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name });
 					if (c2 === null) return null;
-					it.default = c2.default;
-					return it;
+
+					const def = {
+						right: c2.default,
+						left: it.default,
+					};
+					return { ...it, default: def };
 				})
 				.filter((x) => x !== null);
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns, from: alter.$left }));
@@ -1039,12 +1060,20 @@ export const ddlDiff = async (
 		})
 		.map((it) => {
 			const column = it.$right;
+			const wasSerial = isSerialType(it.$left.type);
+			const toSerial: boolean = !isSerialType(it.$left.type) && isSerialType(it.$right.type);
+			const isEnum = ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null;
+			const wasEnum =
+				(it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
+					?? false;
+
 			return prepareStatement('alter_column', {
 				diff: it,
-				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
-				wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
-					?? false,
 				to: column,
+				isEnum,
+				wasEnum,
+				wasSerial,
+				toSerial,
 			});
 		});
 
@@ -1078,7 +1107,7 @@ export const ddlDiff = async (
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
-	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
 	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
@@ -1116,7 +1145,8 @@ export const ddlDiff = async (
 		});
 	});
 
-	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition).map((entry) => {
+	// recreate views
+	viewsAlters.filter((it) => it.diff.definition).forEach((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -1131,7 +1161,9 @@ export const ddlDiff = async (
 				${schema}:${name}
 				`);
 		}
-		return prepareStatement('recreate_view', { from, to: it });
+
+		jsonDropViews.push(prepareStatement('drop_view', { view: it, cause: from }));
+		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
@@ -1195,7 +1227,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
-	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonRenameTables);
@@ -1216,13 +1247,17 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
 
-	jsonStatements.push(...jsonAddPrimaryKeys);
-	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddPrimaryKeys);
+	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
+
+	jsonStatements.push(...jsonDropColumnsStatemets);
+	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonAlterColumns);
+
 	jsonStatements.push(...jsonRecreateIndex);
 
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
@@ -1232,9 +1267,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
-
-	jsonStatements.push(...jsonDropColumnsStatemets);
-	jsonStatements.push(...jsonAlteredPKs);
 
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 

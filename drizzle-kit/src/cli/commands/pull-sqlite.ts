@@ -15,7 +15,7 @@ import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSQLite } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
@@ -27,8 +27,11 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
 	type: 'sqlite' | 'libsql' = 'sqlite',
+	migrations: {
+		table: string;
+		schema: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToSQLite>>,
 ) => {
 	if (!db) {
@@ -40,7 +43,7 @@ export const handle = async (
 	const filter = prepareEntityFilter('sqlite', filters, []);
 	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
 		progress.update(stage, count, status);
-	});
+	}, migrations);
 
 	const ts = ddlToTypeScript(ddl, casing, viewColumns, type);
 	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(ddl), casing);
@@ -65,7 +68,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
@@ -107,8 +109,12 @@ export const introspect = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
-	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback));
+	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback, migrations));
 	const res = interimToDDL(schema);
 	return { ...res, viewColumns: schema.viewsToColumns };
 };

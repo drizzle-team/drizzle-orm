@@ -2,6 +2,7 @@ import camelcase from 'camelcase';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -34,7 +35,7 @@ import {
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
 
-// * use === for oid comparisons to prevent issues with different number types (string vs number) (pg converts oid to number automatically - pgsql cli returns as string)
+// * convert oid into number in comparisons to prevent issues with different types (string vs number) (pg converts oid to number automatically - pgsql cli returns as string)
 
 export const fromDatabase = async (
 	db: DB,
@@ -535,7 +536,11 @@ export const fromDatabase = async (
 			attname AS "name",
 			attnum AS "ordinality",
 			attnotnull AS "notNull",
-			attndims as "dimensions",
+			CASE 
+        		WHEN attndims > 0 THEN attndims
+        		WHEN t.typcategory = 'A' THEN 1  -- If it's an array type, default to 1 dimension
+        		ELSE 0
+    		END as "dimensions",
 			atttypid as "typeId",
 			attgenerated as "generatedType", 
 			attidentity as "identityType",
@@ -569,6 +574,7 @@ export const fromDatabase = async (
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
 			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
+			JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) attr.atttypid
 		WHERE
 		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0
@@ -642,15 +648,8 @@ export const fromDatabase = async (
 		});
 	}
 
-	let columnsCount = 0;
-	let indexesCount = 0;
-	let foreignKeysCount = 0;
-	let tableCount = 0;
-	let checksCount = 0;
-	let viewsCount = 0;
-
 	for (const seq of sequencesList) {
-		const depend = dependList.find((it) => it.oid === seq.oid);
+		const depend = dependList.find((it) => Number(it.oid) === Number(seq.oid));
 
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
@@ -671,8 +670,6 @@ export const fromDatabase = async (
 			cacheSize: Number(parseIdentityProperty(seq.cacheSize) ?? 1),
 		});
 	}
-
-	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	for (const dbRole of rolesList) {
 		roles.push({
@@ -719,8 +716,6 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('policies', policiesList.length, 'done');
-
 	type DBColumn = (typeof columnsList)[number];
 
 	// supply serials
@@ -732,19 +727,18 @@ export const fromDatabase = async (
 		}
 
 		const expr = serialsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+			(it) => Number(it.tableId) === Number(column.tableId) && it.ordinality === column.ordinality,
 		);
 
 		if (expr) {
-			const table = tablesList.find((it) => it.oid === column.tableId)!;
-
+			const table = tablesList.find((it) => Number(it.oid) === Number(column.tableId))!;
 			const isSerial = isSerialExpression(expr.expression, table.schema);
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
 		}
 	}
 
 	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
-		const table = tablesList.find((it) => it.oid === column.tableId)!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(column.tableId))!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums
@@ -766,7 +760,7 @@ export const fromDatabase = async (
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		const columnDefault = defaultsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+			(it) => Number(it.tableId) === Number(column.tableId) && it.ordinality === column.ordinality,
 		);
 
 		const defaultValue = defaultForColumn(
@@ -777,12 +771,12 @@ export const fromDatabase = async (
 		);
 
 		const unique = constraintsList.find((it) => {
-			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
+			return it.type === 'u' && Number(it.tableId) === Number(column.tableId) && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
 		const pk = constraintsList.find((it) => {
-			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
+			return it.type === 'p' && Number(it.tableId) === Number(column.tableId) && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
@@ -803,7 +797,9 @@ export const fromDatabase = async (
 			);
 		}
 
-		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
+		const sequence = metadata?.seqId
+			? sequencesList.find((it) => Number(it.oid) === Number(metadata.seqId)) ?? null
+			: null;
 
 		columns.push({
 			entityType: 'columns',
@@ -837,11 +833,13 @@ export const fromDatabase = async (
 	}
 
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
-		const table = tablesList.find((it) => it.oid === unique.tableId)!;
-		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(unique.tableId))!;
+		const schema = namespaces.find((it) => Number(it.oid) === Number(unique.schemaId))!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === unique.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) =>
+				Number(column.tableId) === Number(unique.tableId) && column.ordinality === it
+			)!;
 			return column.name;
 		});
 
@@ -857,11 +855,13 @@ export const fromDatabase = async (
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
-		const table = tablesList.find((it) => it.oid === pk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(pk.tableId))!;
+		const schema = namespaces.find((it) => Number(it.oid) === Number(pk.schemaId))!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) =>
+				Number(column.tableId) === Number(pk.tableId) && column.ordinality === it
+			)!;
 			return column.name;
 		});
 
@@ -876,17 +876,21 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
-		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
+		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
+		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
+			const column = columnsList.find((column) =>
+				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
+			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
+			const column = columnsList.find((column) =>
+				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
+			)!;
 			return column.name;
 		});
 
@@ -906,15 +910,15 @@ export const fromDatabase = async (
 	}
 
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
-		const table = tablesList.find((it) => it.oid === check.tableId)!;
-		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(check.tableId))!;
+		const schema = namespaces.find((it) => Number(it.oid) === Number(check.schemaId))!;
 
 		checks.push({
 			entityType: 'checks',
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition,
+			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
 		});
 	}
 
@@ -989,13 +993,14 @@ export const fromDatabase = async (
 		const { metadata } = idx;
 
 		// filter for drizzle only?
-		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
-		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+		const forUnique = metadata.isUnique
+			&& constraintsList.some((x) => x.type === 'u' && Number(x.indexId) === Number(idx.oid));
+		const forPK = metadata.isPrimary
+			&& constraintsList.some((x) => x.type === 'p' && Number(x.indexId) === Number(idx.oid));
 
 		const expr = splitExpressions(metadata.expression);
 
-		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
-
+		const table = tablesList.find((it) => Number(it.oid) === Number(idx.metadata.tableId))!;
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
 			return acc;
@@ -1039,7 +1044,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId === metadata.tableId && column.ordinality === ordinal;
+					return Number(column.tableId) === Number(metadata.tableId) && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
@@ -1087,13 +1092,8 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('columns', columnsCount, 'fetching');
-	progressCallback('checks', checksCount, 'fetching');
-	progressCallback('indexes', indexesCount, 'fetching');
-	progressCallback('tables', tableCount, 'done');
-
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
-		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const view = viewsList.find((x) => Number(x.oid) === Number(it.tableId))!;
 
 		const typeDimensions = it.type.split('[]').length - 1;
 		const enumType = it.typeId in groupedEnums
@@ -1130,10 +1130,12 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		tableCount += 1;
-
-		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
-		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
+		const accessMethod = Number(view.accessMethod) === 0
+			? null
+			: ams.find((it) => Number(it.oid) === Number(view.accessMethod));
+		const tablespace = Number(view.tablespaceid) === 0
+			? null
+			: tablespaces.find((it) => Number(it.oid) === Number(view.tablespaceid))!.name;
 
 		const definition = parseViewDefinition(view.definition);
 		const withOpts = wrapRecord(
@@ -1188,12 +1190,14 @@ export const fromDatabase = async (
 		});
 	}
 
-	// TODO: update counts!
-	progressCallback('columns', columnsCount, 'done');
-	progressCallback('indexes', indexesCount, 'done');
-	progressCallback('fks', foreignKeysCount, 'done');
-	progressCallback('checks', checksCount, 'done');
-	progressCallback('views', viewsCount, 'done');
+	progressCallback('tables', filteredTables.length, 'done');
+	progressCallback('columns', columnsList.length, 'done');
+	progressCallback('checks', checks.length, 'done');
+	progressCallback('indexes', indexes.length, 'fetching');
+	progressCallback('views', viewsList.length, 'done');
+	progressCallback('fks', fks.length, 'done');
+	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
+	progressCallback('policies', policiesList.length, 'done');
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
@@ -1239,11 +1243,17 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrations: {
+		schema: string;
+		table: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
 	res.privileges = [];
+
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };

@@ -1,6 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
@@ -10,6 +11,7 @@ import {
 	customType,
 	date,
 	doublePrecision,
+	foreignKey,
 	index,
 	inet,
 	integer,
@@ -27,6 +29,7 @@ import {
 	pgSequence,
 	pgTable,
 	pgView,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -39,9 +42,10 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { fromDatabase } from 'src/dialects/postgres/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
+import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -134,6 +138,7 @@ test('basic identity by default test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
 	const client = new PGlite();
 
@@ -339,6 +344,9 @@ test('generated column: link to another jsonb column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5149
+// https://github.com/drizzle-team/drizzle-orm/issues/3593
+// https://github.com/drizzle-team/drizzle-orm/issues/4349
 // https://github.com/drizzle-team/drizzle-orm/issues/4632
 // https://github.com/drizzle-team/drizzle-orm/issues/4644
 // https://github.com/drizzle-team/drizzle-orm/issues/4730
@@ -364,6 +372,7 @@ test('introspect all column types', async () => {
 			text3: text('text3').default(''),
 			varchar: varchar('varchar', { length: 25 }).default('abc'),
 			varchar1: varchar('varchar1', { length: 25 }).default(''),
+			varchar2: varchar('varchar2').default(sql`md5((random())::text)`),
 			char: char('char', { length: 3 }).default('abc'),
 			char1: char('char1', { length: 3 }).default(''),
 			serial: serial('serial'),
@@ -372,9 +381,11 @@ test('introspect all column types', async () => {
 			doublePrecision: doublePrecision('doublePrecision').default(100),
 			real: real('real').default(100),
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
+			json1: json('json1').default(sql`jsonb_build_object()`),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			jsonb2: jsonb('jsonb2').default({}),
+			jsonb3: jsonb('jsonb3').default({ confirmed: true, not_received: true }).notNull(),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -408,6 +419,36 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5093
+test('introspect uuid column with custom default function', async () => {
+	await db.query(`CREATE OR REPLACE FUNCTION uuidv7()
+RETURNS uuid
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid;
+$$;`);
+
+	const schema = {
+		columns: pgTable('columns', {
+			uuid1: uuid().default(sql`uuidv7()`),
+			text: text().default(sql`uuidv7()`),
+			char: char().default(sql`uuidv7()`),
+			varchar: varchar().default(sql`uuidv7()`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-uuid-column-custom-default',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%201%3A%20jsonb().array().default(%5B%5D)
 // https://github.com/drizzle-team/drizzle-orm/issues/4529
 test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -428,7 +469,8 @@ test('introspect all column array types', async () => {
 			real: real('real').array().default([100, 200]),
 			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
-			jsonb1: jsonb('jsonb3').array().default(sql`'{}'`),
+			jsonb1: jsonb('jsonb1').array().default(sql`'{}'`),
+			jsonb2: jsonb('jsonb2').array().default([]),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
@@ -672,6 +714,28 @@ test('introspect view #3', async () => {
 	// TODO: we need to check actual types generated;
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4262
+// postopone
+// Need to write discussion/guide on this and add ts comment in typescript file
+test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect view #4', async () => {
+	const table = pgTable('table', {
+		column1: text().notNull(),
+		column2: text(),
+	});
+	const myView = pgView('public_table_view_4', { column1: text(), column2: text() }).as(
+		sql`select column1, column2 from "table"`,
+	);
+
+	const schema = { table, myView };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-4');
+
+	throw Error('');
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
+});
+
 test('introspect view in other schema', async () => {
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
@@ -862,7 +926,7 @@ test('basic policy with "using" and "with"', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('multiple policies', async () => {
+test('multiple policies #1', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -873,6 +937,30 @@ test('multiple policies', async () => {
 		db,
 		schema,
 		'multiple-policies',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4407
+test('multiple policies #2', async () => {
+	const users = pgTable('users', {
+		id: integer(),
+	}, (table) => [
+		pgPolicy('insert_policy_for_users', { for: 'insert', withCheck: sql`true` }),
+		pgPolicy('update_policy_for_users', { for: 'update', using: sql`true`, withCheck: sql`true` }),
+	]);
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'multiple-policies-2',
 	);
 
 	expect(statements.length).toBe(0);
@@ -1019,6 +1107,27 @@ test('introspect without any schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect composite pk', async () => {
+	const firstToSecondTable = pgTable(
+		'firstToSecond',
+		{
+			firstId: integer('firstId'),
+			secondId: integer('secondId'),
+		},
+		(table) => [primaryKey({ columns: [table.firstId, table.secondId] })],
+	);
+
+	const schema = { firstToSecondTable };
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-composite-pk',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 test('introspect foreign keys', async () => {
 	const mySchema = pgSchema('my_schema');
 	const users = pgTable('users', {
@@ -1050,6 +1159,60 @@ test('introspect foreign keys', async () => {
 		tableTo: 'users',
 		columnsTo: ['id'],
 	})).not.toBeNull();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5082
+test('introspect foreign keys #2', async () => {
+	const test = pgTable('test', {
+		col1: integer(),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		unique('composite_unique').on(table.col2, table.col3),
+		unique('test_col1_key').on(table.col1),
+	]);
+
+	const test1 = pgTable('test1', {
+		col1: integer().references(() => test.col1),
+		col2: integer(),
+		col3: integer(),
+	}, (table) => [
+		foreignKey({
+			columns: [table.col2, table.col3],
+			foreignColumns: [test.col2, test.col3],
+			name: 'composite_fk',
+		}),
+	]);
+
+	const schema = { test, test1 };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-foreign-keys-2',
+		['public'],
+	);
+	console.log(ddlAfterPull.fks);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	expect(ddlAfterPull.fks.list({ schema: 'public' }).length).toBe(2);
+	const predicate = ddlAfterPull.fks.list({ schema: 'public' }).map((fk) =>
+		fk.columns.length !== 0 && fk.columnsTo.length !== 0
+	).every((val) => val === true);
+	expect(predicate).toBe(true);
+});
+
+test('introspect table with self reference', async () => {
+	const users = pgTable('users', {
+		id: integer().primaryKey(),
+		name: text(),
+		invited_id: integer().references((): AnyPgColumn => users.id),
+	});
+	const schema = { users };
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, schema, 'introspect-self-ref');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
 
 test('introspect partitioned tables', async () => {
@@ -1136,3 +1299,533 @@ test('policy', async () => {
 // 		} satisfies typeof tables[number],
 // 	]);
 // });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4170
+test('introspect view with table filter', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const view1 = pgView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const table2 = pgTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const view2 = pgView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const schema1 = { table1, view1, table2, view2 };
+	await push({ db, to: schema1 });
+
+	let tables, views;
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	));
+	const expectedTables = [
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	));
+	const expectedViews = [
+		{
+			entityType: 'views',
+			schema: 'public',
+			name: 'view1',
+			definition: 'SELECT column1 FROM table1',
+			with: null,
+			materialized: false,
+			tablespace: null,
+			using: null,
+			withNoData: null,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual(expectedViews);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4144
+test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect sequences with table filter', async () => {
+	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
+
+	// const seq1 = pgSequence('seq1');
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq1.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const table2 = pgTable('prefix_table2', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq2.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const schema1 = { table1, table2 };
+	await push({ db, to: schema1 });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['!prefix_*'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { tables, sequences } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(sequences).toBe([
+		{
+			entityType: 'sequences',
+			schema: 'public',
+			name: 'table1_column1_seq',
+			startWith: '1',
+			minValue: '1',
+			maxValue: '2147483647',
+			incrementBy: '1',
+			cycle: false,
+			cacheSize: 1,
+		},
+	]);
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
+	// 	console.log(
+	// 		await db.query(`SELECT *
+	// FROM pg_sequences
+	// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
+	// 	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4215
+test('introspect _{dataType} columns type as {dataType}[]', async () => {
+	await db.query(`CREATE TYPE mood_enum AS ENUM('ok', 'bad', 'good');`);
+	await db.query(`CREATE TABLE "_array_data_types" (
+			integer_array          _int4,
+			smallint_array         _int2,
+			bigint_array           _int8,
+			numeric_array          _numeric,
+			real_array             _float4,
+			double_precision_array double precision[],
+			boolean_array          _bool,
+			char_array             _bpchar,-- char with no length restriction
+			varchar_array          _varchar,
+			text_array             _text,
+			bit_array              _bit,
+			json_array             _json,
+			jsonb_array            _jsonb,
+			time_array             _time,
+			timestamp_array        _timestamp,
+			date_array             _date,
+			interval_array         _interval,
+			point_array            _point,
+			line_array             _line,
+			mood_enum_array        _mood_enum,
+			uuid_array             _uuid,
+			inet_array             _inet
+	);`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { columns } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	const columnTypes = columns.map((col) => col.type);
+	const columnDimensions = columns.map((col) => col.dimensions);
+
+	expect(columnTypes).toStrictEqual([
+		'integer',
+		'smallint',
+		'bigint',
+		'numeric',
+		'real',
+		'double precision',
+		'boolean',
+		'bpchar',
+		'varchar',
+		'text',
+		'bit',
+		'json',
+		'jsonb',
+		'time',
+		'timestamp',
+		'date',
+		'interval',
+		'point',
+		'line',
+		'mood_enum',
+		'uuid',
+		'inet',
+	]);
+	expect(columnDimensions.every((dim) => dim === 1)).toBe(true);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5149
+test('jsonb default with boolean literals', async () => {
+	const JSONB = pgTable('organizations1', {
+		notifications: jsonb().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSON = pgTable('organizations2', {
+		notifications: json().default({ confirmed: true, not_received: true }).notNull(),
+	});
+	const JSONBARRAY = pgTable('organizations3', {
+		notifications: jsonb().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+	const JSONARRAY = pgTable('organizations4', {
+		notifications: json().array().default([{ confirmed: true, not_received: true }]).notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ JSONB, JSONBARRAY, JSON, JSONARRAY },
+		'jsonb_default_with_boolean_literals',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = pgTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3418
+test('introspect enum within schema', async () => {
+	const mySchema = pgSchema('my_schema');
+	const myEnum = mySchema.enum('my_enum', ['bad', 'sad', 'mad']);
+	const myTable = mySchema.table('my_table', { col1: myEnum() });
+	const myView = mySchema.view('my_view').as((qb) => qb.select().from(myTable));
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const schema = { mySchema, myEnum, myTable, myView, table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: ['!my_schema'],
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { tables, enums, views } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(enums).toStrictEqual([]);
+	expect(views).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5196
+test('index with option', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer(),
+		column2: integer(),
+		column3: integer(),
+	}, (t) => [
+		index('book_author_id').using('btree', t.column1.asc().nullsLast()).with({ deduplicate_items: true }),
+		index('book_title_search').using('btree', t.column2.asc().nullsLast()),
+		index('created_at').using('brin', t.column3.asc().nullsLast()).with({ autosummarize: false }),
+	]);
+
+	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5193
+test('check definition', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const schema = { table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { checks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'check_positive',
+			table: 'table1',
+			value: '(column1 > 0)',
+		},
+	]);
+});
+
+// other tables in migration schema
+test('pull after migrate with custom migrations table #1', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { pks, columns, tables, schemas } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'drizzle',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'drizzle',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'drizzle',
+			table: 'users',
+		},
+	]);
+});
+
+// no tables in migration schema
+test('pull after migrate with custom migrations table #2', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+	]);
+});
+
+// other tables in custom migration schema
+test('pull after migrate with custom migrations table #3', async () => {
+	await db.query(`CREATE SCHEMA custom;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.custom_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'custom',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'custom',
+			table: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+	]);
+});

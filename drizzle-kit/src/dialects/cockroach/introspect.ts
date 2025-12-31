@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -508,7 +509,7 @@ export const fromDatabase = async (
 			FROM
 				pg_attribute attr
 				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
-				LEFT JOIN crdb_internal.table_columns tc ON tc.descriptor_id = attrelid AND tc.column_id = attnum
+				LEFT JOIN crdb_internal.table_columns tc ON tc.descriptor_id = attrelid AND tc.column_name = attname
 				LEFT JOIN pg_type typ ON typ.oid = attr.atttypid
 			WHERE
 			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
@@ -855,7 +856,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition,
+			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
 		});
 	}
 
@@ -1123,11 +1124,17 @@ export const fromDatabaseForDrizzle = async (
 	db: DB,
 	filter: EntityFilter,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK);
+
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };

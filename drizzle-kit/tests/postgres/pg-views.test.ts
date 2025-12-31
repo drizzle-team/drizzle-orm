@@ -1,5 +1,6 @@
-import { eq, gt, sql } from 'drizzle-orm';
-import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial } from 'drizzle-orm/pg-core';
+import { and, eq, gt, or, sql } from 'drizzle-orm';
+import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2016,4 +2017,218 @@ test('push materialized view with same name', async () => {
 		'CREATE MATERIALIZED VIEW "view" AS (select distinct "id" from "test" where "test"."id" = 1);',
 	]);
 	expect(pst).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4265
+test('.as in view select', async () => {
+	const user = pgTable('user', {
+		id: serial().primaryKey(),
+		email: text(),
+		name: text(),
+	});
+
+	const userSubscription = pgTable('user_subscription', {
+		id: serial().primaryKey(),
+		userId: integer().references(() => user.id),
+		status: text(),
+	});
+	const userSubscriptionView = pgView('user_subscription_view').as(
+		(qb) => {
+			return qb
+				.select({
+					userId: user.id.as('userId'),
+					email: user.email,
+					name: user.name,
+					subscriptionId: userSubscription.id.as('subscriptionId'),
+					status: userSubscription.status,
+				})
+				.from(user)
+				.leftJoin(
+					userSubscription,
+					sql`(${user.id} = ${userSubscription.userId} and (${userSubscription.status} = 'active' or ${userSubscription.status} = 'trialing'))`,
+				);
+		},
+	);
+
+	const userSubscriptionView1 = pgView('user_subscription_view1').as(
+		(qb) => {
+			return qb
+				.select({
+					userId: user.id.as('userId'),
+					email: user.email,
+					name: user.name,
+					subscriptionId: userSubscription.id.as('subscriptionId'),
+					status: userSubscription.status,
+				})
+				.from(user)
+				.leftJoin(
+					userSubscription,
+					and(
+						eq(user.id, userSubscription.userId),
+						or(eq(userSubscription.status, 'active'), eq(userSubscription.status, 'trialing')),
+					),
+				);
+		},
+	);
+
+	const schema = {
+		user,
+		userSubscription,
+		userSubscriptionView,
+		userSubscriptionView1,
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1View = (viewName: string) =>
+		`CREATE VIEW "${viewName}" AS `
+		+ `(select "user"."id" as "userId", "user"."email", "user"."name", "user_subscription"."id" as "subscriptionId", "user_subscription"."status" `
+		+ `from "user" left join "user_subscription" on ("user"."id" = "user_subscription"."userId" `
+		+ `and ("user_subscription"."status" = 'active' or "user_subscription"."status" = 'trialing')));`;
+	const expectedSt1 = [
+		'CREATE TABLE "user" (\n\t"id" serial PRIMARY KEY,\n\t"email" text,\n\t"name" text\n);\n',
+		'CREATE TABLE "user_subscription" (\n\t"id" serial PRIMARY KEY,\n\t"userId" integer,\n\t"status" text\n);\n',
+		'ALTER TABLE "user_subscription" ADD CONSTRAINT "user_subscription_userId_user_id_fkey" FOREIGN KEY ("userId") REFERENCES "user"("id");',
+		expectedSt1View('user_subscription_view'),
+		expectedSt1View('user_subscription_view1'),
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4181
+// postpone cc: @AlexSherman
+// casing bug
+test.skipIf(Date.now() < +new Date('2026-01-15'))('create view with snake_case', async () => {
+	const test = pgTable('test', {
+		testId: serial().primaryKey(),
+		testName: text().notNull(),
+	});
+
+	const testView = pgView('test_view').as((qb) => {
+		return qb
+			.select({
+				testId1: test.testId,
+				testName1: test.testName,
+			})
+			.from(test);
+	});
+	const schema = { test, testView };
+	const casing = 'snake_case';
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
+	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const expectedSt1 = [
+		'CREATE TABLE "test" (\n'
+		+ '\t"test_id" serial PRIMARY KEY,\n'
+		+ '\t"test_name" text NOT NULL\n'
+		+ ');\n',
+		'CREATE VIEW "test_view" AS (select "test_id", "test_name" from "test");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
+	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4181
+// postpone cc: @AlexSherman
+// casing bug
+test.skipIf(Date.now() < +new Date('2026-01-15'))('create view with camelCase', async () => {
+	const test = pgTable('test', {
+		test_id: serial().primaryKey(),
+		test_name: text().notNull(),
+	});
+
+	const testView = pgView('test_view').as((qb) => {
+		return qb
+			.select({
+				test_id: test.test_id,
+				test_name: test.test_name,
+			})
+			.from(test);
+	});
+	const schema = { test, testView };
+	const casing = 'camelCase';
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
+	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const expectedSt1 = [
+		'CREATE TABLE "test" (\n'
+		+ '\t"testId" serial PRIMARY KEY,\n'
+		+ '\t"testName" text NOT NULL\n'
+		+ ');\n',
+		'CREATE VIEW "test_view" AS (select "testId", "testName" from "test");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
+	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test('drop column referenced by a view', async () => {
+	const users = pgTable('users', { id: integer(), name: text() });
+	const uv = pgView('users_view').as((q) => q.select().from(users));
+	const from = { users, uv };
+
+	const users2 = pgTable('users', { id: integer() });
+	const uv2 = pgView('users_view').as((q) => q.select().from(users2));
+	const to = { users2, uv2 };
+
+	// push command ignores view definition
+	const res = await diff(from, to, []);
+	await push({ db, to: from });
+	// no view recreate in push so far, with shadow db we can
+	// const resp = await push({ db, to });
+
+	for (const st of res.sqlStatements) {
+		await db.query(st);
+	}
+
+	expect(res.sqlStatements).toStrictEqual([
+		'DROP VIEW "users_view";',
+		'ALTER TABLE "users" DROP COLUMN "name";',
+		'CREATE VIEW "users_view" AS (select "id" from "users");',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5116
+test('rename column referenced in view', async () => {
+	const users = pgTable('users', { id: integer(), name: text() });
+	const uv = pgView('users_view').as((q) => q.select().from(users));
+
+	const from = {
+		users,
+		uv,
+	};
+
+	const users2 = pgTable('users', { id2: integer(), name2: text() });
+	const uv2 = pgView('users_view').as((q) => q.select().from(users2));
+	const to = { users2, uv2 };
+
+	// push command ignores view definition
+	const res = await diff(from, to, ['public.users.name->public.users.name2', 'public.users.id->public.users.id2']);
+	await push({ db, to: from });
+	for (const s of res.sqlStatements) {
+		await db.query(s);
+	}
+	expect(res.sqlStatements).toStrictEqual([
+		'DROP VIEW "users_view";',
+		'ALTER TABLE "users" RENAME COLUMN "name" TO "name2";',
+		'ALTER TABLE "users" RENAME COLUMN "id" TO "id2";',
+		'CREATE VIEW "users_view" AS (select "id2", "name2" from "users");',
+	]);
 });

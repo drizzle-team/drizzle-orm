@@ -41,13 +41,17 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/mysql/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase['client'];
 
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -2123,4 +2127,81 @@ test('add not null to column with default', async () => {
 	];
 	expect(st3).toStrictEqual(expectedSt3);
 	expect(pst3).toStrictEqual(expectedSt3);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5125
+test('case - #5125', async () => {
+	const students = mysqlTable('student', {
+		id: int().primaryKey().autoincrement(),
+	});
+
+	const courses = mysqlTable('course', {
+		id: int().primaryKey().autoincrement(),
+	});
+
+	const studentCourse = mysqlTable('student_course', {
+		studentId: int().notNull().references(() => students.id), // FK relies on PK index by default in MySQL
+		courseId: int().notNull().references(() => courses.id),
+	}, (table) => [
+		primaryKey({ columns: [table.studentId, table.courseId] }),
+	]);
+
+	const to = {
+		students,
+		courses,
+		studentCourse,
+	};
+
+	await push({ db, to });
+});
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrationsConfig = {
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/mysql2/migrator');
+	const { drizzle } = await import('drizzle-orm/mysql2');
+
+	await migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/mysql/migrations',
+	});
+
+	const to = {
+		table: mysqlTable('table1', { col1: int() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #2', async () => {
+	const migrationsConfig = {
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/mysql2/migrator');
+	const { drizzle } = await import('drizzle-orm/mysql2');
+
+	await migrate(drizzle({ client }), {
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/mysql/migrations',
+	});
+
+	const to = {
+		table: mysqlTable('table1', { col1: int() }),
+	};
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE `table1` (\n\t`col1` int\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

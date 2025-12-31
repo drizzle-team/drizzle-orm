@@ -5,6 +5,7 @@ import {
 	bit,
 	boolean,
 	char,
+	cidr,
 	date,
 	doublePrecision,
 	geometry,
@@ -223,6 +224,7 @@ test('serials', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=remove%20the%20default-,Bonus,-This%20is%20the
 test('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
 
@@ -387,6 +389,7 @@ test('numeric arrays', async () => {
 	expect.soft(res24).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3582
 test('real + real arrays', async () => {
 	const res1 = await diffDefault(_, real().default(1000.123), '1000.123');
 
@@ -601,6 +604,7 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res15).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
 test('text + text arrays', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `'text'`);
 	const res2 = await diffDefault(_, text().default("text'text"), `'text''text'`);
@@ -662,6 +666,7 @@ test('text + text arrays', async () => {
 	expect.soft(res14).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('json + json arrays', async () => {
 	const res1 = await diffDefault(_, json().default({}), `'{}'`);
 	const res2 = await diffDefault(_, json().default([]), `'[]'`);
@@ -670,6 +675,7 @@ test('json + json arrays', async () => {
 	const res5 = await diffDefault(_, json().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
 	const res6 = await diffDefault(_, json().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
 	const res7 = await diffDefault(_, json().default({ key: 'mo",\\`}{od' }), `'{"key":"mo\\\",\\\\\`}{od"}'`);
+	const res11 = await diffDefault(_, json().default({ b: 2, a: 1 }), `'{"b":2,"a":1}'`);
 
 	const res8 = await diffDefault(_, json().array().default([]), `'{}'::json[]`);
 	const res9 = await diffDefault(
@@ -690,11 +696,13 @@ test('json + json arrays', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('jsonb + jsonb arrays', async () => {
 	const res1 = await diffDefault(_, jsonb().default({}), `'{}'`);
 	const res2 = await diffDefault(_, jsonb().default([]), `'[]'`);
@@ -703,9 +711,16 @@ test('jsonb + jsonb arrays', async () => {
 	const res5 = await diffDefault(_, jsonb().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
 	const res6 = await diffDefault(_, jsonb().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
 	const res7 = await diffDefault(_, jsonb().default({ key: 'mo",\\`}{od' }), `'{"key":"mo\\\",\\\\\`}{od"}'`);
+	const res9 = await diffDefault(_, jsonb().default({ b: 2, a: 1 }), `'{"b":2,"a":1}'`);
 
 	const res8 = await diffDefault(_, jsonb().array().default([]), `'{}'::jsonb[]`);
 	const res12 = await diffDefault(_, jsonb().array().array().default([]), `'{}'::jsonb[]`);
+
+	const res13 = await diffDefault(
+		_,
+		jsonb().default({ confirmed: true, not_received: true }),
+		`'{"confirmed":true,"not_received":true}'`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -714,8 +729,10 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
 });
 
 test('timestamp + timestamp arrays', async () => {
@@ -1168,6 +1185,7 @@ test('uuid + uuid arrays', async () => {
 });
 
 // pgvector extension
+// https://github.com/drizzle-team/drizzle-orm/issues/4473
 test('bit + bit arrays', async () => {
 	// await _.db.query('create extension vector;');
 	const res1 = await diffDefault(_, bit({ dimensions: 3 }).default(`101`), `'101'`);
@@ -1578,7 +1596,11 @@ test('inet + inet arrays', async () => {
 	const res1 = await diffDefault(_, inet().default('127.0.0.1'), `'127.0.0.1'`);
 	const res2 = await diffDefault(_, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
 
-	const res1_1 = await diffDefault(_, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
+	const res1_1 = await diffDefault(
+		_,
+		inet().array().default(['127.0.0.1', '127.0.0.2']),
+		`'{127.0.0.1,127.0.0.2}'::inet[]`,
+	);
 	const res2_1 = await diffDefault(
 		_,
 		inet().array().default(['::ffff:192.168.0.1/96']),
@@ -1590,6 +1612,22 @@ test('inet + inet arrays', async () => {
 
 	expect.soft(res1_1).toStrictEqual([]);
 	expect.soft(res2_1).toStrictEqual([]);
+});
+
+test('cidr + cidr arrays', async () => {
+	const res1 = await diffDefault(_, cidr().default('127.0.0.1/32'), `'127.0.0.1/32'`);
+
+	const res2_1 = await diffDefault(_, cidr().array().default([]), `'{}'::cidr[]`);
+	const res2_2 = await diffDefault(
+		_,
+		cidr().array().default(['127.0.0.1/32', '127.0.0.2/32']),
+		`'{127.0.0.1/32,127.0.0.2/32}'::cidr[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res2_2).toStrictEqual([]);
 });
 
 test.skip('corner cases', async () => {

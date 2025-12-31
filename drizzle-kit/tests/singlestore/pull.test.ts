@@ -33,8 +33,8 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-if (!fs.existsSync('tests/mysql/tmp')) {
-	fs.mkdirSync('tests/mysql/tmp', { recursive: true });
+if (!fs.existsSync('tests/singlestore/tmp')) {
+	fs.mkdirSync('tests/singlestore/tmp', { recursive: true });
 }
 
 // TODO: Unskip this test when generated column is implemented
@@ -194,4 +194,22 @@ test('handle unsigned numerical types', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = singlestoreTable('group', {
+		id: varchar({ length: 10 }).notNull(),
+		fk_organizaton_group: varchar({ length: 10 }).notNull(),
+		saml_identifier: varchar({ length: 10 }).default('').notNull(),
+		display_name: varchar({ length: 10 }).default('').notNull(),
+	});
+
+	const { sqlStatements } = await pullDiff(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });

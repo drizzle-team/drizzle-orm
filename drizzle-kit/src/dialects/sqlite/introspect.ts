@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { areStringArraysEqual, type DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -35,9 +36,15 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const res = await fromDatabase(db, filter, progressCallback);
 	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
+
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };
@@ -295,7 +302,7 @@ export const fromDatabase = async (
 	// append primaryKeys by table
 
 	const tableToParsedFks = dbTableColumns.reduce((acc, it) => {
-		if (!(it.table in acc)) {
+		if (!acc[it.table]) {
 			acc[it.table] = parseSqliteFks(it.sql);
 		}
 		return acc;
@@ -509,31 +516,35 @@ export const fromDatabase = async (
 	}, {} as Record<string, { fk: DBFK; columnsFrom: string[]; columnsTo: string[] }>);
 
 	const fks: ForeignKey[] = [];
-	for (const fk of dbFKs) {
+
+	for (const entity of Object.values(fksToColumns)) {
 		foreignKeysCount += 1;
 		progressCallback('fks', foreignKeysCount, 'fetching');
 
-		const { columnsFrom, columnsTo } = fksToColumns[`${fk.tableFrom}:${fk.id}`]!;
+		const { columnsFrom, columnsTo, fk } = entity;
 
-		// can be undefined if fk references to non-existing table
-		const parsedFk = tableToParsedFks[fk.tableFrom] as typeof tableToParsedFks[string] | undefined;
-		const constraint = parsedFk?.find((it) =>
+		const parsedFks = tableToParsedFks[fk.tableFrom] as typeof tableToParsedFks[string] | undefined;
+
+		const constraint = parsedFks?.find((it) =>
 			areStringArraysEqual(it.fromColumns, columnsFrom) && areStringArraysEqual(it.toColumns, columnsTo)
 			&& (it.toTable === fk.tableTo) && (it.fromTable === fk.tableFrom)
 		);
+
 		let name: string;
 		if (!constraint) {
 			name = nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });
-		} else {name = constraint.name
-				?? nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });}
+		} else {
+			name = constraint.name
+				?? nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });
+		}
 
 		fks.push({
 			entityType: 'fks',
 			table: fk.tableFrom,
-			name,
+			name: name,
 			tableTo: fk.tableTo,
 			columns: columnsFrom,
-			columnsTo,
+			columnsTo: columnsTo,
 			nameExplicit: true,
 			onDelete: fk.onDelete ?? 'NO ACTION',
 			onUpdate: fk.onUpdate ?? 'NO ACTION',
