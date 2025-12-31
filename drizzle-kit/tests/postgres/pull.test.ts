@@ -29,6 +29,7 @@ import {
 	pgSequence,
 	pgTable,
 	pgView,
+	primaryKey,
 	real,
 	serial,
 	smallint,
@@ -1106,6 +1107,27 @@ test('introspect without any schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect composite pk', async () => {
+	const firstToSecondTable = pgTable(
+		'firstToSecond',
+		{
+			firstId: integer('firstId'),
+			secondId: integer('secondId'),
+		},
+		(table) => [primaryKey({ columns: [table.firstId, table.secondId] })],
+	);
+
+	const schema = { firstToSecondTable };
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-composite-pk',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 test('introspect foreign keys', async () => {
 	const mySchema = pgSchema('my_schema');
 	const users = pgTable('users', {
@@ -1301,6 +1323,11 @@ test('introspect view with table filter', async () => {
 	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
 		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
 	));
 	const expectedTables = [
 		{
@@ -1322,6 +1349,11 @@ test('introspect view with table filter', async () => {
 	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
 		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
 	));
 	const expectedViews = [
 		{
@@ -1365,6 +1397,11 @@ test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect sequences with tab
 	const { tables, sequences } = await fromDatabaseForDrizzle(
 		db,
 		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
 	);
 
 	expect(tables).toStrictEqual([
@@ -1434,6 +1471,11 @@ test('introspect _{dataType} columns type as {dataType}[]', async () => {
 	const { columns } = await fromDatabaseForDrizzle(
 		db,
 		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
 	);
 
 	const columnTypes = columns.map((col) => col.type);
@@ -1529,6 +1571,11 @@ test('introspect enum within schema', async () => {
 	const { tables, enums, views } = await fromDatabaseForDrizzle(
 		db,
 		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
 	);
 
 	expect(tables).toStrictEqual([
@@ -1541,4 +1588,244 @@ test('introspect enum within schema', async () => {
 	]);
 	expect(enums).toStrictEqual([]);
 	expect(views).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5196
+test('index with option', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer(),
+		column2: integer(),
+		column3: integer(),
+	}, (t) => [
+		index('book_author_id').using('btree', t.column1.asc().nullsLast()).with({ deduplicate_items: true }),
+		index('book_title_search').using('btree', t.column2.asc().nullsLast()),
+		index('created_at').using('brin', t.column3.asc().nullsLast()).with({ autosummarize: false }),
+	]);
+
+	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5193
+test('check definition', async () => {
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const schema = { table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { checks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'check_positive',
+			table: 'table1',
+			value: '(column1 > 0)',
+		},
+	]);
+});
+
+// other tables in migration schema
+test('pull after migrate with custom migrations table #1', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { pks, columns, tables, schemas } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'drizzle',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'drizzle',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'drizzle',
+			table: 'users',
+		},
+	]);
+});
+
+// no tables in migration schema
+test('pull after migrate with custom migrations table #2', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+	]);
+});
+
+// other tables in custom migration schema
+test('pull after migrate with custom migrations table #3', async () => {
+	await db.query(`CREATE SCHEMA custom;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.custom_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'custom',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'custom',
+			table: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+	]);
 });
