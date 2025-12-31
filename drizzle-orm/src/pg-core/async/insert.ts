@@ -91,6 +91,7 @@ export class PgAsyncInsertBase<
 		return this._prepare(name);
 	}
 
+	/** @internal */
 	private authToken?: NeonAuthToken;
 	/** @internal */
 	setToken(token?: NeonAuthToken) {

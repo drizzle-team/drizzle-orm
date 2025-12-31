@@ -78,6 +78,7 @@ export class PgInsertBuilder<
 		private builder: PgInsertBuilderConstructor = PgInsertBase,
 	) {}
 
+	/** @internal */
 	private authToken?: NeonAuthToken;
 	/** @internal */
 	setToken(token?: NeonAuthToken) {
