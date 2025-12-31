@@ -955,7 +955,7 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
-			schema: 'custom',
+			schema: 'public',
 			table: 'users',
 		},
 		{
@@ -965,7 +965,7 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
-			schema: 'public',
+			schema: 'custom',
 			table: 'users',
 		},
 	]);

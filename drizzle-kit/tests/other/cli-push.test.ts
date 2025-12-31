@@ -59,8 +59,10 @@ test('push #2', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
-		migrationsSchema: undefined,
-		migrationsTable: undefined,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	});
 });
 

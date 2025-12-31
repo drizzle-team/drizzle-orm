@@ -469,14 +469,13 @@ test('pull after migrate with custom migrations table #1', async () => {
 
 	await db.run(`
 		CREATE TABLE IF NOT EXISTS __drizzle_migrations (
-			id SERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
 		);
 	`);
 	await db.run(`
 		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
+			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
@@ -494,17 +493,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 	expect([...tables, ...pks]).toStrictEqual([
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
 			name: 'users',
-		},
-		{
-			columns: [
-				'id',
-			],
-			entityType: 'pks',
-			name: 'users_pkey',
-			nameExplicit: true,
-			table: 'users',
 		},
 	]);
 });
@@ -516,14 +505,13 @@ test('pull after migrate with custom migrations table #2', async () => {
 
 	await db.run(`
 		CREATE TABLE IF NOT EXISTS custom_migrations (
-			id SERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
 		);
 	`);
 	await db.run(`
 		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
+			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL
 		);
 	`);
@@ -541,19 +529,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 	expect([...tables, ...pks]).toStrictEqual([
 		{
 			entityType: 'tables',
-			isRlsEnabled: false,
 			name: 'users',
-			schema: 'public',
-		},
-		{
-			columns: [
-				'id',
-			],
-			entityType: 'pks',
-			name: 'users_pkey',
-			nameExplicit: true,
-			schema: 'public',
-			table: 'users',
 		},
 	]);
 });
