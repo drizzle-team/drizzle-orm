@@ -1,1 +1,1 @@
-export const latestVersion = 3;
+export const latestVersion = 4;

@@ -21,7 +21,12 @@ import type { SingleStoreColumn, SingleStoreSchema, SingleStoreTable } from 'dri
 import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 
 import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
-import { generatorsFuncs, generatorsFuncsV2, type generatorsFuncsV3 } from './generators/GeneratorFuncs.ts';
+import {
+	generatorsFuncs,
+	generatorsFuncsV2,
+	type generatorsFuncsV3,
+	type generatorsFuncsV4,
+} from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
 import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts';
 import { filterMysqlTables, resetMySql, seedMySql } from './mysql-core/index.ts';
@@ -161,7 +166,8 @@ export type FunctionsVersioning<VERSION extends string | undefined = undefined> 
 	? typeof generatorsFuncs
 	: VERSION extends `2` ? typeof generatorsFuncsV2
 	: VERSION extends `3` ? typeof generatorsFuncsV3
-	: typeof generatorsFuncsV3;
+	: VERSION extends `4` ? typeof generatorsFuncsV4
+	: typeof generatorsFuncsV4;
 
 export function getGeneratorsFunctions() {
 	return generatorsFuncs;
@@ -280,7 +286,7 @@ export async function seedForDrizzleStudio(
  * // seeding with count and seed specified
  * await seed(db, schema, { count: 100000, seed: 1 });
  *
- * //seeding using refine
+ * // seeding using refine
  * await seed(db, schema, { count: 1000 }).refine((funcs) => ({
  *   users: {
  *     columns: {
@@ -301,6 +307,17 @@ export async function seedForDrizzleStudio(
  *   },
  * }));
  *
+ * // seeding while ignoring column
+ * await seed(db, schema).refine((funcs) => ({
+ *   users: {
+ *     count: 5,
+ *     columns: {
+ *       name: funcs.fullName(),
+ *       photo: false, // the photo column will not be seeded, allowing the database to use its default value.
+ *     },
+ *   },
+ * }));
+ *
  * ```
  */
 export function seed<
@@ -308,7 +325,7 @@ export function seed<
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
-	VERSION extends '3' | '2' | '1' | undefined,
+	VERSION extends '4' | '3' | '2' | '1' | undefined,
 >(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
 	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
@@ -385,6 +402,10 @@ const seedFunc = async (
  * @example
  * ```ts
  * await reset(db, schema);
+ *
+ * // Alternatively, you can provide an object containing your tables
+ * // as the `schema` parameter when calling `reset`.
+ * await reset(db, { users });
  * ```
  */
 export async function reset<

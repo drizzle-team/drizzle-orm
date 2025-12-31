@@ -184,6 +184,10 @@ export const isObject = (value: any) => {
 	return false;
 };
 
+export const isValidDate = (date: Date) => {
+	return !Number.isNaN(date.getTime());
+};
+
 // const main = () => {
 // 	console.time('range');
 // 	const range = new OrderedBigintRange(BigInt(-10), BigInt(10), BigInt(1));
