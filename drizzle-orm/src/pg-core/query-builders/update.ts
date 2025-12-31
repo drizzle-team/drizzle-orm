@@ -122,7 +122,7 @@ export type PgUpdateWithJoins<
 	T extends AnyPgUpdate,
 	TDynamic extends boolean,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL,
-> = TDynamic extends true ? T : Omit<
+> = Omit<
 	PgUpdateKind<
 		T['_']['hkt'],
 		T['_']['table'],
@@ -137,9 +137,11 @@ export type PgUpdateWithJoins<
 			table: TFrom;
 		}],
 		TDynamic,
-		Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
+		TDynamic extends true ? never
+			: Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
 	>,
-	Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
+	TDynamic extends true ? never
+		: Exclude<T['_']['excludedMethods'] | 'from', 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'>
 >;
 
 export type PgUpdateJoinFn<
@@ -171,21 +173,24 @@ export type PgUpdateJoin<
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
-> = TDynamic extends true ? T : PgUpdateKind<
-	T['_']['hkt'],
-	T['_']['table'],
-	T['_']['queryResult'],
-	T['_']['from'],
-	T['_']['selectedFields'],
-	T['_']['returning'],
-	AppendToNullabilityMap<T['_']['nullabilityMap'], GetSelectTableName<TJoinedTable>, TJoinType>,
-	[...T['_']['joins'], {
-		name: GetSelectTableName<TJoinedTable>;
-		joinType: TJoinType;
-		table: TJoinedTable;
-	}],
-	TDynamic,
-	T['_']['excludedMethods']
+> = Omit<
+	PgUpdateKind<
+		T['_']['hkt'],
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['from'],
+		T['_']['selectedFields'],
+		T['_']['returning'],
+		AppendToNullabilityMap<T['_']['nullabilityMap'], GetSelectTableName<TJoinedTable>, TJoinType>,
+		[...T['_']['joins'], {
+			name: GetSelectTableName<TJoinedTable>;
+			joinType: TJoinType;
+			table: TJoinedTable;
+		}],
+		TDynamic,
+		TDynamic extends true ? never : T['_']['excludedMethods']
+	>,
+	TDynamic extends true ? never : T['_']['excludedMethods']
 >;
 
 export type Join = {
@@ -330,7 +335,6 @@ export interface PgUpdateHKTBase {
 	returning: unknown;
 	dynamic: boolean;
 	excludedMethods: string;
-	result: unknown;
 	_type: unknown;
 }
 
@@ -370,6 +374,7 @@ export type PgUpdateKind<
 	returning: TReturning;
 	dynamic: TDynamic;
 	excludedMethods: TExcludedMethods;
+	result: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 })['_type'];
 
 export type AnyPgUpdate = PgUpdateBase<any, any, any, any, any, any, any, any, any, any>;
