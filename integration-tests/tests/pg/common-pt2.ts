@@ -3252,5 +3252,18 @@ export function tests(test: Test) {
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/3018
+		test.skipIf(Date.now() < +new Date('2026-01-10')).concurrent(
+			'select string from jsonb/json column',
+			async ({ db, push }) => {
+				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
+				await push({ table });
+
+				await db.insert(table).values({ col1: '10.5', col2: '10.6' });
+				const res = await db.select().from(table);
+				expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
+			},
+		);
 	});
 }

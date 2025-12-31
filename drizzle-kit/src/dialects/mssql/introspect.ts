@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
 	DefaultConstraint,
@@ -727,6 +728,14 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
-	return await fromDatabase(db, filter, progressCallback);
+	const res = await fromDatabase(db, filter, progressCallback, () => {});
+
+	filterMigrationsSchema(res, migrations);
+
+	return res;
 };

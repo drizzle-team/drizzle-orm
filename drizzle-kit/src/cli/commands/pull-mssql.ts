@@ -27,7 +27,7 @@ import { type DB, originUUID } from '../../utils';
 import type { connectToMsSQL } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { IntrospectProgress, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
@@ -38,7 +38,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToMsSQL>>,
 ) => {
 	if (!db) {
@@ -49,9 +52,14 @@ export const handle = async (
 	const filter = prepareEntityFilter('mssql', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(db.db, filter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	});
+	const task = fromDatabaseForDrizzle(
+		db.db,
+		filter,
+		(stage, count, status) => {
+			progress.update(stage, count, status);
+		},
+		migrations,
+	);
 
 	const res = await renderWithTask(progress, task);
 
@@ -96,7 +104,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
@@ -122,8 +129,15 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, () => {}, migrations),
+	);
 
 	return { schema };
 };

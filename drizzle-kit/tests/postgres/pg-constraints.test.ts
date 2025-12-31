@@ -1409,7 +1409,7 @@ test('pk multistep #4', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3380
 // https://github.com/drizzle-team/drizzle-orm/issues/3189
-test('pk multistep #5', async () => {
+test('composite pk multistep #1', async () => {
 	const table1 = pgTable('table1', {
 		id: text('id').notNull(),
 		dbtProjectId: text('dbt_project_id').notNull(),
@@ -2586,6 +2586,28 @@ test('composite pk multistep #2', async () => {
 		primaryKey({ columns: [t.identifier, t.userId, t.type] }),
 	]);
 	const schema = { userAsyncTasks };
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4471
+test('composite pk multistep #3', async () => {
+	const firstToSecondTable = pgTable(
+		'firstToSecond',
+		{
+			firstId: integer('firstId'),
+			secondId: integer('secondId'),
+		},
+		(table) => [primaryKey({ columns: [table.firstId, table.secondId] })],
+	);
+
+	const schema = { firstToSecondTable };
 
 	const { next: n1 } = await diff({}, schema, []);
 	await push({ db, to: schema });

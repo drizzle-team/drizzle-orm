@@ -16,7 +16,7 @@ import { mockResolver } from '../../utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToMySQL } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { IntrospectStage, IntrospectStatus } from '../views';
 import { IntrospectProgress } from '../views';
@@ -29,7 +29,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: MysqlCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToMySQL>>,
 ) => {
 	if (!db) {
@@ -47,6 +50,7 @@ export const handle = async (
 			progress.update(stage, count, status);
 		},
 		filter,
+		migrations,
 	});
 	const { ddl } = interimToDDL(schema);
 
@@ -79,7 +83,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
@@ -122,10 +125,14 @@ export const introspect = async (props: {
 		count: number,
 		status: IntrospectStatus,
 	) => void;
+	migrations: {
+		table: string;
+		schema: string;
+	};
 }) => {
-	const { db, database, progress, filter } = props;
+	const { db, database, progress, filter, migrations } = props;
 	const pcb = props.progressCallback ?? (() => {});
 
-	const res = await renderWithTask(progress, fromDatabaseForDrizzle(db, database, filter, pcb));
+	const res = await renderWithTask(progress, fromDatabaseForDrizzle(db, database, filter, pcb, migrations));
 	return { schema: res };
 };

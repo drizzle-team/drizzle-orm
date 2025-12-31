@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
@@ -17,13 +18,17 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/postgres/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase<PGlite>['client'];
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase();
+	_ = await prepareTestDatabase(false); // due to migrate function from orm in tests
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -1368,4 +1373,112 @@ test('rename 2 tables', async () => {
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #2', async () => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+	const { sqlStatements: st2 } = await diff({}, to, []);
+
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #3', async () => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #4', async () => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

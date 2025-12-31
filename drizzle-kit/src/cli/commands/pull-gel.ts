@@ -8,7 +8,7 @@ import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
 import type { prepareGelDB } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { GelCredentials } from '../validations/gel';
 import { IntrospectProgress } from '../views';
 import { relationsToTypeScript } from './pull-common';
@@ -19,7 +19,6 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: GelCredentials | undefined,
 	filters: EntitiesFilterConfig,
-	_prefix: Prefix,
 	db?: Awaited<ReturnType<typeof prepareGelDB>>,
 ) => {
 	if (!db) {

@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
-import { CasingType } from 'src/cli/validations/common';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
@@ -57,7 +57,10 @@ export const pullDiff = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, 'drizzle');
+	const schema = await fromDatabaseForDrizzle(db, 'drizzle', () => true, () => {}, {
+		table: 'drizzle_migrations',
+		schema: 'drizzle',
+	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/singlestore/tmp/${testName}.ts`;
@@ -107,11 +110,16 @@ export const diffPush = async (config: {
 	before?: string[];
 	after?: string[];
 	apply?: boolean;
+	migrationsConfig?: {
+		table?: string;
+	};
 }) => {
 	const { db, init: initSchema, destination, casing, before, after, renames: rens } = config;
 	const apply = config.apply ?? true;
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
+
+	const migrations = configMigrations.parse(config.migrationsConfig);
 
 	const init = [] as string[];
 	if (before) init.push(...before);
@@ -123,7 +131,13 @@ export const diffPush = async (config: {
 	}
 
 	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, 'drizzle');
+	const introspectedSchema = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		undefined,
+		() => {},
+		migrations,
+	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
@@ -177,6 +191,7 @@ export type TestDatabase = {
 	db: DB;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
+	client: Connection;
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
@@ -207,7 +222,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				await client.query(`create database \`drizzle\`;`);
 				await client.query(`use \`drizzle\`;`);
 			};
-			return { db, close, clear };
+			return { db, close, clear, client };
 		} catch (e) {
 			lastError = e;
 			await new Promise((resolve) => setTimeout(resolve, sleep));

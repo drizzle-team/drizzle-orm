@@ -1377,8 +1377,7 @@ describe('common', () => {
 		expect(inserted['affectedRows']).toStrictEqual(1);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('insert + select all possible dates', async () => {
+	test('insert + select all possible dates', async () => {
 		await db.execute(sql`drop table if exists \`datestable\``);
 		await db.execute(
 			sql`
@@ -4644,8 +4643,7 @@ describe('common', () => {
 		});
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('all types', async () => {
+	test('all types', async () => {
 		await db.execute(sql`
 			CREATE TABLE \`all_types\` (
 					\`serial\` serial AUTO_INCREMENT,

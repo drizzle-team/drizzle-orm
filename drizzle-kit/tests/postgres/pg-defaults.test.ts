@@ -1185,6 +1185,7 @@ test('uuid + uuid arrays', async () => {
 });
 
 // pgvector extension
+// https://github.com/drizzle-team/drizzle-orm/issues/4473
 test('bit + bit arrays', async () => {
 	// await _.db.query('create extension vector;');
 	const res1 = await diffDefault(_, bit({ dimensions: 3 }).default(`101`), `'101'`);

@@ -1,12 +1,14 @@
 import { sql } from 'drizzle-orm';
 import {
 	AnyMsSqlColumn,
+	bit,
 	check,
 	foreignKey,
 	index,
 	int,
 	mssqlSchema,
 	mssqlTable,
+	nvarchar,
 	primaryKey,
 	unique,
 	varchar,
@@ -2498,4 +2500,53 @@ test('drop column with pk and add pk to another column #1', async () => {
 
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5182
+test('constraints in different schemas', async () => {
+	const userSchema = mssqlSchema('user_schema');
+
+	const users = userSchema.table('users', {
+		id: int().identity().primaryKey(),
+		name: nvarchar({ length: 255 }).notNull(),
+		email: nvarchar({ length: 255 }).notNull().unique(),
+	});
+
+	const orgSchema = mssqlSchema('org_schema');
+
+	const orgRoleAssignments = orgSchema.table('org_role_assignments', {
+		id: int().identity().notNull().primaryKey(),
+		idUser: int('id_user')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		canApply: bit('can_apply').default(false).notNull(),
+		canApprove: bit('can_approve').default(false).notNull(),
+	});
+
+	const schema1 = { userSchema, users, orgSchema, orgRoleAssignments };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt2: string[] = [
+		'CREATE SCHEMA [user_schema];\n',
+		'CREATE SCHEMA [org_schema];\n',
+		`CREATE TABLE [user_schema].[users] (
+\t[id] int IDENTITY(1, 1),
+\t[name] nvarchar(255) NOT NULL,
+\t[email] nvarchar(255) NOT NULL,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id]),
+\tCONSTRAINT [users_email_key] UNIQUE([email])
+);\n`,
+		`CREATE TABLE [org_schema].[org_role_assignments] (
+\t[id] int IDENTITY(1, 1),
+\t[id_user] int NOT NULL,
+\t[can_apply] bit NOT NULL CONSTRAINT [org_role_assignments_can_apply_default] DEFAULT ((0)),
+\t[can_approve] bit NOT NULL CONSTRAINT [org_role_assignments_can_approve_default] DEFAULT ((0)),
+\tCONSTRAINT [org_role_assignments_pkey] PRIMARY KEY([id])
+);\n`,
+		`ALTER TABLE [org_schema].[org_role_assignments] ADD CONSTRAINT [org_role_assignments_id_user_users_id_fk] FOREIGN KEY ([id_user]) REFERENCES [user_schema].[users]([id]) ON DELETE CASCADE;`,
+	];
+	expect(st1).toStrictEqual(expectedSt2);
+	expect(pst1).toStrictEqual(expectedSt2);
 });

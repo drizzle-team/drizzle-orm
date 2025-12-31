@@ -32,7 +32,7 @@ import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
 import { IntrospectProgress } from '../views';
@@ -45,7 +45,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: PostgresCredentials,
 	filtersConfig: EntitiesFilterConfig,
-	prefix: Prefix,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
 	if (!db) {
@@ -58,9 +61,15 @@ export const handle = async (
 
 	const { schema: res } = await renderWithTask(
 		progress,
-		introspect(db, entityFilter, progress, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
+		introspect(
+			db,
+			entityFilter,
+			progress,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+			migrations,
+		),
 	);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -110,7 +119,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
@@ -147,8 +155,15 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
-	callback?: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void,
+	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrations: {
+		schema: string;
+		table: string;
+	},
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, callback));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, callback, migrations),
+	);
 	return { schema };
 };
