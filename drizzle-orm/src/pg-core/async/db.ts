@@ -3,7 +3,13 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgDeleteBase, PgInsertBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
+import {
+	PgDeleteBase,
+	type PgDeleteHKT,
+	PgInsertBuilder,
+	PgUpdateBuilder,
+	QueryBuilder,
+} from '~/pg-core/query-builders/index.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -421,7 +427,7 @@ export class PgAsyncDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function delete_<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
+		function delete_<TTable extends PgTable>(table: TTable): PgDeleteBase<PgDeleteHKT, TTable, TQueryResult> {
 			return new PgDeleteBase(table, self.session, self.dialect, queries);
 		}
 
@@ -638,7 +644,7 @@ export class PgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
+	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<PgDeleteHKT, TTable, TQueryResult> {
 		return new PgDeleteBase(table, this.session, this.dialect);
 	}
 
