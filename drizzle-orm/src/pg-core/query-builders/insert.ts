@@ -65,7 +65,7 @@ export class PgInsertBuilder<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	OverrideT extends boolean = false,
-	TBuilderHKT extends PgInsertHKTBase = PgInsertQueryBuilderHKT,
+	TBuilderHKT extends PgInsertHKTBase = PgInsertHKT,
 > {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
 
@@ -171,9 +171,9 @@ export interface PgInsertHKTBase {
 	_type: unknown;
 }
 
-export interface PgInsertQueryBuilderHKT extends PgInsertHKTBase {
+export interface PgInsertHKT extends PgInsertHKTBase {
 	_type: PgInsertBase<
-		PgInsertQueryBuilderHKT,
+		PgInsertHKT,
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
 		this['selectedFields'],
@@ -276,7 +276,7 @@ export type PgInsert<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = PgInsertBase<PgInsertQueryBuilderHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
+> = PgInsertBase<PgInsertHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 
 export interface PgInsertBase<
 	THKT extends PgInsertHKTBase,

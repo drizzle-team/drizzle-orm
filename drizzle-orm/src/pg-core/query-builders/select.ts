@@ -45,7 +45,7 @@ import type {
 	PgSelectHKTBase,
 	PgSelectJoinFn,
 	PgSelectKind,
-	PgSelectQueryBuilderHKT,
+	PgSelectQueryBuilderHKT as PgSelectHKT,
 	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
@@ -54,9 +54,9 @@ import type {
 	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
-export interface PgSelectQueryBuilderInit<
+export interface PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-	THKT extends PgSelectHKTBase = PgSelectQueryBuilderHKT,
+	THKT extends PgSelectHKTBase = PgSelectHKT,
 > {
 	from: PgSelectBase<
 		THKT,
@@ -67,7 +67,7 @@ export interface PgSelectQueryBuilderInit<
 }
 
 export type PgSelectQueryBuilder<
-	THKT extends PgSelectHKTBase = PgSelectQueryBuilderHKT,
+	THKT extends PgSelectHKTBase = PgSelectHKT,
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 	TSelectMode extends SelectMode = SelectMode,
@@ -173,7 +173,7 @@ export class PgSelectBase<
 			: TFrom,
 	): Omit<
 		PgSelectKind<
-			unknown extends THKT['_type'] ? PgSelectQueryBuilderHKT : THKT,
+			THKT,
 			TConfig['tableName'],
 			TConfig['selection'],
 			TConfig['selectMode'],

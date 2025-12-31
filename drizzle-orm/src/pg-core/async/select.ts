@@ -12,7 +12,7 @@ import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { PgDialect } from '../dialect.ts';
-import { PgSelectBase, type PgSelectQueryBuilderInit } from '../query-builders/select.ts';
+import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -25,7 +25,7 @@ export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelect> = PgAsyncPreparedQu
 
 export type PgAsyncSelectInit<
 	TSelection extends SelectedFields | undefined,
-> = PgSelectQueryBuilderInit<TSelection, PgAsyncSelectHKT>;
+> = PgSelectBuilder<TSelection, PgAsyncSelectHKT>;
 
 export type PgAsyncSelect<
 	TTableName extends string | undefined = string | undefined,

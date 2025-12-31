@@ -84,11 +84,11 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<
-		PgUpdateKind<PgUpdateQueryBuilderHKT, TTable, TQueryResult>,
+		PgUpdateKind<PgUpdateHKT, TTable, TQueryResult>,
 		false,
 		'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'
 	> {
-		return new PgUpdateBase<PgUpdateQueryBuilderHKT, TTable, TQueryResult>(
+		return new PgUpdateBase<PgUpdateHKT, TTable, TQueryResult>(
 			this.table,
 			mapUpdateSet(this.table, values),
 			this.session,
@@ -308,7 +308,7 @@ export type PgUpdate<
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
 	TJoins extends Join[] = [],
 > = PgUpdateBase<
-	PgUpdateQueryBuilderHKT,
+	PgUpdateHKT,
 	TTable,
 	TQueryResult,
 	TFrom,
@@ -334,9 +334,9 @@ export interface PgUpdateHKTBase {
 	_type: unknown;
 }
 
-export interface PgUpdateQueryBuilderHKT extends PgUpdateHKTBase {
+export interface PgUpdateHKT extends PgUpdateHKTBase {
 	_type: PgUpdateBase<
-		PgUpdateQueryBuilderHKT,
+		PgUpdateHKT,
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
 		Assume<this['from'], PgTable | Subquery | PgViewBase | SQL | undefined>,
