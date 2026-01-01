@@ -1,25 +1,20 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
-import { tracer } from '~/tracing.ts';
-import { type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
+import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type PgDeleteWithout<
-	T extends AnyPgDeleteBase,
+	T extends AnyPgDelete,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T
@@ -52,7 +47,7 @@ export interface PgDeleteConfig {
 }
 
 export type PgDeleteReturningAll<
-	T extends AnyPgDeleteBase,
+	T extends AnyPgDelete,
 	TDynamic extends boolean,
 > = T extends any ? PgDeleteWithout<
 		PgDeleteKind<
@@ -70,7 +65,7 @@ export type PgDeleteReturningAll<
 	: never;
 
 export type PgDeleteReturning<
-	T extends AnyPgDeleteBase,
+	T extends AnyPgDelete,
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFieldsFlat,
 > = T extends any ? PgDeleteWithout<
@@ -88,14 +83,7 @@ export type PgDeleteReturning<
 	>
 	: never;
 
-export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgAsyncPreparedQuery<
-	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
-			: T['_']['returning'][];
-	}
->;
-
-export type PgDeleteDynamic<T extends AnyPgDeleteBase> = PgDeleteKind<
+export type PgDeleteDynamic<T extends AnyPgDelete> = PgDeleteKind<
 	T['_']['hkt'],
 	T['_']['table'],
 	T['_']['queryResult'],
@@ -105,7 +93,7 @@ export type PgDeleteDynamic<T extends AnyPgDeleteBase> = PgDeleteKind<
 	never
 >;
 
-export type AnyPgDeleteBase = PgDeleteBase<any, any, any, any, any, any, any>;
+export type AnyPgDelete = PgDeleteBase<any, any, any, any, any, any, any>;
 
 export interface PgDeleteHKTBase {
 	table: unknown;
@@ -159,8 +147,6 @@ export interface PgDeleteBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -186,27 +172,24 @@ export class PgDeleteBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
-	implements
-		TypedQueryBuilder<
-			TSelectedFields,
-			TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
-		>,
-		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-		SQLWrapper
+> implements
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
+	SQLWrapper
 {
-	static override readonly [entityKind]: string = 'PgDelete';
+	static readonly [entityKind]: string = 'PgDelete';
 
-	private config: PgDeleteConfig;
+	protected config: PgDeleteConfig;
 	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
-		private session: PgAsyncSession,
-		private dialect: PgDialect,
+		protected session: PgSession,
+		protected dialect: PgDialect,
 		withList?: Subquery[],
 	) {
-		super();
 		this.config = { table, withList };
 	}
 
@@ -285,38 +268,6 @@ export class PgDeleteBase<
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
-
-	/** @internal */
-	_prepare(name?: string): PgDeletePrepare<this> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery<
-				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
-				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
-		});
-	}
-
-	prepare(name: string): PgDeletePrepare<this> {
-		return this._prepare(name);
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			// @ts-ignore - TODO
-			return this._prepare().execute(placeholderValues, this.authToken);
-		});
-	};
 
 	/** @internal */
 	getSelectedFields(): this['_']['selectedFields'] {

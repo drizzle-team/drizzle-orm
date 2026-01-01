@@ -2,7 +2,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -15,8 +15,6 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -27,14 +25,13 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
+	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import type { PgColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
 	PgSelectJoinConfig,
@@ -67,7 +64,21 @@ export type PgUpdateSetSource<
 	}
 	& {};
 
-export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQueryResultHKT> {
+export interface PgUpdateBuilderConstructor {
+	new(
+		table: PgTable,
+		set: UpdateSet,
+		session: PgSession,
+		dialect: PgDialect,
+		withList?: Subquery[],
+	): AnyPgUpdate;
+}
+
+export class PgUpdateBuilder<
+	TTable extends PgTable,
+	TQueryResult extends PgQueryResultHKT,
+	TBuilderHKT extends PgUpdateHKTBase = PgUpdateHKT,
+> {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
 
 	declare readonly _: {
@@ -76,25 +87,40 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 
 	constructor(
 		private table: TTable,
-		private session: PgAsyncSession,
+		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
+		private builder: PgUpdateBuilderConstructor = PgUpdateBase,
 	) {}
+
+	/** @internal */
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
 
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<
-		PgUpdateKind<PgUpdateHKT, TTable, TQueryResult>,
+		Assume<PgUpdateKind<TBuilderHKT, TTable, TQueryResult>, AnyPgUpdate>,
 		false,
 		'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'
 	> {
-		return new PgUpdateBase<PgUpdateHKT, TTable, TQueryResult>(
+		const builder = new this.builder(
 			this.table,
 			mapUpdateSet(this.table, values),
 			this.session,
 			this.dialect,
 			this.withList,
 		) as AnyPgUpdate;
+
+		if ('setToken' in builder) {
+			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
+		}
+
+		return builder as any;
 	}
 }
 
@@ -284,13 +310,6 @@ export type PgUpdateReturning<
 	>
 	: never;
 
-export type PgUpdatePrepare<T extends AnyPgUpdate> = PgAsyncPreparedQuery<
-	PreparedQueryConfig & {
-		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
-			: T['_']['returning'][];
-	}
->;
-
 export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdateKind<
 	T['_']['hkt'],
 	T['_']['table'],
@@ -395,8 +414,6 @@ export interface PgUpdateBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
@@ -419,10 +436,12 @@ export class PgUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	THKT extends PgUpdateHKTBase,
 	TTable extends PgTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
@@ -432,26 +451,21 @@ export class PgUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
-	implements
-		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-		SQLWrapper
-{
-	static override readonly [entityKind]: string = 'PgUpdate';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'PgUpdate';
 
-	private config: PgUpdateConfig;
-	private tableName: string | undefined;
-	private joinsNotNullableMap: Record<string, boolean>;
+	protected config: PgUpdateConfig;
+	protected tableName: string | undefined;
+	protected joinsNotNullableMap: Record<string, boolean>;
 	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: PgAsyncSession,
-		private dialect: PgDialect,
+		protected session: PgSession,
+		protected dialect: PgDialect,
 		withList?: Subquery[],
 	) {
-		super();
 		this.config = { set, table, withList, joins: [] };
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
@@ -654,26 +668,6 @@ export class PgUpdateBase<
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
-
-	/** @internal */
-	_prepare(name?: string): PgUpdatePrepare<this> {
-		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-			type: 'insert',
-			tables: extractUsedTable(this.config.table),
-		}, this.cacheConfig);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
-	}
-
-	prepare(name: string): PgUpdatePrepare<this> {
-		return this._prepare(name);
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
-		return this._prepare().execute(placeholderValues);
-	};
 
 	/** @internal */
 	getSelectedFields(): this['_']['selectedFields'] {

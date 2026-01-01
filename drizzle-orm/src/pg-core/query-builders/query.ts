@@ -137,6 +137,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._toSQL().builtQuery;
 	}
 
+	/** @internal */
 	private authToken?: NeonAuthToken;
 	/** @internal */
 	setToken(token?: NeonAuthToken) {

@@ -3,13 +3,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	PgDeleteBase,
-	type PgDeleteHKT,
-	PgInsertBuilder,
-	PgUpdateBuilder,
-	QueryBuilder,
-} from '~/pg-core/query-builders/index.ts';
+import { PgInsertBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -29,8 +23,10 @@ import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgMaterializedView } from '../view.ts';
+import { PgAsyncDeleteBase } from './delete.ts';
 import { PgAsyncInsertBase, type PgAsyncInsertHKT } from './insert.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectInit } from './select.ts';
+import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
 export class PgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
@@ -369,8 +365,8 @@ export class PgAsyncDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
-			return new PgUpdateBuilder(table, self.session, self.dialect, queries);
+		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgAsyncUpdateHKT> {
+			return new PgUpdateBuilder(table, self.session, self.dialect, queries, PgAsyncUpdateBase);
 		}
 
 		/**
@@ -427,8 +423,8 @@ export class PgAsyncDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function delete_<TTable extends PgTable>(table: TTable): PgDeleteBase<PgDeleteHKT, TTable, TQueryResult> {
-			return new PgDeleteBase(table, self.session, self.dialect, queries);
+		function delete_<TTable extends PgTable>(table: TTable): PgAsyncDeleteBase<TTable, TQueryResult> {
+			return new PgAsyncDeleteBase(table, self.session, self.dialect, queries);
 		}
 
 		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
@@ -588,8 +584,8 @@ export class PgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult> {
-		return new PgUpdateBuilder(table, this.session, this.dialect);
+	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgAsyncUpdateHKT> {
+		return new PgUpdateBuilder(table, this.session, this.dialect, undefined, PgAsyncUpdateBase);
 	}
 
 	/**
@@ -644,8 +640,8 @@ export class PgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<PgDeleteHKT, TTable, TQueryResult> {
-		return new PgDeleteBase(table, this.session, this.dialect);
+	delete<TTable extends PgTable>(table: TTable): PgAsyncDeleteBase<TTable, TQueryResult> {
+		return new PgAsyncDeleteBase(table, this.session, this.dialect);
 	}
 
 	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {
@@ -694,7 +690,7 @@ export class PgAsyncDatabase<
 	}
 }
 
-export type PgWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type PgAsyncWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
@@ -711,7 +707,7 @@ export const withReplicas = <
 	primary: Q,
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
-): PgWithReplicas<Q> => {
+): PgAsyncWithReplicas<Q> => {
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
