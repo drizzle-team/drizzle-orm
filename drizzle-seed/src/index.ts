@@ -6,7 +6,7 @@ import type { MySqlColumn, MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-cor
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 
 import type { PgColumn, PgSchema, PgTable } from 'drizzle-orm/pg-core';
-import { PgDatabase } from 'drizzle-orm/pg-core';
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
@@ -81,7 +81,7 @@ export type InferCallbackType<
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
-> = DB extends PgDatabase<any, any> ? RefineTypes<SCHEMA, PgTable, PgColumn>
+> = DB extends PgAsyncDatabase<any, any> ? RefineTypes<SCHEMA, PgTable, PgColumn>
 	: DB extends MySqlDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
 	: DB extends BaseSQLiteDatabase<any, any> ? RefineTypes<SCHEMA, SQLiteTable, SQLiteColumn>
 	: DB extends MsSqlDatabase<any, any> ? RefineTypes<SCHEMA, MsSqlTable, MsSqlColumn>
@@ -326,7 +326,7 @@ const seedFunc = async (
 		version = Number(options?.version);
 	}
 
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgAsyncDatabase<any, any>)) {
 		await seedPostgres(db, schema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
@@ -393,7 +393,7 @@ export async function reset<
 		[key: string]: SchemaValuesType;
 	},
 >(db: DB, schema: SCHEMA) {
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgAsyncDatabase<any, any>)) {
 		const { pgTables } = filterPgSchema(schema);
 
 		if (Object.entries(pgTables).length > 0) {

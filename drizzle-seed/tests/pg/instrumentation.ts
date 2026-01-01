@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import type { PgDatabase } from 'drizzle-orm/pg-core';
+import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import { Client } from 'pg';
 import { test as base } from 'vitest';
 
@@ -27,7 +27,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: PgDatabase<any, any, any>;
+			db: PgAsyncDatabase<any, any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

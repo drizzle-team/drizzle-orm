@@ -1,7 +1,8 @@
 import { is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { PgArray, PgDatabase, PgSchema } from 'drizzle-orm/pg-core';
+import type { PgArray, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
@@ -9,7 +10,7 @@ import type { Column, TableConfigT } from '../types/tables.ts';
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 export const resetPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgAsyncDatabase<any, any>,
 	pgTables: { [key: string]: PgTable },
 ) => {
 	const tablesToTruncate = Object.entries(pgTables).map(([_, table]) => {
@@ -43,7 +44,7 @@ export const filterPgSchema = (schema: {
 };
 
 export const seedPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgAsyncDatabase<any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
