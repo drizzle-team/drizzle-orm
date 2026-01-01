@@ -1,8 +1,8 @@
 import { Effect } from 'effect';
 import type { Pipeable } from 'effect/Pipeable';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors';
-import { applyMixins } from '~/utils';
+import type { DrizzleQueryError } from '~/errors.ts';
+import { applyMixins } from '~/utils.ts';
 
 export interface QueryEffect<Succes = never, Failure = DrizzleQueryError, Context = never>
 	extends Effect.Effect<Succes, Failure, Context>
