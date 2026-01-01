@@ -7,10 +7,10 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Assume } from '~/utils.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from '../effect/session.ts';
 import { type Join, PgUpdateBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
+import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export type PgEffectUpdatePrepare<T extends AnyPgEffectUpdate> = PgEffectPreparedQuery<
 	PreparedQueryConfig & {

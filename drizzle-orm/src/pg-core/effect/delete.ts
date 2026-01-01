@@ -7,9 +7,9 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume } from '~/utils.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from '../effect/session.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import { extractUsedTable } from '../utils.ts';
+import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export type PgEffectDelete<
 	TTable extends PgTable = PgTable,

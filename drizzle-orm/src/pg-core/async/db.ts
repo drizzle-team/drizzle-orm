@@ -12,20 +12,20 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
-import { PgAsyncCountBuilder } from '../async/count.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import { PgRaw } from '../query-builders/raw.ts';
-import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgMaterializedView } from '../view.ts';
+import { PgAsyncCountBuilder } from './count.ts';
 import { PgAsyncDeleteBase } from './delete.ts';
 import { PgAsyncInsertBase, type PgAsyncInsertHKT } from './insert.ts';
-import { PgAsyncSelectBase, type PgAsyncSelectInit } from './select.ts';
+import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
+import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
 export class PgAsyncDatabase<
@@ -242,11 +242,11 @@ export class PgAsyncDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgAsyncSelectInit<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
+		function select(): PgAsyncSelectBuilder<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgAsyncSelectInit<TSelection | undefined> {
+		): PgAsyncSelectBuilder<TSelection | undefined> {
 			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -279,13 +279,13 @@ export class PgAsyncDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgAsyncSelectInit<undefined>;
+		function selectDistinct(): PgAsyncSelectBuilder<undefined>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): PgAsyncSelectInit<TSelection>;
+		): PgAsyncSelectBuilder<TSelection>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgAsyncSelectInit<TSelection | undefined> {
+		): PgAsyncSelectBuilder<TSelection | undefined> {
 			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -320,15 +320,15 @@ export class PgAsyncDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectInit<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectBuilder<undefined>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgAsyncSelectInit<TSelection>;
+		): PgAsyncSelectBuilder<TSelection>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgAsyncSelectInit<TSelection | undefined> {
+		): PgAsyncSelectBuilder<TSelection | undefined> {
 			return new PgAsyncSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -466,16 +466,16 @@ export class PgAsyncDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgAsyncSelectInit<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
+	select(): PgAsyncSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgAsyncSelectInit<TSelection> {
+	): PgAsyncSelectBuilder<TSelection> {
 		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
-		}) as PgAsyncSelectInit<TSelection>;
+		}) as PgAsyncSelectBuilder<TSelection>;
 	}
 
 	/**
@@ -502,11 +502,11 @@ export class PgAsyncDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgAsyncSelectInit<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectInit<TSelection>;
+	selectDistinct(): PgAsyncSelectBuilder<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgAsyncSelectInit<TSelection | undefined> {
+	): PgAsyncSelectBuilder<TSelection | undefined> {
 		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -540,15 +540,15 @@ export class PgAsyncDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectInit<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectBuilder<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgAsyncSelectInit<TSelection>;
+	): PgAsyncSelectBuilder<TSelection>;
 	selectDistinctOn<TSelection extends SelectedFields | undefined>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgAsyncSelectInit<TSelection> {
+	): PgAsyncSelectBuilder<TSelection> {
 		return new PgAsyncSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -644,8 +644,8 @@ export class PgAsyncDatabase<
 		return new PgAsyncDeleteBase(table, this.session, this.dialect);
 	}
 
-	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {
-		return new PgRefreshMaterializedView(view, this.session, this.dialect);
+	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgAsyncRefreshMaterializedView<TQueryResult> {
+		return new PgAsyncRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(

@@ -295,21 +295,6 @@ export type PgSetOperatorWithResult<TResult extends any[]> = PgSetOperatorInterf
 	any
 >;
 
-export type PgSelect<
-	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = Record<string, any>,
-	TSelectMode extends SelectMode = SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = PgSelectBase<
-	PgSelectQueryBuilderHKT,
-	TTableName,
-	TSelection,
-	TSelectMode,
-	TNullabilityMap,
-	true,
-	never
->;
-
 export type PgSetOperator<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,

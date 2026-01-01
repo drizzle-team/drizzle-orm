@@ -6,12 +6,10 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import type { Subquery } from '~/subquery.ts';
+import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
-import type { PgDialect } from '../dialect.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -23,7 +21,7 @@ export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelect> = PgAsyncPreparedQu
 	}
 >;
 
-export type PgAsyncSelectInit<
+export type PgAsyncSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 > = PgSelectBuilder<TSelection, PgAsyncSelectHKT>;
 
@@ -100,31 +98,13 @@ export class PgAsyncSelectBase<
 > {
 	static override readonly [entityKind]: string = 'PgAsyncSelectQueryBuilder';
 
-	declare protected session: PgAsyncSession<any, any, any, any> | undefined;
-
-	constructor(
-		config: {
-			fields: TSelection;
-			session: PgAsyncSession<any, any, any, any>;
-			dialect: PgDialect;
-			withList?: Subquery[];
-			distinct?: boolean | {
-				on: (PgColumn | SQLWrapper)[];
-			};
-		},
-	) {
-		super(config);
-	}
+	declare protected session: PgAsyncSession;
 
 	/** @internal */
 	_prepare(
 		name?: string,
 	): PgAsyncSelectPrepare<this> {
 		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
-		if (!session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-
 		const { fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {

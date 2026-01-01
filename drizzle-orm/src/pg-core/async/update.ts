@@ -7,10 +7,10 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import { type Join, PgUpdateBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
 export type PgAsyncUpdatePrepare<T extends AnyPgAsyncUpdate> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {

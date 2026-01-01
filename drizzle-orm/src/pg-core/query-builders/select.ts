@@ -58,6 +58,12 @@ export interface PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	THKT extends PgSelectHKTBase = PgSelectHKT,
 > {
+	/**
+	 * Specify the table, subquery, or other target that you're
+	 * building a select query against.
+	 *
+	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
+	 */
 	from: PgSelectBase<
 		THKT,
 		undefined,
@@ -65,6 +71,21 @@ export interface PgSelectBuilder<
 		SelectMode
 	>['from'];
 }
+
+export type PgSelect<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = PgSelectBase<
+	PgSelectHKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap,
+	true,
+	never
+>;
 
 export type PgSelectQueryBuilder<
 	THKT extends PgSelectHKTBase = PgSelectHKT,

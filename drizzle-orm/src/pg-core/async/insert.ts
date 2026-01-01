@@ -83,7 +83,7 @@ export class PgAsyncInsertBase<
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
+			}, this.cacheConfig).setToken(this.authToken);
 		});
 	}
 
@@ -101,7 +101,7 @@ export class PgAsyncInsertBase<
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().setToken(this.authToken).execute(placeholderValues);
+			return this._prepare().execute(placeholderValues);
 		});
 	};
 }

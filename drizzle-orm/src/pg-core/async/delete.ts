@@ -7,9 +7,9 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume, type NeonAuthToken } from '~/utils.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import { extractUsedTable } from '../utils.ts';
+import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
 export type PgAsyncDelete<
 	TTable extends PgTable = PgTable,
@@ -82,7 +82,7 @@ export class PgAsyncDeleteBase<
 			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
+			}, this.cacheConfig).setToken(this.authToken);
 		});
 	}
 
@@ -100,7 +100,7 @@ export class PgAsyncDeleteBase<
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().setToken(this.authToken).execute(placeholderValues);
+			return this._prepare().execute(placeholderValues);
 		});
 	};
 }

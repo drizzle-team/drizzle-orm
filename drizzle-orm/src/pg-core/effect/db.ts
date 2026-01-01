@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
-import { PgEffectSelectBase, type PgEffectSelectInit } from '~/pg-core/effect/select.ts';
+import { PgEffectSelectBase, type PgEffectSelectBuilder } from '~/pg-core/effect/select.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
 import type { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
@@ -21,7 +21,9 @@ import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
 import type { PgQueryResultHKT } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
+import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
+import { PgEffectRefreshMaterializedView } from './refresh-materialized-view.ts';
 import type { PgEffectSession } from './session.ts';
 import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
 
@@ -238,11 +240,11 @@ export class PgEffectDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgEffectSelectInit<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectInit<TSelection>;
+		function select(): PgEffectSelectBuilder<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgEffectSelectInit<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -275,13 +277,13 @@ export class PgEffectDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgEffectSelectInit<undefined>;
+		function selectDistinct(): PgEffectSelectBuilder<undefined>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): PgEffectSelectInit<TSelection>;
+		): PgEffectSelectBuilder<TSelection>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgEffectSelectInit<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -316,15 +318,15 @@ export class PgEffectDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectInit<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgEffectSelectInit<TSelection>;
+		): PgEffectSelectBuilder<TSelection>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgEffectSelectInit<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -462,11 +464,11 @@ export class PgEffectDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgEffectSelectInit<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectInit<TSelection>;
+	select(): PgEffectSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgEffectSelectInit<TSelection> {
+	): PgEffectSelectBuilder<TSelection> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -498,11 +500,11 @@ export class PgEffectDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgEffectSelectInit<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectInit<TSelection>;
+	selectDistinct(): PgEffectSelectBuilder<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgEffectSelectInit<TSelection | undefined> {
+	): PgEffectSelectBuilder<TSelection | undefined> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -536,15 +538,15 @@ export class PgEffectDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectInit<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgEffectSelectInit<TSelection>;
+	): PgEffectSelectBuilder<TSelection>;
 	selectDistinctOn<TSelection extends SelectedFields | undefined>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgEffectSelectInit<TSelection> {
+	): PgEffectSelectBuilder<TSelection> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -638,6 +640,12 @@ export class PgEffectDatabase<
 	 */
 	delete<TTable extends PgTable>(table: TTable): PgEffectDeleteBase<TTable, TQueryResult> {
 		return new PgEffectDeleteBase(table, this.session, this.dialect);
+	}
+
+	refreshMaterializedView<TView extends PgMaterializedView>(
+		view: TView,
+	): PgEffectRefreshMaterializedView<TQueryResult> {
+		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
 }
 
