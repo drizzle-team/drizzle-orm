@@ -5,7 +5,7 @@ import type { DrizzleQueryError } from '~/errors';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import { PgRaw } from '../query-builders/raw';
+import { PgRaw } from '../query-builders/raw.ts';
 
 export interface PgEffectRaw<TResult> extends QueryEffect<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
 export class PgEffectRaw<TResult> extends PgRaw<TResult> implements RunnableQuery<TResult, 'pg'> {

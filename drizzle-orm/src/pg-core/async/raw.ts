@@ -3,8 +3,8 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import { applyMixins } from '~/utils';
-import { PgRaw } from '../query-builders/raw';
+import { applyMixins } from '~/utils.ts';
+import { PgRaw } from '../query-builders/raw.ts';
 
 export interface PgAsyncRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
 export class PgAsyncRaw<TResult> extends PgRaw<TResult> implements RunnableQuery<TResult, 'pg'> {
