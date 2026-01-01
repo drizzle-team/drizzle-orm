@@ -1,7 +1,7 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
-import type { EffectCache } from '~/cache/core/cache-effect';
+import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
