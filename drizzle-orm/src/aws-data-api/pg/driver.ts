@@ -4,10 +4,10 @@ import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import type { PgAsyncRaw } from '~/pg-core/async/raw.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
 import { PgArray } from '~/pg-core/index.ts';
-import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
@@ -40,7 +40,7 @@ export class AwsDataApiPgDatabase<
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper | string): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+	>(query: SQLWrapper | string): PgAsyncRaw<AwsDataApiPgQueryResult<TRow>> {
 		return super.execute(query);
 	}
 }

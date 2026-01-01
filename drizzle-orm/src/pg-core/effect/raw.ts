@@ -1,18 +1,15 @@
-import { QueryEffect } from '~/effect-core/query-effect.ts';
+import type { Effect } from 'effect/Effect';
+import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors.ts';
+import type { DrizzleQueryError } from '~/errors';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { PgRaw } from '../query-builders/raw';
 
-export interface EffectPgRaw<TResult>
-	extends QueryEffect<TResult, DrizzleQueryError>, RunnableQuery<TResult, 'pg'>, SQLWrapper
-{}
-
-export class EffectPgRaw<TResult> extends QueryEffect<TResult, DrizzleQueryError>
-	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
-{
-	static override readonly [entityKind]: string = 'EffectPgRaw';
+export interface PgEffectRaw<TResult> extends QueryEffect<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
+export class PgEffectRaw<TResult> extends PgRaw<TResult> implements RunnableQuery<TResult, 'pg'> {
+	static override readonly [entityKind]: string = 'PgEffectRaw';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
@@ -20,33 +17,17 @@ export class EffectPgRaw<TResult> extends QueryEffect<TResult, DrizzleQueryError
 	};
 
 	constructor(
-		public execute: QueryEffect<TResult, DrizzleQueryError>['execute'],
-		private sql: SQL,
-		private query: Query,
-		private mapBatchResult: (result: unknown) => unknown,
+		public execute: () => Effect<TResult, DrizzleQueryError>,
+		sql: SQL,
+		query: Query,
+		mapBatchResult: (result: unknown) => unknown,
 	) {
-		super();
-	}
-
-	/** @internal */
-	getSQL() {
-		return this.sql;
-	}
-
-	getQuery() {
-		return this.query;
-	}
-
-	mapResult(result: unknown, isFromBatch?: boolean) {
-		return isFromBatch ? this.mapBatchResult(result) : result;
+		super(sql, query, mapBatchResult);
 	}
 
 	_prepare(): PreparedQuery {
 		return this;
 	}
-
-	/** @internal */
-	isResponseInArrayMode() {
-		return false;
-	}
 }
+
+applyEffectWrapper(PgEffectRaw);

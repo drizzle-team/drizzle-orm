@@ -15,7 +15,6 @@ import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
-import { PgRaw } from '../query-builders/raw.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
@@ -25,6 +24,7 @@ import { PgAsyncCountBuilder } from './count.ts';
 import { PgAsyncDeleteBase } from './delete.ts';
 import { PgAsyncInsertBase, type PgAsyncInsertHKT } from './insert.ts';
 import { PgAsyncRelationalQuery, type PgAsyncRelationalQueryHKT } from './query.ts';
+import { PgAsyncRaw } from './raw.ts';
 import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
@@ -653,17 +653,17 @@ export class PgAsyncDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
 	/** @internal */
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		authToken: NeonAuthToken,
-	): PgRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
 	/** @internal */
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		authToken?: NeonAuthToken,
-	): PgRaw<PgQueryResultKind<TQueryResult, TRow>> {
+	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
@@ -674,7 +674,7 @@ export class PgAsyncDatabase<
 			undefined,
 			false,
 		).setToken(authToken);
-		return new PgRaw(
+		return new PgAsyncRaw(
 			() => prepared.execute(),
 			sequel,
 			builtQuery,

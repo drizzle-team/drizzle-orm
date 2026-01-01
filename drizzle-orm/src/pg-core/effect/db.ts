@@ -15,18 +15,18 @@ import type { PgViewBase } from '~/pg-core/view-base.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
-import type { PgQueryResultHKT } from '../session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
 import { PgEffectRelationalQuery, type PgEffectRelationalQueryHKT } from './query.ts';
+import { PgEffectRaw } from './raw.ts';
 import { PgEffectRefreshMaterializedView } from './refresh-materialized-view.ts';
 import type { PgEffectSession } from './session.ts';
 import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
@@ -46,13 +46,6 @@ export class PgEffectDatabase<
 		readonly relations: TRelations;
 		readonly session: PgEffectSession<TFullSchema, TRelations, TSchema>;
 	};
-
-	/** @deprecated */
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TSchema, TSchema[K]>;
-		};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
@@ -87,21 +80,7 @@ export class PgEffectDatabase<
 				relations: relations,
 				session,
 			};
-		this._query = {} as typeof this['_query'];
-		// if (this._.schema) {
-		// 	for (const [tableName, columns] of Object.entries(this._.schema)) {
-		// 		(this._query as PgDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
-		// 			new _RelationalQueryBuilder(
-		// 				schema!.fullSchema,
-		// 				this._.schema,
-		// 				this._.tableNamesMap,
-		// 				schema!.fullSchema[tableName] as PgTable,
-		// 				columns,
-		// 				dialect,
-		// 				session,
-		// 			);
-		// 	}
-		// }
+
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as PgEffectDatabase<
@@ -656,6 +635,27 @@ export class PgEffectDatabase<
 	): PgEffectRefreshMaterializedView<TQueryResult> {
 		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
+
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<
+			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
+		>(
+			builtQuery,
+			undefined,
+			undefined,
+			false,
+		);
+		return new PgEffectRaw(
+			() => prepared.execute(),
+			sequel,
+			builtQuery,
+			(result) => prepared.mapResult(result, true),
+		);
+	}
 }
 
 export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
@@ -686,7 +686,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	// const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	// const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
@@ -696,7 +696,7 @@ export const withReplicas = <
 		update,
 		insert,
 		delete: $delete,
-		// execute,
+		execute,
 		// transaction,
 		refreshMaterializedView,
 		$primary: primary,
@@ -707,9 +707,6 @@ export const withReplicas = <
 		$count,
 		$with,
 		with: _with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
 		get query() {
 			return getReplica(replicas).query;
 		},
