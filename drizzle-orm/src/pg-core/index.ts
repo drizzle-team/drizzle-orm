@@ -10,6 +10,7 @@ export * from './query-builders/index.ts';
 export * from './roles.ts';
 export * from './schema.ts';
 export * from './sequence.ts';
+export * from './session.ts';
 export * from './subquery.ts';
 export * from './table.ts';
 export * from './unique-constraint.ts';
