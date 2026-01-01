@@ -679,8 +679,8 @@ export const withReplicas = <
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	// const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	// const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
-	// const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
-	// 	primary.refreshMaterializedView(...args);
+	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
+		primary.refreshMaterializedView(...args);
 
 	return {
 		...primary,
@@ -689,7 +689,7 @@ export const withReplicas = <
 		delete: $delete,
 		// execute,
 		// transaction,
-		// refreshMaterializedView,
+		refreshMaterializedView,
 		$primary: primary,
 		$replicas: replicas,
 		select,
