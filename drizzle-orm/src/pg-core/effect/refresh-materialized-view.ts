@@ -4,7 +4,7 @@ import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
-import { PgEffectPreparedQuery, type PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface PgEffectRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
@@ -45,4 +45,4 @@ export class PgEffectRefreshMaterializedView<TQueryResult extends PgQueryResultH
 	};
 }
 
-applyEffectWrapper(PgEffectPreparedQuery);
+applyEffectWrapper(PgEffectRefreshMaterializedView);
