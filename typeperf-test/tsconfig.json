@@ -2,7 +2,8 @@
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
 		"checkJs": false,
-		"noEmit": true
+		"noEmit": true,
+		"allowImportingTsExtensions": true
 	},
 	"include": ["./test", "./lib"]
 }

@@ -24,6 +24,7 @@ import type { PgMaterializedView } from '../view.ts';
 import { PgAsyncCountBuilder } from './count.ts';
 import { PgAsyncDeleteBase } from './delete.ts';
 import { PgAsyncInsertBase, type PgAsyncInsertHKT } from './insert.ts';
+import { PgAsyncRelationalQuery, type PgAsyncRelationalQueryHKT } from './query.ts';
 import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
@@ -55,7 +56,8 @@ export class PgAsyncDatabase<
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
 			TRelations,
-			TRelations[K]
+			TRelations[K],
+			PgAsyncRelationalQueryHKT
 		>;
 	};
 
@@ -112,6 +114,7 @@ export class PgAsyncDatabase<
 				dialect,
 				session,
 				parseRqbJson,
+				PgAsyncRelationalQuery,
 			);
 		}
 

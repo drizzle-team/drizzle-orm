@@ -923,8 +923,8 @@ importers:
   typeperf-test:
     dependencies:
       drizzle-beta:
-        specifier: npm:drizzle-orm@1.0.0-beta.1-c0277c0
-        version: drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0(prisma@5.14.0))(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.10.0)(bun-types@1.3.3)(expo-sqlite@14.0.6(expo@54.0.25(@babel/core@7.28.5)(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)))(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)(prisma@5.14.0)(sql.js@1.13.0)(sqlite3@5.1.7)
+        specifier: npm:drizzle-orm@1.0.0-beta.8-734e789
+        version: drizzle-orm@1.0.0-beta.8-734e789(12f1be6440688b484116c0e598ccec00)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -943,7 +943,7 @@ importers:
         version: typescript@5.9.3
       tsnext:
         specifier: npm:typescript@next
-        version: typescript@6.0.0-dev.20251201
+        version: typescript@6.0.0-dev.20260101
 
 packages:
 
@@ -4691,8 +4691,8 @@ packages:
       sqlite3:
         optional: true
 
-  drizzle-orm@1.0.0-beta.1-c0277c0:
-    resolution: {integrity: sha512-4XnmY3CdFHUzJpbRwc6mElkpDzyZs8Ko98i+cRuuPlakFgZqItr+inoK0bFTH50Eh66E/UXbxfAW6U0JK/1wyw==}
+  drizzle-orm@1.0.0-beta.8-734e789:
+    resolution: {integrity: sha512-5WZVn/bVFCDrmFkaMUpsBE0Xqje+86uTjba7CuKFpjn6MtAr0jBzhN/KBboien8mEWzBVKGJCpMnJ8QapGDtZQ==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -4704,18 +4704,23 @@ packages:
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1.13'
       '@prisma/client': '*'
+      '@sqlitecloud/drivers': '>=1.0.653'
       '@tidbcloud/serverless': '*'
+      '@tursodatabase/database': '>=0.2.1'
+      '@tursodatabase/database-common': '>=0.2.1'
+      '@tursodatabase/database-wasm': '>=0.2.1'
       '@types/better-sqlite3': '*'
+      '@types/mssql': ^9.1.4
       '@types/pg': '*'
       '@types/sql.js': '*'
+      '@upstash/redis': '>=1.34.7'
       '@vercel/postgres': '>=0.8.0'
       '@xata.io/client': '*'
       better-sqlite3: '>=9.3.0'
       bun-types: '*'
       expo-sqlite: '>=14.0.0'
       gel: '>=2'
-      knex: '*'
-      kysely: '*'
+      mssql: ^11.0.1
       mysql2: '>=2'
       pg: '>=8'
       postgres: '>=3'
@@ -4743,13 +4748,23 @@ packages:
         optional: true
       '@prisma/client':
         optional: true
+      '@sqlitecloud/drivers':
+        optional: true
       '@tidbcloud/serverless':
+        optional: true
+      '@tursodatabase/database':
+        optional: true
+      '@tursodatabase/database-common':
+        optional: true
+      '@tursodatabase/database-wasm':
         optional: true
       '@types/better-sqlite3':
         optional: true
       '@types/pg':
         optional: true
       '@types/sql.js':
+        optional: true
+      '@upstash/redis':
         optional: true
       '@vercel/postgres':
         optional: true
@@ -4762,10 +4777,6 @@ packages:
       expo-sqlite:
         optional: true
       gel:
-        optional: true
-      knex:
-        optional: true
-      kysely:
         optional: true
       mysql2:
         optional: true
@@ -8091,8 +8102,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20251201:
-    resolution: {integrity: sha512-ZW4PYEVveg/O8lbmnkwy1b3NOcvw+GHA0mCFLSAVHLGjLTtfoNfIRduaajqEL4gk25U7UtQ0W8fF26qHKM5BJg==}
+  typescript@6.0.0-dev.20260101:
+    resolution: {integrity: sha512-u2ke0iQBmdfbCuoOyY+hzKfGS3Ysl9nydRfplrjsvxxOEP53YwGlQfjEyK9/csQQaiRvxST9v87JxTMpxl0ECw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -13282,7 +13293,10 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@prisma/client@5.14.0(prisma@5.14.0))(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.10.0)(bun-types@1.3.3)(expo-sqlite@14.0.6(expo@54.0.25(@babel/core@7.28.5)(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)))(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)(prisma@5.14.0)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@1.0.0-beta.8-734e789(12f1be6440688b484116c0e598ccec00):
+    dependencies:
+      '@types/mssql': 9.1.8
+      mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
@@ -13294,10 +13308,15 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 5.14.0(prisma@5.14.0)
+      '@sqlitecloud/drivers': 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless': 0.1.1
+      '@tursodatabase/database': 0.2.1
+      '@tursodatabase/database-common': 0.2.2
+      '@tursodatabase/database-wasm': 0.2.2
       '@types/better-sqlite3': 7.6.13
       '@types/pg': 8.15.6
       '@types/sql.js': 1.4.9
+      '@upstash/redis': 1.35.7
       '@vercel/postgres': 0.8.0
       '@xata.io/client': 0.29.5(typescript@5.9.2)
       better-sqlite3: 11.10.0
@@ -17235,7 +17254,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  typescript@6.0.0-dev.20251201: {}
+  typescript@6.0.0-dev.20260101: {}
 
   ufo@1.6.1: {}
 

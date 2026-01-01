@@ -4,7 +4,7 @@ import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession } from '~/pg-core/effect/session.ts';
@@ -87,18 +87,17 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
 		logger.logQuery(query.sql, params);
-		return this.queryWithCache(
-			query.sql,
-			params,
-			client.unsafe(query.sql, params as any).withoutTransform.pipe(
-				Effect.andThen((v) =>
-					(customResultMapper as (
-						rows: Record<string, unknown>[],
-						mapColumnValue?: (value: unknown) => unknown,
-					) => unknown)(v as Record<string, unknown>[])
-				),
+		return client.unsafe(query.sql, params as any).withoutTransform.pipe(
+			Effect.andThen((v) =>
+				(customResultMapper as (
+					rows: Record<string, unknown>[],
+					mapColumnValue?: (value: unknown) => unknown,
+				) => unknown)(v as Record<string, unknown>[])
 			),
-		);
+		).pipe(Effect.catchAll((e) => {
+			// eslint-disable-next-line @drizzle-internal/no-instanceof
+			return Effect.fail(new DrizzleQueryError(query.sql, params, e instanceof Error ? e : undefined));
+		}));
 	}
 
 	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], DrizzleQueryError, never> {

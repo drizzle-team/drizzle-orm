@@ -1,4 +1,7 @@
+import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
+import type { EffectCache } from '~/cache/core/cache-effect.ts';
+import type { MutationOption } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
@@ -6,7 +9,7 @@ import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/ins
 import { PgEffectSelectBase, type PgEffectSelectBuilder } from '~/pg-core/effect/select.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
-import type { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
+import { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { PgViewBase } from '~/pg-core/view-base.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -23,6 +26,7 @@ import type { PgQueryResultHKT } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
+import { PgEffectRelationalQuery, type PgEffectRelationalQueryHKT } from './query.ts';
 import { PgEffectRefreshMaterializedView } from './refresh-materialized-view.ts';
 import type { PgEffectSession } from './session.ts';
 import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
@@ -54,7 +58,8 @@ export class PgEffectDatabase<
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
 			TRelations,
-			TRelations[K]
+			TRelations[K],
+			PgEffectRelationalQueryHKT
 		>;
 	};
 
@@ -65,7 +70,7 @@ export class PgEffectDatabase<
 		readonly session: PgEffectSession<any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		_parseRqbJson: boolean = false,
+		parseRqbJson: boolean = false,
 	) {
 		this._ = schema
 			? {
@@ -98,22 +103,26 @@ export class PgEffectDatabase<
 		// 	}
 		// }
 		this.query = {} as typeof this['query'];
-		// for (const [tableName, relation] of Object.entries(relations)) {
-		// 	(this.query as EffectPgDatabase<
-		// 		TSchema,
-		// 		AnyRelations,
-		// 		V1.TablesRelationalConfig
-		// 	>['query'])[tableName] = new RelationalQueryBuilder(
-		// 		relations,
-		// 		relations[relation.name]!.table as PgTable,
-		// 		relation,
-		// 		dialect,
-		// 		session,
-		// 		parseRqbJson,
-		// 	);
-		// }
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as PgEffectDatabase<
+				TQueryResult,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[tableName] = new RelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as PgTable,
+				relation,
+				dialect,
+				session,
+				parseRqbJson,
+				PgEffectRelationalQuery,
+			);
+		}
 
-		// this.$cache = { invalidate: async (_params: any) => {} };
+		this.$cache = {
+			invalidate: (_params: MutationOption) => Effect.async(() => {}),
+		};
 	}
 
 	/**
@@ -173,7 +182,7 @@ export class PgEffectDatabase<
 		return { as };
 	};
 
-	// $cache: { invalidate: Cache['onMutate'] };
+	$cache: { invalidate: EffectCache['onMutate'] };
 
 	$count(
 		source: PgTable | PgViewBase | SQL | SQLWrapper,

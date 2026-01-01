@@ -16,8 +16,7 @@ export class EffectCache {
 		isTag: boolean,
 		isAutoInvalidate?: boolean,
 	): Effect.Effect<any[] | undefined, unknown, never> {
-		const promise = this.wrapped.get(key, tables, isTag, isAutoInvalidate);
-		return Effect.tryPromise(() => promise);
+		return Effect.tryPromise(() => this.wrapped.get(key, tables, isTag, isAutoInvalidate));
 	}
 
 	put(
@@ -27,15 +26,11 @@ export class EffectCache {
 		isTag: boolean,
 		config?: CacheConfig,
 	): Effect.Effect<void, unknown, never> {
-		const promise = this.wrapped.put(hashedQuery, response, tables, isTag, config);
-
-		return Effect.tryPromise(() => promise);
+		return Effect.tryPromise(() => this.wrapped.put(hashedQuery, response, tables, isTag, config));
 	}
 
 	onMutate(params: MutationOption): Effect.Effect<void, unknown, never> {
-		const promise = this.wrapped.onMutate(params);
-
-		return Effect.tryPromise(() => promise);
+		return Effect.tryPromise(() => this.wrapped.onMutate(params));
 	}
 }
 

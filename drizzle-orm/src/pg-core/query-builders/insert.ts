@@ -86,7 +86,7 @@ export class PgInsertBuilder<
 		return this;
 	}
 
-	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
+	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true, TBuilderHKT>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
 		return this as any;
 	}
