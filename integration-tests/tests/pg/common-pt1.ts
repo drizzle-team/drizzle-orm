@@ -660,6 +660,27 @@ export function tests(test: Test) {
 			});
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4209
+		// postpone
+		// casing bug
+		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
+			const t1 = pgTable('table', (t) => ({
+				id: t.text().primaryKey(),
+			}));
+			const query1 = db.insert(t1).values({ id: '1' }).toSQL();
+			expect(query1).toStrictEqual({ sql: 'insert into "table" ("id") values ($1)', params: ['1'] });
+
+			const t2 = pgTable('table', (t) => ({
+				id: t.text().primaryKey(),
+				name: t.text(),
+			}));
+			const query2 = db.insert(t2).values({ id: '1', name: 'test' }).toSQL();
+			expect(query2).toStrictEqual({
+				sql: 'insert into "table" ("id", "name") values ($1, $2)',
+				params: ['1', 'test'],
+			});
+		});
+
 		test.concurrent('insert sql', async ({ db, push }) => {
 			const users = pgTable('users_128', {
 				id: serial('id' as string).primaryKey(),

@@ -32,6 +32,10 @@ test('push #1', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	});
 });
 
@@ -55,6 +59,10 @@ test('push #2', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	});
 });
 
@@ -80,6 +88,10 @@ test('push #3', async (t) => {
 		},
 		verbose: false,
 		casing: undefined,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	});
 });
 
@@ -106,6 +118,10 @@ test('push #4', async (t) => {
 		schemaPath: './schema.ts',
 		verbose: false,
 		casing: undefined,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
 	});
 });
 
@@ -136,6 +152,10 @@ test('push #5', async (t) => {
 		force: false,
 		verbose: false,
 		casing: undefined,
+		migrations: {
+			schema: 'custom',
+			table: 'custom',
+		},
 	});
 });
 

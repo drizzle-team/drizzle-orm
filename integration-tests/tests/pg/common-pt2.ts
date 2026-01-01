@@ -5,12 +5,15 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	eq,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
 	ilike,
 	inArray,
+	isNull,
 	like,
 	lt,
 	max,
@@ -1061,57 +1064,53 @@ export function tests(test: Test) {
 			});
 		});
 
-		test
-			.concurrent(
-				'mySchema :: select from tables with same name from different schema using alias',
-				async ({ db, push }) => {
-					const mySchema = pgSchema('mySchema');
-					const users = mySchema.table('users_99', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+		test.concurrent('mySchema :: select from tables with same name from different schema using alias', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema');
+			const users = mySchema.table('users_99', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					const usersDefault = pgTable('users_17', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+			const usersDefault = pgTable('users_17', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-					await push({ users, usersDefault });
+			await push({ users, usersDefault });
 
-					await db.insert(users).values({ id: 10, name: 'Ivan' });
-					await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
+			await db.insert(users).values({ id: 10, name: 'Ivan' });
+			await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
 
-					const customerAlias = alias(usersDefault, 'customer');
+			const customerAlias = alias(usersDefault, 'customer');
 
-					const result = await db
-						.select().from(users)
-						.leftJoin(customerAlias, eq(customerAlias.id, 11))
-						.where(eq(customerAlias.id, 11));
+			const result = await db
+				.select().from(users)
+				.leftJoin(customerAlias, eq(customerAlias.id, 11))
+				.where(eq(customerAlias.id, 11));
 
-					expect(result).toEqual([{
-						users_99: {
-							id: 10,
-							name: 'Ivan',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.users_99.createdAt,
-						},
-						customer: {
-							id: 11,
-							name: 'Hans',
-							verified: false,
-							jsonb: null,
-							createdAt: result[0]!.customer!.createdAt,
-						},
-					}]);
+			expect(result).toEqual([{
+				users_99: {
+					id: 10,
+					name: 'Ivan',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.users_99.createdAt,
 				},
-			);
+				customer: {
+					id: 11,
+					name: 'Hans',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.customer!.createdAt,
+				},
+			}]);
+		});
 
 		test.concurrent('mySchema :: view', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -2076,6 +2075,54 @@ export function tests(test: Test) {
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4160
+		test.concurrent('delete; composition of `not` and `or`/`and`', async ({ db, push }) => {
+			const users = pgTable('users_1070', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const sessions = pgTable('sessions_0', {
+				id: serial('id').primaryKey(),
+				userId: integer('userId').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+				name: text('name').notNull().default(''),
+			});
+
+			await push({ users, sessions });
+
+			const DEFAULT_SESSION_NAME = 'Default Session';
+			const BASE_SESSION_NAME = 'Base Scramble';
+			const sessionId = 1;
+			const userId = 1;
+
+			await db.insert(users).values([
+				{ id: userId, name: 'John' },
+			]);
+
+			await db.insert(sessions).values([
+				{ id: sessionId, userId: 1, name: 'some session' },
+			]);
+
+			const query = db.delete(sessions).where(
+				and(
+					eq(sessions.id, sessionId),
+					eq(sessions.userId, userId),
+					not(
+						// @ts-expect-error
+						// TODO @skylotus
+						or(
+							eq(sessions.name, DEFAULT_SESSION_NAME),
+							eq(sessions.name, BASE_SESSION_NAME),
+						),
+					),
+				),
+			);
+
+			await query;
+			const result = await db.select().from(sessions);
+			expect(result).toStrictEqual([]);
+		});
+
 		test.concurrent('sql operator as cte', async ({ db, push }) => {
 			const users = pgTable('users_109', {
 				id: serial('id').primaryKey(),
@@ -2456,6 +2503,93 @@ export function tests(test: Test) {
 			}]));
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5112
+		// looks like casing issue
+		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('view #1', async ({ push, createDB }) => {
+			const animal = pgTable('animal', (t) => ({
+				id: t.text().primaryKey(),
+				name: t.text().notNull(),
+				caretakerId: t.text().notNull(),
+			}));
+			const caretaker = pgTable('caretaker', (t) => ({
+				id: t.text().primaryKey(),
+				caretakerName: t.text().notNull(),
+			}));
+			const animalWithCaretakerView = pgView('animal_with_caretaker_view').as(
+				(qb) =>
+					qb
+						.select({
+							id: animal.id,
+							animalName: animal.name,
+							caretakerName: caretaker.caretakerName,
+						})
+						.from(animal)
+						.innerJoin(caretaker, eq(animal.caretakerId, caretaker.id)),
+			);
+
+			const schema = { animal, caretaker, animalWithCaretakerView };
+			const db = createDB(schema);
+
+			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
+			expect(sql).toEqual('select "id", "name", "caretakerName" from "animal_with_caretaker_view";');
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4875
+		test.skipIf(Date.now() < +new Date('2026-01-15'))('view #2', async ({ db }) => {
+			const productionJobTable = pgTable('production_job', {
+				id: text('id').primaryKey(),
+				name: text('name'),
+			});
+
+			const rfidTagTable = pgTable(
+				'rfid_tag',
+				{
+					createdAt: timestamp('created_at')
+						.notNull()
+						.default(sql`now()`),
+					epc: text('epc').notNull(),
+					locationId: text('location_id')
+						.notNull(),
+					id: text('id').notNull().unique().$default(() => 'abc'),
+				},
+			);
+
+			const productionJobWithLocationView = pgView(
+				'production_job_with_location',
+			).as((qb) => {
+				const productionColumns = getColumns(productionJobTable);
+				const sub = qb
+					.selectDistinctOn([rfidTagTable.epc])
+					.from(rfidTagTable)
+					.as('r');
+				return qb
+					.select({
+						...productionColumns,
+						locationId: sub.locationId,
+						tagId: sub.id.as('tag_id'),
+						tagCreatedAt: sub.createdAt.as('tag_created_at'),
+					})
+					.from(productionJobTable)
+					.leftJoin(
+						sub,
+						and(
+							eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+							sql`${sub.epc} ~ '^0?[0-9]+'`,
+						),
+					);
+			});
+
+			const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+			const query = db.select().from(sub);
+			expect(query.toSQL().sql).toEqual(
+				'select "id", "name", "location_id", "tag_id", "tag_created_at" from "production_job_with_location" as p;',
+			);
+
+			const res = await query;
+			expect(res).toStrictEqual([]);
+		});
+
 		test.concurrent('select from a many subquery', async ({ db, push }) => {
 			const citiesTable = pgTable('cities_many_subquery', {
 				id: serial('id').primaryKey(),
@@ -2552,6 +2686,26 @@ export function tests(test: Test) {
 			}]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
+		test.concurrent('.where with isNull in it', async ({ db, push }) => {
+			const table = pgTable('table_where_is_null', {
+				col1: boolean(),
+				col2: text(),
+			});
+
+			await push({ table });
+			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "col1", "col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
+				params: [],
+			});
+			const res = await query;
+			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+		});
+
 		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
 			const users = pgTable('users_on_update', {
 				id: serial('id').primaryKey(),
@@ -2578,6 +2732,100 @@ export function tests(test: Test) {
 
 			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+		});
+
+		test.concurrent('placeholder + sql dates', async ({ db }) => {
+			const dateTable = pgTable('dates_placeholder_test', (t) => ({
+				id: t.integer('id').primaryKey().notNull(),
+				date: t.date('date', { mode: 'date' }).notNull(),
+				dateStr: t.date('date_str', { mode: 'string' }).notNull(),
+				timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
+				timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+			}));
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
+			await db.execute(sql`CREATE TABLE ${dateTable} (
+			${sql.identifier('id')} INTEGER PRIMARY KEY NOT NULL,
+			${sql.identifier('date')} DATE NOT NULL,
+			${sql.identifier('date_str')} DATE NOT NULL,
+			${sql.identifier('timestamp')} TIMESTAMP NOT NULL,
+			${sql.identifier('timestamp_str')} TIMESTAMP NOT NULL
+		);`);
+
+			const date = new Date('2025-12-10T00:00:00.000Z');
+			const timestamp = new Date('2025-12-10T01:01:01.111Z');
+			const dateStr = date.toISOString().slice(0, -14);
+			const timestampStr = timestamp.toISOString().slice(0, -1).replace('T', ' ');
+
+			const initial = await db.insert(dateTable).values([{
+				id: 1,
+				date: date,
+				dateStr: dateStr,
+				timestamp: timestamp,
+				timestampStr: timestampStr,
+			}, {
+				id: 2,
+				date: sql.placeholder('dateAsDate'),
+				dateStr: sql.placeholder('dateStrAsDate'),
+				timestamp: sql.placeholder('timestampAsDate'),
+				timestampStr: sql.placeholder('timestampStrAsDate'),
+			}, {
+				id: 3,
+				date: sql.placeholder('dateAsString'),
+				dateStr: sql.placeholder('dateStrAsString'),
+				timestamp: sql.placeholder('timestampAsString'),
+				timestampStr: sql.placeholder('timestampStrAsString'),
+			}, {
+				id: 4,
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}]).returning().execute({
+				dateAsDate: date,
+				dateAsString: dateStr,
+				dateStrAsDate: date,
+				dateStrAsString: dateStr,
+				timestampAsDate: timestamp,
+				timestampAsString: timestampStr,
+				timestampStrAsDate: timestamp,
+				timestampStrAsString: timestampStr,
+			});
+
+			const updated = await db.update(dateTable).set({
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}).returning();
+
+			expect(initial).toStrictEqual([{
+				id: 1,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 2,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 3,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 4,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}]);
+
+			expect(updated).toStrictEqual(initial);
 		});
 
 		test.concurrent('all types', async ({ db, push }) => {
@@ -3004,5 +3252,18 @@ export function tests(test: Test) {
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/3018
+		test.skipIf(Date.now() < +new Date('2026-01-10')).concurrent(
+			'select string from jsonb/json column',
+			async ({ db, push }) => {
+				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
+				await push({ table });
+
+				await db.insert(table).values({ col1: '10.5', col2: '10.6' });
+				const res = await db.select().from(table);
+				expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
+			},
+		);
 	});
 }

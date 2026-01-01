@@ -1,6 +1,7 @@
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
+import { filterMigrationsSchema } from '../utils';
 import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
@@ -13,6 +14,10 @@ export const fromDatabaseForDrizzle = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ): Promise<InterimSchema> => {
 	const res = await fromDatabase(db, schema, filter, progressCallback);
 	res.indexes = res.indexes.filter((x) => {
@@ -21,6 +26,8 @@ export const fromDatabaseForDrizzle = async (
 		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
 		return !skip;
 	});
+
+	filterMigrationsSchema(res, migrations);
 
 	return res;
 };
@@ -355,7 +362,15 @@ export const fromDatabase = async (
 
 	const views = await db.query(
 		`select * from INFORMATION_SCHEMA.VIEWS WHERE table_schema = '${schema}';`,
-	);
+	).then((rows) => {
+		queryCallback('views', rows, null);
+		return rows.filter((it) => {
+			return filter({ type: 'table', schema: false, name: it['TABLE_NAME'] });
+		});
+	}).catch((err) => {
+		queryCallback('views', [], err);
+		throw err;
+	});
 
 	viewsCount = views.length;
 	progressCallback('views', viewsCount, 'fetching');

@@ -21,6 +21,7 @@ import {
 	fillTemplate,
 	getWeightedIndices,
 	isObject,
+	isValidDate,
 	OrderedNumberRange,
 } from './utils.ts';
 
@@ -1026,14 +1027,23 @@ export class GenerateDate extends AbstractGenerator<{
 		let { minDate, maxDate } = this.params;
 
 		const anchorDate = new Date('2024-05-08');
+		// 4 years in milliseconds
 		const deltaMilliseconds = 4 * 31536000000;
 
 		if (typeof minDate === 'string') {
 			minDate = new Date(minDate);
 		}
 
+		if (typeof minDate === 'object' && !isValidDate(minDate)) {
+			throw new Error('Invalid Date was provided for the minDate parameter.');
+		}
+
 		if (typeof maxDate === 'string') {
 			maxDate = new Date(maxDate);
+		}
+
+		if (typeof maxDate === 'object' && !isValidDate(maxDate)) {
+			throw new Error('Invalid Date was provided for the maxDate parameter.');
 		}
 
 		if (minDate === undefined) {
@@ -1047,6 +1057,10 @@ export class GenerateDate extends AbstractGenerator<{
 
 		if (maxDate === undefined) {
 			maxDate = new Date(minDate.getTime() + (2 * deltaMilliseconds));
+		}
+
+		if (minDate > maxDate) {
+			throw new Error(`The minDate parameter must be less than or equal to the maxDate parameter.`);
 		}
 
 		this.state = { rng, minDate, maxDate };
@@ -1072,19 +1086,110 @@ export class GenerateDate extends AbstractGenerator<{
 		return date;
 	}
 }
-export class GenerateTime extends AbstractGenerator<{ arraySize?: number }> {
+export class GenerateTime extends AbstractGenerator<{
+	min?: string | Date;
+	max?: string | Date;
+	arraySize?: number;
+}> {
 	static override readonly entityKind: string = 'GenerateTime';
 
 	private state: {
 		rng: prand.RandomGenerator;
+		min: Date;
+		max: Date;
 	} | undefined;
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		super.init({ count, seed });
-
 		const rng = prand.xoroshiro128plus(seed);
 
-		this.state = { rng };
+		let { min, max } = this.params;
+
+		if (min === undefined && max === undefined) {
+			// TODO: maybe need to change in major version release
+			// This is required to ensure that this generator remains deterministic when used without min, max parameters.
+			const oneDayInMilliseconds = 86400000;
+			min = new Date(new Date('2024-05-08T12:00:00.000Z').getTime() - oneDayInMilliseconds);
+			max = new Date(new Date('2024-05-08T12:00:00.000Z').getTime() + oneDayInMilliseconds);
+
+			this.state = { rng, min, max };
+			return;
+		}
+
+		if (min === undefined) {
+			if (max === undefined) {
+				min = '00:00:00.000Z';
+				max = '23:59:59.999Z';
+			} else {
+				min = '00:00:00.000Z';
+			}
+		}
+
+		if (max === undefined) {
+			max = '23:59:59.999Z';
+			new Date().toISOString();
+		}
+		const anchorDate = new Date('2024-05-08');
+		const anchorDateString0 = anchorDate.toISOString().replace(/T\d{2}:\d{2}:\d{2}.\d{3}Z/, '');
+
+		if (typeof min === 'string') {
+			// const timeMatch0 = min.match(/^\d{2}:\d{2}:\d{2}.\d{1,3}Z?$/);
+			const timeMatch1 = min.match(/^\d{2}:\d{2}:\d{2}Z?$/);
+			const timeMatch2 = min.match(/^\d{2}:\d{2}Z?$/);
+
+			if (
+				// timeMatch0 === null
+				timeMatch1 === null
+				&& timeMatch2 === null
+			) {
+				throw new Error(
+					`You're using the wrong format for the min parameter.`
+						+ `\nPlease use one of these formats: 'HH:mm:ss', 'HH:mm' (with or without a trailing 'Z')`,
+				);
+			}
+
+			min = min.at(-1) === 'Z' ? min : min + 'Z';
+			min = new Date(anchorDate.toISOString().replace(/\d{2}:\d{2}:\d{2}.\d{3}Z/, min));
+		}
+
+		if (typeof min === 'object') {
+			if (!isValidDate(min)) {
+				throw new Error('Invalid Date was provided for the min parameter.');
+			}
+			min = new Date(min.toISOString().replace(/\d{4}-\d{2}-\d{2}/, anchorDateString0));
+		}
+
+		if (typeof max === 'string') {
+			// const timeMatch0 = max.match(/^\d{2}:\d{2}:\d{2}.\d{1,3}Z?$/);
+			const timeMatch1 = max.match(/^\d{2}:\d{2}:\d{2}Z?$/);
+			const timeMatch2 = max.match(/^\d{2}:\d{2}Z?$/);
+			if (
+				// timeMatch0 === null
+				timeMatch1 === null
+				&& timeMatch2 === null
+			) {
+				throw new Error(
+					`You're using the wrong format for the max parameter.`
+						+ `\nPlease use one of these formats: 'HH:mm:ss', 'HH:mm' (with or without a trailing 'Z').`,
+				);
+			}
+
+			max = max.at(-1) === 'Z' ? max : max + 'Z';
+			max = new Date(anchorDate.toISOString().replace(/\d{2}:\d{2}:\d{2}.\d{3}Z/, max));
+		}
+
+		if (typeof max === 'object') {
+			if (!isValidDate(max)) {
+				throw new Error('Invalid Date was provided for the max parameter.');
+			}
+			max = new Date(max.toISOString().replace(/\d{4}-\d{2}-\d{2}/, anchorDateString0));
+		}
+
+		if (min > max) {
+			throw new Error(`The min parameter must be less than or equal to the max parameter.`);
+		}
+
+		this.state = { rng, min, max };
 	}
 
 	generate() {
@@ -1092,18 +1197,14 @@ export class GenerateTime extends AbstractGenerator<{ arraySize?: number }> {
 			throw new Error('state is not defined.');
 		}
 
-		const anchorDateTime = new Date('2024-05-08T12:00:00.000Z');
-		const oneDayInMilliseconds = 86400000;
-
-		let date = new Date();
 		let milliseconds: number;
 
 		[milliseconds, this.state.rng] = prand.uniformIntDistribution(
-			-oneDayInMilliseconds,
-			oneDayInMilliseconds,
+			this.state.min.getTime(),
+			this.state.max.getTime(),
 			this.state.rng,
 		);
-		date = new Date(date.setTime(anchorDateTime.getTime() + milliseconds));
+		const date = new Date(milliseconds);
 
 		return date.toISOString().replace(/(\d{4}-\d{2}-\d{2}T)|(\.\d{3}Z)/g, '');
 	}
@@ -1141,11 +1242,17 @@ export class GenerateTimestampInt extends AbstractGenerator<{ unitOfTime?: 'seco
 	}
 }
 
-export class GenerateTimestamp extends AbstractGenerator<{ arraySize?: number }> {
+export class GenerateTimestamp extends AbstractGenerator<{
+	min?: string | Date;
+	max?: string | Date;
+	arraySize?: number;
+}> {
 	static override readonly entityKind: string = 'GenerateTimestamp';
 
 	private state: {
 		rng: prand.RandomGenerator;
+		min: Date;
+		max: Date;
 	} | undefined;
 
 	override init({ count, seed }: { count: number; seed: number }) {
@@ -1153,26 +1260,61 @@ export class GenerateTimestamp extends AbstractGenerator<{ arraySize?: number }>
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		this.state = { rng };
+		let { min, max } = this.params;
+
+		const anchorDate = new Date('2024-05-08');
+		// 2 years in milliseconds
+		const deltaMilliseconds = 2 * 31536000000;
+
+		// ideally use util function that checks for date, etc.
+		if (typeof min === 'string') {
+			min = new Date(min);
+		}
+
+		if (typeof min === 'object' && !isValidDate(min)) {
+			throw new Error('Invalid Date was provided for the "min" parameter.');
+		}
+
+		if (typeof max === 'string') {
+			max = new Date(max);
+		}
+
+		if (typeof max === 'object' && !isValidDate(max)) {
+			throw new Error('Invalid Date was provided for the "max" parameter.');
+		}
+
+		if (min === undefined) {
+			if (max === undefined) {
+				min = new Date(anchorDate.getTime() - deltaMilliseconds);
+				max = new Date(anchorDate.getTime() + deltaMilliseconds);
+			} else {
+				min = new Date(max.getTime() - (2 * deltaMilliseconds));
+			}
+		}
+
+		if (max === undefined) {
+			max = new Date(min.getTime() + (2 * deltaMilliseconds));
+		}
+
+		if (min > max) {
+			throw new Error(`The "min" parameter must be less than or equal to the "max" parameter.`);
+		}
+
+		this.state = { rng, min, max };
 	}
 
 	generate() {
 		if (this.state === undefined) {
 			throw new Error('state is not defined.');
 		}
-
-		const anchorTimestamp = new Date('2024-05-08');
-		const twoYearsInMilliseconds = 2 * 31536000000;
-
-		let date = new Date();
 		let milliseconds: number;
 
 		[milliseconds, this.state.rng] = prand.uniformIntDistribution(
-			-twoYearsInMilliseconds,
-			twoYearsInMilliseconds,
+			this.state.min.getTime(),
+			this.state.max.getTime(),
 			this.state.rng,
 		);
-		date = new Date(date.setTime(anchorTimestamp.getTime() + milliseconds));
+		const date = new Date(milliseconds);
 
 		if (this.dataType === 'string') {
 			return date
@@ -1185,11 +1327,17 @@ export class GenerateTimestamp extends AbstractGenerator<{ arraySize?: number }>
 	}
 }
 
-export class GenerateDatetime extends AbstractGenerator<{ arraySize?: number }> {
+export class GenerateDatetime extends AbstractGenerator<{
+	min?: string | Date;
+	max?: string | Date;
+	arraySize?: number;
+}> {
 	static override readonly entityKind: string = 'GenerateDatetime';
 
 	private state: {
 		rng: prand.RandomGenerator;
+		min: Date;
+		max: Date;
 	} | undefined;
 
 	override init({ count, seed }: { count: number; seed: number }) {
@@ -1197,7 +1345,47 @@ export class GenerateDatetime extends AbstractGenerator<{ arraySize?: number }> 
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		this.state = { rng };
+		let { min, max } = this.params;
+
+		const anchorDate = new Date('2024-05-08');
+		// 2 years in milliseconds
+		const deltaMilliseconds = 2 * 31536000000;
+
+		// same here. a lot of code duplicates
+		if (typeof min === 'string') {
+			min = new Date(min);
+		}
+
+		if (typeof min === 'object' && !isValidDate(min)) {
+			throw new Error('Invalid Date was provided for the min parameter.');
+		}
+
+		if (typeof max === 'string') {
+			max = new Date(max);
+		}
+
+		if (typeof max === 'object' && !isValidDate(max)) {
+			throw new Error('Invalid Date was provided for the max parameter.');
+		}
+
+		if (min === undefined) {
+			if (max === undefined) {
+				min = new Date(anchorDate.getTime() - deltaMilliseconds);
+				max = new Date(anchorDate.getTime() + deltaMilliseconds);
+			} else {
+				min = new Date(max.getTime() - (2 * deltaMilliseconds));
+			}
+		}
+
+		if (max === undefined) {
+			max = new Date(min.getTime() + (2 * deltaMilliseconds));
+		}
+
+		if (min > max) {
+			throw new Error(`The min parameter must be less than or equal to the max parameter.`);
+		}
+
+		this.state = { rng, min, max };
 	}
 
 	generate() {
@@ -1205,18 +1393,14 @@ export class GenerateDatetime extends AbstractGenerator<{ arraySize?: number }> 
 			throw new Error('state is not defined.');
 		}
 
-		const anchorDate = new Date('2024-05-08');
-		const twoYearsInMilliseconds = 2 * 31536000000;
-
-		let date = new Date();
 		let milliseconds: number;
 
 		[milliseconds, this.state.rng] = prand.uniformIntDistribution(
-			-twoYearsInMilliseconds,
-			twoYearsInMilliseconds,
+			this.state.min.getTime(),
+			this.state.max.getTime(),
 			this.state.rng,
 		);
-		date = new Date(date.setTime(anchorDate.getTime() + milliseconds));
+		const date = new Date(milliseconds);
 
 		if (this.dataType === 'string') {
 			return date
@@ -3476,6 +3660,22 @@ export class GenerateUniqueLine extends AbstractGenerator<GenerateUniqueLineT> {
 	}
 }
 
+export class CustomGenerator<StateT extends Record<string, any> = {}> extends AbstractGenerator<{
+	generate: (params: { this_: CustomGenerator; i: number }) => any;
+	init?: (params: { this_: CustomGenerator; count: number; seed: number }) => void;
+}> {
+	public state: StateT = {} as StateT;
+
+	static override readonly entityKind: string = 'CustomGenerator';
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		if (this.params.init !== undefined) this.params.init({ this_: this, count, seed });
+	}
+
+	generate({ i }: { i: number }): any {
+		return this.params.generate({ this_: this, i });
+	}
+}
 export class GenerateBitString extends AbstractGenerator<{
 	dimensions?: number;
 	isUnique?: boolean;

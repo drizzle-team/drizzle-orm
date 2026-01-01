@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyMsSqlColumn,
 	bigint,
 	binary,
 	bit,
@@ -30,7 +31,8 @@ import {
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import fs from 'fs';
-import { DB } from 'src/utils';
+import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
+import type { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
@@ -443,6 +445,44 @@ test('introspect primary key with unqiue', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect fk with onUpdate, onDelete set', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey(),
+		name: varchar('users'),
+	});
+
+	const schema = {
+		users,
+		posts: mssqlTable('posts', {
+			id: int(),
+			usersId: int().references(() => users.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-fk',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect table with self reference', async () => {
+	const table1 = mssqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references((): AnyMsSqlColumn => table1.column1),
+	});
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-table-with-self-ref');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 test('introspect empty db', async () => {
 	const { introspectDDL } = await diffIntrospect(
 		db,
@@ -451,4 +491,219 @@ test('introspect empty db', async () => {
 	);
 
 	expect(introspectDDL.entities.list().length).toBe(0);
+});
+
+test('indexes #2', async () => {
+	const table1 = mssqlTable('table1', {
+		col1: int(),
+		col2: int(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'sql-in-index');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = mssqlTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// other tables in migration schema
+test('pull after migrate with custom migrations table #1', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE drizzle.__drizzle_migrations (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at DATETIME
+		);
+	`);
+	await db.query(`
+		CREATE TABLE drizzle.users (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { pks, columns, tables, schemas } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'drizzle',
+		},
+		{
+			entityType: 'tables',
+
+			name: 'users',
+			schema: 'drizzle',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'drizzle',
+			table: 'users',
+		},
+	]);
+});
+
+// no tables in migration schema
+test('pull after migrate with custom migrations table #2', async () => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE drizzle.__drizzle_migrations (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at DATETIME
+		);
+	`);
+	await db.query(`
+		CREATE TABLE dbo.users (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+
+			name: 'users',
+			schema: 'dbo',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'dbo',
+			table: 'users',
+		},
+	]);
+});
+
+// other tables in custom migration schema
+test('pull after migrate with custom migrations table #3', async () => {
+	await db.query(`CREATE SCHEMA [custom];`);
+	await db.query(`
+		CREATE TABLE [custom].[custom_migrations] (
+			id INTEGER CONSTRAINT custom_migrations_pkey PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at DATETIME
+		);
+	`);
+	await db.query(`
+		CREATE TABLE [custom].[users] (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE [users] (
+			id INTEGER CONSTRAINT users_pkey PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'custom',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'custom',
+		},
+		{
+			entityType: 'tables',
+			name: 'users',
+			schema: 'custom',
+		},
+		{
+			entityType: 'tables',
+			name: 'users',
+			schema: 'dbo',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'custom',
+			table: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'dbo',
+			table: 'users',
+		},
+	]);
 });

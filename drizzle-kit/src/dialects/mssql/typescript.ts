@@ -442,7 +442,11 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		statement += `.on(${
 			it.columns
 				.map((it) => {
-					return `table.${withCasing(it, casing)}`;
+					if (it.isExpression) {
+						return `sql\`${it.value}\``;
+					} else {
+						return `table.${withCasing(it.value, casing)}`;
+					}
 				})
 				.join(', ')
 		})`;

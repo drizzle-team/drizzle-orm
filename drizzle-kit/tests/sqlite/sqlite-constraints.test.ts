@@ -1,4 +1,16 @@
-import { AnySQLiteColumn, foreignKey, int, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import {
+	AnySQLiteColumn,
+	foreignKey,
+	index,
+	int,
+	integer,
+	primaryKey,
+	sqliteTable,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -50,6 +62,29 @@ test('unique #1. add unique. inline param without name', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4152
+test('unique #2. create table with unique. inline param without name', async () => {
+	const to = {
+		users: sqliteTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE \`users\` (\n\t\`name\` text UNIQUE\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	await db.run(`insert into users values ('name1') on conflict (name) do update set name = 'name2';`);
 });
 
 test('unique #1_0. drop table with unique', async () => {
@@ -632,6 +667,40 @@ test('pk #1_0. drop table with pk', async () => {
 	});
 	const st0 = [
 		'DROP TABLE `users`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3801
+test('pk #1_1. add column with pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			name: text(),
+			id: integer().primaryKey({ autoIncrement: true }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+	const st0 = [
+		'ALTER TABLE `users` ADD `id` integer;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (\n\t\`name\` text,\n\t\`id\` integer PRIMARY KEY AUTOINCREMENT\n);\n`,
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1224,6 +1293,65 @@ test('pk multistep #3', async () => {
 	expect(pst5).toStrictEqual(e5);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
+test('composite pk multistep #1', async () => {
+	const organisations = sqliteTable('organisation', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const users = sqliteTable('user', {
+		id: int().primaryKey({ autoIncrement: true }),
+	});
+
+	const organisationUsers = sqliteTable(
+		'organisationUser',
+		{
+			organisationId: int()
+				.notNull()
+				.references(() => organisations.id),
+			userId: int()
+				.notNull()
+				.references(() => users.id),
+			roles: text({ mode: 'json' }).$type<string[]>().default([]),
+		},
+		(t) => [
+			primaryKey({ columns: [t.userId, t.organisationId] }),
+		],
+	);
+
+	const schema1 = { users, organisations, organisationUsers };
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema1 });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3844
+// https://github.com/drizzle-team/drizzle-orm/issues/3103
+test('composite pk multistep #2', async () => {
+	const userAsyncTasks = sqliteTable('userAsyncTask', {
+		userId: text('userId').notNull(),
+		identifier: text('identifier').notNull(),
+		type: text('type').notNull(),
+	}, (t) => [
+		primaryKey({ columns: [t.userId, t.type, t.identifier] }),
+	]);
+	const schema = { userAsyncTasks };
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 test('fk #0', async () => {
 	const users = sqliteTable('users', {
 		id: int().references((): AnySQLiteColumn => users.id2),
@@ -1235,13 +1363,13 @@ test('fk #0', async () => {
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
-	// const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const e = [
 		`CREATE TABLE \`users\` (\n\t\`id\` integer,\n\t\`id2\` integer,\n\tCONSTRAINT \`fk_users_id_users_id2_fk\` FOREIGN KEY (\`id\`) REFERENCES \`users\`(\`id2\`)\n);\n`,
 	];
 	expect(sqlStatements).toStrictEqual(e);
-	// expect(pst).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
 });
 
 test('fk #1', async () => {
@@ -1635,6 +1763,43 @@ test('fk #15', async () => {
 	expect(pst).toStrictEqual(e);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3653
+test('fk #16', async () => {
+	const services1 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks1 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		serviceId: integer().references(() => services1.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema1 = { services1, serviceLinks1 };
+
+	const casing = 'snake_case';
+	const { next: n1 } = await diff({}, schema1, [], casing);
+	await push({ db, to: schema1, casing });
+
+	const services2 = sqliteTable('services', {
+		id: integer().primaryKey(),
+	});
+
+	const serviceLinks2 = sqliteTable('service_links', {
+		id: integer().primaryKey(),
+		clientId: integer().references(() => services2.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
+	});
+	const schema2 = { services2, serviceLinks2 };
+
+	const renames = ['service_links.service_id->service_links.client_id'];
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames, casing);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, casing, renames });
+
+	const expectedSt2 = [
+		'ALTER TABLE `service_links` RENAME COLUMN `service_id` TO `client_id`;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('fk multistep #1', async () => {
 	const users = sqliteTable('users', {
 		id: int().primaryKey(),
@@ -1739,4 +1904,46 @@ test('fk multistep #2', async () => {
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3255
+test('index #1', async () => {
+	const table1 = sqliteTable('table1', {
+		col1: integer(),
+		col2: integer(),
+	}, () => [
+		index1,
+		index2,
+		index3,
+		index4,
+		index5,
+		index6,
+	]);
+
+	const index1 = uniqueIndex('index1').on(table1.col1);
+	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
+	const index3 = index('index3').on(table1.col1);
+	const index4 = index('index4').on(table1.col1, table1.col2);
+	const index5 = index('index5').on(sql`${table1.col1} asc`);
+	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+
+	const schema1 = { table1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n'
+		+ '\t`col1` integer,\n'
+		+ '\t`col2` integer\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX `index1` ON `table1` (`col1`);',
+		'CREATE UNIQUE INDEX `index2` ON `table1` (`col1`,`col2`);',
+		'CREATE INDEX `index3` ON `table1` (`col1`);',
+		'CREATE INDEX `index4` ON `table1` (`col1`,`col2`);',
+		'CREATE INDEX `index5` ON `table1` ("col1" asc);',
+		'CREATE INDEX `index6` ON `table1` ("col1" asc,"col2" desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

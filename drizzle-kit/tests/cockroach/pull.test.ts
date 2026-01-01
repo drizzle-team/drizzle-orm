@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyCockroachColumn,
 	bigint,
 	bit,
 	bool,
@@ -32,7 +33,9 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import { diffIntrospect, test } from 'tests/cockroach/mocks';
+import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { diffIntrospect, push, test } from 'tests/cockroach/mocks';
 import { expect } from 'vitest';
 
 test.concurrent('basic introspect test', async ({ dbc: db }) => {
@@ -692,4 +695,278 @@ test.concurrent('case sensitive schema name + identity column', async ({ dbc: db
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
+	const users = cockroachTable('users', {
+		id: int4('id').primaryKey(),
+		name: text('name'),
+	});
+	const schema = {
+		users,
+		posts: cockroachTable('posts', {
+			id: int4('id').primaryKey(),
+			userId: int4('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+		}),
+	};
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-foreign-keys');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
+	const users = cockroachTable('users', {
+		id: int4().primaryKey(),
+		name: text(),
+		invited_id: int4().references((): AnyCockroachColumn => users.id),
+	});
+	const schema = { users };
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-self-ref');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test.concurrent('single quote default', async ({ dbc: db }) => {
+	const group = cockroachTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5193
+test('check definition', async ({ db }) => {
+	const table1 = cockroachTable('table1', {
+		column1: int4().primaryKey(),
+	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const schema = { table1 };
+	await push({ db, to: schema });
+
+	const filter = prepareEntityFilter('cockroach', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+
+	const { checks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'check_positive',
+			table: 'table1',
+			value: '(column1 > 0)',
+		},
+	]);
+});
+
+// other tables in migration schema
+test('pull after migrate with custom migrations table #1', async ({ db }) => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('cockroach', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { pks, columns, tables, schemas } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'drizzle',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'drizzle',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'drizzle',
+			table: 'users',
+		},
+	]);
+});
+
+// no tables in migration schema
+test('pull after migrate with custom migrations table #2', async ({ db }) => {
+	await db.query(`CREATE SCHEMA drizzle;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('cockroach', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+	]);
+});
+
+// other tables in custom migration schema
+test('pull after migrate with custom migrations table #3', async ({ db }) => {
+	await db.query(`CREATE SCHEMA custom;`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.custom_migrations (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const filter = prepareEntityFilter('cockroach', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'custom',
+		},
+	);
+
+	expect([...schemas, ...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'custom',
+		},
+		{
+			entityType: 'tables',
+			isRlsEnabled: false,
+			name: 'users',
+			schema: 'public',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'users_pkey',
+			nameExplicit: true,
+			schema: 'custom',
+			table: 'users',
+		},
+	]);
 });

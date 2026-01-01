@@ -931,7 +931,14 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		})`;
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 
-		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${it.with})` : '';
+		statement += it.with
+			? `.with({ ${
+				it.with.split(',').map((it) => {
+					const [key, value] = it.split('=');
+					return `"${key.trim()}": ${value.trim()}`;
+				}).join(', ')
+			} })`
+			: '';
 		statement += `,\n`;
 	});
 
@@ -1034,8 +1041,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate.toLowerCase()}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete.toLowerCase()}")` : '';
 		statement += `,\n`;
 	});
 	return statement;

@@ -11,6 +11,7 @@ import {
 	gt,
 	gte,
 	inArray,
+	isNull,
 	lt,
 	max,
 	min,
@@ -2587,6 +2588,98 @@ export function tests(test: Test) {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
+		test.concurrent('placeholder + sql dates', async ({ db, push }) => {
+			const dateTable = singlestoreTable('dates_placeholder_test', (t) => ({
+				id: t.int('id').primaryKey().notNull(),
+				date: t.datetime('date', { mode: 'date' }).notNull(),
+				dateStr: t.datetime('date_str', { mode: 'string' }).notNull(),
+				timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
+				timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+			}));
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
+			await push({ dateTable });
+
+			const date = new Date('2025-12-10T01:01:01.000Z');
+			const timestamp = new Date('2025-12-10T01:01:01.000Z');
+			const dateStr = date.toISOString().slice(0, -5).replace('T', ' ');
+			const timestampStr = timestamp.toISOString().slice(0, -5).replace('T', ' ');
+
+			await db.insert(dateTable).values([{
+				id: 1,
+				date: date,
+				dateStr: dateStr,
+				timestamp: timestamp,
+				timestampStr: timestampStr,
+			}, {
+				id: 2,
+				date: sql.placeholder('dateAsDate'),
+				dateStr: sql.placeholder('dateStrAsDate'),
+				timestamp: sql.placeholder('timestampAsDate'),
+				timestampStr: sql.placeholder('timestampStrAsDate'),
+			}, {
+				id: 3,
+				date: sql.placeholder('dateAsString'),
+				dateStr: sql.placeholder('dateStrAsString'),
+				timestamp: sql.placeholder('timestampAsString'),
+				timestampStr: sql.placeholder('timestampStrAsString'),
+			}, {
+				id: 4,
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			}]).execute({
+				dateAsDate: date,
+				dateAsString: dateStr,
+				dateStrAsDate: date,
+				dateStrAsString: dateStr,
+				timestampAsDate: timestamp,
+				timestampAsString: timestampStr,
+				timestampStrAsDate: timestamp,
+				timestampStrAsString: timestampStr,
+			});
+
+			const initial = await db.select().from(dateTable).orderBy(dateTable.id);
+
+			await db.update(dateTable).set({
+				date: sql`${dateStr}`,
+				dateStr: sql`${dateStr}`,
+				timestamp: sql`${timestampStr}`,
+				timestampStr: sql`${timestampStr}`,
+			});
+
+			const updated = await db.select().from(dateTable).orderBy(dateTable.id);
+
+			expect(initial).toStrictEqual([{
+				id: 1,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 2,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 3,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}, {
+				id: 4,
+				date,
+				dateStr,
+				timestamp,
+				timestampStr,
+			}]);
+
+			expect(updated).toStrictEqual(initial);
+		});
+
 		test.concurrent('all types', async ({ db }) => {
 			await db.execute(sql`drop table if exists ${allTypesTable};`);
 			await db.execute(sql`
@@ -2781,6 +2874,32 @@ export function tests(test: Test) {
 
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4878
+		test.concurrent('.where with isNull in it', async ({ db, push }) => {
+			const table = singlestoreTable('table_where_is_null', {
+				col1: boolean(),
+				col2: text(),
+			});
+
+			await push({ table });
+			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select `col1`, `col2` from `table_where_is_null` where `table_where_is_null`.`col1` = (`table_where_is_null`.`col2` is null)',
+				params: [],
+			});
+			const res = await query;
+
+			expect(res.length).toBe(2);
+			expect(res.find((it) => it.col1 === true && it.col2 === null)).toStrictEqual({ col1: true, col2: null });
+			expect(res.find((it) => it.col1 === false && it.col2 === 'qwerty')).toStrictEqual({
+				col1: false,
+				col2: 'qwerty',
+			});
 		});
 	});
 }

@@ -21,13 +21,13 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockro
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
-import { withStyle } from '../validations/outputs';
-import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
+import { cockraochSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -36,6 +36,11 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
+	explainFlag: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { prepareCockroach } = await import('../connections');
 	const { introspect: cockroachPushIntrospect } = await import('./pull-cockroach');
@@ -54,24 +59,28 @@ export const handle = async (
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors.map((it) => cockraochSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await cockroachPushIntrospect(db, filter, progress);
+	const { schema: schemaFrom } = await cockroachPushIntrospect(
+		db,
+		filter,
+		progress,
+		() => {},
+		migrations,
+	);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2 } = interimToDDL(schemaTo);
-	// todo: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors1.map((it) => cockraochSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
-	// const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
@@ -93,17 +102,12 @@ export const handle = async (
 		return;
 	}
 
-	const { losses, hints } = await suggestions(db, jsonStatements);
+	const hints = await suggestions(db, jsonStatements);
+	const explainMessage = explain('cockroach', groupedStatements, explainFlag, hints);
 
-	if (verbose) {
-		console.log();
-		console.log(withStyle.warning('You are about to execute these statements:'));
-		console.log();
-		console.log(losses.map((s) => chalk.blue(s)).join('\n'));
-		console.log();
-	}
-
-	if (!force && hints.length === 0) {
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
+	if (!force && hints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -112,26 +116,11 @@ export const handle = async (
 		}
 	}
 
-	if (!force && hints.length > 0) {
-		console.log(withStyle.warning('Found data-loss statements:'));
-		console.log(hints.join('\n'));
-		console.log();
-		console.log(
-			chalk.red.bold(
-				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-			),
-		);
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
-		console.log(chalk.white('Do you still want to push changes?'));
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) console.log(highlightSQL(statement));
 
-		const { data } = await render(new Select(['No, abort', `Yes, proceed`]));
-		if (data?.index === 0) {
-			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
-		}
-	}
-
-	for (const statement of [...losses, ...sqlStatements]) {
 		await db.query(statement);
 	}
 
@@ -145,8 +134,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
-	const statements: string[] = [];
-	const hints = [] as string[];
+	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
 		// discussion -
@@ -178,7 +166,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		if (statement.type === 'drop_table') {
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${statement.key} table`);
+			if (res.length > 0) grouped.push({ hint: `· You're about to delete non-empty ${statement.key} table` });
 			continue;
 		}
 
@@ -187,7 +175,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${id} materialized view`);
+			grouped.push({ hint: `· You're about to delete non-empty ${id} materialized view` });
 			continue;
 		}
 
@@ -197,7 +185,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${column.name} column in ${id} table`);
+			grouped.push({ hint: `· You're about to delete non-empty ${column.name} column in ${id} table` });
 			continue;
 		}
 
@@ -209,7 +197,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			hints.push(`· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`);
+			grouped.push({ hint: `· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
 			continue;
 		}
 
@@ -223,22 +211,13 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			);
 
 			if (res.length > 0) {
-				hints.push(
-					`· You're about to drop ${
+				grouped.push({
+					hint: `· You're about to drop ${
 						chalk.underline(id)
 					} primary key, this statements may fail and your table may loose primary key`,
-				);
+				});
 			}
 
-			const [{ name: pkName }] = await db.query<{ name: string }>(`
-        SELECT constraint_name as name 
-        FROM information_schema.table_constraints
-        WHERE 
-          table_schema = '${schema}'
-          AND table_name = '${table}'
-          AND constraint_type = 'PRIMARY KEY';`);
-
-			statements.push(`ALTER TABLE ${id} DROP CONSTRAINT "${pkName}"`);
 			continue;
 		}
 
@@ -248,13 +227,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			hints.push(
-				`· You're about to add not-null ${
+			grouped.push({
+				hint: `· You're about to add not-null ${
 					chalk.underline(statement.column.name)
 				} column without default value to a non-empty ${id} table`,
-			);
+			});
 
-			// statementsToExecute.push(`truncate table ${id} cascade;`);
 			continue;
 		}
 
@@ -265,25 +243,14 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			console.log(
-				`· You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${id} table which may fail`,
-			);
-			// const { status, data } = await render(
-			// 	new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
-			// );
-			// if (data?.index === 1) {
-			// 	statementsToExecute.push(
-			// 		`truncate table ${
-			// 			tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
-			// 		} cascade;`,
-			// 	);
-			// }
+			grouped.push({
+				hint: `· You're about to add ${
+					chalk.underline(unique.name)
+				} unique index to a non-empty ${id} table which may fail`,
+			});
 			continue;
 		}
 	}
 
-	return {
-		losses: statements,
-		hints,
-	};
+	return grouped;
 };

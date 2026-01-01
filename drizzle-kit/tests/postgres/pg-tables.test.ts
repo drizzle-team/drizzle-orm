@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
@@ -17,13 +18,17 @@ import {
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
+fs.mkdirSync('./tests/postgres/migrations', { recursive: true });
+
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase<PGlite>['client'];
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase();
+	_ = await prepareTestDatabase(false); // due to migrate function from orm in tests
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {
@@ -806,7 +811,7 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('drop tables with fk constraint', async () => {
+test('drop tables with fk constraint #1', async () => {
 	const table1 = pgTable('table1', {
 		column1: integer().primaryKey(),
 	});
@@ -833,6 +838,45 @@ test('drop tables with fk constraint', async () => {
 		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
 		'DROP TABLE "table1";',
 		'DROP TABLE "table2";',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4155
+test('drop tables with fk constraint #2', async () => {
+	const table1 = pgTable('table1', {
+		column1: integer().primaryKey(),
+	});
+	const table2 = pgTable('table2', {
+		column1: integer().primaryKey(),
+		column2: integer().references(() => table1.column1),
+	});
+	const schema1 = { table1, table2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"column1" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "table2" (\n\t"column1" integer PRIMARY KEY,\n\t"column2" integer\n);\n',
+		'ALTER TABLE "table2" ADD CONSTRAINT "table2_column2_table1_column1_fkey" FOREIGN KEY ("column2") REFERENCES "table1"("column1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const table2_ = pgTable('table2', {
+		column1: integer().primaryKey(),
+		column2: integer(),
+	});
+
+	const schema2 = { table2_ };
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'ALTER TABLE "table2" DROP CONSTRAINT "table2_column2_table1_column1_fkey";',
+		'DROP TABLE "table1";',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
@@ -1329,4 +1373,112 @@ test('rename 2 tables', async () => {
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('push after migrate with custom migrations table #1', async () => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #2', async () => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+	const { sqlStatements: st2 } = await diff({}, to, []);
+
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #3', async () => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('push after migrate with custom migrations table #4', async () => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/pglite/migrator');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	await migrate(drizzle({ client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/postgres/migrations',
+	});
+
+	const to = {
+		table: pgTable('table1', { col1: integer() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

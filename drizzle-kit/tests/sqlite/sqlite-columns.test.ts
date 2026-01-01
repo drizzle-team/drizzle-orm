@@ -234,7 +234,6 @@ test('added column not null and without default to table with data', async (t) =
 	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('drizzle');`);
 	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('turso');`);
 
-	// TODO: reivise
 	const { sqlStatements: pst, hints: phints, error } = await push({
 		db,
 		to: schema2,
@@ -305,6 +304,41 @@ test('add generated stored column', async (t) => {
 		+ '\t`gen_name` text GENERATED ALWAYS AS (123) STORED\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/1313#issuecomment-2753097290
+test('add a generated stored column and rename the existing one', async (t) => {
+	const from = {
+		users: sqliteTable('users', {
+			id: int('id'),
+		}),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			id: int('id1'),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`123`, { mode: 'stored' }),
+		}),
+	};
+	const renames = ['users.id->users.id1'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` RENAME COLUMN `id` TO `id1`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id1` integer,\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS (123) STORED\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id1`) SELECT `id1` FROM `users`;',
 		'DROP TABLE `users`;',
 		'ALTER TABLE `__new_users` RENAME TO `users`;',
 		'PRAGMA foreign_keys=ON;',
@@ -396,6 +430,36 @@ test('add columns #6', async (t) => {
 	const st0: string[] = ['ALTER TABLE `users` ADD `password` text NOT NULL;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4217
+test('add column with .notNull and .default', async () => {
+	const schema1 = {
+		table1: sqliteTable('table1', {
+			col1: integer(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	await db.run('insert into `table1` values (1);');
+	const schema2 = {
+		table1: sqliteTable('table1', {
+			col1: integer(),
+			col2: integer({ mode: 'boolean' }).notNull().default(false),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` ADD `col2` integer DEFAULT false NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+	const res = await db.query('select * from `table1`;');
+	expect(res).toStrictEqual([{ col1: 1, col2: 0 }]);
 });
 
 test('drop column', async (t) => {
@@ -1192,6 +1256,43 @@ test('alter column add default', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2095
+test('alter column add default #2', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			name: text(),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			name: text().default('dan'),
+			age: integer(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(
+		from,
+		to,
+		[],
+	);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `age` integer;',
+		'PRAGMA foreign_keys=OFF;',
+		"CREATE TABLE `__new_table` (\n\t`name` text DEFAULT 'dan',\n\t`age` integer\n);\n",
+		'INSERT INTO `__new_table`(`name`) SELECT `name` FROM `table`;',
+		'DROP TABLE `table`;',
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('alter column drop default', async (t) => {
 	const from = {
 		users: sqliteTable('table', {
@@ -1258,6 +1359,48 @@ test('alter column add default not null', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// I'm not sure if this is the correct test case
+// it is expected to get an error since column cannot be altered to not null when there is existing data that violates this constraint
+test('alter column add default not null to table with data', async (t) => {
+	const from = {
+		users: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+
+	const to = {
+		users: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull().default('dan'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	await db.run('insert into `table`(`id`) values (1);');
+	await db.run("insert into `table`(`id`,`name`) values (2,'alex');");
+	const { sqlStatements: pst } = await push({ db, to, expectError: true, ignoreSubsequent: true });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		"CREATE TABLE `__new_table` (\n\t`id` integer PRIMARY KEY,\n\t`name` text DEFAULT 'dan' NOT NULL\n);\n",
+		'INSERT INTO `__new_table`(`id`, `name`) SELECT `id`, `name` FROM `table`;',
+		'DROP TABLE `table`;',
+		'ALTER TABLE `__new_table` RENAME TO `table`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// const res = await db.query('select * from `table`;');
+	// expect(res).toStrictEqual([
+	// 	{ id: 1, name: 'dan' },
+	// 	{ id: 2, name: 'alex' },
+	// ]);
 });
 
 test('alter column add default not null with indexes', async (t) => {
@@ -1544,4 +1687,19 @@ test('text default values escape single quotes', async (t) => {
 	const st0: string[] = ["ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';"];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3979
+test('filter out system tables created by analyze', async () => {
+	await db.run('analyze');
+
+	const schema = {
+		table: sqliteTable('table', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSql1 = ['CREATE TABLE `table` (\n\t`id` integer PRIMARY KEY\n);\n'];
+	expect(pst1).toStrictEqual(expectedSql1);
 });

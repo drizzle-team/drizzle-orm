@@ -3,7 +3,7 @@ import { defineConfig } from 'rollup';
 
 export default defineConfig([
 	{
-		input: 'src/index.ts',
+		input: ['src/index.ts'],
 		output: [
 			{
 				format: 'esm',

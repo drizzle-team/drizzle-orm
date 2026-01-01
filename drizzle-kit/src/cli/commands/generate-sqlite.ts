@@ -29,7 +29,6 @@ export const handle = async (config: GenerateConfig) => {
 				breakpoints: config.breakpoints,
 				bundle: config.bundle,
 				type: 'custom',
-				prefixMode: config.prefix,
 				renames: [],
 				snapshots,
 			});
@@ -43,12 +42,6 @@ export const handle = async (config: GenerateConfig) => {
 			'default',
 		);
 
-		// for (const { jsonStatement } of groupedStatements) {
-		// 	const msg = sqliteExplain(jsonStatement);
-		// 	console.log(msg?.title);
-		// 	console.log(msg?.cause);
-		// }
-
 		for (const w of warnings) {
 			warning(w);
 		}
@@ -61,7 +54,6 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			bundle: config.bundle,
-			prefixMode: config.prefix,
 			driver: config.driver,
 			snapshots,
 		});

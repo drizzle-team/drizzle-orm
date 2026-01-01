@@ -32,11 +32,12 @@ import type { CasingType } from 'src/cli/validations/common';
 import type { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { z } from 'zod';
 import { getColumnCasing } from '../../dialects/drizzle';
-import type { Proxy, TransactionProxy } from '../../utils';
+import type { BenchmarkProxy, Proxy, TransactionProxy } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
 import { prepareFilenames } from '../../utils/utils-node';
 import { JSONB } from '../../utils/when-json-met-bigint';
+import type { DuckDbCredentials } from '../validations/duckdb';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { SingleStoreCredentials } from '../validations/singlestore';
@@ -56,7 +57,7 @@ type SchemaFile = {
 
 export type Setup = {
 	dbHash: string;
-	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
+	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
 	packageName:
 		| '@aws-sdk/client-rds-data'
 		| 'pglite'
@@ -72,11 +73,14 @@ export type Setup = {
 		| 'better-sqlite3'
 		| '@sqlitecloud/drivers'
 		| '@tursodatabase/database'
-		| 'bun';
+		| 'bun'
+		| 'duckdb'
+		| '@duckdb/node-api';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
+	benchmarkProxy?: BenchmarkProxy;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
@@ -358,11 +362,35 @@ export const drizzleForPostgres = async (
 		packageName: db.packageName,
 		proxy: db.proxy,
 		transactionProxy: db.transactionProxy,
+		benchmarkProxy: db.benchmarkProxy,
 		customDefaults,
 		schema: pgSchema,
 		relations,
 		schemaFiles,
 		casing,
+	};
+};
+
+export const drizzleForDuckDb = async (
+	credentials: DuckDbCredentials,
+): Promise<Setup> => {
+	const { prepareDuckDb } = await import('../connections');
+	const db = await prepareDuckDb(credentials);
+
+	const dbUrl = `duckdb://${credentials.url}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'duckdb',
+		driver: undefined,
+		packageName: db.packageName,
+		proxy: db.proxy,
+		transactionProxy: db.transactionProxy,
+		customDefaults: [],
+		schema: {},
+		relations: {},
 	};
 };
 
@@ -374,7 +402,7 @@ export const drizzleForMySQL = async (
 	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../connections');
-	const { proxy, transactionProxy, database, packageName } = await connectToMySQL(credentials);
+	const { proxy, transactionProxy, benchmarkProxy, database, packageName } = await connectToMySQL(credentials);
 
 	const customDefaults = getCustomDefaults(mysqlSchema, casing);
 
@@ -396,6 +424,7 @@ export const drizzleForMySQL = async (
 		databaseName: database,
 		proxy,
 		transactionProxy,
+		benchmarkProxy,
 		customDefaults,
 		schema: mysqlSchema,
 		relations,
@@ -671,6 +700,27 @@ const transactionProxySchema = z.object({
 		.array(),
 });
 
+const benchmarkProxySchema = z.object({
+	type: z.literal('bproxy'),
+	data: z.object({
+		query: z
+			.object({
+				sql: z.string(),
+				params: z.array(z.any()).optional(),
+				method: z
+					.union([
+						z.literal('values'),
+						z.literal('get'),
+						z.literal('all'),
+						z.literal('run'),
+						z.literal('execute'),
+					])
+					.optional(),
+			}),
+		repeats: z.number().min(1).optional(),
+	}),
+});
+
 const defaultsSchema = z.object({
 	type: z.literal('defaults'),
 	data: z
@@ -688,6 +738,7 @@ const schema = z.union([
 	init,
 	proxySchema,
 	transactionProxySchema,
+	benchmarkProxySchema,
 	defaultsSchema,
 ]);
 
@@ -735,6 +786,7 @@ export const prepareServer = async (
 		databaseName,
 		proxy,
 		transactionProxy,
+		benchmarkProxy,
 		customDefaults,
 		schema: drizzleSchema,
 		relations,
@@ -815,7 +867,7 @@ export const prepareServer = async (
 			}
 
 			return c.json({
-				version: '6.2',
+				version: '6.3',
 				dialect,
 				driver,
 				packageName,
@@ -845,6 +897,22 @@ export const prepareServer = async (
 
 		if (type === 'tproxy') {
 			const result = await transactionProxy(body.data);
+			const res = jsonStringify(result)!;
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
+		}
+
+		if (type === 'bproxy') {
+			if (!benchmarkProxy) {
+				throw new Error('Benchmark proxy is not configured for this database.');
+			}
+			const result = await benchmarkProxy(body.data.query, body.data.repeats || 1);
 			const res = jsonStringify(result)!;
 			return c.body(
 				res,

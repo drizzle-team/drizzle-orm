@@ -53,7 +53,8 @@ export class CockroachTimestamp<T extends ColumnBaseConfig<'object date'>> exten
 		return new Date(this.withTimezone ? value : value + '+0000');
 	};
 
-	override mapToDriverValue = (value: Date): string => {
+	override mapToDriverValue = (value: Date | string): string => {
+		if (typeof value === 'string') return value;
 		return value.toISOString();
 	};
 }
@@ -104,6 +105,11 @@ export class CockroachTimestampString<T extends ColumnBaseConfig<'string timesta
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `timestamp${this.withTimezone ? 'tz' : ''}${precision}`;
 	}
+
+	override mapToDriverValue = (value: Date | string): string => {
+		if (typeof value === 'string') return value;
+		return value.toISOString();
+	};
 }
 
 export type Precision = 0 | 1 | 2 | 3 | 4 | 5 | 6;

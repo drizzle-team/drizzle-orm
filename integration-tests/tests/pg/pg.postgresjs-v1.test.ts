@@ -786,6 +786,7 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4597
 test('[Find Many] Get users with posts + where + partial(true + false)', async (t) => {
 	const { pgjsDb: db } = t;
 
