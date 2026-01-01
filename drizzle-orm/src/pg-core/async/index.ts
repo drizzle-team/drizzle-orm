@@ -3,6 +3,7 @@ export * from './db.ts';
 export * from './delete.ts';
 export * from './insert.ts';
 export * from './query.ts';
+export * from './raw.ts';
 export * from './refresh-materialized-view.ts';
 export * from './select.ts';
 export * from './session.ts';
