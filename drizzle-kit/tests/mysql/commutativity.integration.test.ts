@@ -146,7 +146,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 	test.skipIf(Date.now() < +new Date('2026-01-15'))('fk: recreate vs drop', async () => {
 		const p = mysqlTable('p', (t) => ({
 			id: t.int().primaryKey(),
-			z,
+			// z,
 		}));
 
 		const parent = {
