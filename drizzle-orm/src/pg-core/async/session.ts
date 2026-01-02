@@ -190,7 +190,7 @@ export abstract class PgAsyncTransaction<
 	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > extends PgAsyncDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
-	static override readonly [entityKind]: string = 'PgTransaction';
+	static override readonly [entityKind]: string = 'PgAsyncTransaction';
 
 	constructor(
 		dialect: PgDialect,
@@ -284,7 +284,7 @@ export async function migrate(
 
 	const lastDbMigration = dbMigrations[0];
 	await session.transaction(async (tx) => {
-		for await (const migration of migrations) {
+		for (const migration of migrations) {
 			if (
 				!lastDbMigration
 				|| Number(lastDbMigration.created_at) < migration.folderMillis

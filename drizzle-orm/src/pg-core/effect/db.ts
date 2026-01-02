@@ -3,6 +3,7 @@ import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
@@ -28,7 +29,7 @@ import { PgEffectDeleteBase } from './delete.ts';
 import { PgEffectRelationalQuery, type PgEffectRelationalQueryHKT } from './query.ts';
 import { PgEffectRaw } from './raw.ts';
 import { PgEffectRefreshMaterializedView } from './refresh-materialized-view.ts';
-import type { PgEffectSession } from './session.ts';
+import type { PgEffectSession, PgEffectTransaction } from './session.ts';
 import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
 
 export class PgEffectDatabase<
@@ -44,7 +45,7 @@ export class PgEffectDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgEffectSession<TFullSchema, TRelations, TSchema>;
+		readonly session: PgEffectSession<TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -60,7 +61,7 @@ export class PgEffectDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgEffectSession<any, any, any>,
+		readonly session: PgEffectSession<any, any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
@@ -654,6 +655,16 @@ export class PgEffectDatabase<
 			sequel,
 			builtQuery,
 			(result) => prepared.mapResult(result, true),
+		);
+	}
+
+	transaction<T>(
+		transaction: (
+			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
+		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>,
+	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError> {
+		return this.session.transaction(
+			transaction,
 		);
 	}
 }
