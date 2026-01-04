@@ -5,7 +5,7 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { dialects } from 'src/utils/schemaValidator';
 import '../@types/utils';
-import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
+import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator-utils';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';

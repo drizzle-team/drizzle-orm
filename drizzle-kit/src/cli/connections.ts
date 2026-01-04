@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
-import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
+import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator-utils';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import type { config } from 'mssql';
 import type { Connection, ConnectionConfig, Query } from 'mysql2';

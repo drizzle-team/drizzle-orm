@@ -1,4 +1,4 @@
-import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator-utils.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';

@@ -9,7 +9,7 @@ import {
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator-utils.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';

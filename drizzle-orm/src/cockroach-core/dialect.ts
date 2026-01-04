@@ -20,7 +20,7 @@ import { CockroachTable } from '~/cockroach-core/table.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator-utils.ts';
 import { and, eq, View } from '~/sql/index.ts';
 import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';

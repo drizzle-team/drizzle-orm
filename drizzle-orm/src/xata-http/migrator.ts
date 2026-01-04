@@ -1,4 +1,5 @@
-import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
+import type { MigratorInitFailResponse } from '~/migrator-utils.ts';
+import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { XataHttpDatabase } from './driver.ts';

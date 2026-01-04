@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig } from '~/migrator-utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { BunMySqlDatabase } from './mysql/driver.ts';
 import { migrate as mysqlMigrator } from './mysql/migrator.ts';

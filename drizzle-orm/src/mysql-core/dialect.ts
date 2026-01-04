@@ -10,7 +10,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator-utils.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,

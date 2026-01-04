@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig } from '~/migrator-utils.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { BunSQLiteDatabase } from './driver.ts';
