@@ -12,10 +12,11 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { fillPlaceholders, sql } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { fillPlaceholders } from '~/sql/sql.ts';
+import { type Assume, mapResultRow } from '~/utils.ts';
+
 export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
-	type: readonly object[];
+	type: readonly Assume<this['row'], object>[];
 }
 
 export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
@@ -41,7 +42,6 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
-		private wrap: Effect.Adapter = <T>(t: T): T => t,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -64,21 +64,19 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		return this.queryWithCache(
 			query.sql,
 			params,
-			this.wrap(
-				client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
-					(rows) => {
-						if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
+			client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
+				(rows) => {
+					if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 
-						return rows.map((row) =>
-							mapResultRow(
-								fields!,
-								row as unknown[],
-								joinsNotNullableMap,
-							)
-						);
-					},
-				)),
-			),
+					return rows.map((row) =>
+						mapResultRow(
+							fields!,
+							row as unknown[],
+							joinsNotNullableMap,
+						)
+					);
+				},
+			)),
 		);
 	}
 
@@ -89,7 +87,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
 		logger.logQuery(query.sql, params);
-		return this.wrap(
+		return (
 			client.unsafe(query.sql, params as any).withoutTransform.pipe(
 				Effect.andThen((v) =>
 					(customResultMapper as (
@@ -100,7 +98,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			).pipe(Effect.catchAll((e) => {
 				// eslint-disable-next-line @drizzle-internal/no-instanceof
 				return Effect.fail(new DrizzleQueryError(query.sql, params, e instanceof Error ? e : undefined));
-			})),
+			}))
 		);
 	}
 
@@ -113,7 +111,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		return this.queryWithCache(
 			query.sql,
 			params,
-			this.wrap(client.unsafe(query.sql, params as any).withoutTransform),
+			client.unsafe(query.sql, params as any).withoutTransform,
 		);
 	}
 
@@ -140,8 +138,6 @@ export class EffectPgSession<
 		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: { logger?: Logger; cache?: EffectCache } = {},
-		private wrap: Effect.Adapter = <T>(t: T): T => t,
-		private nestedIndex = 0,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -173,7 +169,6 @@ export class EffectPgSession<
 			isResponseInArrayMode,
 			customResultMapper,
 			false,
-			this.wrap,
 		);
 	}
 
@@ -196,7 +191,6 @@ export class EffectPgSession<
 			false,
 			customResultMapper,
 			true,
-			this.wrap,
 		);
 	}
 
@@ -220,6 +214,10 @@ export class EffectPgSession<
 
 	override transaction<T>(
 		transaction: (
+			/** Every query within transaction Effect is completed in transaction, regardless of database instance used
+			 *
+			 * `tx` argument is only required for `tx.rollback()`
+			 */
 			tx: EffectPgTransaction<
 				TQueryResult,
 				TFullSchema,
@@ -228,39 +226,18 @@ export class EffectPgSession<
 			>,
 		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never>,
 	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never> {
-		const { dialect, relations, schema, client, logger, cache, nestedIndex } = this;
-		const sp = `sp${this.nestedIndex}`;
+		const { dialect, relations, schema } = this;
+		const session = this;
 
-		return this.client.withTransaction(Effect.gen(function*(txAdapter) {
-			const session = new EffectPgSession(
-				client,
-				dialect,
-				relations,
-				schema,
-				{ logger, cache },
-				txAdapter,
-				nestedIndex + 1,
-			);
-
+		return this.client.withTransaction(Effect.gen(function*() {
 			const tx = new EffectPgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>(
 				dialect,
 				session,
 				relations,
 				schema,
-				nestedIndex + 1,
 			);
 
-			if (nestedIndex) yield* tx.execute(sql.raw(`savepoint ${sp}`));
-
-			const res = yield* transaction(tx).pipe(Effect.catchAll((e) =>
-				Effect.gen(function*() {
-					if (nestedIndex) yield* (tx.execute(sql.raw(`rollback to savepoint ${sp}`)));
-					return yield* Effect.fail(e);
-				})
-			));
-			if (nestedIndex) yield* (tx.execute(sql.raw(`release savepoint ${sp}`)));
-
-			return res;
+			return yield* transaction(tx);
 		}));
 	}
 }

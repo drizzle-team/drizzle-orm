@@ -184,9 +184,9 @@ export abstract class PgEffectTransaction<
 		super(dialect, session, relations, schema, parseRqbJson);
 	}
 
-	rollback(): never {
-		throw new TransactionRollbackError();
-	}
+	rollback = function*() {
+		yield* Effect.fail(new TransactionRollbackError());
+	};
 
 	/** @internal */
 	getTransactionConfigSQL(config: PgTransactionConfig): SQL {

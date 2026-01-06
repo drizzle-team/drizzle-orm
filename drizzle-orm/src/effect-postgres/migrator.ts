@@ -4,7 +4,7 @@ import { migrate as coreMigrate } from '~/pg-core/effect/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { EffectPgDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: EffectPgDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ) {
