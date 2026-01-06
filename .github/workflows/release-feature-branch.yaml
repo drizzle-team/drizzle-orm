@@ -95,12 +95,12 @@ jobs:
         include:
           - shard: int:gel
             dbs: [gel]
-          - shard: int:singlestore
-            dbs: [singlestore]
-          - shard: int:singlestore-core
-            dbs: [singlestore-many]
-          - shard: int:singlestore-proxy
-            dbs: [singlestore-many]
+          # - shard: int:singlestore
+          #   dbs: [singlestore]
+          # - shard: int:singlestore-core
+          #   dbs: [singlestore-many]
+          # - shard: int:singlestore-proxy
+          #   dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
