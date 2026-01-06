@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -25,7 +24,7 @@ export class PgSerialBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgSerial<T extends ColumnBaseConfig<'number int32'>> extends PgColumn<T> {
+export class PgSerial extends PgColumn<'number int32'> {
 	static override readonly [entityKind]: string = 'PgSerial';
 
 	getSQLType(): string {

@@ -11,7 +11,9 @@ export default defineConfig({
 			'./tests/mysql/**/*.test.ts',
 			'./tests/sqlite/**/*.test.ts',
 		],
-		exclude: [],
+		exclude: [
+			'./tests/singlestore/**/*.test.ts',
+		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},

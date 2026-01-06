@@ -18,3 +18,4 @@ typeperf-test/tmp.tsconfig.json
 typeperf-test/trace
 typeperf-test/lib/big-schema.ts
 typeperf-test/lib/big-schema-rels.ts
+typeperf-test/.attest

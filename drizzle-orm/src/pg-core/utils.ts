@@ -5,7 +5,6 @@ import { Subquery } from '~/subquery.ts';
 import { Table, TableSchema } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
-import type { AnyPgColumn } from './columns/index.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
@@ -98,9 +97,3 @@ export function getMaterializedViewConfig<
 		...view[PgMaterializedViewConfig],
 	};
 }
-
-export type ColumnsWithTable<
-	TTableName extends string,
-	TForeignTableName extends string,
-	TColumns extends AnyPgColumn<{ tableName: TTableName }>[],
-> = { [Key in keyof TColumns]: AnyPgColumn<{ tableName: TForeignTableName }> };

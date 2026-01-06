@@ -1652,7 +1652,7 @@ export function tests(test: Test) {
 			const salEmp = pgTable('sal_emp_65', {
 				name: text('name').notNull(),
 				payByQuarter: integer('pay_by_quarter').array().notNull(),
-				schedule: text('schedule').array().array().notNull(),
+				schedule: text('schedule').array('[][]').notNull(),
 			});
 
 			await push({ salEmp });

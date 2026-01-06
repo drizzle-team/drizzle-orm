@@ -691,7 +691,7 @@ export type BuildQueryResult<
 		TTableConfig['table'],
 		{ $inferSelect: Record<string, unknown> }
 	>['$inferSelect'],
-> = Equal<TFullSelection, true> extends true ? Simplify<InferRelationalQueryTableResult<TModel>>
+> = TFullSelection extends true | Record<string, never> ? TModel
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
 				TModel,

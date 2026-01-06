@@ -83,8 +83,8 @@ export const allSmallIntsCustom = customSchema.table(
 	{
 		column: smallint('column').notNull().array().generatedAlwaysAs([1]),
 		column1: smallint('column1').default(1),
-		column2: smallint('column2').notNull().array().array(),
-		column3: smallint('column3').notNull().array().array(),
+		column2: smallint('column2').notNull().array('[][]'),
+		column3: smallint('column3').notNull().array('[][]'),
 		column4: smallint('column4').notNull().array().default([1]),
 	},
 	(
@@ -331,8 +331,8 @@ export const allSmallInts = pgTable(
 	{
 		columnAll: smallint('column_all').default(124).notNull(),
 		column: smallint('columns').array(),
-		column1: smallint('column1').array().array(),
-		column2: smallint('column2').array().array(),
+		column1: smallint('column1').array('[][]'),
+		column2: smallint('column2').array('[][]'),
 		column3: smallint('column3').array(),
 		column4: smallint('column4').array().notNull(),
 	},

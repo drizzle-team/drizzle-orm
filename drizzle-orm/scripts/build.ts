@@ -1,11 +1,14 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
-import cpy from 'cpy';
+#!/usr/bin/env bun
+import { $ } from 'bun';
+import { globSync } from 'glob';
+import { mkdirSync, renameSync, rmSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
+import { build as tsdown } from 'tsdown';
+
+const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 
 async function updateAndCopyPackageJson() {
-	const pkg = await fs.readJSON('package.json');
-
-	const entries = await glob('src/**/*.ts');
+	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 
 	pkg.exports = entries.reduce<
 		Record<string, {
@@ -43,34 +46,54 @@ async function updateAndCopyPackageJson() {
 		{},
 	);
 
-	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
+	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 
-await fs.remove('dist.new');
+async function main() {
+	const startTime = Date.now();
 
-await Promise.all([
-	(async () => {
-		await $`tsup`.stdio('pipe', 'pipe', 'pipe');
-	})(),
-	(async () => {
-		await $`tsc -p tsconfig.dts.json`.stdio('pipe', 'pipe', 'pipe');
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
-		});
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
-		});
-	})(),
-]);
+	await $`pnpm p`.quiet();
 
-await Promise.all([
-	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-]);
+	rmSync('dist.new', { recursive: true, force: true });
+	mkdirSync('dist.new', { recursive: true });
 
-await $`scripts/fix-imports.ts`;
+	await tsdown({
+		entry: entries,
+		outDir: './dist.new',
+		format: ['cjs', 'es'],
+		unbundle: true,
+		platform: 'node',
+		external: [/^[^./]/], // everything?
+		tsconfig: 'tsconfig.json',
+		sourcemap: true,
+		dts: true,
+		clean: false,
+		silent: true,
+		alias: {
+			'~': './src',
+		},
+		outExtensions: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return { js: '.cjs', dts: '.d.cts' };
+			}
+			return { js: '.js', dts: '.d.ts' };
+		},
+	});
 
-await fs.copy('../README.md', 'dist.new/README.md');
-await updateAndCopyPackageJson();
-await fs.remove('dist');
-await fs.rename('dist.new', 'dist');
+	await $`bun scripts/fix-imports.ts`.quiet();
+	await Promise.all([
+		fs.copyFile('../README.md', 'dist.new/README.md'),
+		updateAndCopyPackageJson(),
+	]);
+
+	rmSync('dist', { recursive: true, force: true });
+	renameSync('dist.new', 'dist');
+
+	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+	console.log(`Build complete ${elapsed}s`);
+}
+
+main().catch((e) => {
+	console.error(e);
+	process.exit(1);
+});

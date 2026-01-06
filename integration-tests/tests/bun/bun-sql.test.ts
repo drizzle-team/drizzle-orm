@@ -159,11 +159,11 @@ const network = pgTable('network_table', {
 const salEmp = pgTable('sal_emp', {
 	name: text('name'),
 	payByQuarter: integer('pay_by_quarter').array(),
-	schedule: text('schedule').array().array(),
+	schedule: text('schedule').array('[][]'),
 });
 
 const _tictactoe = pgTable('tictactoe', {
-	squares: integer('squares').array(3).array(3),
+	squares: integer('squares').array('[][]'),
 });
 
 export const usersMigratorTable = pgTable('users12', {
@@ -3598,7 +3598,7 @@ test.skip('array mapping and parsing', async () => {
 	const arrays = pgTable('arrays_tests', {
 		id: serial('id').primaryKey(),
 		tags: text('tags').array(),
-		nested: text('nested').array().array(),
+		nested: text('nested').array('[][]'),
 		numbers: integer('numbers').notNull().array(),
 	});
 

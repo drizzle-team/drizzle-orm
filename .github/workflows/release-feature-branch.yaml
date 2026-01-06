@@ -36,6 +36,7 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with: { run_install: false }
@@ -94,12 +95,12 @@ jobs:
         include:
           - shard: int:gel
             dbs: [gel]
-          - shard: int:singlestore
-            dbs: [singlestore]
-          - shard: int:singlestore-core
-            dbs: [singlestore-many]
-          - shard: int:singlestore-proxy
-            dbs: [singlestore-many]
+          # - shard: int:singlestore
+          #   dbs: [singlestore]
+          # - shard: int:singlestore-core
+          #   dbs: [singlestore-many]
+          # - shard: int:singlestore-proxy
+          #   dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres

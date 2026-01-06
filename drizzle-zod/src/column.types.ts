@@ -4,7 +4,32 @@ import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './c
 import type { CoerceOptions } from './schema.types.ts';
 import type { Json } from './utils.ts';
 
+type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
+	: T extends readonly (infer U)[] ? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
+	: Depth;
+
+type WrapInZodArray<TSchema extends z.ZodType, TDepth extends number> = TDepth extends 0 ? TSchema
+	: TDepth extends 1 ? z.ZodArray<TSchema>
+	: TDepth extends 2 ? z.ZodArray<z.ZodArray<TSchema>>
+	: TDepth extends 3 ? z.ZodArray<z.ZodArray<z.ZodArray<TSchema>>>
+	: TDepth extends 4 ? z.ZodArray<z.ZodArray<z.ZodArray<z.ZodArray<TSchema>>>>
+	: TDepth extends 5 ? z.ZodArray<z.ZodArray<z.ZodArray<z.ZodArray<z.ZodArray<TSchema>>>>>
+	: z.ZodArray<z.ZodAny>;
+
+type IsPgArrayColumn<TColumn extends Column<any>, TType extends ColumnTypeData> = TType['type'] extends 'array' ? false // Already handled as explicit array type
+	: GetArrayDepth<TColumn['_']['data']> extends 0 ? false
+	: true;
+
 export type GetZodType<
+	TColumn extends Column<any>,
+	TCoerce extends CoerceOptions,
+	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
+	TCanCoerce extends boolean = CanCoerce<TCoerce, ColumnTypeDataToCoerceKey<TType>>,
+> = IsPgArrayColumn<TColumn, TType> extends true
+	? WrapInZodArray<GetBaseZodType<TColumn, TCoerce, TType, TCanCoerce>, GetArrayDepth<TColumn['_']['data']>>
+	: GetBaseZodType<TColumn, TCoerce, TType, TCanCoerce>;
+
+type GetBaseZodType<
 	TColumn extends Column<any>,
 	TCoerce extends CoerceOptions,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,

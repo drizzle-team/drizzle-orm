@@ -1,9 +1,9 @@
 import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { parsePgArray } from '../utils/array.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
@@ -47,7 +47,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> 
 	}
 }
 
-export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColumn<T> {
+export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends PgColumn<'custom'> {
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
@@ -60,12 +60,42 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColu
 		table: PgTable<any>,
 		config: PgCustomColumnBuilder<T>['config'],
 	) {
-		super(table, config);
+		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
 		this.mapJson = config.customTypeParams.fromJson;
 		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+
+		// Wrap mapFromJsonValue with array handling if this is an array column
+		if (this.dimensions) {
+			// Create a mapper function that handles a single element
+			// This uses the raw mapJson or mapFrom functions, not the wrapped mapFromDriverValue
+			const elementMapper = (value: unknown): unknown => {
+				if (typeof this.mapJson === 'function') {
+					return this.mapJson(value);
+				}
+				if (typeof this.mapFrom === 'function') {
+					return this.mapFrom(value as T['driverParam']);
+				}
+				return value;
+			};
+
+			this.mapFromJsonValue = (value: unknown): unknown => {
+				if (value === null) return value;
+				// Parse string representation if needed
+				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
+				return this.mapJsonArrayElements(arr, elementMapper, this.dimensions);
+			};
+		}
+	}
+
+	/** @internal */
+	private mapJsonArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
+		if (depth > 0 && Array.isArray(value)) {
+			return value.map((v) => v === null ? null : this.mapJsonArrayElements(v, mapper, depth - 1));
+		}
+		return mapper(value);
 	}
 
 	getSQLType(): string {

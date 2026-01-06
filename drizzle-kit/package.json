@@ -37,7 +37,7 @@
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
 		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
-		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/",
+		"build": "tsx scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
@@ -56,7 +56,7 @@
 		"@drizzle-team/brocli": "^0.11.0",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.10",
-		"esbuild-register": "^3.6.0"
+		"tsx": "^4.20.6"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.556.0",
@@ -99,7 +99,7 @@
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"duckdb": "^1.3.2",
 		"env-paths": "^3.0.0",
-		"esbuild-node-externals": "^1.9.0",
+		"esbuild-register": "^3.6.0",
 		"gel": "^2.0.0",
 		"get-port": "^6.1.2",
 		"glob": "^8.1.0",
@@ -117,14 +117,14 @@
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",
+		"rolldown": "^1.0.0-beta.57",
 		"semver": "^7.7.2",
-		"tsup": "^8.3.5",
-		"tsx": "^4.20.6",
+		"tsdown": "^0.18.3",
 		"typescript": "^5.9.3",
 		"uuid": "^9.0.1",
 		"ws": "^8.18.2",
 		"zod": "^3.20.2",
-		"zx": "^8.3.2"
+		"zx": "^8.8.5"
 	},
 	"exports": {
 		".": {
