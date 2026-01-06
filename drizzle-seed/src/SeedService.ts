@@ -234,17 +234,14 @@ export class SeedService {
 						continue;
 					}
 
-					if (col.columnType.match(/\[\w*]/g) !== null) {
-						if (
-							(col.baseColumn?.dataType === 'array' && col.baseColumn.columnType.match(/\[\w*]/g) !== null)
-							// studio case
-							|| (col.typeParams.dimensions !== undefined && col.typeParams.dimensions > 1)
-						) {
-							throw new Error("for now you can't specify generators for columns of dimension greater than 1.");
-						}
-
-						genObj.baseColumnDataType = col.baseColumn?.dataType ?? col.dataType;
+					if (
+						(col.typeParams.dimensions && col.typeParams.dimensions > 1)
+						|| (col.typeParams.dimensions !== undefined && col.typeParams.dimensions > 1)
+					) {
+						throw new Error("for now you can't specify generators for columns of dimension greater than 1.");
 					}
+
+					genObj.columnDataType = col.dataType;
 
 					columnPossibleGenerator.generator = genObj;
 					columnPossibleGenerator.wasRefined = true;
@@ -299,7 +296,10 @@ export class SeedService {
 					}
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
-					columnPossibleGenerator.generator = selectGeneratorForPostgresColumn(table, col);
+					columnPossibleGenerator.generator = selectGeneratorForPostgresColumn(
+						col,
+						table.primaryKeys.includes(col.name),
+					);
 				} else if (connectionType === 'mysql') {
 					columnPossibleGenerator.generator = selectGeneratorForMysqlColumn(table, col);
 				} else if (connectionType === 'sqlite') {
@@ -434,7 +434,7 @@ export class SeedService {
 		}
 
 		const newGenerator = new generatorConstructor(generator.params);
-		newGenerator.baseColumnDataType = generator.baseColumnDataType;
+		newGenerator.columnDataType = generator.columnDataType;
 		newGenerator.isUnique = generator.isUnique;
 		// TODO: for now only GenerateValuesFromArray support notNull property
 		newGenerator.notNull = generator.notNull;

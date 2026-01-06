@@ -1,11 +1,11 @@
-import { is, sql } from 'drizzle-orm';
+import { type AnyColumn, is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { PgAsyncDatabase, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, TableConfigT } from '../types/tables.ts';
+import type { Column } from '../types/tables.ts';
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 export const resetPostgres = async (
@@ -92,65 +92,54 @@ export const seedPostgres = async (
 	);
 };
 
+const getTypeParams = (sqlType: string) => {
+	// get type params
+	const typeParams: Column['typeParams'] = {};
+
+	if (
+		sqlType.startsWith('numeric')
+		|| sqlType.startsWith('decimal')
+		|| sqlType.startsWith('double precision')
+		|| sqlType.startsWith('real')
+	) {
+		const match = sqlType.match(/\((\d+), *(\d+)\)/);
+		if (match) {
+			typeParams['precision'] = Number(match[1]);
+			typeParams['scale'] = Number(match[2]);
+		}
+	} else if (
+		sqlType.startsWith('varchar')
+		|| sqlType.startsWith('bpchar')
+		|| sqlType.startsWith('char')
+		|| sqlType.startsWith('bit')
+		|| sqlType.startsWith('vector')
+		|| sqlType.startsWith('time')
+		|| sqlType.startsWith('timestamp')
+		|| sqlType.startsWith('interval')
+	) {
+		const match = sqlType.match(/\((\d+)\)/);
+		if (match) {
+			typeParams['length'] = Number(match[1]);
+		}
+	}
+
+	return typeParams;
+};
+
 export const mapPgColumns = (
-	tableConfig: TableConfigT,
+	columns: AnyColumn[],
 	dbToTsColumnNamesMap: { [key: string]: string },
 ): Column[] => {
-	const getTypeParams = (sqlType: string) => {
-		// get type params
-		const typeParams: Column['typeParams'] = {};
-
-		// handle dimensions
-		if (sqlType.includes('[')) {
-			const match = sqlType.match(/\[\w*]/g);
-			if (match) {
-				typeParams['dimensions'] = match.length;
-			}
-		}
-
-		if (
-			sqlType.startsWith('numeric')
-			|| sqlType.startsWith('decimal')
-			|| sqlType.startsWith('double precision')
-			|| sqlType.startsWith('real')
-		) {
-			const match = sqlType.match(/\((\d+), *(\d+)\)/);
-			if (match) {
-				typeParams['precision'] = Number(match[1]);
-				typeParams['scale'] = Number(match[2]);
-			}
-		} else if (
-			sqlType.startsWith('varchar')
-			|| sqlType.startsWith('bpchar')
-			|| sqlType.startsWith('char')
-			|| sqlType.startsWith('bit')
-			|| sqlType.startsWith('vector')
-			|| sqlType.startsWith('time')
-			|| sqlType.startsWith('timestamp')
-			|| sqlType.startsWith('interval')
-		) {
-			const match = sqlType.match(/\((\d+)\)/);
-			if (match) {
-				typeParams['length'] = Number(match[1]);
-			}
-		}
-
-		return typeParams;
-	};
-
-	const mappedColumns: Column[] = tableConfig.columns.map((column) => {
+	return columns.map((column) => {
 		const pgCol = column as PgColumn;
-		const baseSqlType = column.getSQLType();
-		// Append array brackets based on dimensions
-		const arrayBrackets = pgCol.dimensions ? '[]'.repeat(pgCol.dimensions) : '';
-		const columnType = baseSqlType + arrayBrackets;
+		const sqlType = column.getSQLType();
 
 		return {
 			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType,
-			typeParams: getTypeParams(columnType),
+			columnType: sqlType,
+			typeParams: { ...getTypeParams(sqlType), dimensions: pgCol.dimensions },
 			dataType: column.dataType.split(' ')[0]!,
-			size: pgCol.length,
+			size: undefined, // we no longer support length for arrays
 			hasDefault: column.hasDefault,
 			default: column.default,
 			enumValues: column.enumValues,
@@ -158,10 +147,16 @@ export const mapPgColumns = (
 			notNull: column.notNull,
 			primary: column.primary,
 			generatedIdentityType: column.generatedIdentity?.type,
-			// Note: PG arrays no longer use baseColumn - dimensions are in typeParams
-			baseColumn: undefined,
-		};
+		} satisfies Column;
 	});
-
-	return mappedColumns;
 };
+
+// const t = pgTable('a', { id: point('id', {mode: "xy"}).array() });
+// const config = getTableConfig(t);
+
+// const columns = mapPgColumns(config.columns, {});
+// console.log(columns)
+// const gen = selectGeneratorForPostgresColumn(columns[0]!, false);
+// gen.init({ count: 10, seed: 0 });
+
+// console.log(gen.generate({ i: 0 }));
