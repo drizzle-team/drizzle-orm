@@ -24,7 +24,10 @@
 		"tsx": "^4.19.0"
 	},
 	"dependencies": {
-		"drizzle-orm": "link:../drizzle-orm/dist",
-		"drizzle-beta": "npm:drizzle-orm@1.0.0-beta.5-e0482ac"
+		"drizzle-beta": "npm:drizzle-orm@1.0.0-beta.8-734e789",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
+		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
+		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
+		"drizzle-zod": "workspace:../drizzle-zod/dist"
 	}
 }

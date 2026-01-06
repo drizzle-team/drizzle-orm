@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-beta.6",
+	"version": "1.0.0-beta.9",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -49,6 +49,8 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
+		"@effect/sql": "^0.48.5",
+		"@effect/sql-pg": "^0.49.7",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -173,12 +175,21 @@
 		},
 		"@upstash/redis": {
 			"optional": true
+		},
+		"@effect/sql": {
+			"optional": true
+		},
+		"@effect/sql-pg": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
+		"@effect/sql": "^0.48.5",
+		"@effect/sql-pg": "^0.49.7",
+		"@effect/sql-sqlite-node": "^0.49.1",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
@@ -205,6 +216,7 @@
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
+		"effect": "^3.19.8",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
 		"glob": "^11.0.1",

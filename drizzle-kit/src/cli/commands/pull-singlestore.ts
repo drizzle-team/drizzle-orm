@@ -12,7 +12,7 @@ import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSingleStore } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing, Prefix } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
@@ -24,7 +24,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: SingleStoreCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof connectToSingleStore>>,
 ) => {
 	if (!db) {
@@ -37,7 +40,7 @@ export const handle = async (
 	const progress = new IntrospectProgress();
 	const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
 		progress.update(stage, count, status);
-	});
+	}, migrations);
 	const res = await renderWithTask(progress, task);
 
 	const { ddl } = interimToDDL(res);
@@ -71,7 +74,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {

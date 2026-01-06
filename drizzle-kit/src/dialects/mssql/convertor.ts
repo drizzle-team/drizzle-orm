@@ -247,6 +247,7 @@ const createFK = convertor('create_fk', (st) => {
 		onDelete,
 		onUpdate,
 		schema,
+		schemaTo,
 	} = st.fk;
 	const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
 	const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
@@ -254,7 +255,9 @@ const createFK = convertor('create_fk', (st) => {
 	const toColumnsString = columnsTo.map((it) => `[${it}]`).join(',');
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
-	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES [${tableTo}](${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+	const keyTo = schemaTo !== 'dbo' ? `[${schemaTo}].[${tableTo}]` : `[${tableTo}]`;
+
+	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES ${keyTo}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
 const createPK = convertor('create_pk', (st) => {

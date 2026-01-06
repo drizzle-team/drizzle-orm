@@ -12,7 +12,7 @@ import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import type { Casing, CasingType, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { GelCredentials } from '../validations/gel';
@@ -85,7 +85,6 @@ export type GenerateConfig = {
 	out: string;
 	breakpoints: boolean;
 	name?: string;
-	prefix: Prefix;
 	custom: boolean;
 	bundle: boolean;
 	casing?: CasingType;
@@ -109,7 +108,6 @@ export const prepareGenerateConfig = async (
 		name?: string;
 		dialect?: Dialect;
 		driver?: Driver;
-		prefix?: Prefix;
 		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
@@ -132,14 +130,10 @@ export const prepareGenerateConfig = async (
 		process.exit(0);
 	}
 
-	const prefix = ('migrations' in config ? config.migrations?.prefix : options.prefix)
-		|| 'index';
-
 	return {
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
-		prefix,
 		breakpoints: breakpoints ?? true,
 		schema: schema,
 		out: out || 'drizzle',
@@ -248,6 +242,10 @@ export const preparePushConfig = async (
 		explain: boolean;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
+		migrations: {
+			table: string;
+			schema: string;
+		};
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -299,6 +297,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			casing: config.casing,
 			filters,
+			migrations: config.migrations,
 		};
 	}
 
@@ -317,6 +316,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -335,6 +335,7 @@ export const preparePushConfig = async (
 			credentials: parsed.data,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -353,6 +354,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -371,6 +373,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -394,6 +397,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -413,6 +417,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
 		};
 	}
 
@@ -469,11 +474,12 @@ export const preparePullConfig = async (
 		out: string;
 		breakpoints: boolean;
 		casing: Casing;
-		prefix: Prefix;
 		filters: EntitiesFilterConfig;
 		init: boolean;
-		migrationsSchema: string | undefined;
-		migrationsTable: string | undefined;
+		migrations: {
+			table: string;
+			schema: string;
+		};
 	}
 > => {
 	const raw = flattenPull(
@@ -491,7 +497,8 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
-	const { schema, table } = parsed.data.migrations || {};
+
+	const migrations = config.migrations;
 
 	const filters = {
 		tables: config.tablesFilter,
@@ -513,11 +520,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -533,11 +538,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -554,11 +557,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -574,11 +575,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -594,11 +593,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -614,10 +611,8 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 			filters,
 		};
 	}
@@ -635,11 +630,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 
@@ -656,11 +649,9 @@ export const preparePullConfig = async (
 			breakpoints: config.breakpoints,
 			casing: config.casing,
 			credentials: parsed.data,
-			prefix: config.migrations?.prefix || 'index',
 			filters,
 			init: !!options.init,
-			migrationsSchema: schema,
-			migrationsTable: table,
+			migrations,
 		};
 	}
 

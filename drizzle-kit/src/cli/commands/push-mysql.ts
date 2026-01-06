@@ -26,6 +26,10 @@ export const handle = async (
 	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
 	explainFlag: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
@@ -42,7 +46,7 @@ export const handle = async (
 		'Pulling schema from database...',
 	);
 
-	const { schema: interimFromDB } = await introspect({ db, database, progress, filter });
+	const { schema: interimFromDB } = await introspect({ db, database, progress, filter, migrations });
 
 	const interimFromFiles = fromDrizzleSchema(res.tables, res.views, casing);
 

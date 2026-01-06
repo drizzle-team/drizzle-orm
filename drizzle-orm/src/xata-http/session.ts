@@ -6,11 +6,10 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -26,7 +25,7 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 }
 
 export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'XataHttpPreparedQuery';
 
@@ -124,7 +123,7 @@ export class XataHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<
+> extends PgAsyncSession<
 	XataHttpQueryResultHKT,
 	TFullSchema,
 	TRelations,
@@ -158,7 +157,7 @@ export class XataHttpSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
 			query,
@@ -177,7 +176,7 @@ export class XataHttpSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
 			query,
@@ -226,7 +225,7 @@ export class XataTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<
+> extends PgAsyncTransaction<
 	XataHttpQueryResultHKT,
 	TFullSchema,
 	TRelations,

@@ -605,6 +605,8 @@ test('introspect view with table filter', async () => {
 		db,
 		'drizzle',
 		filter,
+		() => {},
+		{ schema: 'drizzle', table: '__drizzle_migrations' },
 	));
 	const expectedTables = [{ entityType: 'tables', name: 'table1' }];
 	expect(tables).toStrictEqual(expectedTables);
@@ -620,6 +622,8 @@ test('introspect view with table filter', async () => {
 		db,
 		'drizzle',
 		filter,
+		() => {},
+		{ schema: 'drizzle', table: '__drizzle_migrations' },
 	));
 	const expectedViews = [
 		{
@@ -651,4 +655,88 @@ test('single quote default', async () => {
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// filter default migration table
+test('pull after migrate with custom migrations table #1', async () => {
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { pks, columns, tables } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'users',
+		},
+	]);
+});
+
+// filter custom migration table
+test('pull after migrate with custom migrations table #2', async () => {
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom_migrations (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		() => true,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'drizzle', // default from prepare params
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'users',
+		},
+	]);
 });

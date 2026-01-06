@@ -30,8 +30,8 @@ import type { prepareCockroach } from '../connections';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
-import type { Casing, Prefix } from '../validations/common';
-import { IntrospectProgress } from '../views';
+import type { Casing } from '../validations/common';
+import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -41,7 +41,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
-	prefix: Prefix,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -52,9 +55,14 @@ export const handle = async (
 	const filter = prepareEntityFilter('cockroach', filters, []);
 
 	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(db, filter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	});
+	const task = fromDatabaseForDrizzle(
+		db,
+		filter,
+		(stage, count, status) => {
+			progress.update(stage, count, status);
+		},
+		migrations,
+	);
 	const res = await renderWithTask(progress, task);
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -100,7 +108,6 @@ export const handle = async (
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
-			prefixMode: prefix,
 			snapshots,
 		});
 	} else {
@@ -137,7 +144,15 @@ export const introspect = async (
 	db: DB,
 	filter: EntityFilter,
 	progress: TaskView,
+	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
-	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter));
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, callback, migrations),
+	);
 	return { schema };
 };

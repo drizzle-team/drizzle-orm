@@ -51,7 +51,10 @@ test('introspect tables with fk constraint #2', async () => {
 	await db.run('CREATE TABLE `users`(`id` integer primary key);');
 	await db.run('CREATE TABLE `posts`(`user_id` integer references `users` (`id`));');
 
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 	const { ddl, errors } = interimToDDL(schema);
 
 	expect(errors.length).toBe(0);
@@ -241,7 +244,10 @@ test('introspect checks', async () => {
 		to: initSchema,
 	});
 
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 	const { ddl, errors } = interimToDDL(schema);
 
 	expect(errors.length).toBe(0);
@@ -454,4 +460,76 @@ test('create table with custom type column', async (t) => {
 
 	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'table-with-custom-type-column');
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// filter default migration table
+test('pull after migrate with custom migrations table #1', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`
+		CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.run(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { pks, columns, tables } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+	]);
+});
+
+// filter custom migration table
+test('pull after migrate with custom migrations table #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`
+		CREATE TABLE IF NOT EXISTS custom_migrations (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.run(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'drizzle', // default from prepare params
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+	]);
 });
