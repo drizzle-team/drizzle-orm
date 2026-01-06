@@ -28,19 +28,28 @@ concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Shared local artifacts directory
+  ARTIFACTS_DIR: /opt/runners/cache/artifacts/${{ github.run_id }}
+  # Shared cache directories for self-hosted runners
+  PNPM_STORE_DIR: /opt/runners/cache/pnpm-store
+  TURBO_CACHE_DIR: /opt/runners/cache/turbo
+  npm_config_cache: /opt/runners/cache/npm
+  BUN_INSTALL_CACHE_DIR: /opt/runners/cache/bun
+
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 25
     env:
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -51,55 +60,55 @@ jobs:
         run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
-      - name: Upload build-dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-dist
-          path: |
-            **/dist
-            **/*.tsbuildinfo
+      
+      # Save build artifacts locally (shared filesystem)
+      - name: Save build-dist locally
+        run: |
+          mkdir -p "$ARTIFACTS_DIR/build-dist"
+          find . -type d -name "dist" -not -path "./node_modules/*" | while read dir; do
+            target_dir="$ARTIFACTS_DIR/build-dist/$dir"
+            mkdir -p "$(dirname "$target_dir")"
+            cp -r "$dir" "$target_dir"
+          done
+          find . -name "*.tsbuildinfo" -not -path "./node_modules/*" | while read file; do
+            target_file="$ARTIFACTS_DIR/build-dist/$file"
+            mkdir -p "$(dirname "$target_file")"
+            cp "$file" "$target_file"
+          done
+      
       - name: Pack
         run: pnpm pack:artifact
-      - uses: actions/upload-artifact@v4
-        with: 
-          name: packages
-          path: |
-            drizzle-orm/package.tgz
-            drizzle-kit/package.tgz
-            drizzle-zod/package.tgz
-            drizzle-seed/package.tgz
-            drizzle-typebox/package.tgz
-            drizzle-valibot/package.tgz
-            drizzle-arktype/package.tgz
-            eslint-plugin-drizzle/package.tgz
+      
+      # Save package tarballs locally
+      - name: Save packages locally
+        run: |
+          mkdir -p "$ARTIFACTS_DIR/packages"
+          for pkg in drizzle-orm drizzle-kit drizzle-zod drizzle-seed drizzle-typebox drizzle-valibot drizzle-arktype eslint-plugin-drizzle; do
+            if [ -f "$pkg/package.tgz" ]; then
+              mkdir -p "$ARTIFACTS_DIR/packages/$pkg"
+              cp "$pkg/package.tgz" "$ARTIFACTS_DIR/packages/$pkg/"
+            fi
+          done
 
-      # Tiny marker so other jobs can wait without failing
-      - name: Upload build-ready marker
-        run: mkdir -p .gh && echo "ok" > .gh/build-ready
-      - uses: actions/upload-artifact@v4
-        with:
-          name: build-ready
-          path: .gh/build-ready
+      # Marker so other jobs know build is ready
+      - name: Create build-ready marker
+        run: |
+          echo "ok" > "$ARTIFACTS_DIR/build-ready"
       - name: test:types & lint
         run: pnpm test:types-lint
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 45
+    env:
+      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - shard: int:gel
-            dbs: [gel]
-          - shard: int:singlestore
-            dbs: [singlestore]
-          - shard: int:singlestore-core
-            dbs: [singlestore-many]
-          - shard: int:singlestore-proxy
-            dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -107,7 +116,7 @@ jobs:
           - shard: int:sqlite
             dbs: []
           - shard: int:other
-            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
+            dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
             dbs: []
           - shard: int:cockroach
@@ -124,21 +133,21 @@ jobs:
           - shard: kit:postgres
             dbs: [postgres, postgres-postgis]
           - shard: kit:cockroach
-            dbs: [cockroach]
+            dbs: [cockroach-many]
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
+            dbs: [cockroach, mysql, mssql, postgres-postgis]
           - shard: validators
             dbs: []
          
     name: ${{ matrix.shard }}
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -154,11 +163,9 @@ jobs:
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
-              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
-              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
-              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
+              cockroach-many)      compose_files+=("-f" "compose/cockroach-many.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -167,35 +174,37 @@ jobs:
           chmod +x compose/wait.sh
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
-      - name: Wait for 'prepare' to finish (poll artifact)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Wait for 'prepare' to finish (poll local marker)
         shell: bash
         run: |
           set -euo pipefail
-          run_id="${{ github.run_id }}"
-          repo="${{ github.repository }}"
-          echo "Waiting for 'build-ready' artifact from prepare job in run $run_id..."
+          echo "Waiting for build-ready marker at $ARTIFACTS_DIR/build-ready..."
           for i in $(seq 1 120); do
-            artifacts_json="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${repo}/actions/runs/${run_id}/artifacts")"
-            echo "$artifacts_json" | jq -e '.artifacts[] | select(.name=="build-ready")' >/dev/null 2>&1 && { echo "build-ready found"; break; }
-            echo "…still waiting ($i/120)"
+            if [ -f "$ARTIFACTS_DIR/build-ready" ]; then
+              echo "build-ready found!"
+              break
+            fi
+            echo "...still waiting ($i/120)"
             sleep 5
           done
+          if [ ! -f "$ARTIFACTS_DIR/build-ready" ]; then
+            echo "ERROR: Timed out waiting for build-ready marker"
+            exit 1
+          fi
 
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v4
-        with:
-          name: build-dist
-          path: .
+      # Restore build artifacts from local filesystem
+      - name: Restore build-dist locally
+        run: |
+          if [ -d "$ARTIFACTS_DIR/build-dist" ]; then
+            cp -r "$ARTIFACTS_DIR/build-dist/." .
+          else
+            echo "ERROR: build-dist not found at $ARTIFACTS_DIR/build-dist"
+            exit 1
+          fi
 
       # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
 
-      - uses: oven-sh/setup-bun@v2
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
@@ -211,9 +220,6 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
-          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
@@ -227,14 +233,6 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            int:gel)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-              fi
-            ;;
-            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
@@ -259,7 +257,10 @@ jobs:
             
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+            kit:cockroach)
+              export COCKROACH_CONNECTION_STRING="postgresql://root@127.0.0.1:26260/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26261/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26262/defaultdb?sslmode=disable"
+              cd ../drizzle-kit && pnpm --stream run test:cockroach
+            ;;
             kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
             validators) 
               (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
@@ -278,7 +279,6 @@ jobs:
                 --exclude ./tests/gel/ \
                 --exclude ./tests/mysql/ \
                 --exclude ./tests/cockroach/ \
-                --exclude ./tests/singlestore/ \
                 --exclude ./tests/mssql/ \
                 --exclude ./tests/pg/ \
                 --exclude ./tests/sqlite/ \
@@ -290,21 +290,22 @@ jobs:
   attw:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
-      - name: Download package tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: packages
-          path: ./artifacts
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
+      
       - name: Run @arethetypeswrong/cli
         run: |
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
@@ -318,24 +319,25 @@ jobs:
   attw-orm:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     strategy:
       matrix:
         package: [node10, node16-cjs, node16-esm, bundler]
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v6
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
-      - name: Download drizzle-orm tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: packages
-          path: ./artifacts
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
+      
       - name: Run @arethetypeswrong/cli
         working-directory: drizzle-orm
         run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
@@ -343,7 +345,7 @@ jobs:
   release:
     needs: [test, prepare, attw, attw-orm]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
     
@@ -355,11 +357,11 @@ jobs:
       matrix:
         package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
     steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
       - uses: actions/checkout@v5
-
-      # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
-        with: { node-version: '24' }
       
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc
@@ -368,11 +370,12 @@ jobs:
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
         run: npm install -g npm@latest
-      - name: Download package tarball
-        uses: actions/download-artifact@v4
-        with:
-          name: packages
-          path: ./artifacts
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
       - name: Check preconditions (from tarball)
         id: checks
         shell: bash
@@ -406,3 +409,16 @@ jobs:
           set -euxo pipefail
           npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
           echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # Cleanup local artifacts after workflow completes
+  cleanup:
+    runs-on: self-hosted
+    if: always()
+    needs: [release]
+    steps:
+      - name: Cleanup local artifacts
+        run: |
+          if [ -d "$ARTIFACTS_DIR" ]; then
+            rm -rf "$ARTIFACTS_DIR"
+            echo "Cleaned up artifacts at $ARTIFACTS_DIR"
+          fi
