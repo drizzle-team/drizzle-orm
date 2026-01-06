@@ -44,7 +44,6 @@ import {
 import { Effect, Redacted } from 'effect';
 import { types } from 'pg';
 import { randomString } from '~/utils';
-import type { diff as Diff } from '../../../drizzle-kit/tests/postgres/mocks';
 import { relations } from './relations';
 import { rqbPost, rqbUser, usersMigratorTable } from './schema';
 
@@ -113,9 +112,9 @@ const getDb = Effect.gen(function*() {
 	return db;
 });
 
-let _diff!: typeof Diff;
+let _diff!: (_: {}, schema: Record<string, unknown>, renames: []) => Promise<{ sqlStatements: string[] }>;
 const getDiff = async () => {
-	return _diff ??= (await import('../../../drizzle-kit/tests/postgres/mocks' as string)).diff as typeof Diff;
+	return _diff ??= (await import('../../../drizzle-kit/tests/postgres/mocks' as string)).diff;
 };
 
 const push = (db: EffectPgDatabase, schema: Record<string, any>) =>
