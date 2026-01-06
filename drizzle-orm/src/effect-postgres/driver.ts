@@ -1,5 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import * as V1 from '~/_relations.ts';
+import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -16,13 +17,22 @@ export class EffectPgDatabase<
 	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
 
+export type EffectDrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> =
+	& Omit<DrizzleConfig<TSchema, TRelations>, 'cache'>
+	& {
+		cache?: EffectCache;
+	};
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends PgClient = PgClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: EffectDrizzleConfig<TSchema, TRelations> = {},
 ): EffectPgDatabase<TSchema, TRelations> & {
 	$client: PgClient;
 } {
@@ -69,7 +79,7 @@ function construct<
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
->(client: PgClient, config?: DrizzleConfig<TSchema, TRelations>): EffectPgDatabase<TSchema, TRelations> & {
+>(client: PgClient, config?: EffectDrizzleConfig<TSchema, TRelations>): EffectPgDatabase<TSchema, TRelations> & {
 	$client: PgClient;
 } {
 	return construct(client, config);
@@ -80,7 +90,7 @@ export namespace drizzle {
 		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
+		config?: EffectDrizzleConfig<TSchema, TRelations>,
 	): EffectPgDatabase<TSchema, TRelations> {
 		return construct({} as any, config) as any;
 	}
