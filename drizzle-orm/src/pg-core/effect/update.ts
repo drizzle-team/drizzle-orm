@@ -7,7 +7,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Assume } from '~/utils.ts';
-import { type Join, PgUpdateBase } from '../query-builders/update.ts';
+import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -38,19 +38,6 @@ export type PgEffectUpdate<
 	true,
 	never
 >;
-
-export interface PgUpdateHKTBase {
-	table: unknown;
-	joins: unknown;
-	nullabilityMap: unknown;
-	queryResult: unknown;
-	from: unknown;
-	selectedFields: unknown;
-	returning: unknown;
-	dynamic: boolean;
-	excludedMethods: string;
-	_type: unknown;
-}
 
 export interface PgEffectUpdateHKT extends PgUpdateHKTBase {
 	_type: PgEffectUpdateBase<
