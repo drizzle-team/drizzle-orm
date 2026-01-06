@@ -3,7 +3,7 @@
 
 !src
 !imports-checker
-
+!scripts
 !tests
 tests/**/tmp/
 !vitest.config.ts

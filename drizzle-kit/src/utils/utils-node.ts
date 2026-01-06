@@ -376,25 +376,26 @@ export class InMemoryMutex {
 
 const registerMutex = new InMemoryMutex();
 
+let tsxRegistered = false;
+const ensureTsxRegistered = () => {
+	if (tsxRegistered) return;
+
+	const isBun = typeof (globalThis as any).Bun !== 'undefined';
+	const isDeno = typeof (globalThis as any).Deno !== 'undefined';
+	if (isBun || isDeno) {
+		tsxRegistered = true;
+		return;
+	}
+
+	const tsx = require('tsx/cjs/api');
+	tsx.register();
+	tsxRegistered = true;
+};
+
 export const safeRegister = async <T>(fn: () => Promise<T>) => {
 	return registerMutex.withLock(async () => {
-		const { register } = await import('esbuild-register/dist/node');
-		let res: { unregister: () => void };
-		try {
-			const { unregister } = register();
-			res = { unregister };
-		} catch {
-			// tsx fallback
-			res = {
-				unregister: () => {},
-			};
-		}
-		// has to be outside try catch to be able to run with tsx
+		ensureTsxRegistered();
 		await assertES5();
-
-		const result = await fn();
-		res.unregister();
-
-		return result;
+		return fn();
 	});
 };

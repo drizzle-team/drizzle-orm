@@ -1,5 +1,5 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { BuildColumn, GeneratedColumnConfig, InferSelectModel, Simplify } from '~/index.ts';
+import type { InferSelectModel } from '~/index.ts';
 import {
 	bigint,
 	char,
@@ -11,7 +11,6 @@ import {
 	foreignKey,
 	index,
 	int,
-	type MsSqlColumn,
 	mssqlTable,
 	nchar,
 	nvarchar,
@@ -21,8 +20,8 @@ import {
 	varchar,
 } from '~/mssql-core/index.ts';
 import { mssqlSchema } from '~/mssql-core/schema.ts';
-import { mssqlView, type MsSqlViewWithSelection } from '~/mssql-core/view.ts';
-import { eq, gt } from '~/sql/expressions';
+import { mssqlView } from '~/mssql-core/view.ts';
+import { eq } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 
@@ -85,8 +84,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 	index('citiesNameIdx').on(cities.id),
 ]);
 
-Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
-
 export const classes = mssqlTable('classes_table', {
 	id: int('id').identity().primaryKey(),
 	class: text('class', { enum: ['A', 'C'] }),
@@ -112,252 +109,6 @@ export const newYorkers = mssqlView('new_yorkers')
 			);
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
-
-Expect<
-	// @ts-ignore - TODO: Remake type checks for new columns
-	Equal<
-		MsSqlViewWithSelection<'new_yorkers', false, {
-			userId: MsSqlColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'MsSqlInt';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				identity: undefined;
-				baseColumn: never;
-				generated: GeneratedColumnConfig<number>;
-			}>;
-			cityId: MsSqlColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'MsSqlInt';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: GeneratedColumnConfig<number>;
-			}>;
-		}>,
-		// @ts-ignore - TODO: Remake type checks for new columns
-		typeof newYorkers
-	>
->;
-
-{
-	const newYorkers = customSchema.view('new_yorkers')
-		.as((qb) => {
-			const sq = qb
-				.$with('sq')
-				.as(
-					qb.select({ userId: users.id, cityId: cities.id })
-						.from(users)
-						.leftJoin(cities, eq(cities.id, users.homeCity))
-						.where(sql`${users.age1} > 18`),
-				);
-			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
-		});
-
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			MsSqlViewWithSelection<'new_yorkers', false, {
-				userId: MsSqlColumn<{
-					name: 'id';
-					tableName: 'new_yorkers';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: GeneratedColumnConfig<number>;
-				}, object>;
-				cityId: MsSqlColumn<{
-					name: 'id';
-					tableName: 'new_yorkers';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: true;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: GeneratedColumnConfig<number>;
-				}, object>;
-			}>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = mssqlView('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	})
-		.as(
-			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
-			} where ${gt(users.age1, 18)}`,
-		);
-
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			MsSqlViewWithSelection<'new_yorkers', false, {
-				userId: MsSqlColumn<{
-					name: 'user_id';
-					tableName: 'new_yorkers';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				}, {}>;
-				cityId: MsSqlColumn<{
-					name: 'city_id';
-					tableName: 'new_yorkers';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				}, {}>;
-			}>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	}).existing();
-
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			MsSqlViewWithSelection<'new_yorkers', true, {
-				userId: MsSqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-				}, {}>;
-				cityId: MsSqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-				}, {}>;
-			}>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const customText = customType<{ data: string }>({
-		dataType() {
-			return 'text';
-		},
-	});
-
-	const t = customText('name').notNull();
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			{
-				brand: 'Column';
-				name: 'name';
-				tableName: 'table';
-				dataType: 'custom';
-				columnType: 'MsSqlCustomColumn';
-				data: string;
-				driverParam: unknown;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				dialect: 'mssql';
-				identity: undefined;
-				generated: undefined;
-			},
-			// @ts-ignore - TODO: Remake type checks for new columns
-			Simplify<BuildColumn<'table', typeof t, 'mssql'>['_']>
-		>
-	>;
-}
 
 {
 	mssqlTable('test', {

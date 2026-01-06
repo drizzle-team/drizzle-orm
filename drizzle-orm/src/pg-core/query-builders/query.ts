@@ -1,24 +1,36 @@
 import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRow,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgPreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
+import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
+
+export interface PgRelationalQueryConstructor {
+	new(
+		schema: TablesRelationalConfig,
+		table: PgTable,
+		tableConfig: TableRelationalConfig,
+		dialect: PgDialect,
+		session: PgSession,
+		config: DBQueryConfig<'many' | 'one'> | true,
+		mode: 'many' | 'first',
+		parseJson: boolean,
+	): AnyPgRelationalQuery;
+}
+
+export type AnyPgRelationalQuery = PgRelationalQuery<any, any>;
 
 export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
+	TBuilderHKT extends PgRelationalQueryHKTBase = PgRelationalQueryHKT,
 > {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilderV2';
 
@@ -29,12 +41,13 @@ export class RelationalQueryBuilder<
 		private dialect: PgDialect,
 		private session: PgSession,
 		private parseJson: boolean,
+		private builder: PgRelationalQueryConstructor = PgRelationalQuery,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new PgRelationalQuery(
+	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new this.builder(
 			this.schema,
 			this.table,
 			this.tableConfig,
@@ -48,8 +61,8 @@ export class RelationalQueryBuilder<
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
-	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
-		return new PgRelationalQuery(
+	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
+		return new this.builder(
 			this.schema,
 			this.table,
 			this.tableConfig,
@@ -62,54 +75,43 @@ export class RelationalQueryBuilder<
 	}
 }
 
-export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
-	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
-{
-	static override readonly [entityKind]: string = 'PgRelationalQueryV2';
+export interface PgRelationalQueryHKTBase {
+	result: unknown;
+	_type: unknown;
+}
+
+export interface PgRelationalQueryHKT extends PgRelationalQueryHKTBase {
+	_type: PgRelationalQuery<PgRelationalQueryHKT, this['result']>;
+}
+
+export type PgRelationalQueryKind<
+	T extends PgRelationalQueryHKTBase,
+	TResult,
+> = (T & {
+	result: TResult;
+})['_type'];
+
+export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
+	static readonly [entityKind]: string = 'PgRelationalQueryV2';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
+		readonly hkt: THKT;
 		readonly result: TResult;
 	};
 
 	constructor(
-		private schema: TablesRelationalConfig,
-		private table: PgTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: PgDialect,
-		private session: PgSession,
-		private config: DBQueryConfig<'many' | 'one'> | true,
-		private mode: 'many' | 'first',
-		private parseJson: boolean,
-	) {
-		super();
-	}
+		protected schema: TablesRelationalConfig,
+		protected table: PgTable,
+		protected tableConfig: TableRelationalConfig,
+		protected dialect: PgDialect,
+		protected session: PgSession,
+		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected mode: 'many' | 'first',
+		protected parseJson: boolean,
+	) {}
 
-	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
-
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			);
-		});
-	}
-
-	prepare(name: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name);
-	}
-
-	private _getQuery() {
+	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
@@ -124,7 +126,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._getQuery().sql;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
@@ -134,18 +136,5 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
-	override execute(): Promise<TResult> {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(undefined, this.authToken);
-		});
 	}
 }

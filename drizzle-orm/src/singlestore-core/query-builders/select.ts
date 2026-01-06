@@ -1005,10 +1005,10 @@ export class SingleStoreSelectBase<
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
 		this.cacheConfig = config === undefined
-			? { config: {}, enable: true, autoInvalidate: true }
+			? { config: {}, enabled: true, autoInvalidate: true }
 			: config === false
-			? { enable: false }
-			: { enable: true, autoInvalidate: true, ...config };
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
 		return this;
 	}
 

@@ -1,10 +1,8 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
-import { PgColumn } from './common.ts';
-import { PgIntColumnBaseBuilder } from './int.common.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
+export class PgIntegerBuilder extends PgColumnBuilder<{
 	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;
@@ -21,7 +19,7 @@ export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
 	}
 }
 
-export class PgInteger<T extends ColumnBaseConfig<'number int32'>> extends PgColumn<T> {
+export class PgInteger extends PgColumn<'number int32'> {
 	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {

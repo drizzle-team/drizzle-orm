@@ -31,6 +31,13 @@ export function columnToSchema(
 	const z: typeof zod = factory?.zodInstance ?? zod;
 	const coerce = factory?.coerce ?? {};
 	let schema!: zod.ZodType;
+
+	// Check for PG array columns (have dimensions property instead of changing dataType)
+	const dimensions = (<{ dimensions?: number }> column).dimensions;
+	if (typeof dimensions === 'number' && dimensions > 0) {
+		return pgArrayColumnToSchema(column, dimensions, z, coerce);
+	}
+
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
@@ -227,6 +234,50 @@ function bigintColumnToSchema(
 	return schema;
 }
 
+function pgArrayColumnToSchema(
+	column: Column,
+	dimensions: number,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	// PG style: the column IS the base type, with dimensions indicating array depth
+	// Get the base schema from the column's own dataType
+	const [baseType, baseConstraint] = column.dataType.split(' ');
+	let baseSchema: zod.ZodType;
+
+	switch (baseType) {
+		case 'number':
+			baseSchema = numberColumnToSchema(column, baseConstraint as ColumnDataNumberConstraint, z, coerce);
+			break;
+		case 'bigint':
+			baseSchema = bigintColumnToSchema(column, baseConstraint as ColumnDataBigIntConstraint, z, coerce);
+			break;
+		case 'boolean':
+			baseSchema = coerce === true || coerce?.boolean ? z.coerce.boolean() : z.boolean();
+			break;
+		case 'string':
+			baseSchema = stringColumnToSchema(column, baseConstraint as ColumnDataStringConstraint, z, coerce);
+			break;
+		case 'object':
+			baseSchema = objectColumnToSchema(column, baseConstraint as ColumnDataObjectConstraint, z, coerce);
+			break;
+		case 'array':
+			// Handle array types like point, line, etc.
+			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint, z, coerce);
+			break;
+		default:
+			baseSchema = z.any();
+	}
+
+	// Wrap in arrays based on dimensions
+	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
+	let schema: zod.ZodType = z.array(baseSchema);
+	for (let i = 1; i < dimensions; i++) {
+		schema = z.array(schema);
+	}
+	return schema;
+}
+
 function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
@@ -255,15 +306,20 @@ function arrayColumnToSchema(
 				: z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX));
 		}
 		case 'basecolumn': {
-			const length = column.length;
-			const schema = (<{ baseColumn?: Column }> column).baseColumn
-				? z.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, {
+			// CockroachDB/GEL style: has a separate baseColumn
+			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
+			if (baseColumn) {
+				const baseSchema = columnToSchema(baseColumn, {
 					zodInstance: z,
 					coerce,
-				}))
-				: z.array(z.any());
-			if (length) return schema.length(length);
-			return schema;
+				});
+				// For CockroachDB style, column.length is the array size
+				const length = column.length;
+				const schema: zod.ZodType = z.array(baseSchema);
+				if (length) return (schema as zod.ZodArray<any>).length(length);
+				return schema;
+			}
+			return z.array(z.any());
 		}
 		default: {
 			return z.array(z.any());

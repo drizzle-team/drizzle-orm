@@ -4,7 +4,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/index.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -39,7 +39,7 @@ export class VercelPgDriver {
 export class VercelPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<VercelPgQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<VercelPgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 

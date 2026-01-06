@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
@@ -29,7 +28,7 @@ export class PgNumericBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig<'string numeric'>> extends PgColumn<T> {
+export class PgNumeric extends PgColumn<'string numeric'> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
@@ -86,7 +85,7 @@ export class PgNumericNumberBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
+export class PgNumericNumber extends PgColumn<'number'> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
 
 	readonly precision: number | undefined;
@@ -104,7 +103,9 @@ export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgCol
 		return Number(value);
 	}
 
-	override mapToDriverValue = String;
+	override mapToDriverValue(value: number): string {
+		return String(value);
+	}
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -145,7 +146,7 @@ export class PgNumericBigIntBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
+export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
 	readonly precision: number | undefined;
@@ -157,9 +158,13 @@ export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue = BigInt;
+	override mapFromDriverValue(value: string | number): bigint {
+		return BigInt(value);
+	}
 
-	override mapToDriverValue = String;
+	override mapToDriverValue(value: bigint): string {
+		return String(value);
+	}
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {

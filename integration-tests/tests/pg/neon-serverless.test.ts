@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { getTableConfig, type PgDatabase, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { getTableConfig, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
@@ -14,7 +15,7 @@ import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
  */
 tests(test, []);
 describe('neon-serverless', () => {
-	let db: PgDatabase<any, any>;
+	let db: PgAsyncDatabase<any, any>;
 	test.sequential('_', async ({ db: _db, push }) => {
 		db = _db;
 

@@ -47,7 +47,7 @@ export interface TableTypeConfig<T extends TableConfig> {
 	readonly dialect: T['dialect'];
 }
 
-export class Table<T extends TableConfig = TableConfig> {
+export class Table<out T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
 
 	declare readonly _: TableTypeConfig<T>;

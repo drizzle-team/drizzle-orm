@@ -1,16 +1,13 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
-
+#!/usr/bin/env bun
+import { Glob } from 'bun';
+import fs from 'node:fs/promises';
 import path from 'node:path';
-import { parse, print, visit } from 'recast';
-import parser from 'recast/parsers/typescript';
 
 function resolvePathAlias(importPath: string, file: string) {
 	if (importPath.startsWith('~/')) {
 		const relativePath = path.relative(path.dirname(file), path.resolve('dist.new', importPath.slice(2)));
-		importPath = relativePath.startsWith('.') ? relativePath : './' + relativePath;
+		return relativePath.startsWith('.') ? relativePath : './' + relativePath;
 	}
-
 	return importPath;
 }
 
@@ -24,78 +21,42 @@ function fixImportPath(importPath: string, file: string, ext: string) {
 	return importPath.replace(/\.(js|ts)$/, ext);
 }
 
-const cjsFiles = await glob('dist.new/**/*.{cjs,d.cts}');
+async function processFile(file: string, ext: string) {
+	let code = await fs.readFile(file, 'utf8');
 
-await Promise.all(cjsFiles.map(async (file) => {
-	const code = parse(await fs.readFile(file, 'utf8'), { parser });
+	// Handle: import ... from "path" / export ... from "path" / export * from "path"
+	code = code.replace(
+		/(from\s+["'])([^"']+)(["'])/g,
+		(_, prefix, importPath, suffix) => prefix + fixImportPath(importPath, file, ext) + suffix,
+	);
 
-	visit(code, {
-		visitImportDeclaration(path) {
-			path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
-			this.traverse(path);
-		},
-		visitExportAllDeclaration(path) {
-			path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
-			this.traverse(path);
-		},
-		visitExportNamedDeclaration(path) {
-			if (path.value.source) {
-				path.value.source.value = fixImportPath(path.value.source.value, file, '.cjs');
-			}
-			this.traverse(path);
-		},
-		visitCallExpression(path) {
-			if (path.value.callee.type === 'Identifier' && path.value.callee.name === 'require') {
-				path.value.arguments[0].value = fixImportPath(path.value.arguments[0].value, file, '.cjs');
-			}
-			this.traverse(path);
-		},
-		visitTSImportType(path) {
-			path.value.argument.value = resolvePathAlias(path.value.argument.value, file);
-			this.traverse(path);
-		},
-		visitAwaitExpression(path) {
-			if (print(path.value).code.startsWith(`await import("./`)) {
-				path.value.argument.arguments[0].value = fixImportPath(path.value.argument.arguments[0].value, file, '.cjs');
-			}
-			this.traverse(path);
-		},
-	});
+	// Handle: require("path")
+	code = code.replace(
+		/(require\s*\(\s*["'])([^"']+)(["']\s*\))/g,
+		(_, prefix, importPath, suffix) => prefix + fixImportPath(importPath, file, ext) + suffix,
+	);
 
-	await fs.writeFile(file, print(code).code);
-}));
+	// Handle: import("path") - dynamic imports
+	code = code.replace(
+		/(import\s*\(\s*["'])([^"']+)(["']\s*\))/g,
+		(_, prefix, importPath, suffix) => prefix + fixImportPath(importPath, file, ext) + suffix,
+	);
 
-const esmFiles = await glob('dist.new/**/*.{js,d.ts}');
+	await fs.writeFile(file, code);
+}
 
-await Promise.all(esmFiles.map(async (file) => {
-	const code = parse(await fs.readFile(file, 'utf8'), { parser });
+// Process CJS files
+const cjsGlob = new Glob('dist.new/**/*.{cjs,d.cts}');
+const cjsFiles: string[] = [];
+for await (const file of cjsGlob.scan('.')) {
+	cjsFiles.push(file);
+}
+await Promise.all(cjsFiles.map((file) => processFile(file, '.cjs')));
 
-	visit(code, {
-		visitImportDeclaration(path) {
-			path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
-			this.traverse(path);
-		},
-		visitExportAllDeclaration(path) {
-			path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
-			this.traverse(path);
-		},
-		visitExportNamedDeclaration(path) {
-			if (path.value.source) {
-				path.value.source.value = fixImportPath(path.value.source.value, file, '.js');
-			}
-			this.traverse(path);
-		},
-		visitTSImportType(path) {
-			path.value.argument.value = fixImportPath(path.value.argument.value, file, '.js');
-			this.traverse(path);
-		},
-		visitAwaitExpression(path) {
-			if (print(path.value).code.startsWith(`await import("./`)) {
-				path.value.argument.arguments[0].value = fixImportPath(path.value.argument.arguments[0].value, file, '.js');
-			}
-			this.traverse(path);
-		},
-	});
-
-	await fs.writeFile(file, print(code).code);
-}));
+// Process ESM files
+const esmGlob = new Glob('dist.new/**/*.{js,d.ts}');
+const esmFiles: string[] = [];
+for await (const file of esmGlob.scan('.')) {
+	esmFiles.push(file);
+}
+await Promise.all(esmFiles.map((file) => processFile(file, '.js')));

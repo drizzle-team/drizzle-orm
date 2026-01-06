@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
@@ -29,7 +28,7 @@ export class PgHalfVectorBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgHalfVector<T extends ColumnBaseConfig<'array halfvector'>> extends PgColumn<T> {
+export class PgHalfVector extends PgColumn<'array halfvector'> {
 	static override readonly [entityKind]: string = 'PgHalfVector';
 
 	getSQLType(): string {

@@ -14,12 +14,11 @@ import {
 	numeric,
 	primaryKey,
 	real,
-	type SQLiteColumn,
 	sqliteTable,
 	text,
 	uniqueIndex,
 } from '~/sqlite-core/index.ts';
-import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
+import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
 
 export const users = sqliteTable(
@@ -157,50 +156,8 @@ export const newYorkers = sqliteView('new_yorkers')
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
 
-Expect<
-	// @ts-ignore - TODO: Remake type checks for new columns
-	Equal<
-		SQLiteViewWithSelection<'new_yorkers', false, {
-			userId: SQLiteColumn<{
-				name: string;
-				dataType: 'number';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				isPrimaryKey: true;
-			}>;
-			cityId: SQLiteColumn<{
-				name: string;
-				dataType: 'number';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				isPrimaryKey: true;
-			}>;
-		}>,
-		// @ts-ignore - TODO: Remake type checks for new columns
-		typeof newYorkers
-	>
->;
-
 {
-	const newYorkers = sqliteView('new_yorkers', {
+	const _newYorkers = sqliteView('new_yorkers', {
 		userId: integer('user_id').notNull(),
 		cityId: integer('city_id'),
 	})
@@ -209,97 +166,13 @@ Expect<
 				eq(cities.id, users.homeCity)
 			} where ${gt(users.age1, 18)}`,
 		);
-
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			SQLiteViewWithSelection<'new_yorkers', false, {
-				userId: SQLiteColumn<{
-					name: string;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-				cityId: SQLiteColumn<{
-					name: string;
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-			}>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof newYorkers
-		>
-	>;
 }
 
 {
-	const newYorkers = sqliteView('new_yorkers', {
+	const _newYorkers = sqliteView('new_yorkers', {
 		userId: integer('user_id').notNull(),
 		cityId: integer('city_id'),
 	}).existing();
-
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			SQLiteViewWithSelection<'new_yorkers', true, {
-				userId: SQLiteColumn<{
-					name: string;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-				cityId: SQLiteColumn<{
-					name: string;
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-			}>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof newYorkers
-		>
-	>;
 }
 
 {

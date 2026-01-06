@@ -701,7 +701,7 @@ test('introspect view #3', async () => {
 
 	const test = pgTable('test', {
 		column1: enum1().array(),
-		column2: enum1().array().array(),
+		column2: enum1().array('[][]'),
 	});
 	const publicJobsWithCompanies = pgView('public_jobs_with_companies').as((qb) => qb.select().from(test));
 

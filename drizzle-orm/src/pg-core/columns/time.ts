@@ -1,12 +1,10 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn } from './common.ts';
-import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export class PgTimeBuilder extends PgDateColumnBaseBuilder<
+export class PgTimeBuilder extends PgColumnBuilder<
 	{
 		dataType: 'string time';
 		data: string;
@@ -32,7 +30,7 @@ export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTime<T extends ColumnBaseConfig<'string time'>> extends PgColumn<T> {
+export class PgTime extends PgColumn<'string time'> {
 	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;

@@ -5,5 +5,5 @@ export const allDataTypes = pgTable('postgis_data_types', {
 });
 
 export const allArrayDataTypes = pgTable('postgis_array_data_types', {
-	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
+	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(),
 });

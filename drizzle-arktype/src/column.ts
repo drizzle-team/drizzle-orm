@@ -20,6 +20,13 @@ export const bufferSchema = type.unknown.narrow((value) => value instanceof Buff
 
 export function columnToSchema(column: Column): Type {
 	let schema!: Type;
+
+	// Check for PG array columns (have dimensions property instead of changing dataType)
+	const dimensions = (<{ dimensions?: number }> column).dimensions;
+	if (typeof dimensions === 'number' && dimensions > 0) {
+		return pgArrayColumnToSchema(column, dimensions);
+	}
+
 	const { type: columnType, constraint } = extractExtendedColumnType(column);
 
 	switch (columnType) {
@@ -166,6 +173,48 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 	return (integer ? type.keywords.number.integer : type.number).atLeast(min).atMost(max);
 }
 
+function pgArrayColumnToSchema(
+	column: Column,
+	dimensions: number,
+): Type {
+	// PG style: the column IS the base type, with dimensions indicating array depth
+	// Get the base schema from the column's own dataType
+	const [baseType, baseConstraint] = column.dataType.split(' ');
+	let baseSchema: Type;
+
+	switch (baseType) {
+		case 'number':
+			baseSchema = numberColumnToSchema(column, baseConstraint as ColumnDataNumberConstraint);
+			break;
+		case 'bigint':
+			baseSchema = bigintColumnToSchema(column, baseConstraint as ColumnDataBigIntConstraint);
+			break;
+		case 'boolean':
+			baseSchema = type.boolean;
+			break;
+		case 'string':
+			baseSchema = stringColumnToSchema(column, baseConstraint as ColumnDataStringConstraint);
+			break;
+		case 'object':
+			baseSchema = objectColumnToSchema(column, baseConstraint as ColumnDataObjectConstraint);
+			break;
+		case 'array':
+			// Handle array types like point, line, etc.
+			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint);
+			break;
+		default:
+			baseSchema = type.unknown;
+	}
+
+	// Wrap in arrays based on dimensions
+	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
+	let schema: Type = baseSchema.array();
+	for (let i = 1; i < dimensions; i++) {
+		schema = schema.array();
+	}
+	return schema;
+}
+
 function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
@@ -189,12 +238,15 @@ function arrayColumnToSchema(
 			return length ? type.bigint.array().exactlyLength(length) : type.bigint.array();
 		}
 		case 'basecolumn': {
-			const length = column.length;
-			const schema = (<{ baseColumn?: Column }> column).baseColumn
-				? columnToSchema((<{ baseColumn?: Column }> column).baseColumn!).array()
-				: type.unknown.array();
-			if (length) return schema.exactlyLength(length);
-			return schema;
+			// CockroachDB/GEL style: has a separate baseColumn
+			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
+			if (baseColumn) {
+				const length = column.length;
+				const schema = columnToSchema(baseColumn).array();
+				if (length) return schema.exactlyLength(length);
+				return schema;
+			}
+			return type.unknown.array();
 		}
 		default: {
 			return type.unknown.array();

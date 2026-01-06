@@ -650,7 +650,7 @@ test('enums #23', async () => {
 		en,
 		table: pgTable('table', {
 			en1: en().array(),
-			en2: en().array().array(),
+			en2: en().array('[][]'),
 		}),
 	};
 
@@ -1099,7 +1099,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3).default(['value2']),
+			column: enum1('column').array().default(['value2']),
 		}),
 	};
 
@@ -1107,7 +1107,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 	const to = {
 		enum2,
 		table: pgTable('table', {
-			column: enum2('column').array(3).default(['value2']),
+			column: enum2('column').array().default(['value2']),
 		}),
 	};
 
@@ -1138,7 +1138,7 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3),
+			column: enum1('column').array(),
 		}),
 	};
 
@@ -1146,7 +1146,7 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 	const to = {
 		enum2,
 		table: pgTable('table', {
-			column: enum2('column').array(3),
+			column: enum2('column').array(),
 		}),
 	};
 
@@ -1175,7 +1175,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3).array(2),
+			column: enum1('column').array('[][]'),
 		}),
 	};
 
@@ -1183,7 +1183,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 	const to = {
 		enum2,
 		table: pgTable('table', {
-			column: enum2('column').array(3).array(2),
+			column: enum2('column').array('[][]'),
 		}),
 	};
 
@@ -1212,7 +1212,7 @@ test('column is array of enum with multiple dimenions type with custom size with
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3).array(2).default([['value2']]),
+			column: enum1('column').array('[][]').default([['value2']]),
 		}),
 	};
 
@@ -1220,7 +1220,7 @@ test('column is array of enum with multiple dimenions type with custom size with
 	const to = {
 		enum2,
 		table: pgTable('table', {
-			column: enum2('column').array(3).array(2).default([['value2']]),
+			column: enum2('column').array('[][]').default([['value2']]),
 		}),
 	};
 
@@ -1336,7 +1336,7 @@ test('column is array enum type with custom size with default value. custom sche
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('column').array(3).default(['value2']),
+			column: enum1('column').array().default(['value2']),
 		}),
 	};
 
@@ -1345,7 +1345,7 @@ test('column is array enum type with custom size with default value. custom sche
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('column').array(3).default(['value2']),
+			column: enum2('column').array().default(['value2']),
 		}),
 	};
 
@@ -1376,7 +1376,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('column').array(3),
+			column: enum1('column').array(),
 		}),
 	};
 
@@ -1385,7 +1385,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('column').array(3),
+			column: enum2('column').array(),
 		}),
 	};
 
@@ -1682,14 +1682,14 @@ test('change data type from array standart type with custom size to array enum w
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: varchar('column').array(3).default(['value2']),
+			column: varchar('column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3).default(['value3']),
+			column: enum1('column').array().default(['value3']),
 		}),
 	};
 
@@ -1714,14 +1714,14 @@ test('change data type from array standart type with custom size to array enum w
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: varchar('column').array(2),
+			column: varchar('column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(2),
+			column: enum1('column').array(),
 		}),
 	};
 
@@ -1848,14 +1848,14 @@ test('change data type from array enum with custom size type to array standart t
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(2),
+			column: enum1('column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: pgTable('table', {
-			column: varchar('column').array(2),
+			column: varchar('column').array(),
 		}),
 	};
 
@@ -1916,14 +1916,14 @@ test('change data type from array enum type with custom size to array standart t
 	const from = {
 		enum1,
 		table: pgTable('table', {
-			column: enum1('column').array(3).default(['value2']),
+			column: enum1('column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: pgTable('table', {
-			column: varchar('column').array(3).default(['value2']),
+			column: varchar('column').array().default(['value2']),
 		}),
 	};
 
@@ -2036,13 +2036,13 @@ test('change data type from standart type to standart type. columns are arrays',
 test('change data type from standart type to standart type. columns are arrays with custom sizes', async () => {
 	const from = {
 		table: pgTable('table', {
-			column: varchar('column').array(2),
+			column: varchar('column').array(),
 		}),
 	};
 
 	const to = {
 		table: pgTable('table', {
-			column: text('column').array(2),
+			column: text('column').array(),
 		}),
 	};
 
@@ -2094,13 +2094,13 @@ test('change data type from standart type to standart type. columns are arrays. 
 test('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async () => {
 	const from = {
 		table: pgTable('table', {
-			column: varchar('column').array(2).default(['hello']),
+			column: varchar('column').array().default(['hello']),
 		}),
 	};
 
 	const to = {
 		table: pgTable('table', {
-			column: text('column').array(2).default(['hello']),
+			column: text('column').array().default(['hello']),
 		}),
 	};
 

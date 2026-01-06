@@ -53,6 +53,7 @@ export const equalSets = (set1: Set<any>, set2: Set<any>) => {
 export const intMax = (args: (number | bigint)[]) => args.reduce((m, e) => e > m ? e : m);
 
 export const isPostgresColumnIntLike = (column: PgColumn) => {
+	if (column.dimensions > 0) return false;
 	return is(column, PgSmallInt)
 		|| is(column, PgInteger)
 		|| is(column, PgBigInt53)

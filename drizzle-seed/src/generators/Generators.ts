@@ -42,7 +42,7 @@ export abstract class AbstractGenerator<T = {}> {
 
 	//
 	public arraySize?: number;
-	public baseColumnDataType?: string;
+	public columnDataType?: string;
 
 	// param for text-like generators
 	// public stringLength?: number;
@@ -118,7 +118,8 @@ export abstract class AbstractGenerator<T = {}> {
 			const uniqueGen = this.replaceIfUnique();
 			const baseColumnGen = uniqueGen === undefined ? this : uniqueGen;
 
-			baseColumnGen.dataType = this.baseColumnDataType;
+			baseColumnGen.dataType = this.columnDataType; // ????
+
 			const { dimensions, ...rest } = baseColumnGen.typeParams;
 			baseColumnGen.typeParams = rest;
 
@@ -3380,6 +3381,61 @@ export class WeightedRandomGenerator extends AbstractGenerator<{ weight: number;
 }
 
 export class GeneratePoint extends AbstractGenerator<{
+	isUnique?: boolean;
+	minXValue?: number;
+	maxXValue?: number;
+	minYValue?: number;
+	maxYValue?: number;
+	arraySize?: number;
+}> {
+	static override readonly entityKind: string = 'GeneratePoint';
+
+	private state: {
+		xCoordinateGen: GenerateNumber;
+		yCoordinateGen: GenerateNumber;
+	} | undefined;
+	override uniqueVersionOfGen = GenerateUniquePoint;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+
+		const xCoordinateGen = new GenerateNumber({
+			minValue: this.params.minXValue,
+			maxValue: this.params.maxXValue,
+			precision: 10,
+		});
+		xCoordinateGen.init({ count, seed });
+
+		const yCoordinateGen = new GenerateNumber({
+			minValue: this.params.minYValue,
+			maxValue: this.params.maxYValue,
+			precision: 10,
+		});
+		yCoordinateGen.init({ count, seed });
+
+		this.state = { xCoordinateGen, yCoordinateGen };
+	}
+
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		const x = this.state.xCoordinateGen.generate();
+		const y = this.state.yCoordinateGen.generate();
+
+		if (this.dataType === 'object') {
+			return { x, y };
+		} else if (this.dataType === 'string') {
+			return `[${x}, ${y}]`;
+		} else {
+			// if (this.dataType === "array")
+			return [x, y];
+		}
+	}
+}
+
+export class GeneratePoint2 extends AbstractGenerator<{
 	isUnique?: boolean;
 	minXValue?: number;
 	maxXValue?: number;

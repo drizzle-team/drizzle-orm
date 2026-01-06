@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -20,7 +19,7 @@ export class PgCidrBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgCidr<T extends ColumnBaseConfig<'string cidr'>> extends PgColumn<T> {
+export class PgCidr extends PgColumn<'string cidr'> {
 	static override readonly [entityKind]: string = 'PgCidr';
 
 	getSQLType(): string {

@@ -1,0 +1,36 @@
+services:
+  cockroach0:
+    image: cockroachdb/cockroach:latest
+    command: start-single-node --insecure --store=type=mem,size=2GiB
+    ports:
+      - "26260:26257"
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  cockroach1:
+    image: cockroachdb/cockroach:latest
+    command: start-single-node --insecure --store=type=mem,size=2GiB
+    ports:
+      - "26261:26257"
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  cockroach2:
+    image: cockroachdb/cockroach:latest
+    command: start-single-node --insecure --store=type=mem,size=2GiB
+    ports:
+      - "26262:26257"
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
+      interval: 2s
+      timeout: 3s
+      retries: 60

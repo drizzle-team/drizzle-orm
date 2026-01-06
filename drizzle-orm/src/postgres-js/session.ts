@@ -5,11 +5,11 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
+import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -18,7 +18,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 export class PostgresJsPreparedQuery<
 	T extends PreparedQueryConfig,
 	TIsRqbV2 extends boolean = false,
-> extends PgPreparedQuery<T> {
+> extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
 
 	constructor(
@@ -146,7 +146,7 @@ export class PostgresJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
@@ -176,7 +176,7 @@ export class PostgresJsSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
 			query.sql,
@@ -196,7 +196,7 @@ export class PostgresJsSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
 			query.sql,
@@ -249,7 +249,7 @@ export class PostgresJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PostgresJsTransaction';
 
 	constructor(

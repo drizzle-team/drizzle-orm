@@ -358,7 +358,7 @@ export function tests(test: Test) {
 			const arrays = pgTable('arrays_tests_7', {
 				id: serial('id').primaryKey(),
 				tags: text('tags').array(),
-				nested: text('nested').array().array(),
+				nested: text('nested').array('[][]'),
 				numbers: integer('numbers').notNull().array(),
 			});
 

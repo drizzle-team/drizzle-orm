@@ -1,6 +1,5 @@
 import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { BuildColumn } from '~/column-builder.ts';
 import {
 	bigint,
 	binary,
@@ -21,7 +20,6 @@ import {
 	primaryKey,
 	real,
 	serial,
-	type SingleStoreColumn,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -41,7 +39,6 @@ import { singlestoreSchema } from '~/singlestore-core/schema.ts';
 import { eq } from '~/sql/expressions/index.ts';
 /* import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts'; */
 import type { InferSelectModel } from '~/table.ts';
-import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = singlestoreTable(
@@ -79,73 +76,6 @@ export const cities = singlestoreTable('cities_table', {
 }, (cities) => [index('citiesNameIdx').on(cities.id)]);
 
 Expect<
-	// @ts-ignore - TODO: Remake type checks for new columns
-	Equal<
-		{
-			id: SingleStoreColumn<
-				{
-					name: string;
-					tableName: 'cities_table';
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					isPrimaryKey: true;
-					isAutoincrement: true;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{}
-			>;
-			name: SingleStoreColumn<
-				{
-					name: string;
-					tableName: 'cities_table';
-					dataType: 'string';
-					data: string;
-					driverParam: string;
-					notNull: true;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: [string, ...string[]];
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{}
-			>;
-			population: SingleStoreColumn<
-				{
-					name: string;
-					tableName: 'cities_table';
-					dataType: 'number';
-					data: number;
-					driverParam: string | number;
-					notNull: false;
-					hasDefault: true;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{}
-			>;
-		},
-		// @ts-ignore - TODO: Remake type checks for new columns
-		typeof cities._.columns
-	>
->;
-
-Expect<
 	Equal<{
 		id: number;
 		name: string;
@@ -168,8 +98,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
 }, (cities) => [index('citiesNameIdx').on(cities.id)]);
-
-Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
 export const classes = singlestoreTable('classes_table', ({ serial, text }) => ({
 	id: serial('id').primaryKey(),
@@ -497,37 +425,6 @@ Expect<
 		>
 	>;
 } */
-
-{
-	const customText = customType<{ data: string }>({
-		dataType() {
-			return 'text';
-		},
-	});
-
-	const t = customText('name').notNull();
-	Expect<
-		Equal<
-			{
-				name: string;
-				tableName: 'table';
-				dataType: 'custom';
-				data: string;
-				driverParam: unknown;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			},
-			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
-		>
-	>;
-}
 
 {
 	singlestoreTable('test', {

@@ -1,11 +1,11 @@
-import { getTableName, is, sql } from 'drizzle-orm';
+import { type AnyColumn, getTableName, is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { MySqlDatabase, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { MySqlTable } from 'drizzle-orm/mysql-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, TableConfigT } from '../types/tables.ts';
+import type { Column } from '../types/tables.ts';
 
 // MySql-----------------------------------------------------------------------------------------------------
 export const resetMySql = async (
@@ -98,42 +98,41 @@ export const seedMySql = async (
 		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
+const getTypeParams = (sqlType: string) => {
+	// get type params and set only type
+	const typeParams: Column['typeParams'] = {};
+
+	if (
+		sqlType.startsWith('decimal')
+		|| sqlType.startsWith('real')
+		|| sqlType.startsWith('double')
+		|| sqlType.startsWith('float')
+	) {
+		const match = sqlType.match(/\((\d+), *(\d+)\)/);
+		if (match) {
+			typeParams['precision'] = Number(match[1]);
+			typeParams['scale'] = Number(match[2]);
+		}
+	} else if (
+		sqlType.startsWith('char')
+		|| sqlType.startsWith('varchar')
+		|| sqlType.startsWith('binary')
+		|| sqlType.startsWith('varbinary')
+	) {
+		const match = sqlType.match(/\((\d+)\)/);
+		if (match) {
+			typeParams['length'] = Number(match[1]);
+		}
+	}
+
+	return typeParams;
+};
 
 export const mapMySqlColumns = (
-	tableConfig: TableConfigT,
+	columns: AnyColumn[],
 	dbToTsColumnNamesMap: { [key: string]: string },
 ): Column[] => {
-	const getTypeParams = (sqlType: string) => {
-		// get type params and set only type
-		const typeParams: Column['typeParams'] = {};
-
-		if (
-			sqlType.startsWith('decimal')
-			|| sqlType.startsWith('real')
-			|| sqlType.startsWith('double')
-			|| sqlType.startsWith('float')
-		) {
-			const match = sqlType.match(/\((\d+), *(\d+)\)/);
-			if (match) {
-				typeParams['precision'] = Number(match[1]);
-				typeParams['scale'] = Number(match[2]);
-			}
-		} else if (
-			sqlType.startsWith('char')
-			|| sqlType.startsWith('varchar')
-			|| sqlType.startsWith('binary')
-			|| sqlType.startsWith('varbinary')
-		) {
-			const match = sqlType.match(/\((\d+)\)/);
-			if (match) {
-				typeParams['length'] = Number(match[1]);
-			}
-		}
-
-		return typeParams;
-	};
-
-	const mappedColumns = tableConfig.columns.map((column) => ({
+	const mappedColumns = columns.map((column) => ({
 		name: dbToTsColumnNamesMap[column.name] as string,
 		columnType: column.getSQLType(),
 		typeParams: getTypeParams(column.getSQLType()),

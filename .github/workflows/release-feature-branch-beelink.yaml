@@ -1,0 +1,424 @@
+name: Release (feature branch)
+
+on:
+  workflow_call:
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
+      SQLITE_CLOUD_CONNECTION_STRING:
+        required: true
+      SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
+
+concurrency:
+  group: feature-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Shared local artifacts directory
+  ARTIFACTS_DIR: /opt/runners/cache/artifacts/${{ github.run_id }}
+  # Shared cache directories for self-hosted runners
+  PNPM_STORE_DIR: /opt/runners/cache/pnpm-store
+  TURBO_CACHE_DIR: /opt/runners/cache/turbo
+  npm_config_cache: /opt/runners/cache/npm
+  BUN_INSTALL_CACHE_DIR: /opt/runners/cache/bun
+
+jobs:
+  prepare:
+    runs-on: self-hosted
+    timeout-minutes: 25
+    env:
+      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
+    steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v5
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Compute version suffix
+        id: meta
+        shell: bash
+        run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+      - name: Build all
+        run: pnpm build:artifact
+      
+      # Save build artifacts locally (shared filesystem)
+      - name: Save build-dist locally
+        run: |
+          mkdir -p "$ARTIFACTS_DIR/build-dist"
+          find . -type d -name "dist" -not -path "./node_modules/*" | while read dir; do
+            target_dir="$ARTIFACTS_DIR/build-dist/$dir"
+            mkdir -p "$(dirname "$target_dir")"
+            cp -r "$dir" "$target_dir"
+          done
+          find . -name "*.tsbuildinfo" -not -path "./node_modules/*" | while read file; do
+            target_file="$ARTIFACTS_DIR/build-dist/$file"
+            mkdir -p "$(dirname "$target_file")"
+            cp "$file" "$target_file"
+          done
+      
+      - name: Pack
+        run: pnpm pack:artifact
+      
+      # Save package tarballs locally
+      - name: Save packages locally
+        run: |
+          mkdir -p "$ARTIFACTS_DIR/packages"
+          for pkg in drizzle-orm drizzle-kit drizzle-zod drizzle-seed drizzle-typebox drizzle-valibot drizzle-arktype eslint-plugin-drizzle; do
+            if [ -f "$pkg/package.tgz" ]; then
+              mkdir -p "$ARTIFACTS_DIR/packages/$pkg"
+              cp "$pkg/package.tgz" "$ARTIFACTS_DIR/packages/$pkg/"
+            fi
+          done
+
+      # Marker so other jobs know build is ready
+      - name: Create build-ready marker
+        run: |
+          echo "ok" > "$ARTIFACTS_DIR/build-ready"
+      - name: test:types & lint
+        run: pnpm test:types-lint
+
+  test:
+    # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      # TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: int:mysql
+            dbs: [mysql]
+          - shard: int:postgres
+            dbs: [postgres]
+          - shard: int:sqlite
+            dbs: []
+          - shard: int:other
+            dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
+          - shard: int:planetscale
+            dbs: []
+          - shard: int:cockroach
+            dbs: [cockroach]
+          #  TODO:
+          # - shard: int:bun
+          #   dbs: [postgres, mysql]
+          - shard: int:mssql
+            dbs: [mssql]
+          - shard: orm
+            dbs: []
+          - shard: kit:other
+            dbs: [mysql]
+          - shard: kit:postgres
+            dbs: [postgres, postgres-postgis]
+          - shard: kit:cockroach
+            dbs: [cockroach-many]
+          - shard: kit:mssql
+            dbs: [mssql]
+          - shard: seed
+            dbs: [cockroach, mysql, mssql, postgres-postgis]
+          - shard: validators
+            dbs: []
+         
+    name: ${{ matrix.shard }}
+    steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v5
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Start DBs needed by shard (pre-warm)
+        if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          
+          compose_files=()
+          for db in ${{ join(matrix.dbs, ' ') }}; do
+            case "$db" in
+              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
+              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
+              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
+              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
+              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+              cockroach-many)      compose_files+=("-f" "compose/cockroach-many.yml") ;;
+              *) echo "Unknown db '$db'"; exit 1 ;;
+            esac
+          done
+          docker compose "${compose_files[@]}" up -d
+
+          chmod +x compose/wait.sh
+          compose/wait.sh ${{ join(matrix.dbs, ' ') }}
+
+      - name: Wait for 'prepare' to finish (poll local marker)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for build-ready marker at $ARTIFACTS_DIR/build-ready..."
+          for i in $(seq 1 120); do
+            if [ -f "$ARTIFACTS_DIR/build-ready" ]; then
+              echo "build-ready found!"
+              break
+            fi
+            echo "...still waiting ($i/120)"
+            sleep 5
+          done
+          if [ ! -f "$ARTIFACTS_DIR/build-ready" ]; then
+            echo "ERROR: Timed out waiting for build-ready marker"
+            exit 1
+          fi
+
+      # Restore build artifacts from local filesystem
+      - name: Restore build-dist locally
+        run: |
+          if [ -d "$ARTIFACTS_DIR/build-dist" ]; then
+            cp -r "$ARTIFACTS_DIR/build-dist/." .
+          else
+            echo "ERROR: build-dist not found at $ARTIFACTS_DIR/build-dist"
+            exit 1
+          fi
+
+      # Prisma client was generated in prepare -> build outputs already contain it
+      # No `pnpm build` here — we reuse dist to save time
+
+      - name: Run tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
+          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+          LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
+          MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
+          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
+          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+        working-directory: integration-tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            export SKIP_EXTERNAL_DB_TESTS=1
+          fi
+          case ${{ matrix.shard }} in
+            int:postgres)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
+              fi
+            ;;
+            int:mysql)
+              pnpm --stream test:mysql
+            ;;
+            int:tidb)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb
+              fi
+            ;;
+            int:planetscale)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:planetscale
+              fi
+            ;;
+            int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
+            
+            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
+            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
+            kit:cockroach)
+              export COCKROACH_CONNECTION_STRING="postgresql://root@127.0.0.1:26260/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26261/defaultdb?sslmode=disable;postgresql://root@127.0.0.1:26262/defaultdb?sslmode=disable"
+              cd ../drizzle-kit && pnpm --stream run test:cockroach
+            ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
+            validators) 
+              (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-valibot && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
+              (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
+            ;;
+            orm|seed)
+              (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
+            ;;
+          
+            int:bun)  bun test ./tests/bun/ ;;
+
+            int:other)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests \
+                --exclude ./tests/gel/ \
+                --exclude ./tests/mysql/ \
+                --exclude ./tests/cockroach/ \
+                --exclude ./tests/mssql/ \
+                --exclude ./tests/pg/ \
+                --exclude ./tests/sqlite/ \
+                --exclude ./tests/bun/
+            ;;
+            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
+          esac
+
+  attw:
+    needs: [prepare]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v4
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
+      
+      - name: Run @arethetypeswrong/cli
+        run: |
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-typebox/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-valibot/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-arktype/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
+
+  attw-orm:
+    needs: [prepare]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: self-hosted
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        package: [node10, node16-cjs, node16-esm, bundler]
+    steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v4
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
+      
+      - name: Run @arethetypeswrong/cli
+        working-directory: drizzle-orm
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+
+  release:
+    needs: [test, prepare, attw, attw-orm]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: self-hosted
+    timeout-minutes: 20
+    permissions: { contents: read, id-token: write }
+    
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
+    strategy:
+      matrix:
+        package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
+    steps:
+      - name: Setup PATH
+        run: |
+          echo "/home/alex/.volta/bin" >> $GITHUB_PATH
+          echo "/home/alex/.bun/bin" >> $GITHUB_PATH
+      - uses: actions/checkout@v5
+      
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@latest
+      
+      # Restore packages from local filesystem
+      - name: Restore packages locally
+        run: |
+          mkdir -p ./artifacts
+          cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
+      - name: Check preconditions (from tarball)
+        id: checks
+        shell: bash
+        run: |
+          set -euxo pipefail
+          
+          _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
+          tag="${{ github.ref_name }}"
+          suffix=$(git rev-parse --short HEAD)
+          version="$_version-$suffix"
+          tmpdir="$(mktemp -d)"
+          tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
+
+          jq --arg v "$version" '.version = $v' \
+            "$tmpdir/package/package.json" > "$tmpdir/package/package.json.tmp"
+            mv "$tmpdir/package/package.json.tmp" "$tmpdir/package/package.json"
+
+          tar -czf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir" package
+          rm -rf "$tmpdir"
+
+          is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+          if [[ "$is_published" == "true" ]]; then
+            echo "\`${{ matrix.package }}@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
+          else
+            { echo "version=$version"; echo "tag=$tag"; echo "has_new_release=true"; } >> $GITHUB_OUTPUT
+          fi
+      - name: Publish (from tarball)
+        if: steps.checks.outputs.has_new_release == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+          echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # Cleanup local artifacts after workflow completes
+  cleanup:
+    runs-on: self-hosted
+    if: always()
+    needs: [release]
+    steps:
+      - name: Cleanup local artifacts
+        run: |
+          if [ -d "$ARTIFACTS_DIR" ]; then
+            rm -rf "$ARTIFACTS_DIR"
+            echo "Cleaned up artifacts at $ARTIFACTS_DIR"
+          fi

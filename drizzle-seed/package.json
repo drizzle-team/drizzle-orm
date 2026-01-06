@@ -1,10 +1,12 @@
 {
 	"name": "drizzle-seed",
 	"version": "1.0.0-beta.9",
-	"main": "index.js",
+	"main": "./index.cjs",
+	"module": "./index.mjs",
+	"types": "./index.d.ts",
 	"type": "module",
 	"scripts": {
-		"build": "tsc -p ./tsconfig.json && tsx scripts/build.ts",
+		"build": "tsx scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
@@ -77,8 +79,6 @@
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.16.1",
 		"@electric-sql/pglite": "^0.2.12",
-		"@rollup/plugin-terser": "^0.4.4",
-		"@rollup/plugin-typescript": "^11.1.6",
 		"@types/async-retry": "^1.4.8",
 		"@types/better-sqlite3": "^7.6.11",
 		"@types/dockerode": "^3.3.31",
@@ -98,8 +98,7 @@
 		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.12.0",
-		"resolve-tspaths": "^0.8.19",
-		"rollup": "^3.29.5",
+		"tsdown": "^0.18.3",
 		"tslib": "^2.7.0",
 		"tsx": "^4.19.0",
 		"uuid": "^10.0.0",

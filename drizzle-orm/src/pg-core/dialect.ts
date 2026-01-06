@@ -10,9 +10,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import {
-	PgArray,
 	PgColumn,
 	type PgCustomColumn,
 	PgDate,
@@ -65,7 +63,6 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -81,73 +78,6 @@ export class PgDialect {
 
 	constructor(config?: PgDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
-	}
-
-	async migrate(
-		migrations: MigrationMeta[],
-		session: PgSession,
-		config: string | MigrationConfig,
-	): Promise<void | MigratorInitFailResponse> {
-		const migrationsTable = typeof config === 'string'
-			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint
-			)
-		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-		await session.execute(migrationTableCreate);
-
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} order by created_at desc limit 1`,
-		);
-
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			await session.execute(
-				sql`insert into ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-			);
-
-			return;
-		}
-
-		const lastDbMigration = dbMigrations[0];
-		await session.transaction(async (tx) => {
-			for await (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						await tx.execute(sql.raw(stmt));
-					}
-					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-					);
-				}
-			}
-		});
 	}
 
 	escapeName(name: string): string {
@@ -966,14 +896,9 @@ export class PgDialect {
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			let targetType = column.columnType;
-			let col = column;
-			let dimensionCnt = 0;
-			while (is(col, PgArray)) {
-				col = col.baseColumn;
-				targetType = col.columnType;
-				++dimensionCnt;
-			}
+			const targetType = column.columnType;
+			// Get dimension count directly from PgColumn.dimensions
+			const dimensionCnt = is(column, PgColumn) ? column.dimensions : 0;
 
 			switch (targetType) {
 				case 'PgNumeric':
@@ -992,7 +917,7 @@ export class PgDialect {
 				}
 				case 'PgCustomColumn': {
 					return sql`${
-						(<PgCustomColumn<any>> col).jsonSelectIdentifier(
+						(<PgCustomColumn<any>> column).jsonSelectIdentifier(
 							name,
 							sql,
 							dimensionCnt > 0 ? dimensionCnt : undefined,

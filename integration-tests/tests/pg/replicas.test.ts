@@ -1,6 +1,7 @@
 import { defineRelations, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { boolean, jsonb, pgTable, serial, text, timestamp, withReplicas } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { withReplicas } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 
 const usersTable = pgTable('users', {

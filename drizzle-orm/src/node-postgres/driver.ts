@@ -4,7 +4,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -16,31 +16,10 @@ export interface PgDriverOptions {
 	cache?: Cache;
 }
 
-export class NodePgDriver {
-	static readonly [entityKind]: string = 'NodePgDriver';
-
-	constructor(
-		private client: NodePgClient,
-		private dialect: PgDialect,
-		private options: PgDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NodePgSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new NodePgSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			cache: this.options.cache,
-		});
-	}
-}
-
 export class NodePgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<NodePgQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<NodePgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
 
@@ -75,9 +54,12 @@ function construct<
 		};
 	}
 
-	const relations = config.relations ?? {} as TRelations;
-	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache });
-	const session = driver.createSession(relations, schema);
+	const relations = config.relations ?? {};
+	const session = new NodePgSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+	});
+
 	const db = new NodePgDatabase(
 		dialect,
 		session,

@@ -37,7 +37,7 @@ import { drizzle } from 'drizzle-orm/bun-sql';
 import type { BunSQLDatabase } from 'drizzle-orm/bun-sql/postgres';
 import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import { usersSync } from 'drizzle-orm/neon/neon-auth';
-import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import {
 	alias,
 	bigint,
@@ -91,6 +91,8 @@ import {
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
+import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { Expect } from '~/utils';
 import { relations } from '../pg/relations';
@@ -157,11 +159,11 @@ const network = pgTable('network_table', {
 const salEmp = pgTable('sal_emp', {
 	name: text('name'),
 	payByQuarter: integer('pay_by_quarter').array(),
-	schedule: text('schedule').array().array(),
+	schedule: text('schedule').array('[][]'),
 });
 
 const _tictactoe = pgTable('tictactoe', {
-	squares: integer('squares').array(3).array(3),
+	squares: integer('squares').array('[][]'),
 });
 
 export const usersMigratorTable = pgTable('users12', {
@@ -505,7 +507,7 @@ afterEach(async () => {
 	await db.execute(sql`drop schema if exists custom_migrations cascade`);
 });
 
-async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT, any, any>) {
+async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
 	await db.execute(sql`drop table if exists users2`);
 	await db.execute(sql`drop table if exists cities`);
 	await db.execute(
@@ -544,7 +546,7 @@ async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT, any, any>)
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT, any, any>) {
+async function setupAggregateFunctionsTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
 	await db.execute(sql`drop table if exists "aggregate_table"`);
 	await db.execute(
 		sql`
@@ -3596,7 +3598,7 @@ test.skip('array mapping and parsing', async () => {
 	const arrays = pgTable('arrays_tests', {
 		id: serial('id').primaryKey(),
 		tags: text('tags').array(),
-		nested: text('nested').array().array(),
+		nested: text('nested').array('[][]'),
 		numbers: integer('numbers').notNull().array(),
 	});
 
