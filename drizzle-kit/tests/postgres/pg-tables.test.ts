@@ -208,8 +208,10 @@ test('add table #7', async () => {
 test('add table #8: geometry types', async () => {
 	const to = {
 		users: pgTable('users', {
-			geom: geometry('geom', { type: 'point' }).notNull(),
+			geom: geometry('geom', { type: 'Point' }).notNull(),
 			geom1: geometry('geom1').notNull(),
+			geom2: geometry('geom2', { mode: 'xy', type: 'Point', srid: 4326 }).notNull(),
+			geom3: geometry('geom3', { type: 'MultiPolygon', srid: 3857 }).notNull(),
 		}),
 	};
 
@@ -219,7 +221,7 @@ test('add table #8: geometry types', async () => {
 	// const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+		`CREATE TABLE "users" (\n\t"geom" geometry(Point) NOT NULL,\n\t"geom1" geometry(Point) NOT NULL,\n\t"geom2" geometry(Point,4326) NOT NULL,\n\t"geom3" geometry(MultiPolygon,3857) NOT NULL\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	// expect(pst).toStrictEqual(st0);
