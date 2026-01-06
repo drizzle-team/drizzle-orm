@@ -1,6 +1,5 @@
 import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
-import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { TableName } from '~/table.utils.ts';
@@ -284,11 +283,11 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				], config);
 			}
 
-			if (isPgEnum(chunk)) {
-				if (chunk.schema) {
-					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
+			if (typeof chunk === 'function' && 'enumName' in chunk) {
+				if ('schema' in chunk && chunk.schema) {
+					return { sql: escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string), params: [] };
 				}
-				return { sql: escapeName(chunk.enumName), params: [] };
+				return { sql: escapeName(chunk.enumName as string), params: [] };
 			}
 
 			if (isSQLWrapper(chunk)) {

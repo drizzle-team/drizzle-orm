@@ -9,12 +9,13 @@ on:
 
 jobs:
   switch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       target: ${{ steps.route.outputs.target }}
     steps:
       - name: Route release
         id: route
+        shell: bash
         run: |
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
@@ -56,3 +57,4 @@ jobs:
       LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
       LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
       SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
+      SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}

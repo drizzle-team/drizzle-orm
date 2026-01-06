@@ -1,3 +1,4 @@
+import type { AnyTable } from 'drizzle-orm';
 import { getTableName, is } from 'drizzle-orm';
 import type { Relation, Relations } from 'drizzle-orm/_relations';
 import { createTableRelationsHelpers, extractTablesRelationalConfig, Many, One } from 'drizzle-orm/_relations';
@@ -137,10 +138,10 @@ export const relationsToTypeScriptForStudio = (
 
 	let result = '';
 
-	function findColumnKey(table: AnyPgTable, columnName: string) {
+	function findColumnKey(table: AnyTable<{ name: string }>, columnName: string) {
 		for (const tableEntry of Object.entries(table)) {
 			const key = tableEntry[0];
-			const value = tableEntry[1];
+			const value = tableEntry[1] as { name?: string };
 
 			if (value.name === columnName) {
 				return key;
@@ -501,274 +502,14 @@ const column = (
 	let columnStatement = `${withCasing(name, casing)}: ${
 		isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
 	}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
-	columnStatement += '.array()'.repeat(dimensions);
+
+	if (dimensions > 0) {
+		const suffix = '[]'.repeat(dimensions);
+		columnStatement += dimensions === 1 ? '.array()' : `.array("${suffix}")`;
+	}
 
 	if (defaultValue) columnStatement += `.default(${defaultValue})`;
 	return columnStatement;
-
-	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
-			dbColumnName({ name, casing })
-		})`;
-		return out;
-	}
-
-	// if (lowered === 'serial') {
-	// 	return `${withCasing(name, casing)}: serial(${dbColumnName({ name, casing })})`;
-	// }
-
-	// if (lowered === 'smallserial') {
-	// 	return `${withCasing(name, casing)}: smallserial(${dbColumnName({ name, casing })})`;
-	// }
-
-	// if (lowered === 'bigserial') {
-	// 	return `${withCasing(name, casing)}: bigserial(${
-	// 		dbColumnName({ name, casing, withMode: true })
-	// 	}{ mode: "bigint" })`;
-	// }
-
-	// if (lowered === 'integer') {
-	// 	let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'smallint') {
-	// 	let out = `${withCasing(name, casing)}: smallint(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'bigint') {
-	// 	let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-	// 	const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
-	// 	out += `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: '${mode}' })`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'boolean') {
-	// 	let out = `${withCasing(name, casing)}: boolean(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'double precision') {
-	// 	let out = `${withCasing(name, casing)}: doublePrecision(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'real') {
-	// 	let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'uuid') {
-	// 	let out = `${withCasing(name, casing)}: uuid(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'numeric') {
-	// 	let params: { precision?: number; scale?: number; mode?: any } = {};
-
-	// 	if (options) {
-	// 		const [p, s] = options.split(',');
-	// 		if (p) params['precision'] = Number(p);
-	// 		if (s) params['scale'] = Number(s);
-	// 	}
-
-	// 	let mode = def !== null && def.type === 'bigint'
-	// 		? 'bigint'
-	// 		: def !== null && def.type === 'string'
-	// 		? 'number'
-	// 		: 'number';
-
-	// 	if (mode) params['mode'] = mode;
-
-	// 	let out = Object.keys(params).length > 0
-	// 		? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
-	// 			JSON.stringify(params)
-	// 		})`
-	// 		: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
-
-	// 	return out;
-	// }
-
-	// if (lowered === 'timestamp') {
-	// 	const withTimezone = lowered.includes('with time zone');
-	// 	// const split = lowered.split(" ");
-	// 	const precision = options
-	// 		? Number(options)
-	// 		: null;
-
-	// 	const params = timeConfig({
-	// 		precision,
-	// 		withTimezone,
-	// 		mode: "'string'",
-	// 	});
-
-	// 	let out = params
-	// 		? `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing, withMode: true })}${params})`
-	// 		: `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing })})`;
-
-	// 	return out;
-	// }
-
-	// if (lowered === 'time') {
-	// 	const withTimezone = lowered.includes('with time zone');
-
-	// 	let precision = options
-	// 		? Number(options)
-	// 		: null;
-
-	// 	const params = timeConfig({ precision, withTimezone });
-
-	// 	let out = params
-	// 		? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${params})`
-	// 		: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
-
-	// 	return out;
-	// }
-
-	// if (lowered.startsWith('interval')) {
-	// 	// const withTimezone = lowered.includes("with time zone");
-	// 	// const split = lowered.split(" ");
-	// 	// let precision = split.length >= 2 ? Number(split[1].substring(1, 2)) : null;
-	// 	// precision = precision ? precision : null;
-
-	// 	const suffix = options ? `(${options})` : '';
-	// 	const params = intervalConfig(`${lowered}${suffix}`);
-	// 	let out = options
-	// 		? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
-	// 		: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
-
-	// 	return out;
-	// }
-
-	// if (lowered === 'date') {
-	// 	let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('text')) {
-	// 	let out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('jsonb')) {
-	// 	let out = `${withCasing(name, casing)}: jsonb(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('json')) {
-	// 	let out = `${withCasing(name, casing)}: json(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('inet')) {
-	// 	let out = `${withCasing(name, casing)}: inet(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('cidr')) {
-	// 	let out = `${withCasing(name, casing)}: cidr(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('macaddr8')) {
-	// 	let out = `${withCasing(name, casing)}: macaddr8(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('macaddr')) {
-	// 	let out = `${withCasing(name, casing)}: macaddr(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === 'varchar') {
-	// 	let out: string;
-	// 	if (options) { // size
-	// 		out = `${withCasing(name, casing)}: varchar(${
-	// 			dbColumnName({ name, casing, withMode: true })
-	// 		}{ length: ${options} })`;
-	// 	} else {
-	// 		out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
-	// 	}
-
-	// 	return out;
-	// }
-
-	// if (lowered === ('point')) {
-	// 	let out: string = `${withCasing(name, casing)}: point(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('line')) {
-	// 	let out: string = `${withCasing(name, casing)}: line(${dbColumnName({ name, casing })})`;
-	// 	return out;
-	// }
-
-	// if (lowered === ('geometry')) {
-	// 	let out: string = '';
-
-	// 	let isGeoUnknown = false;
-
-	// 	if (lowered.length !== 8) {
-	// 		const geometryOptions = options ? options.split(',') : [];
-	// 		if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
-	// 			out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
-	// 				geometryOptions[0]
-	// 			}" })`;
-	// 		} else if (geometryOptions.length === 2) {
-	// 			out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
-	// 				geometryOptions[0]
-	// 			}", srid: ${geometryOptions[1]} })`;
-	// 		} else {
-	// 			isGeoUnknown = true;
-	// 		}
-	// 	} else {
-	// 		out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing })})`;
-	// 	}
-
-	// 	if (isGeoUnknown) {
-	// 		//  TODO:
-	// 		let unknown =
-	// 			`// failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
-	// 		unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
-	// 		return unknown;
-	// 	}
-	// 	return out;
-	// }
-
-	// if (lowered === ('vector')) {
-	// 	let out: string;
-	// 	if (options) {
-	// 		out = `${withCasing(name, casing)}: vector(${
-	// 			dbColumnName({ name, casing, withMode: true })
-	// 		}{ dimensions: ${options} })`;
-	// 	} else {
-	// 		out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
-	// 	}
-
-	// 	return out;
-	// }
-
-	// if (lowered === ('char')) {
-	// 	let out: string;
-	// 	if (options) {
-	// 		out = `${withCasing(name, casing)}: char(${
-	// 			dbColumnName({ name, casing, withMode: true })
-	// 		}{ length: ${options} })`;
-	// 	} else {
-	// 		out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
-	// 	}
-
-	// 	return out;
-	// }
-
-	// if (lowered.startsWith('bit')) {
-	// 	return `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })}{ dimensions: ${options}})`;
-	// }
-
-	let unknown = `// TODO: failed to parse database type '${type}'\n`;
-	unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
-	return unknown;
 };
 
 const createViewColumns = (
@@ -790,8 +531,11 @@ const createViewColumns = (
 		);
 		statement += '\t';
 		statement += columnStatement;
-		// Provide just this in column function
-		statement += '.array()'.repeat(it.dimensions + it.typeDimensions);
+		if (it.dimensions > 0 || it.typeDimensions > 0) {
+			const c = it.dimensions + it.typeDimensions;
+			const suffix = '[]'.repeat(it.dimensions + it.typeDimensions);
+			statement += c === 1 ? '.array()' : `.array("${suffix}")`;
+		}
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
@@ -842,7 +586,12 @@ const createTableColumns = (
 		let columnStatement = `${withCasing(name, casing)}: ${
 			isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
 		}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
-		columnStatement += '.array()'.repeat(dimensions);
+
+		if (it.dimensions > 0) {
+			const suffix = '[]'.repeat(it.dimensions);
+			columnStatement += it.dimensions === 1 ? '.array()' : `.array("${suffix}")`;
+		}
+
 		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';

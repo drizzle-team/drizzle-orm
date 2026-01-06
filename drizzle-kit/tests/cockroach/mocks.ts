@@ -586,7 +586,25 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+
+	let url: string;
+	let container: Docker.Container | null = null;
+
+	if (envUrl) {
+		// Support multiple connection strings separated by ';'
+		const urls = envUrl.split(';').filter(Boolean);
+		if (urls.length > 1) {
+			// Use VITEST_POOL_ID to distribute workers across containers
+			const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
+			url = urls[poolId % urls.length]!;
+		} else {
+			url = urls[0]!;
+		}
+	} else {
+		const dockerResult = await createDockerDB();
+		url = dockerResult.url;
+		container = dockerResult.container;
+	}
 
 	const clients = [
 		await prepareClient(url, 'db0', false),

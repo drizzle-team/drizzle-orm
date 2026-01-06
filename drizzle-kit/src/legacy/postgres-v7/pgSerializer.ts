@@ -14,7 +14,6 @@ import {
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
-	PgArray,
 	PgColumn,
 	PgDialect,
 	PgEnumColumn,
@@ -206,13 +205,7 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const getEnumSchema = (column: PgColumn) => {
-				while (is(column, PgArray)) {
-					column = column.baseColumn;
-				}
-				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-			};
-			const typeSchema: string | undefined = getEnumSchema(column);
+			const typeSchema: string | undefined = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
 
 			const generated = column.generated;
 			const identity = column.generatedIdentity;

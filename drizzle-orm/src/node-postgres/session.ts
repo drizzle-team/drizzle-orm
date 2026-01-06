@@ -5,13 +5,14 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
+import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
+import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
@@ -19,7 +20,7 @@ const { Pool, types } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
 
@@ -232,7 +233,7 @@ export class NodePgSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
@@ -261,7 +262,7 @@ export class NodePgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	) {
 		return new NodePgPreparedQuery(
 			this.client,
 			query.sql,
@@ -282,7 +283,7 @@ export class NodePgSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	) {
 		return new NodePgPreparedQuery(
 			this.client,
 			query.sql,
@@ -331,20 +332,13 @@ export class NodePgSession<
 			if (isPool) (session.client as PoolClient).release();
 		}
 	}
-
-	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
-		return Number(
-			res['rows'][0]['count'],
-		);
-	}
 }
 
 export class NodePgTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NodePgTransaction';
 
 	override async transaction<T>(
