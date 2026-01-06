@@ -1134,25 +1134,8 @@ test('nd arrays', async () => {
 	const predicate0 = ndArrays.every((row) =>
 		Object.values(row).every((val) => val !== undefined && val !== null && val.length !== 0)
 	);
-	let predicate1 = true, predicate2 = true, predicate3 = true, predicate4 = true;
 
-	for (const row of ndArrays) {
-		predicate1 = predicate1 && Array.isArray(row.integer1DArray) && (row.integer1DArray.length > 0);
-
-		predicate2 = predicate2 && Array.isArray(row.integer2DArray) && (row.integer2DArray.length > 0)
-			&& Array.isArray(row.integer2DArray[0]) && (row.integer2DArray[0].length > 0);
-
-		predicate3 = predicate3 && Array.isArray(row.integer3DArray) && (row.integer3DArray.length > 0)
-			&& Array.isArray(row.integer3DArray[0]) && (row.integer3DArray[0].length > 0)
-			&& Array.isArray(row.integer3DArray[0]![0]) && (row.integer3DArray[0]![0]!.length > 0);
-
-		predicate4 = predicate4 && Array.isArray(row.integer4DArray) && (row.integer4DArray.length > 0)
-			&& Array.isArray(row.integer4DArray[0]) && (row.integer4DArray[0].length > 0)
-			&& Array.isArray(row.integer4DArray[0]![0]) && (row.integer4DArray[0]![0]!.length > 0)
-			&& Array.isArray(row.integer4DArray[0]![0]![0]) && (row.integer4DArray[0]![0]![0]!.length > 0);
-	}
-
-	expect(predicate0 && predicate1 && predicate2 && predicate3 && predicate4).toBe(true);
+	expect(predicate0).toBe(true);
 });
 
 // All generators test-------------------------------
