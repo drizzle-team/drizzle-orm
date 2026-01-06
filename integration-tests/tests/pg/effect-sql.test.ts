@@ -1,7 +1,6 @@
 import { PgClient } from '@effect/sql-pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, it } from '@effect/vitest';
-import { db } from '@vercel/postgres';
-import { and, asc, eq, gt, inArray, lt, sql, TransactionRollbackError } from 'drizzle-orm';
+import { expect, expectTypeOf, it } from '@effect/vitest';
+import { and, asc, eq, gt, gte, inArray, lt, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, EffectPgDatabase } from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
@@ -17,7 +16,6 @@ import {
 	except,
 	getMaterializedViewConfig,
 	getTableConfig,
-	getViewConfig,
 	inet,
 	integer,
 	interval,
@@ -30,7 +28,6 @@ import {
 	pgEnum,
 	pgSchema,
 	pgTable,
-	pgView,
 	point,
 	primaryKey,
 	real,
@@ -1307,7 +1304,7 @@ it.layer(clientLayer)((it) => {
 					yield* tx.insert(users).values({ balance: 100 });
 					yield* tx.rollback();
 				})
-			).pipe(Effect.catchAll((e) => Effect.sync(() => e as TransactionRollbackError)));
+			).pipe(Effect.catchAll((e) => Effect.succeed(e as TransactionRollbackError)));
 
 			const result = yield* db.select().from(users);
 
@@ -1364,7 +1361,7 @@ it.layer(clientLayer)((it) => {
 								yield* tx.update(users).set({ balance: 200 });
 								yield* tx.rollback();
 							})
-						).pipe(Effect.catchAll((e) => Effect.sync(() => e as TransactionRollbackError))),
+						).pipe(Effect.catchAll((e) => Effect.succeed(e as TransactionRollbackError))),
 					).toBeInstanceOf(TransactionRollbackError);
 				})
 			);
@@ -2729,5 +2726,162 @@ it.layer(clientLayer)((it) => {
 					name: 'Hans',
 				},
 			}]);
+		}));
+
+	it.effect('set operations (mixed) from query builder with subquery', () =>
+		Effect.gen(function*() {
+			const cities2Table = pgTable('cities_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_1', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			const db = yield* getDb;
+			yield* push(db, { cities2Table, users2Table });
+
+			yield* db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			yield* db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
+
+			const sq = db
+				.select()
+				.from(cities2Table).where(gt(cities2Table.id, 1)).as('sq');
+
+			const result = yield* db
+				.select()
+				.from(cities2Table).except(
+					({ unionAll }) =>
+						unionAll(
+							db.select().from(sq),
+							db.select().from(cities2Table).where(eq(cities2Table.id, 2)),
+						),
+				);
+
+			expect(result).toHaveLength(1);
+
+			expect(result).toEqual([
+				{ id: 1, name: 'New York' },
+			]);
+
+			let err: unknown;
+			try {
+				yield* db
+					.select()
+					.from(cities2Table).except(
+						({ unionAll }) =>
+							unionAll(
+								db
+									.select({ name: cities2Table.name, id: cities2Table.id })
+									.from(cities2Table).where(gt(cities2Table.id, 1)),
+								db.select().from(cities2Table).where(eq(cities2Table.id, 2)),
+							),
+					);
+			} catch (error) {
+				err = error;
+			}
+
+			expect(err).toBeInstanceOf(Error);
+		}));
+
+	it.effect('set operations (mixed all) as function', () =>
+		Effect.gen(function*() {
+			const cities2Table = pgTable('cities_2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_2', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			const db = yield* getDb;
+			yield* push(db, { cities2Table, users2Table });
+
+			yield* db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+			]);
+
+			yield* db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack', cityId: 3 },
+				{ id: 4, name: 'Peter', cityId: 3 },
+				{ id: 5, name: 'Ben', cityId: 2 },
+				{ id: 6, name: 'Jill', cityId: 1 },
+				{ id: 7, name: 'Mary', cityId: 2 },
+				{ id: 8, name: 'Sally', cityId: 1 },
+			]);
+
+			const result = yield* union(
+				db
+					.select({ id: users2Table.id, name: users2Table.name })
+					.from(users2Table).where(eq(users2Table.id, 1)),
+				except(
+					db
+						.select({ id: users2Table.id, name: users2Table.name })
+						.from(users2Table).where(gte(users2Table.id, 5)),
+					db
+						.select({ id: users2Table.id, name: users2Table.name })
+						.from(users2Table).where(eq(users2Table.id, 7)),
+				),
+				db
+					.select().from(cities2Table).where(gt(cities2Table.id, 1)),
+			).orderBy(asc(sql`id`));
+
+			expect(result).toHaveLength(6);
+
+			expect(result).toEqual([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Tampa' },
+				{ id: 5, name: 'Ben' },
+				{ id: 6, name: 'Jill' },
+				{ id: 8, name: 'Sally' },
+			]);
+
+			let err: unknown;
+			try {
+				yield* union(
+					db
+						.select({ id: users2Table.id, name: users2Table.name })
+						.from(users2Table).where(eq(users2Table.id, 1)),
+					except(
+						db
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table).where(gte(users2Table.id, 5)),
+						db
+							.select({ name: users2Table.name, id: users2Table.id })
+							.from(users2Table).where(eq(users2Table.id, 7)),
+					),
+					db
+						.select().from(cities2Table).where(gt(cities2Table.id, 1)),
+				);
+			} catch (error) {
+				err = error;
+			}
+
+			expect(err).toBeInstanceOf(Error);
 		}));
 });
