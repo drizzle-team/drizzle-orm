@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
@@ -26,13 +25,17 @@ export class PgIntervalBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgInterval<T extends ColumnBaseConfig<'string interval'>>
-	extends PgColumn<T, { intervalConfig: IntervalConfig }>
-{
+export class PgInterval extends PgColumn<'string interval'> {
 	static override readonly [entityKind]: string = 'PgInterval';
 
-	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
-	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;
+	readonly fields: IntervalConfig['fields'];
+	readonly precision: IntervalConfig['precision'];
+
+	constructor(table: PgTable<any>, config: PgIntervalBuilder['config']) {
+		super(table, config);
+		this.fields = config.intervalConfig.fields;
+		this.precision = config.intervalConfig.precision;
+	}
 
 	getSQLType(): string {
 		const fields = this.fields ? ` ${this.fields}` : '';

@@ -14,19 +14,18 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
 
 export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NeonPreparedQuery';
 
@@ -209,7 +208,7 @@ export class NeonSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
@@ -238,7 +237,7 @@ export class NeonSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
 			query.sql,
@@ -259,7 +258,7 @@ export class NeonSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
 			query.sql,
@@ -291,14 +290,6 @@ export class NeonSession<
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
-	}
-
-	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
-
-		return Number(
-			res['rows'][0]['count'],
-		);
 	}
 
 	override async transaction<T>(
@@ -334,7 +325,7 @@ export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NeonTransaction';
 
 	override async transaction<T>(

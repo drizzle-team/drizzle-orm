@@ -464,8 +464,8 @@ test('all data types', (t) => {
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
 		array1: integer().array().notNull(),
-		array2: integer().array().array(2).notNull(),
-		array3: varchar({ length: 10 }).array().array(2).notNull(),
+		array2: integer().array('[][]').notNull(),
+		array3: varchar({ length: 10 }).array('[][]').notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -520,8 +520,8 @@ test('all data types', (t) => {
 		varchar2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: v.pipe(v.array(v.number()), v.length(3 as number)),
 		array1: v.array(integerSchema),
-		array2: v.pipe(v.array(v.array(integerSchema)), v.length(2 as number)),
-		array3: v.pipe(v.array(v.array(v.pipe(v.string(), v.maxLength(10 as number)))), v.length(2 as number)),
+		array2: v.array(v.array(integerSchema)),
+		array3: v.array(v.array(v.pipe(v.string(), v.maxLength(10 as number)))),
 	});
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);

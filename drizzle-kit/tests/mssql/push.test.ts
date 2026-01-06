@@ -262,7 +262,7 @@ test('create view', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE VIEW [view] AS (select distinct [id] from [test]);',
+		'CREATE VIEW [view] AS select distinct [id] from [test];',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -450,7 +450,7 @@ test('alter view definition', async () => {
 	});
 
 	expect(st).toStrictEqual([
-		`ALTER VIEW [view] AS (select distinct [id] from [test] where [test].[id] = 1);`,
+		`ALTER VIEW [view] AS select distinct [id] from [test] where [test].[id] = 1;`,
 	]);
 	expect(pst).toStrictEqual([]);
 });
@@ -710,7 +710,7 @@ test('hints + losses: drop table that is not empty', async (t) => {
 	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
 
 	const { sqlStatements: st2 } = await diff(n1, {}, []);
-	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: {} });
+	const { sqlStatements: pst2, hints, error } = await push({ db, to: {} });
 
 	const st_02 = [
 		'DROP TABLE [users];',
@@ -718,9 +718,8 @@ test('hints + losses: drop table that is not empty', async (t) => {
 
 	expect(st2).toStrictEqual(st_02);
 	expect(pst2).toStrictEqual(st_02);
-	expect(hints).toStrictEqual(["· You're about to delete non-empty [users] table"]);
+	expect(hints).toStrictEqual([{ hint: "· You're about to delete non-empty [users] table" }]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: drop column that is not empty', async (t) => {
@@ -750,7 +749,7 @@ test('hints + losses: drop column that is not empty', async (t) => {
 	};
 
 	const { sqlStatements: st2 } = await diff(from, to, []);
-	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst2, hints, error } = await push({ db, to: to });
 
 	const st_02 = [
 		'ALTER TABLE [users] DROP COLUMN [name];',
@@ -758,9 +757,8 @@ test('hints + losses: drop column that is not empty', async (t) => {
 
 	expect(st2).toStrictEqual(st_02);
 	expect(pst2).toStrictEqual(st_02);
-	expect(hints).toStrictEqual(["· You're about to delete non-empty [name] column in [users] table"]);
+	expect(hints).toStrictEqual([{ hint: "· You're about to delete non-empty [name] column in [users] table" }]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: drop column that is empty', async (t) => {
@@ -788,7 +786,7 @@ test('hints + losses: drop column that is empty', async (t) => {
 	};
 
 	const { sqlStatements: st2 } = await diff(from, to, []);
-	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst2, hints, error } = await push({ db, to: to });
 
 	const st_02 = [
 		'ALTER TABLE [users] DROP COLUMN [name];',
@@ -798,7 +796,6 @@ test('hints + losses: drop column that is empty', async (t) => {
 	expect(pst2).toStrictEqual(st_02);
 	expect(hints).toStrictEqual([]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: drop schema', async (t) => {
@@ -827,7 +824,7 @@ test('hints + losses: drop schema', async (t) => {
 	};
 
 	const { sqlStatements: st2 } = await diff(from, to, []);
-	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst2, hints, error } = await push({ db, to: to });
 
 	const st_02 = [
 		'DROP SCHEMA [my_schema];\n',
@@ -837,7 +834,6 @@ test('hints + losses: drop schema', async (t) => {
 	expect(pst2).toStrictEqual(st_02);
 	expect(hints).toStrictEqual([]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: drop schema with tables', async (t) => {
@@ -852,7 +848,7 @@ test('hints + losses: drop schema with tables', async (t) => {
 		}),
 	};
 
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst1, hints, error } = await push({ db, to: to });
 
 	const st_01 = [
 		`CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n`,
@@ -861,9 +857,8 @@ test('hints + losses: drop schema with tables', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([`· You're about to delete [test] schema with 1 table`]);
+	expect(hints).toStrictEqual([{ hint: `· You're about to delete [test] schema with 1 table` }]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: add column', async (t) => {
@@ -885,7 +880,7 @@ test('hints + losses: add column', async (t) => {
 			age: int(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst1, hints, error } = await push({ db, to: to });
 
 	const st_01 = [
 		`ALTER TABLE [users] ADD [age] int;`,
@@ -894,7 +889,6 @@ test('hints + losses: add column', async (t) => {
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: add column with not null without default', async (t) => {
@@ -916,7 +910,7 @@ test('hints + losses: add column with not null without default', async (t) => {
 			age: int().notNull(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -929,10 +923,9 @@ test('hints + losses: add column with not null without default', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([
-		`· You're about to add not-null [age] column without default value to a non-empty [users] table`,
+		{ hint: `· You're about to add not-null [age] column without default value to a non-empty [users] table` },
 	]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
 	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
 });
@@ -955,25 +948,21 @@ test('hints + losses: add column with not null without default #2', async (t) =>
 			age: int().notNull(),
 		}),
 	};
-	// const { sqlStatements: pst1, hints, losses, error } = await push({
-	// 	db,
-	// 	to: to,
-	// 	expectError: true,
-	// 	ignoreSubsequent: true,
-	// });
+	const { sqlStatements: pst1, hints, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
-	// const st_01 = [
-	// 	`ALTER TABLE [users] ADD [age] int NOT NULL;`,
-	// ];
+	const st_01 = [
+		`ALTER TABLE [users] ADD [age] int NOT NULL;`,
+	];
 
 	// expect(pst1).toStrictEqual(st_01);
-	// expect(hints).toStrictEqual([
-	// 	`· You're about to add not-null [age] column without default value to a non-empty [users] table`,
-	// ]);
-	// expect(error).not.toBeNull();
-	// expect(losses).toStrictEqual([`DELETE FROM [users];`]);
-
-	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
+	expect(hints).toStrictEqual([
+		{ hint: `· You're about to add not-null [age] column without default value to a non-empty [users] table` },
+	]);
 });
 
 test('hints + losses: add column with not null with default', async (t) => {
@@ -995,7 +984,7 @@ test('hints + losses: add column with not null with default', async (t) => {
 			age: int().notNull().default(1),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst1, hints, error } = await push({ db, to: to });
 
 	const st_01 = [
 		`ALTER TABLE [users] ADD [age] int NOT NULL CONSTRAINT [users_age_default] DEFAULT ((1));`,
@@ -1004,7 +993,6 @@ test('hints + losses: add column with not null with default', async (t) => {
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([]);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: alter column add not null without default', async (t) => {
@@ -1025,7 +1013,7 @@ test('hints + losses: alter column add not null without default', async (t) => {
 			name: varchar({ length: 200 }).notNull(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -1038,12 +1026,11 @@ test('hints + losses: alter column add not null without default', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([
-		`· You're about to add not-null to [name] column without default value to a non-empty [users] table`,
+		{ hint: `· You're about to add not-null to [name] column without default value to a non-empty [users] table` },
 	]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
-	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
+	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.toThrowError();
 });
 
 test('hints + losses: alter column add not null without default #2', async (t) => {
@@ -1064,25 +1051,24 @@ test('hints + losses: alter column add not null without default #2', async (t) =
 			name: varchar({ length: 200 }).notNull(),
 		}),
 	};
-	// const { sqlStatements: pst1, hints, losses, error } = await push({
-	// 	db,
-	// 	to: to,
-	// 	expectError: true,
-	// 	ignoreSubsequent: true,
-	// });
+	const { sqlStatements: pst1, hints, error } = await push({
+		db,
+		to: to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
 
-	// const st_01 = [
-	// 	`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
-	// ];
+	const st_01 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
+	];
 
-	// expect(pst1).toStrictEqual(st_01);
-	// expect(hints).toStrictEqual([
-	// 	`· You're about to add not-null to [name] column without default value to a non-empty [users] table`,
-	// ]);
-	// expect(error).not.toBeNull();
-	// expect(losses).toStrictEqual([`DELETE FROM [users];`]);
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([
+		{ hint: `· You're about to add not-null to [name] column without default value to a non-empty [users] table` },
+	]);
+	expect(error).not.toBeNull();
 
-	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
+	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).rejects.toThrowError();
 });
 
 // TODO
@@ -1112,7 +1098,7 @@ test('hints + losses: alter column add not null with default', async (t) => {
 			name: varchar({ length: 200 }).notNull().default('1'),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -1127,7 +1113,6 @@ test('hints + losses: alter column add not null with default', async (t) => {
 	expect(pst1).toStrictEqual(st_01);
 	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: add unique to column #1', async (t) => {
@@ -1148,7 +1133,7 @@ test('hints + losses: add unique to column #1', async (t) => {
 			name: varchar({ length: 200 }).unique(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+	const { sqlStatements: pst1, hints, error } = await push({ db, to: to });
 
 	const st_01 = [
 		`ALTER TABLE [users] ADD CONSTRAINT [users_name_key] UNIQUE([name]);`,
@@ -1156,7 +1141,6 @@ test('hints + losses: add unique to column #1', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(error).toBeNull();
-	expect(losses).toStrictEqual([]);
 });
 
 test('hints + losses: add unique to column #2', async (t) => {
@@ -1177,7 +1161,7 @@ test('hints + losses: add unique to column #2', async (t) => {
 			name: varchar({ length: 200 }).unique(),
 		}),
 	};
-	const { sqlStatements: pst1, hints, losses, error } = await push({
+	const { sqlStatements: pst1, hints, error } = await push({
 		db,
 		to: to,
 		expectError: true,
@@ -1190,5 +1174,4 @@ test('hints + losses: add unique to column #2', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([]);
 });

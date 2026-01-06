@@ -1,4 +1,5 @@
 import type { MySqlView } from 'drizzle-orm/mysql-core/view';
+import { warning } from 'src/cli/views';
 import type { MySqlSchema } from './mysql-v5/mysqlSchema';
 import { MySqlSquasher } from './mysql-v5/mysqlSchema';
 import type {
@@ -12,7 +13,14 @@ import type {
 	ViewWithOption,
 } from './postgres-v7/pgSchema';
 import { PgSquasher } from './postgres-v7/pgSchema';
+import type { CommonSquashedSchema } from './schemaValidator';
 import type { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import {
+	type SQLiteKitInternals,
+	type SQLiteSchemaSquashed,
+	SQLiteSquasher,
+	type View as SqliteView,
+} from './sqlite-v6/sqliteSchema';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -272,6 +280,7 @@ export interface JsonCreateIndexStatement {
 	tableName: string;
 	data: string;
 	schema: string;
+	internal?: SQLiteKitInternals;
 }
 
 export interface JsonPgCreateIndexStatement {
@@ -747,6 +756,35 @@ export interface JsonAlterViewAlterUsingStatement {
 	type: 'alter_singlestore_view';
 } & Omit<SingleStoreView, 'isExisting'>; */
 
+export type JsonCreateSqliteViewStatement = {
+	type: 'sqlite_create_view';
+} & Omit<SqliteView, 'columns' | 'isExisting'>;
+
+export interface JsonSqliteCreateTableStatement {
+	type: 'sqlite_create_table';
+	tableName: string;
+	columns: Column[];
+	referenceData: {
+		name: string;
+		tableFrom: string;
+		columnsFrom: string[];
+		tableTo: string;
+		columnsTo: string[];
+		onUpdate?: string | undefined;
+		onDelete?: string | undefined;
+	}[];
+	compositePKs: string[][];
+	uniqueConstraints?: string[];
+	checkConstraints?: string[];
+}
+
+export interface JsonSqliteAddColumnStatement {
+	type: 'sqlite_alter_table_add_column';
+	tableName: string;
+	column: Column;
+	referenceData?: string;
+}
+
 export type JsonAlterViewStatement =
 	| JsonAlterViewAlterSchemaStatement
 	| JsonAlterViewAddWithOptionStatement
@@ -794,6 +832,8 @@ export type JsonStatement =
 	| JsonDeleteReferenceStatement
 	| JsonDropIndexStatement
 	| JsonReferenceStatement
+	| JsonSqliteCreateTableStatement
+	| JsonSqliteAddColumnStatement
 	| JsonCreateCompositePK
 	| JsonDeleteCompositePK
 	| JsonAlterCompositePK
@@ -826,15 +866,18 @@ export type JsonStatement =
 	| JsonDropViewStatement
 	| JsonRenameViewStatement
 	| JsonAlterViewStatement
+	| JsonCreateMySqlViewStatement
+	| JsonAlterMySqlViewStatement
+	/* | JsonCreateSingleStoreViewStatement
+	| JsonAlterSingleStoreViewStatement */
+	| JsonCreateSqliteViewStatement
 	| JsonCreateCheckConstraint
 	| JsonDeleteCheckConstraint
 	| JsonDropValueFromEnumStatement
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement
-	| JsonAlterMySqlViewStatement
-	| JsonCreateMySqlViewStatement;
+	| JsonAlterIndPolicyStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -1699,6 +1742,7 @@ export const prepareCreateIndexesJson = (
 	tableName: string,
 	schema: string,
 	indexes: Record<string, string>,
+	internals?: SQLiteKitInternals,
 ): JsonCreateIndexStatement[] => {
 	return Object.values(indexes).map((indexData) => {
 		return {
@@ -1706,6 +1750,7 @@ export const prepareCreateIndexesJson = (
 			tableName,
 			data: indexData,
 			schema,
+			internals,
 		};
 	});
 };
@@ -2216,3 +2261,442 @@ export const preparePgAlterViewAlterUsingJson = (
 ): JsonAlterSingleStoreViewStatement => {
 	return { type: 'alter_singlestore_view', ...view };
 }; */
+
+export const prepareSQLiteRecreateTable = (
+	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
+	action?: 'push',
+): JsonStatement[] => {
+	const { name, columns, uniqueConstraints, indexes, checkConstraints } = table;
+
+	const composites: string[][] = Object.values(table.compositePrimaryKeys).map(
+		(it) => SQLiteSquasher.unsquashPK(it),
+	);
+
+	const references: string[] = Object.values(table.foreignKeys);
+	const fks = references.map((it) =>
+		action === 'push' ? SQLiteSquasher.unsquashPushFK(it) : SQLiteSquasher.unsquashFK(it)
+	);
+
+	const statements: JsonStatement[] = [
+		{
+			type: 'recreate_table',
+			tableName: name,
+			columns: Object.values(columns),
+			compositePKs: composites,
+			referenceData: fks,
+			uniqueConstraints: Object.values(uniqueConstraints),
+			checkConstraints: Object.values(checkConstraints),
+		},
+	];
+
+	if (Object.keys(indexes).length) {
+		statements.push(...prepareCreateIndexesJson(name, '', indexes));
+	}
+	return statements;
+};
+
+export const prepareSQLiteCreateTable = (
+	table: Table,
+	action?: 'push' | undefined,
+): JsonSqliteCreateTableStatement => {
+	const { name, columns, uniqueConstraints, checkConstraints } = table;
+
+	const references: string[] = Object.values(table.foreignKeys);
+
+	const composites: string[][] = Object.values(table.compositePrimaryKeys).map(
+		(it) => SQLiteSquasher.unsquashPK(it),
+	);
+
+	const fks = references.map((it) =>
+		action === 'push'
+			? SQLiteSquasher.unsquashPushFK(it)
+			: SQLiteSquasher.unsquashFK(it)
+	);
+
+	return {
+		type: 'sqlite_create_table',
+		tableName: name,
+		columns: Object.values(columns),
+		referenceData: fks,
+		compositePKs: composites,
+		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
+	};
+};
+
+export const _prepareSqliteAddColumns = (
+	tableName: string,
+	columns: Column[],
+	referenceData: string[],
+): JsonSqliteAddColumnStatement[] => {
+	const unsquashed = referenceData.map((addedFkValue) => SQLiteSquasher.unsquashFK(addedFkValue));
+
+	return columns
+		.map((it) => {
+			const columnsWithReference = unsquashed.find((t) => t.columnsFrom.includes(it.name));
+
+			if (it.generated?.type === 'stored') {
+				warning(
+					`As SQLite docs mention: "It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however", source: "https://www.sqlite.org/gencol.html"`,
+				);
+				return null;
+			}
+
+			return {
+				type: 'sqlite_alter_table_add_column',
+				tableName: tableName,
+				column: it,
+				referenceData: columnsWithReference
+					? SQLiteSquasher.squashFK(columnsWithReference)
+					: undefined,
+			};
+		})
+		.filter(Boolean) as JsonSqliteAddColumnStatement[];
+};
+export const prepareSqliteAlterColumns = (
+	tableName: string,
+	schema: string,
+	columns: AlteredColumn[],
+	// TODO: remove?
+	json2: CommonSquashedSchema,
+): JsonAlterColumnStatement[] => {
+	let statements: JsonAlterColumnStatement[] = [];
+	let dropPkStatements: JsonAlterColumnDropPrimaryKeyStatement[] = [];
+	let setPkStatements: JsonAlterColumnSetPrimaryKeyStatement[] = [];
+
+	for (const column of columns) {
+		const columnName = typeof column.name !== 'string' ? column.name.new : column.name;
+
+		// I used any, because those fields are available only for mysql dialect
+		// For other dialects it will become undefined, that is fine for json statements
+		const columnType = json2.tables[tableName].columns[columnName].type;
+		const columnDefault = json2.tables[tableName].columns[columnName].default;
+		const columnOnUpdate = (json2.tables[tableName].columns[columnName] as any)
+			.onUpdate;
+		const columnNotNull = json2.tables[tableName].columns[columnName].notNull;
+		const columnAutoIncrement = (
+			json2.tables[tableName].columns[columnName] as any
+		).autoincrement;
+		const columnPk = (json2.tables[tableName].columns[columnName] as any)
+			.primaryKey;
+
+		const columnGenerated = json2.tables[tableName].columns[columnName].generated;
+
+		const compositePk = json2.tables[tableName].compositePrimaryKeys[
+			`${tableName}_${columnName}`
+		];
+
+		if (column.autoincrement?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'changed') {
+			const type = column.autoincrement.new
+				? 'alter_table_alter_column_set_autoincrement'
+				: 'alter_table_alter_column_drop_autoincrement';
+
+			statements.push({
+				type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.autoincrement?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_autoincrement',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (typeof column.name !== 'string') {
+			statements.push({
+				type: 'alter_table_rename_column',
+				tableName,
+				oldColumnName: column.name.old,
+				newColumnName: column.name.new,
+				schema,
+			});
+		}
+
+		if (column.type?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_type',
+				tableName,
+				columnName,
+				newDataType: column.type.new,
+				oldDataType: column.type.old,
+				schema,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (
+			column.primaryKey?.type === 'deleted'
+			|| (column.primaryKey?.type === 'changed'
+				&& !column.primaryKey.new
+				&& typeof compositePk === 'undefined')
+		) {
+			dropPkStatements.push({
+				////
+				type: 'alter_table_alter_column_drop_pk',
+				tableName,
+				columnName,
+				schema,
+			});
+		}
+
+		if (column.default?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_default',
+				tableName,
+				columnName,
+				newDefaultValue: column.default.value,
+				schema,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.default?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_default',
+				tableName,
+				columnName,
+				newDefaultValue: column.default.new,
+				oldDefaultValue: column.default.old,
+				schema,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.default?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_default',
+				tableName,
+				columnName,
+				schema,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				newDataType: columnType,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'changed') {
+			const type = column.notNull.new
+				? 'alter_table_alter_column_set_notnull'
+				: 'alter_table_alter_column_drop_notnull';
+			statements.push({
+				type: type,
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.notNull?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.generated?.type === 'added') {
+			if (columnGenerated?.type === 'virtual') {
+				statements.push({
+					type: 'alter_table_alter_column_set_generated',
+					tableName,
+					columnName,
+					schema,
+					newDataType: columnType,
+					columnDefault,
+					columnOnUpdate,
+					columnNotNull,
+					columnAutoIncrement,
+					columnPk,
+					columnGenerated: columnGenerated as {
+						type: 'stored' | 'virtual';
+						as: string;
+					},
+				});
+			} else {
+				warning(
+					`As SQLite docs mention: "It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however", source: "https://www.sqlite.org/gencol.html"`,
+				);
+			}
+		}
+
+		if (column.generated?.type === 'changed') {
+			if (columnGenerated?.type === 'virtual') {
+				statements.push({
+					type: 'alter_table_alter_column_alter_generated',
+					tableName,
+					columnName,
+					schema,
+					newDataType: columnType,
+					columnDefault,
+					columnOnUpdate,
+					columnNotNull,
+					columnAutoIncrement,
+					columnPk,
+					columnGenerated: columnGenerated as {
+						type: 'stored' | 'virtual';
+						as: string;
+					},
+				});
+			} else {
+				warning(
+					`As SQLite docs mention: "It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however", source: "https://www.sqlite.org/gencol.html"`,
+				);
+			}
+		}
+
+		if (column.generated?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_generated',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnGenerated: columnGenerated as {
+					type: 'stored' | 'virtual';
+					as: string;
+				},
+			});
+		}
+
+		if (
+			column.primaryKey?.type === 'added'
+			|| (column.primaryKey?.type === 'changed' && column.primaryKey.new)
+		) {
+			const wasAutoincrement = statements.filter(
+				(it) => it.type === 'alter_table_alter_column_set_autoincrement',
+			);
+			if (wasAutoincrement.length === 0) {
+				setPkStatements.push({
+					type: 'alter_table_alter_column_set_pk',
+					tableName,
+					schema,
+					columnName,
+				});
+			}
+		}
+
+		if (column.onUpdate?.type === 'added') {
+			statements.push({
+				type: 'alter_table_alter_column_set_on_update',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.onUpdate?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_on_update',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+	}
+
+	return [...dropPkStatements, ...setPkStatements, ...statements];
+};
+
+export const prepareSqliteCreateViewJson = (
+	name: string,
+	definition: string,
+): JsonCreateSqliteViewStatement => {
+	return {
+		type: 'sqlite_create_view',
+		name: name,
+		definition: definition,
+	};
+};

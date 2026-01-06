@@ -25,6 +25,10 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	explainFlag: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 	sqliteDB?: SQLiteDB,
 ) => {
 	const { connectToSQLite } = await import('../connections');
@@ -43,7 +47,7 @@ export const handle = async (
 		'Pulling schema from database...',
 	);
 
-	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress);
+	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress, () => {}, migrations);
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,

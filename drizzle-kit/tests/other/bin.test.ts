@@ -23,7 +23,6 @@ test('imports-issues', () => {
 		localPaths: ['src'],
 		whiteList: [
 			'@drizzle-team/brocli',
-			'@ewoudenberg/difflib',
 			'path',
 			'fs',
 			'fs/*',

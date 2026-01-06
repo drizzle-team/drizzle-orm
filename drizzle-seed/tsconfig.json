@@ -37,11 +37,7 @@
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
 		"outDir": "dist",
-		"baseUrl": ".",
-		"declaration": true,
-		"paths": {
-			"~/*": ["src/*"]
-		}
+		"declaration": true
 	},
 	"exclude": ["**/dist", "src/dev"],
 	"include": ["src", "tests", "type-tests"]

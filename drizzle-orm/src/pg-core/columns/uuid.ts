@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { sql } from '~/sql/sql.ts';
@@ -28,7 +27,7 @@ export class PgUUIDBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgUUID<T extends ColumnBaseConfig<'string uuid'>> extends PgColumn<T> {
+export class PgUUID extends PgColumn<'string uuid'> {
 	static override readonly [entityKind]: string = 'PgUUID';
 
 	getSQLType(): string {

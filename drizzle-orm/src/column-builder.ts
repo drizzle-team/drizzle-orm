@@ -251,14 +251,14 @@ export type IsIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 };
 
 export interface ColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
+	out T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 > {
 	_: T;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnType>,
+	out T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
@@ -396,15 +396,16 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TBuiltConfig extends ColumnBaseConfig<ColumnType> = MakeColumnConfig<TBuilder['_'], TTableName, TDialect>,
-> = TDialect extends 'pg' ? PgColumn<TBuiltConfig, {}>
-	: TDialect extends 'mysql' ? MySqlColumn<TBuiltConfig, {}>
-	: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
-	: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
-	: TDialect extends 'gel' ? GelColumn<TBuiltConfig, {}>
-	: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
-	: TDialect extends 'common' ? Column<TBuiltConfig, {}>
-	: never;
+> =
+	// TDialect extends 'pg' ? PgColumn<TBuiltConfig, {}>
+	TDialect extends 'mysql' ? MySqlColumn<TBuiltConfig, {}>
+		: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
+		: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
+		: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
+		: TDialect extends 'gel' ? GelColumn<TBuiltConfig, {}>
+		: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
+		: TDialect extends 'common' ? Column<TBuiltConfig, {}>
+		: never;
 
 export type BuildIndexColumn<
 	TDialect extends Dialect,
@@ -448,11 +449,16 @@ export type ChangeColumnTableName<
 	TColumn extends Column,
 	TAlias extends string,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-	: never;
+> =
+	// TODO: optimise
+	TDialect extends 'pg' ? PgColumn<
+			TColumn['_']['dataType'],
+			Omit<TColumn['_'], 'tableName'> & { tableName: TAlias; insertType: unknown }
+		>
+		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: never;

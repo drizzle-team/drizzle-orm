@@ -1,11 +1,9 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn } from './common.ts';
-import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgDateBuilder extends PgDateColumnBaseBuilder<{
+export class PgDateBuilder extends PgColumnBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string;
@@ -22,7 +20,7 @@ export class PgDateBuilder extends PgDateColumnBaseBuilder<{
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
+export class PgDate extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {
@@ -40,7 +38,7 @@ export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<
 	}
 }
 
-export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
+export class PgDateStringBuilder extends PgColumnBuilder<{
 	dataType: 'string date';
 	data: string;
 	driverParam: string;
@@ -60,7 +58,7 @@ export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig<'string date'>> extends PgColumn<T> {
+export class PgDateString extends PgColumn<'string date'> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {

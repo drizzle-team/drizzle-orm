@@ -25,6 +25,7 @@ import type { ValueOrArray } from '~/utils.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
+import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
 import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
@@ -49,7 +50,10 @@ import type {
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
-export type IndexForHint = IndexBuilder | string;
+export type IndexForHint =
+	| IndexBuilder
+	| UniqueConstraintBuilder<string>
+	| string;
 
 export type IndexConfig = {
 	useIndex?: IndexForHint | IndexForHint[];
@@ -1065,10 +1069,10 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
 		this.cacheConfig = config === undefined
-			? { config: {}, enable: true, autoInvalidate: true }
+			? { config: {}, enabled: true, autoInvalidate: true }
 			: config === false
-			? { enable: false }
-			: { enable: true, autoInvalidate: true, ...config };
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
 		return this;
 	}
 }

@@ -66,6 +66,7 @@ export interface DropIndex {
 export interface CreateFK {
 	type: 'create_fk';
 	fk: ForeignKey;
+	cause?: 'alter_pk';
 }
 
 export interface CreatePK {

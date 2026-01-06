@@ -63,6 +63,7 @@ import {
 } from './Generators.ts';
 import { GenerateStringV2, GenerateUniqueIntervalV2, GenerateUniqueStringV2 } from './versioning/v2.ts';
 import { GenerateHashFromStringV3 } from './versioning/v3.ts';
+import { GenerateUUIDV4 } from './versioning/v4.ts';
 
 function createGenerator<GeneratorType extends AbstractGenerator<T>, T>(
 	generatorConstructor: new(params?: T) => GeneratorType,
@@ -241,6 +242,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates time in 24 hours style.
+	 * @param minTime - lower border of range.
+	 * @param maxTime - upper border of range.
 	 * @param arraySize - number of elements in each one-dimensional array. (If specified, arrays will be generated.)
 	 *
 	 * @example
@@ -248,7 +251,7 @@ export const generatorsFuncs = {
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 	 *    users: {
 	 *      columns: {
-	 *        birthTime: funcs.time()
+	 *        birthTime: funcs.time({ minTime: "11:12:13.141", maxTime: "15:16:17.181" })
 	 *      },
 	 *    },
 	 *  }));
@@ -259,6 +262,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates timestamps.
+	 * @param minTimestamp - lower border of range.
+	 * @param maxTimestamp - upper border of range.
 	 * @param arraySize - number of elements in each one-dimensional array. (If specified, arrays will be generated.)
 	 *
 	 * @example
@@ -266,7 +271,7 @@ export const generatorsFuncs = {
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 	 *    orders: {
 	 *      columns: {
-	 *        shippedDate: funcs.timestamp()
+	 *        shippedDate: funcs.timestamp({ minTimestamp: "2025-03-07T11:12:13.141", maxTimestamp: "2025-03-08T15:16:17.181" })
 	 *      },
 	 *    },
 	 *  }));
@@ -277,6 +282,8 @@ export const generatorsFuncs = {
 
 	/**
 	 * generates datetime objects.
+	 * @param minDatetime - lower border of range.
+	 * @param maxDatetime - upper border of range.
 	 * @param arraySize - number of elements in each one-dimensional array. (If specified, arrays will be generated.)
 	 *
 	 * @example
@@ -284,7 +291,7 @@ export const generatorsFuncs = {
 	 *  await seed(db, schema, { count: 1000 }).refine((funcs) => ({
 	 *    orders: {
 	 *      columns: {
-	 *        shippedDate: funcs.datetime()
+	 *        shippedDate: funcs.datetime({ minDatetime: "2025-03-07T11:12:13.141", maxDatetime: "2025-03-08T15:16:17.181" })
 	 *      },
 	 *    },
 	 *  }));
@@ -895,12 +902,16 @@ export const generatorsFuncs = {
 	vector: createGenerator(GenerateVector),
 };
 
-// so far, version changes don’t affect generator parameters.
+// so far, version changes don’t change generator parameters.
 export const generatorsFuncsV2 = {
 	...generatorsFuncs,
 };
 
 export const generatorsFuncsV3 = {
+	...generatorsFuncs,
+};
+
+export const generatorsFuncsV4 = {
 	...generatorsFuncs,
 };
 
@@ -977,6 +988,7 @@ export const generatorsMap = {
 	],
 	GenerateUUID: [
 		GenerateUUID,
+		GenerateUUIDV4,
 	],
 	GenerateFirstName: [
 		GenerateFirstName,

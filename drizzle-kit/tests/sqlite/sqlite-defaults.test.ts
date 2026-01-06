@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { blob, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
+import { blob, int, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
@@ -18,6 +18,9 @@ afterAll(async () => {
 	await _.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2085
+// https://github.com/drizzle-team/drizzle-orm/issues/1406
+// https://github.com/drizzle-team/drizzle-orm/issues/4217
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer({ mode: 'number' }).default(10), '10');
 	const res2 = await diffDefault(_, integer({ mode: 'number' }).default(0), '0');
@@ -25,13 +28,17 @@ test('integer', async () => {
 	const res4 = await diffDefault(_, integer({ mode: 'number' }).default(1e4), '10000');
 	const res5 = await diffDefault(_, integer({ mode: 'number' }).default(-1e4), '-10000');
 
-	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), '1');
-	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), '0');
+	const res6 = await diffDefault(_, integer({ mode: 'boolean' }).default(true), 'true');
+	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), 'false');
+	const res71 = await diffDefault(_, int({ mode: 'boolean' }).default(false), 'false');
 
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
 	const res9 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(date), `${date.getTime()}`);
-	// const res10 = await diffDefault(
+	// this test will fail in ci/cd due to different timezones
+	// const res10 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(new Date(2000, 1, 1)), `949356000000`);
+
+	// const res11 = await diffDefault(
 	// 	_,
 	// 	integer({ mode: 'timestamp_ms' }).defaultNow(),
 	// 	`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
@@ -44,8 +51,10 @@ test('integer', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res71).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
+	// expect.soft(res10).toStrictEqual([]);
 });
 
 test('text', async () => {

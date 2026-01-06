@@ -463,8 +463,8 @@ test('all data types', (tc) => {
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
 		array1: integer().array().notNull(),
-		array2: integer().array().array(2).notNull(),
-		array3: varchar({ length: 10 }).array().array(2).notNull(),
+		array2: integer().array('[][]').notNull(),
+		array3: varchar({ length: 10 }).array('[][]').notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -514,8 +514,8 @@ test('all data types', (tc) => {
 		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
 		array1: t.Array(integerSchema),
-		array2: t.Array(t.Array(integerSchema), { minItems: 2, maxItems: 2 }),
-		array3: t.Array(t.Array(t.String({ maxLength: 10 })), { minItems: 2, maxItems: 2 }),
+		array2: t.Array(t.Array(integerSchema)),
+		array3: t.Array(t.Array(t.String({ maxLength: 10 }))),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

@@ -74,20 +74,6 @@ export const postgresqlDriversLiterals = [
 	literal('pglite'),
 ] as const;
 
-export const prefixes = [
-	'index',
-	'timestamp',
-	'supabase',
-	'unix',
-	'none',
-] as const;
-export const prefix = enum_(prefixes);
-export type Prefix = (typeof prefixes)[number];
-
-{
-	const _: Prefix = '' as TypeOf<typeof prefix>;
-}
-
 export const casingTypes = ['snake_case', 'camelCase'] as const;
 export const casingType = enum_(casingTypes);
 export type CasingType = (typeof casingTypes)[number];
@@ -97,15 +83,14 @@ export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
 
 export const configMigrations = object({
-	table: string().optional(),
-	schema: string().optional(),
-	prefix: prefix.optional().default('index'),
-}).optional();
+	table: string().default('__drizzle_migrations'),
+	schema: string().default('drizzle'),
+}).default({ table: '__drizzle_migrations', schema: 'drizzle' });
 
 export const configCommonSchema = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]).optional(),
-	out: string().optional(),
+	out: string().default('drizzle'),
 	breakpoints: boolean().optional().default(true),
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),

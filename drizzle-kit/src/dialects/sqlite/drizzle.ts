@@ -25,7 +25,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { Int, nameForForeignKey, nameForPk, nameForUnique, typeFor } from './grammar';
+import { Int, nameForForeignKey, nameForPk, nameForUnique, transformOnUpdateDelete, typeFor } from './grammar';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
@@ -110,8 +110,8 @@ export const fromDrizzleSchema = (
 	const fks = tableConfigs.map((it) => {
 		return it.config.foreignKeys.map((fk) => {
 			const tableFrom = it.config.name;
-			const onDelete = fk.onDelete ?? 'NO ACTION';
-			const onUpdate = fk.onUpdate ?? 'NO ACTION';
+			const onDelete = fk.onDelete;
+			const onUpdate = fk.onUpdate;
 			const reference = fk.reference();
 
 			const referenceFT = reference.foreignTable;
@@ -131,8 +131,8 @@ export const fromDrizzleSchema = (
 				tableTo,
 				columns: columnsFrom,
 				columnsTo,
-				onDelete,
-				onUpdate,
+				onDelete: transformOnUpdateDelete(onDelete ?? 'no action'),
+				onUpdate: transformOnUpdateDelete(onUpdate ?? 'no action'),
 				nameExplicit: fk.isNameExplicit(),
 			} satisfies ForeignKey;
 		});

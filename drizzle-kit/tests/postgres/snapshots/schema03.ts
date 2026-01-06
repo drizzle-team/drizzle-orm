@@ -746,7 +746,7 @@ export const rateLimitsInCore = core.table('rate_limits', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	apiKeyId: uuid('api_key_id').notNull(),
 	windowStart: timestamp('window_start', { withTimezone: true, mode: 'string' }).notNull(),
-	requests: integer().generatedByDefaultAsIdentity().notNull().array(),
+	requests: integer().generatedByDefaultAsIdentity().notNull(),
 	limit: integer().generatedAlwaysAs(() => sql`1`).notNull(),
 }, (table) => [
 	foreignKey({

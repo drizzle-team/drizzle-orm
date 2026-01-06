@@ -6,7 +6,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -65,6 +65,14 @@ function wrap<T extends object>(
 			if (deep) return wrap(element, token, cb);
 			if (p === 'query' || p === '_query') return wrap(element, token, cb, true);
 
+			if (p === 'execute') {
+				return new Proxy(element as any, {
+					apply(target, thisArg, argArray) {
+						return target.call(thisArg, ...argArray, token);
+					},
+				});
+			}
+
 			return new Proxy(element as any, {
 				apply(target, thisArg, argArray) {
 					const res = target.call(thisArg, ...argArray);
@@ -81,7 +89,7 @@ function wrap<T extends object>(
 export class NeonHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<NeonHttpQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<NeonHttpQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
 	$withAuth(
@@ -104,8 +112,6 @@ export class NeonHttpDatabase<
 			| 'refreshMaterializedView'
 		>
 	> {
-		this.authToken = token;
-
 		return wrap(this, token, (target, p, res) => {
 			if (p === 'with') {
 				return wrap(res, token, (_, __, res) => res);

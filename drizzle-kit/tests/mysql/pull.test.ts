@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	AnyMySqlColumn,
 	bigint,
 	blob,
 	boolean,
@@ -34,9 +35,11 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
+import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from './mocks';
+import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -338,6 +341,7 @@ test('charSet and collate', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4110
 // https://github.com/drizzle-team/drizzle-orm/issues/1020
 // https://github.com/drizzle-team/drizzle-orm/issues/3457
 // https://github.com/drizzle-team/drizzle-orm/issues/1871
@@ -411,7 +415,7 @@ test('introspect table with fk', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4115
-test('introspect fk name with onDelete, onUpdate set', async () => {
+test('introspect fk name with onDelete, onUpdate set to no action', async () => {
 	const table1 = mysqlTable('table1', {
 		column1: int().primaryKey(),
 	});
@@ -423,6 +427,20 @@ test('introspect fk name with onDelete, onUpdate set', async () => {
 	const schema = { table1, table2 };
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'fk-with-on-delete-and-on-update');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect table with self reference', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+		column2: int().references((): AnyMySqlColumn => table1.column1),
+	});
+
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-self-ref');
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
@@ -561,4 +579,164 @@ test('generated as string: change generated constraint', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4170
+test('introspect view with table filter', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const view1 = mysqlView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const table2 = mysqlTable('table2', {
+		column1: serial().primaryKey(),
+	});
+	const view2 = mysqlView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const schema1 = { table1, view1, table2, view2 };
+	await push({ db, to: schema1 });
+
+	let filter = prepareEntityFilter('mysql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	let tables, views;
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		filter,
+		() => {},
+		{ schema: 'drizzle', table: '__drizzle_migrations' },
+	));
+	const expectedTables = [{ entityType: 'tables', name: 'table1' }];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('mysql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	({ tables, views } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		filter,
+		() => {},
+		{ schema: 'drizzle', table: '__drizzle_migrations' },
+	));
+	const expectedViews = [
+		{
+			entityType: 'views',
+			name: 'view1',
+			definition: 'select `drizzle`.`table1`.`column1` AS `column1` from `drizzle`.`table1`',
+			algorithm: 'undefined',
+			sqlSecurity: 'definer',
+			withCheckOption: null,
+		},
+	];
+	expect(tables).toStrictEqual(expectedTables);
+	expect(views).toStrictEqual(expectedViews);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5053
+test('single quote default', async () => {
+	const group = mysqlTable('group', {
+		id: text().notNull(),
+		fk_organizaton_group: text().notNull(),
+		saml_identifier: text().default('').notNull(),
+		display_name: text().default('').notNull(),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ group },
+		'single_quote_default',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// filter default migration table
+test('pull after migrate with custom migrations table #1', async () => {
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { pks, columns, tables } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'users',
+		},
+	]);
+});
+
+// filter custom migration table
+test('pull after migrate with custom migrations table #2', async () => {
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS custom_migrations (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const { tables, pks } = await fromDatabaseForDrizzle(
+		db,
+		'drizzle',
+		() => true,
+		() => {},
+		{
+			table: 'custom_migrations',
+			schema: 'drizzle', // default from prepare params
+		},
+	);
+
+	expect([...tables, ...pks]).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'users',
+		},
+	]);
 });

@@ -113,7 +113,7 @@ const prepareSchemasFitler = (globs: string[], schemasExisting: string[]) => {
 
 const prepareTablesFilter = (globs: string[], existingViews: { schema: string | false; name: string }[]) => {
 	const existingFilter = (it: Table) => {
-		if (it.schema === false) return existingViews.some((x) => x.name === it.name);
+		if (it.schema === false) return !existingViews.some((x) => x.name === it.name);
 		return !existingViews.some((x) => x.schema === it.schema && x.name === it.name);
 	};
 

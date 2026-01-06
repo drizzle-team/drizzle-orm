@@ -20,9 +20,9 @@ import {
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
-	PgArray,
 	PgDialect,
 	PgEnumColumn,
+	PgEnumObjectColumn,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
@@ -113,11 +113,11 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 };
 
 export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
-	const { baseColumn, dimensions } = is(column, PgArray)
-		? unwrapArray(column)
-		: { baseColumn: column, dimensions: 0 };
+	// In the new architecture, columns have a dimensions property directly
+	const dimensions = (column as any).dimensions ?? 0;
+	const baseColumn = column;
 
-	const isEnum = is(baseColumn, PgEnumColumn);
+	const isEnum = is(baseColumn, PgEnumColumn) || is(baseColumn, PgEnumObjectColumn);
 	const typeSchema = isEnum
 		? baseColumn.enum.schema || 'public'
 		: null;
@@ -140,16 +140,6 @@ export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
 		baseType: type,
 		options,
 	};
-};
-
-export const unwrapArray = (
-	column: PgArray<any, any>,
-	dimensions: number = 1,
-): { baseColumn: AnyPgColumn; dimensions: number } => {
-	const baseColumn = column.baseColumn;
-	if (is(baseColumn, PgArray)) return unwrapArray(baseColumn, dimensions + 1);
-
-	return { baseColumn, dimensions };
 };
 
 export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {
@@ -529,15 +519,17 @@ export const fromDrizzleSchema = (
 						} satisfies Index['columns'][number];
 					} else {
 						it = it as IndexedColumn;
+
+						let nullsFirst = false;
+						let asc = it.indexConfig?.order ? it.indexConfig.order === 'asc' : true;
+						if (!asc && !it.indexConfig?.nulls) nullsFirst = true;
+						else nullsFirst = it.indexConfig?.nulls ? it.indexConfig.nulls === 'first' : nullsFirst;
+
 						return {
 							value: getColumnCasing(it as IndexedColumn, casing),
 							isExpression: false,
-							asc: it.indexConfig?.order === 'asc',
-							nullsFirst: it.indexConfig?.nulls
-								? it.indexConfig?.nulls === 'first'
-									? true
-									: false
-								: false,
+							asc: asc,
+							nullsFirst: nullsFirst,
 							opclass: it.indexConfig?.opClass
 								? {
 									name: it.indexConfig.opClass,

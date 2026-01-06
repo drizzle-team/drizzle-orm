@@ -167,6 +167,7 @@ const skip = [
 	 * See #528 for more details.
 	 * Tldr the D1 driver does not execute joins successfully
 	 */
+	'inner join',
 	'partial join with alias',
 	'full join with alias',
 	'select from alias',

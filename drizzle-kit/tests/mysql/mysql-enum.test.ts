@@ -52,3 +52,28 @@ test('enum', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('drop enum value. column of enum type; drop default', async () => {
+	const from = {
+		table: mysqlTable('table', {
+			column: mysqlEnum('column', ['value1', 'value2', 'value3']).default('value2'),
+		}),
+	};
+
+	const to = {
+		table: mysqlTable('table', {
+			column: mysqlEnum('column', ['value1', 'value3']),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		"ALTER TABLE `table` MODIFY COLUMN `column` enum('value1','value3');",
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

@@ -691,7 +691,7 @@ export type BuildQueryResult<
 		TTableConfig['table'],
 		{ $inferSelect: Record<string, unknown> }
 	>['$inferSelect'],
-> = Equal<TFullSelection, true> extends true ? Simplify<InferRelationalQueryTableResult<TModel>>
+> = TFullSelection extends true | Record<string, never> ? TModel
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
 				TModel,
@@ -740,9 +740,7 @@ export function mapRelationalRow(
 	parseJsonIfString: boolean = false,
 	path?: string,
 ): Record<string, unknown> {
-	for (
-		const selectionItem of buildQueryResultSelection
-	) {
+	for (const selectionItem of buildQueryResultSelection) {
 		if (selectionItem.selection) {
 			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
 

@@ -1,11 +1,11 @@
-import { is, sql } from 'drizzle-orm';
+import { type AnyColumn, is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { CockroachArray, CockroachDatabase, CockroachSchema } from 'drizzle-orm/cockroach-core';
 import { CockroachTable, getTableConfig } from 'drizzle-orm/cockroach-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, TableConfigT } from '../types/tables.ts';
+import type { Column } from '../types/tables.ts';
 
 // Cockroach-----------------------------------------------------------------------------------------------------------
 export const resetCockroach = async (
@@ -90,74 +90,73 @@ export const seedCockroach = async (
 		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
 	);
 };
+const getTypeParams = (sqlType: string) => {
+	// get type params
+	const typeParams: Column['typeParams'] = {};
+
+	// handle dimensions
+	if (sqlType.includes('[')) {
+		const match = sqlType.match(/\[\w*]/g);
+		if (match) {
+			typeParams['dimensions'] = match.length;
+		}
+	}
+
+	if (
+		sqlType.startsWith('numeric')
+		|| sqlType.startsWith('decimal')
+		|| sqlType.startsWith('double precision')
+		|| sqlType.startsWith('real')
+	) {
+		const match = sqlType.match(/\((\d+), *(\d+)\)/);
+		if (match) {
+			typeParams['precision'] = Number(match[1]);
+			typeParams['scale'] = Number(match[2]);
+		}
+	} else if (
+		sqlType.startsWith('varchar')
+		|| sqlType.startsWith('char')
+		|| sqlType.startsWith('bit')
+		|| sqlType.startsWith('vector')
+		|| sqlType.startsWith('time')
+		|| sqlType.startsWith('timestamp')
+		|| sqlType.startsWith('interval')
+	) {
+		const match = sqlType.match(/\((\d+)\)/);
+		if (match) {
+			typeParams['length'] = Number(match[1]);
+		}
+	}
+
+	return typeParams;
+};
+
+const getAllBaseColumns = (
+	baseColumn: CockroachArray<any, any>['baseColumn'] & { baseColumn?: CockroachArray<any, any>['baseColumn'] },
+): Column['baseColumn'] => {
+	const baseColumnResult: Column['baseColumn'] = {
+		name: baseColumn.name,
+		columnType: baseColumn.getSQLType(),
+		typeParams: getTypeParams(baseColumn.getSQLType()),
+		dataType: baseColumn.dataType.split(' ')[0]!,
+		size: (baseColumn as CockroachArray<any, any>).length,
+		hasDefault: baseColumn.hasDefault,
+		enumValues: baseColumn.enumValues,
+		default: baseColumn.default,
+		isUnique: baseColumn.isUnique,
+		notNull: baseColumn.notNull,
+		primary: baseColumn.primary,
+		baseColumn: baseColumn.baseColumn === undefined ? undefined : getAllBaseColumns(baseColumn.baseColumn),
+	};
+
+	return baseColumnResult;
+};
 
 export const mapCockroachColumns = (
-	tableConfig: TableConfigT,
+	columns: AnyColumn[],
 	dbToTsColumnNamesMap: { [key: string]: string },
 ): Column[] => {
-	const getAllBaseColumns = (
-		baseColumn: CockroachArray<any, any>['baseColumn'] & { baseColumn?: CockroachArray<any, any>['baseColumn'] },
-	): Column['baseColumn'] => {
-		const baseColumnResult: Column['baseColumn'] = {
-			name: baseColumn.name,
-			columnType: baseColumn.getSQLType(),
-			typeParams: getTypeParams(baseColumn.getSQLType()),
-			dataType: baseColumn.dataType.split(' ')[0]!,
-			size: (baseColumn as CockroachArray<any, any>).length,
-			hasDefault: baseColumn.hasDefault,
-			enumValues: baseColumn.enumValues,
-			default: baseColumn.default,
-			isUnique: baseColumn.isUnique,
-			notNull: baseColumn.notNull,
-			primary: baseColumn.primary,
-			baseColumn: baseColumn.baseColumn === undefined ? undefined : getAllBaseColumns(baseColumn.baseColumn),
-		};
-
-		return baseColumnResult;
-	};
-
-	const getTypeParams = (sqlType: string) => {
-		// get type params
-		const typeParams: Column['typeParams'] = {};
-
-		// handle dimensions
-		if (sqlType.includes('[')) {
-			const match = sqlType.match(/\[\w*]/g);
-			if (match) {
-				typeParams['dimensions'] = match.length;
-			}
-		}
-
-		if (
-			sqlType.startsWith('numeric')
-			|| sqlType.startsWith('decimal')
-			|| sqlType.startsWith('double precision')
-			|| sqlType.startsWith('real')
-		) {
-			const match = sqlType.match(/\((\d+), *(\d+)\)/);
-			if (match) {
-				typeParams['precision'] = Number(match[1]);
-				typeParams['scale'] = Number(match[2]);
-			}
-		} else if (
-			sqlType.startsWith('varchar')
-			|| sqlType.startsWith('char')
-			|| sqlType.startsWith('bit')
-			|| sqlType.startsWith('vector')
-			|| sqlType.startsWith('time')
-			|| sqlType.startsWith('timestamp')
-			|| sqlType.startsWith('interval')
-		) {
-			const match = sqlType.match(/\((\d+)\)/);
-			if (match) {
-				typeParams['length'] = Number(match[1]);
-			}
-		}
-
-		return typeParams;
-	};
-
-	const mappedColumns = tableConfig.columns.map((column) => ({
+	const mappedColumns = columns.map((column) => ({
 		name: dbToTsColumnNamesMap[column.name] as string,
 		columnType: column.getSQLType(),
 		typeParams: getTypeParams(column.getSQLType()),

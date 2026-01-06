@@ -31,6 +31,7 @@ import type {
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
+	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
 	JsonCreatePgViewStatement,
 	JsonCreatePolicyStatement,
@@ -38,6 +39,7 @@ import type {
 	JsonCreateRoleStatement,
 	JsonCreateSchema,
 	JsonCreateSequenceStatement,
+	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
 	JsonCreateUniqueConstraint,
 	JsonDeleteCheckConstraint,
@@ -60,6 +62,7 @@ import type {
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
+	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
 	JsonRenamePolicyStatement,
@@ -68,10 +71,13 @@ import type {
 	JsonRenameSequenceStatement,
 	JsonRenameTableStatement,
 	JsonRenameViewStatement,
+	JsonSqliteAddColumnStatement,
+	JsonSqliteCreateTableStatement,
 	JsonStatement,
 } from './jsonStatements';
 import { PgSquasher } from './postgres-v7/pgSchema';
 import type { Dialect } from './schemaValidator';
+import { SQLiteSquasher } from './sqlite-v6/sqliteSchema';
 
 export const BREAKPOINT = '--> statement-breakpoint\n';
 
@@ -1978,7 +1984,7 @@ class PgAlterTableRemoveFromSchemaConvertor extends Convertor {
 	}
 }
 
-export class SqliteDropIndexConvertor extends Convertor {
+class SqliteDropIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && (dialect === 'sqlite' || dialect === 'turso');
 	}
@@ -1986,6 +1992,496 @@ export class SqliteDropIndexConvertor extends Convertor {
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
 		return `DROP INDEX \`${name}\`;`;
+	}
+}
+
+class SQLiteCreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_table' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonSqliteCreateTableStatement) {
+		const {
+			tableName,
+			columns,
+			referenceData,
+			compositePKs,
+			uniqueConstraints,
+			checkConstraints,
+		} = st;
+
+		let statement = '';
+		statement += `CREATE TABLE \`${tableName}\` (\n`;
+		for (let i = 0; i < columns.length; i++) {
+			const column = columns[i];
+
+			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+			const notNullStatement = column.notNull ? ' NOT NULL' : '';
+			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+
+			const autoincrementStatement = column.autoincrement
+				? ' AUTOINCREMENT'
+				: '';
+
+			const generatedStatement = column.generated
+				? ` GENERATED ALWAYS AS ${column.generated.as} ${column.generated.type.toUpperCase()}`
+				: '';
+
+			statement += '\t';
+			statement +=
+				`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}`;
+
+			statement += i === columns.length - 1 ? '' : ',\n';
+		}
+
+		compositePKs.forEach((it) => {
+			statement += ',\n\t';
+			statement += `PRIMARY KEY(${it.map((it) => `\`${it}\``).join(', ')})`;
+		});
+
+		for (let i = 0; i < referenceData.length; i++) {
+			const {
+				tableTo,
+				columnsFrom,
+				columnsTo,
+				onDelete,
+				onUpdate,
+			} = referenceData[i];
+
+			const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
+			const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
+			const fromColumnsString = columnsFrom.map((it) => `\`${it}\``).join(',');
+			const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
+
+			statement += ',';
+			statement += '\n\t';
+			statement +=
+				`FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onUpdateStatement}${onDeleteStatement}`;
+		}
+
+		if (
+			typeof uniqueConstraints !== 'undefined'
+			&& uniqueConstraints.length > 0
+		) {
+			for (const uniqueConstraint of uniqueConstraints) {
+				statement += ',\n';
+				const unsquashedUnique = SQLiteSquasher.unsquashUnique(uniqueConstraint);
+				statement += `\tCONSTRAINT ${unsquashedUnique.name} UNIQUE(\`${unsquashedUnique.columns.join(`\`,\``)}\`)`;
+			}
+		}
+
+		if (
+			typeof checkConstraints !== 'undefined'
+			&& checkConstraints.length > 0
+		) {
+			for (const check of checkConstraints) {
+				statement += ',\n';
+				const { value, name } = SQLiteSquasher.unsquashCheck(check);
+				statement += `\tCONSTRAINT "${name}" CHECK(${value})`;
+			}
+		}
+
+		statement += `\n`;
+		statement += `);`;
+		statement += `\n`;
+		return statement;
+	}
+}
+
+class SqliteCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonCreateSqliteViewStatement) {
+		const { definition, name } = st;
+
+		return `CREATE VIEW \`${name}\` AS ${definition};`;
+	}
+}
+
+class SqliteDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class SQLiteAlterTableAddColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'sqlite_alter_table_add_column' && (dialect === 'sqlite' || dialect === 'turso')
+		);
+	}
+
+	convert(statement: JsonSqliteAddColumnStatement) {
+		const { tableName, column, referenceData } = statement;
+		const { name, type, notNull, primaryKey, generated } = column;
+
+		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
+		const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
+		const referenceAsObject = referenceData
+			? SQLiteSquasher.unsquashFK(referenceData)
+			: undefined;
+		const referenceStatement = `${
+			referenceAsObject
+				? ` REFERENCES ${referenceAsObject.tableTo}(${referenceAsObject.columnsTo})`
+				: ''
+		}`;
+		// const autoincrementStatement = `${autoincrement ? 'AUTO_INCREMENT' : ''}`
+		const generatedStatement = generated
+			? ` GENERATED ALWAYS AS ${generated.as} ${generated.type.toUpperCase()}`
+			: '';
+
+		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
+	}
+}
+
+class SqliteAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_generated'
+			&& (dialect === 'sqlite' || dialect === 'turso')
+		);
+	}
+
+	convert(statement: JsonAlterColumnDropGeneratedStatement) {
+		const {
+			tableName,
+			columnName,
+			schema,
+			columnDefault,
+			columnOnUpdate,
+			columnAutoIncrement,
+			columnPk,
+			columnGenerated,
+			columnNotNull,
+		} = statement;
+
+		const addColumnStatement = new SQLiteAlterTableAddColumnConvertor().convert(
+			{
+				tableName,
+				column: {
+					name: columnName,
+					type: statement.newDataType,
+					notNull: columnNotNull,
+					default: columnDefault,
+					onUpdate: columnOnUpdate,
+					autoincrement: columnAutoIncrement,
+					primaryKey: columnPk,
+					generated: columnGenerated,
+				},
+				type: 'sqlite_alter_table_add_column',
+			},
+		);
+
+		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
+			tableName,
+			columnName,
+			schema,
+			type: 'alter_table_drop_column',
+		});
+
+		return [dropColumnStatement, addColumnStatement];
+	}
+}
+
+class SqliteAlterTableAlterColumnSetExpressionConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_set_generated'
+			&& (dialect === 'sqlite' || dialect === 'turso')
+		);
+	}
+
+	convert(statement: JsonAlterColumnSetGeneratedStatement) {
+		const {
+			tableName,
+			columnName,
+			schema,
+			columnNotNull: notNull,
+			columnDefault,
+			columnOnUpdate,
+			columnAutoIncrement,
+			columnPk,
+			columnGenerated,
+		} = statement;
+
+		const addColumnStatement = new SQLiteAlterTableAddColumnConvertor().convert(
+			{
+				tableName,
+				column: {
+					name: columnName,
+					type: statement.newDataType,
+					notNull,
+					default: columnDefault,
+					onUpdate: columnOnUpdate,
+					autoincrement: columnAutoIncrement,
+					primaryKey: columnPk,
+					generated: columnGenerated,
+				},
+				type: 'sqlite_alter_table_add_column',
+			},
+		);
+
+		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
+			tableName,
+			columnName,
+			schema,
+			type: 'alter_table_drop_column',
+		});
+
+		return [dropColumnStatement, addColumnStatement];
+	}
+}
+
+class SqliteAlterTableAlterColumnAlterGeneratedConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_alter_generated'
+			&& (dialect === 'sqlite' || dialect === 'turso')
+		);
+	}
+
+	convert(statement: JsonAlterColumnAlterGeneratedStatement) {
+		const {
+			tableName,
+			columnName,
+			schema,
+			columnNotNull,
+			columnDefault,
+			columnOnUpdate,
+			columnAutoIncrement,
+			columnPk,
+			columnGenerated,
+		} = statement;
+
+		const addColumnStatement = new SQLiteAlterTableAddColumnConvertor().convert(
+			{
+				tableName,
+				column: {
+					name: columnName,
+					type: statement.newDataType,
+					notNull: columnNotNull,
+					default: columnDefault,
+					onUpdate: columnOnUpdate,
+					autoincrement: columnAutoIncrement,
+					primaryKey: columnPk,
+					generated: columnGenerated,
+				},
+				type: 'sqlite_alter_table_add_column',
+			},
+		);
+
+		const dropColumnStatement = new SQLiteAlterTableDropColumnConvertor().convert({
+			tableName,
+			columnName,
+			schema,
+			type: 'alter_table_drop_column',
+		});
+
+		return [dropColumnStatement, addColumnStatement];
+	}
+}
+
+class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_alter_column_drop_default'
+			&& dialect === 'sqlite'
+		);
+	}
+
+	convert(_statement: JsonAlterColumnDropDefaultStatement) {
+		return (
+			'/*\n SQLite does not support "Drop default from column" out of the box, we do not generate automatic migration for that, so it has to be done manually'
+			+ '\n Please refer to: https://www.techonthenet.com/sqlite/tables/alter_table.php'
+			+ '\n                  https://www.sqlite.org/lang_altertable.html'
+			+ '\n                  https://stackoverflow.com/questions/2083543/modify-a-columns-type-in-sqlite3'
+			+ "\n\n Due to that we don't generate migration automatically and it has to be done manually"
+			+ '\n*/'
+		);
+	}
+}
+
+class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(statement: JsonCreateCompositePK) {
+		let msg = '/*\n';
+		msg += `You're trying to add PRIMARY KEY(${statement.data}) to '${statement.tableName}' table\n`;
+		msg += 'SQLite does not support adding primary key to an already created table\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+		return msg;
+	}
+}
+
+class SqliteAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'delete_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(statement: JsonDeleteCompositePK) {
+		let msg = '/*\n';
+		msg += `You're trying to delete PRIMARY KEY(${statement.data}) from '${statement.tableName}' table\n`;
+		msg += 'SQLite does not supportprimary key deletion from existing table\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table table without pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+		return msg;
+	}
+}
+
+class SqliteAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_composite_pk' && dialect === 'sqlite';
+	}
+
+	convert(_statement: JsonAlterCompositePK) {
+		let msg = '/*\n';
+		msg += 'SQLite does not support altering primary key\n';
+		msg += 'You can do it in 3 steps with drizzle orm:\n';
+		msg += ' - create new mirror table with needed pk, rename current table to old_table, generate SQL\n';
+		msg += ' - migrate old data from one table to another\n';
+		msg += ' - delete old_table in schema, generate sql\n\n';
+		msg += 'or create manual migration like below:\n\n';
+		msg += 'ALTER TABLE table_name RENAME TO old_table;\n';
+		msg += 'CREATE TABLE table_name (\n';
+		msg += '\tcolumn1 datatype [ NULL | NOT NULL ],\n';
+		msg += '\tcolumn2 datatype [ NULL | NOT NULL ],\n';
+		msg += '\t...\n';
+		msg += '\tPRIMARY KEY (pk_col1, pk_col2, ... pk_col_n)\n';
+		msg += ' );\n';
+		msg += 'INSERT INTO table_name SELECT * FROM old_table;\n\n';
+		msg += "Due to that we don't generate migration automatically and it has to be done manually\n";
+		msg += '*/\n';
+
+		return msg;
+	}
+}
+class CreateSqliteIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_index' && (dialect === 'sqlite' || dialect === 'turso');
+	}
+
+	convert(statement: JsonCreateIndexStatement): string {
+		// should be changed
+		const { name, columns, isUnique, where } = SQLiteSquasher.unsquashIdx(
+			statement.data,
+		);
+		// // since postgresql 9.5
+		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+		const whereStatement = where ? ` WHERE ${where}` : '';
+		const uniqueString = columns
+			.map((it) => {
+				return statement.internal?.indexes
+					? statement.internal?.indexes[name]?.columns[it]?.isExpression
+						? it
+						: `\`${it}\``
+					: `\`${it}\``;
+			})
+			.join(',');
+		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString})${whereStatement};`;
+	}
+}
+
+class SQLiteRecreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'recreate_table' && dialect === 'sqlite'
+		);
+	}
+
+	convert(statement: JsonRecreateTableStatement): string | string[] {
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+
+		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const newTableName = `__new_${tableName}`;
+
+		const sqlStatements: string[] = [];
+
+		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		// map all possible variants
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `'${newTableName}'.`)
+		);
+
+		// create new table
+		sqlStatements.push(
+			new SQLiteCreateTableConvertor().convert({
+				type: 'sqlite_create_table',
+				tableName: newTableName,
+				columns,
+				referenceData,
+				compositePKs,
+				checkConstraints: mappedCheckConstraints,
+			}),
+		);
+
+		// migrate data
+		sqlStatements.push(
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+		);
+
+		// drop table
+		sqlStatements.push(
+			new SQLiteDropTableConvertor().convert({
+				type: 'drop_table',
+				tableName: tableName,
+				schema: '',
+			}),
+		);
+
+		// rename table
+		sqlStatements.push(
+			new SqliteRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
+
+		return sqlStatements;
 	}
 }
 
@@ -2102,6 +2598,19 @@ convertors.push(new PgAlterTableAlterColumnAlterGenerated());
 convertors.push(new PgAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableDeleteCompositePrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterCompositePrimaryKeyConvertor());
+
+convertors.push(new SqliteCreateViewConvertor());
+convertors.push(new SqliteDropViewConvertor());
+convertors.push(new SqliteAlterTableAlterColumnDropGeneratedConvertor());
+convertors.push(new SqliteAlterTableAlterColumnSetExpressionConvertor());
+convertors.push(new SqliteAlterTableAlterColumnAlterGeneratedConvertor());
+convertors.push(new SqliteAlterTableAlterColumnDropDefaultConvertor());
+convertors.push(new SqliteAlterTableCreateCompositePrimaryKeyConvertor());
+convertors.push(new SqliteAlterTableDeleteCompositePrimaryKeyConvertor());
+convertors.push(new SqliteAlterTableAlterCompositePrimaryKeyConvertor());
+convertors.push(new CreateSqliteIndexConvertor());
+convertors.push(new SQLiteRecreateTableConvertor());
+convertors.push(new SQLiteCreateTableConvertor());
 
 export function fromJson(
 	statements: JsonStatement[],

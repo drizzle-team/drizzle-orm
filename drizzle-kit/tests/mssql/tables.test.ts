@@ -18,10 +18,12 @@ import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
 let db: TestDatabase['db'];
+let client: TestDatabase['client'];
 
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
+	client = _.client;
 });
 
 afterAll(async () => {

@@ -3,12 +3,13 @@ import BetterSqlite3 from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { int, SQLiteColumnBuilder, SQLiteTable, sqliteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import type { SQLiteTable as SQLiteTableOld, SQLiteView as SQLiteViewOld } from 'orm044/sqlite-core';
 import { introspect } from 'src/cli/commands/pull-sqlite';
 import { suggestions } from 'src/cli/commands/push-sqlite';
-import { CasingType } from 'src/cli/validations/common';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
-import { createDDL, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
+import { createDDL, fromEntities, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
@@ -17,10 +18,14 @@ import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
+import { updateToV7 } from 'src/cli/commands/up-sqlite';
+import { serializeSQLite } from 'src/legacy/sqlite-v6/serializer';
+import { diff as legacyDiff } from 'src/legacy/sqlite-v6/sqliteDiff';
 
 mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
-export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
+export type SqliteSchema = Record<string, SQLiteTable | SQLiteView | unknown>;
+export type SqliteSchemaOld = Record<string, SQLiteTableOld | SQLiteViewOld | unknown>;
 
 export const drizzleToDDL = (schema: SqliteSchema, casing?: CasingType) => {
 	const tables = Object.values(schema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
@@ -89,7 +94,10 @@ export const diffAfterPull = async (
 
 	const path = `tests/sqlite/tmp/${testName}.ts`;
 
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
 	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
 	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
@@ -120,11 +128,20 @@ export const push = async (config: {
 	force?: boolean;
 	expectError?: boolean;
 	log?: 'statements';
+	ignoreSubsequent?: boolean;
+	migrationsConfig?: { table?: string };
 }) => {
 	const { db, to, expectError, force, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
-	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
+	const migrations = configMigrations.parse(config.migrationsConfig);
+	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(
+		db,
+		() => true,
+		new EmptyProgressView(),
+		() => {},
+		migrations,
+	);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as SQLiteDDL, errors: [] }
 		: drizzleToDDL(to, casing);
@@ -175,8 +192,14 @@ export const push = async (config: {
 	}
 
 	// subsequent push
-	{
-		const { ddl: ddl1, errors, viewColumns } = await introspect(db, () => true, new EmptyProgressView());
+	if (!config.ignoreSubsequent) {
+		const { ddl: ddl1, errors, viewColumns } = await introspect(
+			db,
+			() => true,
+			new EmptyProgressView(),
+			() => {},
+			migrations,
+		);
 
 		const { sqlStatements, statements } = await ddlDiff(
 			ddl1,
@@ -230,7 +253,10 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2.join('\n')}`);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, 'camel', schema.viewsToColumns, 'sqlite');
@@ -306,6 +332,7 @@ export type TestDatabase = {
 	db: SQLiteDB;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
+	getClient: () => Database;
 };
 
 export const prepareTestDatabase = () => {
@@ -340,5 +367,53 @@ export const prepareTestDatabase = () => {
 		client.close();
 		client = new BetterSqlite3(':memory:');
 	};
-	return { db, close, clear };
+	const getClient = () => client;
+	return { db, close, clear, getClient };
+};
+
+export const diffSnapshotV6 = async (
+	db: SQLiteDB,
+	schema: SqliteSchema,
+	schemaOld: SqliteSchemaOld,
+	command?: 'push' | 'generate',
+) => {
+	const res = await serializeSQLite(schemaOld, 'camelCase');
+
+	const { sqlStatements } = await legacyDiff({ right: res });
+
+	for (const st of sqlStatements) {
+		await db.run(st);
+	}
+
+	const snapshot = updateToV7(res);
+
+	const ddl = fromEntities(snapshot.ddl);
+
+	let st: string[] = [];
+	let st1: string[] = [];
+	let pst: string[] = [];
+	let pst1: string[] = [];
+	if (!command || command === 'generate') {
+		const { sqlStatements: sqlStatements1, next } = await diff(ddl, schema, []);
+		const { sqlStatements: sqlStatements2 } = await diff(next, schema, []);
+
+		st = sqlStatements1;
+		st1 = sqlStatements2;
+	}
+	if (!command || command === 'push') {
+		({ sqlStatements: pst } = await push({ db, to: schema }));
+		({ sqlStatements: pst1 } = await push({ db, to: schema }));
+	}
+	return {
+		step1: st,
+		step2: pst,
+		step3: st1,
+		step4: pst1,
+		all: [
+			...st,
+			...pst,
+			...st1,
+			...pst1,
+		],
+	};
 };

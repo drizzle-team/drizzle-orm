@@ -572,8 +572,7 @@ describe('common', () => {
 		expect(users).toStrictEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('insert returning sql', async () => {
+	test('insert returning sql', async () => {
 		const users = await db.insert(usersTable).values({ name: 'John' }).returning({
 			name: sql`upper(${usersTable.name})`,
 		}).all();
@@ -819,8 +818,7 @@ describe('common', () => {
 		]);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('insert many with returning', async () => {
+	test('insert many with returning', async () => {
 		const result = await db.insert(usersTable).values([
 			{ name: 'John' },
 			{ name: 'Bruce', json: ['foo', 'bar'] },
@@ -1169,8 +1167,7 @@ describe('common', () => {
 		expect(result).toStrictEqual({ id: 1, name: 'John' });
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('insert via db.get w/ query builder', async () => {
+	test('insert via db.get w/ query builder', async () => {
 		const inserted = await db.get<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);
@@ -3093,8 +3090,7 @@ describe('common', () => {
 		]);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('update with limit and order by', async () => {
+	test('update with limit and order by', async () => {
 		await db.insert(usersTable).values([
 			{ name: 'Barry', verified: false },
 			{ name: 'Alan', verified: false },
@@ -3114,8 +3110,7 @@ describe('common', () => {
 		]);
 	});
 
-	// test.skipIf doesn't work
-	(Date.now() > new Date('2025.10.17').getTime() ? test : test.skip)('delete with limit and order by', async () => {
+	test('delete with limit and order by', async () => {
 		await db.insert(usersTable).values([
 			{ name: 'Barry', verified: false },
 			{ name: 'Alan', verified: false },

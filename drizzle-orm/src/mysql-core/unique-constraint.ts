@@ -3,25 +3,28 @@ import { TableName } from '~/table.utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
 
-export function unique(name?: string): UniqueOnConstraintBuilder {
-	return new UniqueOnConstraintBuilder(name);
+export function unique<TName extends string | undefined = undefined>(name?: TName): UniqueOnConstraintBuilder<TName> {
+	return new UniqueOnConstraintBuilder<TName>(name);
 }
 
 export function uniqueKeyName(table: MySqlTable, columns: string[]) {
 	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
-export class UniqueConstraintBuilder {
+export class UniqueConstraintBuilder<TName extends string | undefined = undefined> {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
 
 	/** @internal */
 	columns: MySqlColumn[];
+	/** @internal */
+	name?: TName;
 
 	constructor(
 		columns: MySqlColumn[],
-		private name?: string,
+		name?: TName,
 	) {
 		this.columns = columns;
+		this.name = name;
 	}
 
 	/** @internal */
@@ -30,20 +33,20 @@ export class UniqueConstraintBuilder {
 	}
 }
 
-export class UniqueOnConstraintBuilder {
+export class UniqueOnConstraintBuilder<TName extends string | undefined = undefined> {
 	static readonly [entityKind]: string = 'MySqlUniqueOnConstraintBuilder';
 
 	/** @internal */
-	name?: string;
+	name?: TName;
 
 	constructor(
-		name?: string,
+		name?: TName,
 	) {
 		this.name = name;
 	}
 
 	on(...columns: [MySqlColumn, ...MySqlColumn[]]) {
-		return new UniqueConstraintBuilder(columns, this.name);
+		return new UniqueConstraintBuilder<TName>(columns, this.name);
 	}
 }
 

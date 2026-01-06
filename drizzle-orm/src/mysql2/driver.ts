@@ -1,5 +1,5 @@
-import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
-import type { Connection, Pool } from 'mysql2/promise';
+import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mysql2';
+import { type Connection, createPool, type Pool, type PoolOptions } from 'mysql2/promise';
 import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -61,12 +61,12 @@ export type MySql2DrizzleConfig<
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
+	TClient extends Pool | Connection | CallbackPool | CallbackConnection = Pool,
 >(
 	client: TClient,
 	config: MySql2DrizzleConfig<TSchema, TRelations> = {},
 ): MySql2Database<TSchema, TRelations> & {
-	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
+	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
@@ -132,7 +132,7 @@ export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackCon
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends AnyMySql2Connection = CallbackPool,
+	TClient extends AnyMySql2Connection = Pool,
 >(
 	...params: [
 		string,
@@ -150,7 +150,7 @@ export function drizzle<
 		),
 	]
 ): MySql2Database<TSchema, TRelations> & {
-	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
+	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const connectionString = params[0]!;

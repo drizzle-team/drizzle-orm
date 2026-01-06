@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -109,12 +109,6 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 	}
 
 	return statements;
-});
-
-const recreateViewConvertor = convertor('recreate_view', (st) => {
-	const drop = dropViewConvertor.convert({ view: st.from }) as string;
-	const create = createViewConvertor.convert({ view: st.to }) as string;
-	return [drop, create];
 });
 
 const createTableConvertor = convertor('create_table', (st) => {
@@ -354,14 +348,14 @@ const recreateIndexConvertor = convertor('recreate_index', (st) => {
 });
 
 const alterColumnConvertor = convertor('alter_column', (st) => {
-	const { diff, to: column, isEnum, wasEnum } = st;
+	const { diff, to: column, isEnum, wasEnum, wasSerial, toSerial } = st;
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -371,17 +365,39 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
-			: '';
-		let type: string;
+			: ` USING "${column.name}"::${toSerial ? mapSerialToInt(column.type) : column.type}${
+				'[]'.repeat(column.dimensions)
+			}`;
 
-		if (diff.type) {
-			type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-				? `"${diff.typeSchema.to}"."${diff.type.to}"`
-				: isEnum
-				? `"${diff.type.to}"`
-				: diff.type.to;
-		} else {
-			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
+		const type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+			: isEnum
+			? `"${diff.type.to}"`
+			: toSerial
+			? mapSerialToInt(diff.type.to)
+			: diff.type.to;
+
+		if (wasSerial) {
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+			const sequenceKey = column.schema !== 'public'
+				? `"${column.schema}"."${column.table}_${column.name}_seq"`
+				: `"${column.table}_${column.name}_seq"`;
+			statements.push(`DROP SEQUENCE ${sequenceKey};`);
+		}
+
+		if (toSerial) {
+			const sequenceKey = column.schema !== 'public'
+				? `"${column.schema}"."${column.table}_${column.name}_seq"`
+				: `"${column.table}_${column.name}_seq"`;
+			const sequenceName = column.schema !== 'public'
+				? `${column.schema}.${column.table}_${column.name}_seq`
+				: `${column.table}_${column.name}_seq`;
+
+			statements.push(`CREATE SEQUENCE ${sequenceKey};`);
+			statements.push(
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT nextval('${sequenceName}')`,
+			);
+			statements.push(`ALTER SEQUENCE ${sequenceKey} OWNED BY "${column.schema}"."${column.table}"."${column.name}";`);
 		}
 
 		statements.push(
@@ -390,7 +406,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			}${suffix};`,
 		);
 
-		if (recreateDefault) {
+		if (recreateDefault && column.default) {
 			statements.push(
 				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);
@@ -427,6 +443,12 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			const identityStatement =
 				`GENERATED ${typeClause} AS IDENTITY (sequence name ${identityWithSchema}${incrementClause}${minClause}${maxClause}${startWith}${cache}${cycle})`;
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ADD ${identityStatement};`);
+
+			if (wasSerial && column.identity) {
+				statements.push(
+					`SELECT setval('${column.identity.name}'::regclass, (SELECT COALESCE(MAX(id), 1) FROM ${key}), false);`,
+				);
+			}
 		} else if (diff.identity.to === null) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
 		} else {
@@ -544,9 +566,10 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 });
 
 const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
-	const drop = dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	const create = addPrimaryKeyConvertor.convert({ pk: it.pk }) as string;
-	return [drop, create];
+	const st: string[] = [];
+	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	return st;
 });
 
 const renameConstraintConvertor = convertor('rename_constraint', (st) => {
@@ -717,7 +740,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -730,9 +753,16 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 				'[]'.repeat(column.dimensions)
 			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default) {
+		if (column.default.right) {
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
+					defaultToSQL({
+						default: column.default.right,
+						dimensions: column.dimensions,
+						type: column.type,
+						typeSchema: column.typeSchema,
+					})
+				};`,
 			);
 		}
 	}
@@ -1002,7 +1032,6 @@ const convertors = [
 	renameViewConvertor,
 	moveViewConvertor,
 	alterViewConvertor,
-	recreateViewConvertor,
 	createTableConvertor,
 	dropTableConvertor,
 	renameTableConvertor,

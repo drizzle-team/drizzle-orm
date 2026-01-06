@@ -2,18 +2,17 @@ import chalk from 'chalk';
 import { render, renderWithTask } from 'hanji';
 import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
-import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { prepareFilenames } from 'src/utils/utils-node';
 import { ddlDiff } from '../../dialects/singlestore/diff';
-import type { DB } from '../../utils';
+import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { withStyle } from '../validations/outputs';
-import { ProgressView } from '../views';
+import { explain, ProgressView } from '../views';
+import { suggestions } from './push-mysql';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -22,6 +21,11 @@ export const handle = async (
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
+	explainFlag: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
 ) => {
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
@@ -39,7 +43,7 @@ export const handle = async (
 	);
 	const interimFromDB = await renderWithTask(
 		progress,
-		fromDatabaseForDrizzle(db, database, filter),
+		fromDatabaseForDrizzle(db, database, filter, () => {}, migrations),
 	);
 
 	const filenames = prepareFilenames(schemaPath);
@@ -55,7 +59,7 @@ export const handle = async (
 	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
 	// TODO: handle errors
 
-	const { sqlStatements, statements } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),
@@ -67,58 +71,35 @@ export const handle = async (
 	const filteredStatements = statements;
 	if (filteredStatements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
+	}
+
+	const hints = await suggestions(db, filteredStatements, ddl2);
+	const explainMessage = explain('singlestore', groupedStatements, explainFlag, hints);
+
+	if (explainMessage) console.log(explainMessage);
+	if (explainFlag) return;
+
+	if (!force && hints.length > 0) {
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) console.log(highlightSQL(statement));
+
+		await db.query(statement);
+	}
+
+	if (filteredStatements.length > 0) {
+		render(`[${chalk.green('✓')}] Changes applied`);
 	} else {
-		const { hints, truncates } = await suggestions(db, filteredStatements);
-
-		const combinedStatements = [...truncates, ...sqlStatements];
-		if (verbose) {
-			console.log();
-			console.log(
-				withStyle.warning('You are about to execute current statements:'),
-			);
-			console.log();
-			console.log(combinedStatements.map((s) => chalk.blue(s)).join('\n'));
-			console.log();
-		}
-
-		if (!force && hints.length > 0) {
-			const { data } = await render(
-				new Select(['No, abort', `Yes, I want to execute all statements`]),
-			);
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
-
-		if (!force && hints.length > 0) {
-			console.log(withStyle.warning('Found data-loss statements:'));
-			console.log(truncates.join('\n'));
-			console.log();
-			console.log(
-				chalk.red.bold(
-					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-				),
-			);
-
-			console.log(chalk.white('Do you still want to push changes?'));
-
-			const { data } = await render(new Select(['No, abort', `Yes, execute`]));
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
-
-		for (const st of combinedStatements) {
-			await db.query(st);
-		}
-
-		if (filteredStatements.length > 0) {
-			render(`[${chalk.green('✓')}] Changes applied`);
-		} else {
-			render(`[${chalk.blue('i')}] No changes detected`);
-		}
+		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };
 
@@ -219,100 +200,3 @@ export const handle = async (
 // 		return true;
 // 	});
 // };
-
-export const suggestions = async (_db: DB, _statements: JsonStatement[]) => {
-	const hints: string[] = [];
-	const truncates: string[] = [];
-
-	return { hints, truncates };
-
-	// TODO: update and implement
-	// for (const statement of statements) {
-	// 	if (statement.type === 'drop_table') {
-	// 		const res = await db.query(`select 1 from \`${statement.table}\` limit 1`);
-	// 		if (res.length > 0) {
-	// 			hints.push(`· You're about to delete non-empty ${chalk.underline(statement.table)} table`);
-	// 		}
-	// 	} else if (statement.type === 'drop_column') {
-	// 		const res = await db.query(
-	// 			`select 1 from \`${statement.column.table}\` limit 1`,
-	// 		);
-	// 		if (res.length > 0) {
-	// 			hints.push(
-	// 				`· You're about to delete ${
-	// 					chalk.underline(
-	// 						statement.column.name,
-	// 					)
-	// 				} column in a non-empty ${statement.column.table} table with`,
-	// 			);
-	// 		}
-	// 	} else if (statement.type === 'alter_column') {
-	// 		// alter column set type
-	// 		// alter column set not null
-	// 		`· You're about to set not-null constraint to ${
-	// 			chalk.underline(statement.columnName)
-	// 		} column without default, which contains ${count} items`;
-	// 		`· You're about to remove default value from ${
-	// 			chalk.underline(statement.columnName)
-	// 		} not-null column with ${count} items`;
-
-	// 		// if drop pk and json2 has autoincrement in table -> exit process with error
-	// 		`${
-	// 			withStyle.errorWarning(
-	// 				`You have removed the primary key from a ${statement.tableName} table without removing the auto-increment property from this table. As the database error states: 'there can be only one auto column, and it must be defined as a key. Make sure to remove autoincrement from ${statement.tableName} table`,
-	// 			)
-	// 		}`;
-	// 		`· You're about to change ${
-	// 			chalk.underline(statement.tableName)
-	// 		} primary key. This statements may fail and you table may left without primary key`;
-
-	// 		// if drop pk and json2 has autoincrement in table -> exit process with error
-	// 		`· You have removed the primary key from a ${statement.tableName} table without removing the auto-increment property from this table. As the database error states: 'there can be only one auto column, and it must be defined as a key. Make sure to remove autoincrement from ${statement.tableName} table`;
-	// 		`· You're about to add not-null ${
-	// 			chalk.underline(statement.column.name)
-	// 		} column without default value, which contains ${count} items`;
-
-	// 		const res = await db.query(
-	// 			`select count(*) as count from \`${statement.tableName}\``,
-	// 		);
-	// 		const count = Number(res[0].count);
-	// 		if (count > 0) {
-	// 			`· You're about to change ${
-	// 				chalk.underline(
-	// 					statement.columnName,
-	// 				)
-	// 			} column type from ${
-	// 				chalk.underline(
-	// 					statement.oldDataType,
-	// 				)
-	// 			} to ${chalk.underline(statement.newDataType)} with ${count} items`;
-	// 		}
-	// 	} else if (statement.type === 'create_index' && statement.index.unique) {
-	// 		const res = await db.query(
-	// 			`select 1 from \`${statement.index.table}\` limit 1`,
-	// 		);
-	// 		const count = Number(res[0].count);
-	// 		if (count > 0) {
-	// 			console.log(
-	// 				`· You're about to add ${
-	// 					chalk.underline(
-	// 						statement.index.name,
-	// 					)
-	// 				} unique constraint to the table, which contains ${count} items. If this statement fails, you will receive an error from the database. Do you want to truncate ${
-	// 					chalk.underline(
-	// 						statement.index.table,
-	// 					)
-	// 				} table?\n`,
-	// 			);
-	// 			const { status, data } = await render(
-	// 				new Select([
-	// 					'No, add the constraint without truncating the table',
-	// 					`Yes, truncate the table`,
-	// 				]),
-	// 			);
-	// 		}
-	// 	}
-	// }
-
-	// return { hints, truncates };
-};

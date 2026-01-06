@@ -16,6 +16,8 @@ import {
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
+fs.mkdirSync('./tests/cockroach/migrations', { recursive: true });
+
 test.concurrent('add table #1', async ({ dbc: db }) => {
 	const to = {
 		users: cockroachTable('users', {}),
@@ -1131,10 +1133,115 @@ test.concurrent('rename table with composite primary key', async ({ dbc: db }) =
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, losses } = await push({ db, to: schema2, renames });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0: string[] = ['ALTER TABLE "table1" RENAME TO "table2";'];
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('push after migrate with custom migrations table #1', async ({ db }) => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/cockroach/migrator');
+	const { drizzle } = await import('drizzle-orm/cockroach');
+	await migrate(drizzle({ client: db.client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/cockroach/migrations',
+	});
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig, log: 'statements' });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #2', async ({ db }) => {
+	const migrationsConfig = {
+		schema: undefined,
+		table: 'migrations',
+	};
+
+	const { migrate } = await import('drizzle-orm/cockroach/migrator');
+	const { drizzle } = await import('drizzle-orm/cockroach');
+	await migrate(drizzle({ client: db.client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/cockroach/migrations',
+	});
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #3', async ({ db }) => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: undefined,
+	};
+
+	const { migrate } = await import('drizzle-orm/cockroach/migrator');
+	const { drizzle } = await import('drizzle-orm/cockroach');
+	await migrate(drizzle({ client: db.client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/cockroach/migrations',
+	});
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test.concurrent('push after migrate with custom migrations table #4', async ({ db }) => {
+	const migrationsConfig = {
+		schema: 'migrations_schema',
+		table: 'migrations',
+	};
+	const { migrate } = await import('drizzle-orm/cockroach/migrator');
+	const { drizzle } = await import('drizzle-orm/cockroach');
+	await migrate(drizzle({ client: db.client }), {
+		migrationsSchema: migrationsConfig.schema,
+		migrationsTable: migrationsConfig.table,
+		migrationsFolder: './tests/cockroach/migrations',
+	});
+
+	const to = {
+		table: cockroachTable('table1', { col1: int4() }),
+	};
+	const { sqlStatements: st2 } = await diff({}, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
+	const expectedSt2 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });

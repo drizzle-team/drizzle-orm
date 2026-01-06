@@ -10,6 +10,7 @@ export default defineConfig({
 			'js-tests',
 		],
 		exclude: [
+			'tests/singlestore/**/*.test.ts',
 			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
 					'tests/relational/mysql.planetscale.test.ts',

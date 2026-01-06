@@ -2,7 +2,7 @@ import pgClient, { type Options, type PostgresType, type Sql } from 'postgres';
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -12,7 +12,7 @@ import { PostgresJsSession } from './session.ts';
 export class PostgresJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<PostgresJsQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<PostgresJsQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
 

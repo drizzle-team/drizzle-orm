@@ -3,6 +3,7 @@ import {
 	type AnyMySqlColumn,
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	customType,
@@ -242,6 +243,12 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 
 export const allTypesTable = mysqlTable('all_types', {
 	serial: serial(),
+	blob: blob({
+		mode: 'buffer',
+	}),
+	blobStr: blob({
+		mode: 'string',
+	}),
 	bigint53: bigint({
 		mode: 'number',
 	}),

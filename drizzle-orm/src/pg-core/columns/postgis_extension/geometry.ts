@@ -1,7 +1,7 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import type { PgColumnBaseConfig } from '../common.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 import { parseEWKB } from './utils.ts';
 
@@ -26,8 +26,8 @@ export class PgGeometryBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometry<T extends ColumnBaseConfig<'array geometry'>>
-	extends PgColumn<T, { srid: number | undefined }>
+export class PgGeometry
+	extends PgColumn<'array geometry', PgColumnBaseConfig<'array geometry'>, { srid: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgGeometry';
 
@@ -70,8 +70,8 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
-	extends PgColumn<T, { srid: number | undefined }>
+export class PgGeometryObject
+	extends PgColumn<'object geometry', PgColumnBaseConfig<'object geometry'>, { srid: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 

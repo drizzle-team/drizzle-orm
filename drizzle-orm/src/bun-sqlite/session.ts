@@ -220,7 +220,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		const { stmt, customResultMapper } = this;
 
 		const row = stmt.get(...params) as Record<string, unknown>;
-		if (row === undefined) return row;
+		if (!row) return undefined;
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
 			[row],

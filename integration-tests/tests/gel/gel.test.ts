@@ -17,6 +17,7 @@ import {
 	ilike,
 	inArray,
 	is,
+	isNull,
 	like,
 	lt,
 	max,
@@ -486,6 +487,10 @@ describe('some', async () => {
 			create required property name: str;
 			create required property updated_at: datetime;
 		};
+		CREATE TYPE default::table_where_is_null {
+			create required property col1: bool;
+			create property col2: str;
+		};
 		" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
@@ -506,6 +511,7 @@ describe('some', async () => {
 			client.querySQL(`DELETE FROM "post_rqb_test"`),
 			client.querySQL(`DELETE FROM "mySchema"."users";`),
 			client.querySQL(`DELETE FROM "users_on_update_sql";`),
+			client.querySQL(`DELETE FROM "table_where_is_null";`),
 		]);
 	});
 
@@ -720,6 +726,26 @@ describe('some', async () => {
 				name: 'JANE',
 			},
 		]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4878
+	test.concurrent('.where with isNull in it', async (ctx) => {
+		const { db } = ctx.gel;
+		const table = gelTable('table_where_is_null', {
+			col1: boolean(),
+			col2: text(),
+		});
+
+		await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+
+		const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+		expect(query.toSQL()).toStrictEqual({
+			sql:
+				'select "table_where_is_null"."col1", "table_where_is_null"."col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
+			params: [],
+		});
+		const res = await query;
+		expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
 	});
 
 	test('$default function', async (ctx) => {

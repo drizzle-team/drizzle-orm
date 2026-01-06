@@ -4,7 +4,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -40,7 +40,7 @@ export class NeonDriver {
 export class NeonDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgDatabase<NeonQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<NeonQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 

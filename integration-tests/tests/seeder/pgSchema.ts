@@ -194,10 +194,10 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 });
 
 export const ndArrays = schema.table('nd_arrays', {
-	integer1DArray: integer('integer_1d_array').array(3),
-	integer2DArray: integer('integer_2d_array').array(3).array(4),
-	integer3DArray: integer('integer_3d_array').array(3).array(4).array(5),
-	integer4DArray: integer('integer_4d_array').array(3).array(4).array(5).array(6),
+	integer1DArray: integer('integer_1d_array').array(),
+	integer2DArray: integer('integer_2d_array').array('[][]'),
+	integer3DArray: integer('integer_3d_array').array('[][][]'),
+	integer4DArray: integer('integer_4d_array').array('[][][][]'),
 });
 
 // All generators tables -------------------------------

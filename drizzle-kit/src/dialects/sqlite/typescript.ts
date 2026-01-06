@@ -16,7 +16,7 @@ import type {
 } from './ddl';
 import { typeFor } from './grammar';
 
-export const imports = ['integer', 'real', 'text', 'numeric', 'blob'] as const;
+export const imports = ['integer', 'real', 'text', 'numeric', 'blob', 'customType'] as const;
 export type Import = typeof imports[number];
 const sqliteImports = new Set([
 	'sqliteTable',
@@ -83,14 +83,14 @@ export const ddlToTypeScript = (
 	for (const it of schema.entities.list()) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
-		if (it.entityType === 'uniques' && it.columns.length > 1) imports.add('unique');
+		if (it.entityType === 'uniques') imports.add('unique');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'columns') columnTypes.add(it.type);
 		if (it.entityType === 'views') imports.add('sqliteView');
 		if (it.entityType === 'tables') imports.add('sqliteTable');
 		if (it.entityType === 'fks') {
 			imports.add('foreignKey');
-			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('AnySQLiteColumn');
+			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('type AnySQLiteColumn');
 		}
 	}
 
@@ -116,9 +116,9 @@ export const ddlToTypeScript = (
 		statement += createTableColumns(columns, fks, pk, casing);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
+		// more than 2 fields
 		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
+			return it.columns.length > 1;
 		});
 
 		if (
@@ -229,11 +229,14 @@ const column = (
 	const grammarType = typeFor(type);
 	if (grammarType) {
 		const drizzleType = grammarType.drizzleImport();
-		const res = grammarType.toTs(defaultValue);
-		const { def, options } = typeof res === 'string' ? { def: res } : res;
+		const res = grammarType.toTs(defaultValue, type);
+		const { def, options, customType } = typeof res === 'string' ? { def: res } : res;
+
 		const defaultStatement = def ? `.default(${def})` : '';
 		const opts = options ? `${JSON.stringify(options)}` : '';
-		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
+		return `${withCasing(name, casing)}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${
+			dbColumnName({ name, casing, withMode: Boolean(opts) })
+		}${opts})${defaultStatement}`;
 	}
 
 	// TODO: ??
@@ -263,7 +266,7 @@ const createTableColumns = (
 ): string => {
 	let statement = '';
 	for (const it of columns) {
-		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name;
+		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table;
 
 		statement += '\t';
 		statement += column(it.type, it.name, it.default, casing);
@@ -278,26 +281,21 @@ const createTableColumns = (
 		const references = fks.filter((fk) => fk.columns.length === 1 && fk.columns[0] === it.name);
 
 		for (const fk of references) {
-			statement += `.references(() => ${withCasing(fk.tableTo, casing)}.${withCasing(fk.columnsTo[0], casing)})`;
-
-			const onDelete = fk.onDelete && fk.onDelete !== 'no action' ? fk.onDelete : null;
-			const onUpdate = fk.onUpdate && fk.onUpdate !== 'no action' ? fk.onUpdate : null;
-			const params = { onDelete, onUpdate };
-
 			const typeSuffix = isCyclic(fk) ? ': AnySQLiteColumn' : '';
+
+			statement += `.references(()${typeSuffix} => ${withCasing(fk.tableTo, casing)}.${
+				withCasing(fk.columnsTo[0], casing)
+			}`;
+
+			const onDelete = (fk.onDelete && fk.onDelete !== 'NO ACTION') ? fk.onDelete.toLowerCase() : null;
+			const onUpdate = (fk.onUpdate && fk.onUpdate !== 'NO ACTION') ? fk.onUpdate.toLowerCase() : null;
+			const params = { onDelete, onUpdate };
 
 			const paramsStr = objToStatement2(params);
 			if (paramsStr) {
-				statement += `.references(()${typeSuffix} => ${withCasing(fk.tableTo, casing)}.${
-					withCasing(fk.columnsTo[0], casing)
-				}, ${paramsStr} )`;
+				statement += `, ${paramsStr} )`;
 			} else {
-				statement += `.references(()${typeSuffix} => ${
-					withCasing(
-						fk.tableTo,
-						casing,
-					)
-				}.${withCasing(fk.columnsTo[0], casing)})`;
+				statement += `)`;
 			}
 		}
 		statement += ',\n';
@@ -327,19 +325,10 @@ const createTableIndexes = (
 	let statement = '';
 
 	for (const it of idxs) {
-		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
-			? it.name.slice(tableName.length + 1)
-			: it.name;
-		idxKey = idxKey.endsWith('_index')
-			? idxKey.slice(0, -'_index'.length) + '_idx'
-			: idxKey;
-		idxKey = withCasing(idxKey, casing);
-
 		const columnNames = it.columns.filter((c) => !c.isExpression).map((c) => c.value);
 		const indexGeneratedName = `${tableName}_${columnNames.join('_')}_index`;
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
@@ -360,9 +349,6 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
@@ -402,7 +388,7 @@ const createTablePK = (pk: PrimaryKey, casing: Casing): string => {
 
 	statement += `${pk.name ? `, name: "${pk.name}"` : ''}}`;
 	statement += ')';
-	statement += `\n`;
+	statement += `,\n`;
 	return statement;
 };
 
@@ -412,7 +398,7 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 	fks.forEach((it) => {
 		const isSelf = it.tableTo === it.table;
 		const tableTo = isSelf ? 'table' : `${withCasing(it.tableTo, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey(() => ({\n`;
+		statement += `\n\t\tforeignKey({\n`;
 		statement += `\t\t\tcolumns: [${
 			it.columns
 				.map((i) => `table.${withCasing(i, casing)}`)
@@ -424,14 +410,14 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 				.join(', ')
 		}],\n`;
 		statement += `\t\t\tname: "${it.name}"\n`;
-		statement += `\t\t}))`;
+		statement += `\t\t})`;
 
 		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
+			? `.onUpdate("${it.onUpdate.toLowerCase()}")`
 			: '';
 
 		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
+			? `.onDelete("${it.onDelete.toLowerCase()}")`
 			: '';
 
 		statement += `,\n`;

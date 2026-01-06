@@ -91,8 +91,8 @@ const createTable = convertor('create_table', (st) => {
 			onUpdate,
 		} = referenceData[i];
 
-		const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
-		const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
+		const onDeleteStatement = (onDelete && onDelete !== 'NO ACTION') ? ` ON DELETE ${onDelete}` : '';
+		const onUpdateStatement = (onUpdate && onUpdate !== 'NO ACTION') ? ` ON UPDATE ${onUpdate}` : '';
 		const fromColumnsString = columns.map((it) => `\`${it}\``).join(',');
 		const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
 

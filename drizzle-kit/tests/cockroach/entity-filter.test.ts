@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm';
 import { cockroachSchema, cockroachView, int4 as int } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect } from 'vitest';
 import { push, test } from './mocks';
-3;
 
 test('push schema #1', async ({ db }) => {
 	const to = { dev: cockroachSchema('dev') };

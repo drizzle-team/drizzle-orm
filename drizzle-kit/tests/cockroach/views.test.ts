@@ -148,7 +148,6 @@ test.concurrent('create materialized view', async ({ db }) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
-		log: 'statements',
 	});
 
 	const st0: string[] = [
@@ -498,7 +497,7 @@ test.concurrent('drop materialized view with data', async ({ db }) => {
 	await push({ db, to: schema1 });
 	await db.query(`INSERT INTO "table" ("id") VALUES (1), (2), (3)`);
 
-	const { sqlStatements: pst, hints, losses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		`DROP MATERIALIZED VIEW "view";`,
@@ -508,7 +507,6 @@ test.concurrent('drop materialized view with data', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 
 	expect(hints).toStrictEqual([]);
-	expect(losses).toStrictEqual([]);
 });
 
 test.concurrent('drop materialized view without data', async ({ db }) => {

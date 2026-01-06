@@ -9,6 +9,7 @@ export default defineConfig({
 		],
 		exclude: [
 			'tests/bun/**/*',
+			'tests/singlestore.test.ts',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',

@@ -1,3 +1,15 @@
+import { is } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
+import {
+	PgBigInt53,
+	PgBigInt64,
+	PgBigSerial53,
+	PgBigSerial64,
+	PgInteger,
+	PgSerial,
+	PgSmallInt,
+	PgSmallSerial,
+} from 'drizzle-orm/pg-core';
 import type { RelationWithReferences } from './types/tables';
 
 export const isRelationCyclic = (
@@ -36,4 +48,18 @@ export const isRelationCyclic = (
 
 export const equalSets = (set1: Set<any>, set2: Set<any>) => {
 	return set1.size === set2.size && [...set1].every((si) => set2.has(si));
+};
+
+export const intMax = (args: (number | bigint)[]) => args.reduce((m, e) => e > m ? e : m);
+
+export const isPostgresColumnIntLike = (column: PgColumn) => {
+	if (column.dimensions > 0) return false;
+	return is(column, PgSmallInt)
+		|| is(column, PgInteger)
+		|| is(column, PgBigInt53)
+		|| is(column, PgBigInt64)
+		|| is(column, PgSmallSerial)
+		|| is(column, PgSerial)
+		|| is(column, PgBigSerial53)
+		|| is(column, PgBigSerial64);
 };

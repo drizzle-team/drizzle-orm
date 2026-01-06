@@ -815,6 +815,9 @@ export const Uuid: SqlType = {
 
 		value = trimChar(value, "'");
 		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+		if (!value.startsWith("'") && !value.endsWith("'") && value.endsWith('()')) {
+			return { options, default: `sql\`${value}\`` };
+		}
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
@@ -1884,14 +1887,16 @@ export const defaultForVector: DefaultMapper<[number, number, number]> = (
 // 	return result;
 // };
 
+// TODO: write a test for view in postgres security_invoker = on ???
 export const wrapRecord = (it: Record<string, string>) => {
 	return {
 		bool: (key: string) => {
 			if (key in it) {
-				if (it[key] === 'true') {
+				const value = it[key];
+				if (value === 'true' || value === '1' || value === 'on' || value === 'yes') {
 					return true;
 				}
-				if (it[key] === 'false') {
+				if (value === 'false' || value === '0' || value === 'off' || value === 'no') {
 					return false;
 				}
 
@@ -2027,6 +2032,19 @@ export const isDefaultAction = (action: string) => {
 
 export const isSerialType = (type: string) => {
 	return /^(?:serial|bigserial|smallserial)$/i.test(type);
+};
+
+export const mapSerialToInt = (type: string) => {
+	switch (type) {
+		case 'smallserial':
+			return 'smallint';
+		case 'serial':
+			return 'int';
+		case 'bigserial':
+			return 'bigint';
+		default:
+			throw new Error(`Unsupported type: ${type}`);
+	}
 };
 
 // map all to utc with saving precision

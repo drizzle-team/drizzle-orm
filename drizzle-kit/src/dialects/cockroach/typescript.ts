@@ -553,8 +553,8 @@ const createTableColumns = (
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'NO ACTION' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate : null;
+					const onDelete = it.onDelete && it.onDelete !== 'NO ACTION' ? it.onDelete.toLowerCase() : null;
+					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate.toLowerCase() : null;
 					const params = { onDelete, onUpdate };
 
 					const typeSuffix = isCyclic(it) ? ': AnyCockroachColumn' : '';
@@ -698,8 +698,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate.toLowerCase()}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete.toLowerCase()}")` : '';
 		statement += `,\n`;
 	});
 	return statement;

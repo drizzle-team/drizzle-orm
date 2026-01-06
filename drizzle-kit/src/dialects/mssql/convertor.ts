@@ -218,7 +218,11 @@ const createIndex = convertor('create_index', (st) => {
 	const { name, table, columns, isUnique, where, schema } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
-	const uniqueString = `[${columns.join('],[')}]`;
+	const uniqueString = `${
+		columns.map((it) => {
+			return it.isExpression ? it.value : `[${it.value}]`;
+		})
+	}`;
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 
@@ -243,6 +247,7 @@ const createFK = convertor('create_fk', (st) => {
 		onDelete,
 		onUpdate,
 		schema,
+		schemaTo,
 	} = st.fk;
 	const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
 	const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
@@ -250,7 +255,9 @@ const createFK = convertor('create_fk', (st) => {
 	const toColumnsString = columnsTo.map((it) => `[${it}]`).join(',');
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
-	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES [${tableTo}](${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+	const keyTo = schemaTo !== 'dbo' ? `[${schemaTo}].[${tableTo}]` : `[${tableTo}]`;
+
+	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES ${keyTo}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
 const createPK = convertor('create_pk', (st) => {
@@ -332,7 +339,7 @@ const createView = convertor('create_view', (st) => {
 
 		statement += ` ${options.join(', ')}`;
 	}
-	statement += ` AS (${definition})`;
+	statement += ` AS ${definition}`;
 	statement += checkOption ? `\nWITH CHECK OPTION` : '';
 
 	statement += ';';
@@ -370,7 +377,7 @@ const alterView = convertor('alter_view', (st) => {
 
 		statement += ` ${options.join(', ')}`;
 	}
-	statement += ` AS (${definition})`;
+	statement += ` AS ${definition}`;
 	statement += checkOption ? `\nWITH CHECK OPTION` : '';
 
 	statement += ';';

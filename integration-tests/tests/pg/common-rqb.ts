@@ -1,7 +1,8 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { sql } from 'drizzle-orm';
-import { integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { describe, expect } from 'vitest';
+import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
 export function tests(test: Test) {
@@ -198,6 +199,58 @@ export function tests(test: Test) {
 				createdAt: date,
 				name: 'Second',
 			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5172
+		test.concurrent('RQB v2 simple find first - result type', async ({ push, createDB }) => {
+			const user = pgTable('users', {
+				id: text('id').primaryKey(),
+				email: text('email').notNull().unique(),
+				password: text('password').notNull(),
+			});
+
+			const userSession = pgTable('user_sessions', {
+				id: text('id').primaryKey(),
+				userId: text('user_id')
+					.notNull()
+					.references(() => user.id),
+				expiresAt: timestamp('expires_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+			});
+
+			const schema = { user, userSession };
+			const db = createDB(schema, (r) => ({
+				user: {
+					sessions: r.many.userSession(),
+				},
+				userSession: {
+					user: r.one.user({
+						from: r.userSession.userId,
+						to: r.user.id,
+						optional: false,
+					}),
+				},
+			}));
+
+			const query = db.query.userSession.findFirst({
+				where: { id: '' },
+				with: { user: true },
+			});
+
+			expectTypeOf(query).resolves.toEqualTypeOf<
+				{
+					id: string;
+					userId: string;
+					expiresAt: Date;
+					user: {
+						id: string;
+						email: string;
+						password: string;
+					};
+				} | undefined
+			>();
 		});
 
 		test.concurrent('RQB v2 simple find many - no rows', async ({ push, createDB }) => {
@@ -789,5 +842,136 @@ export function tests(test: Test) {
 				}]);
 			});
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4358
+		test.concurrent('RQB v2 find many - table creation func', async ({ push, createDB }) => {
+			const createUserTable = <T extends Record<string, PgColumnBuilder<any>>>(
+				{ customColumns, tableName }: { customColumns: T; tableName: string },
+			) =>
+				pgTable(tableName, {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					email: text('email').notNull().unique(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+					...customColumns,
+				});
+			const users = createUserTable(
+				{
+					tableName: 'rqb_users_17',
+					customColumns: {
+						test: text('test').notNull(),
+					},
+				},
+			);
+
+			const orders = pgTable('rqb_orders_17', {
+				id: serial('id').primaryKey(),
+				userId: integer('user_id').references(() => users.id).notNull(),
+				amount: integer('amount').notNull(),
+				status: text('status').notNull(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			await push({ users, orders });
+			const db = createDB({ users, orders }, (r) => ({
+				orders: {
+					user: r.one.users({
+						from: [r.orders.userId],
+						to: [r.users.id],
+					}),
+				},
+			}));
+
+			await db.insert(users).values([{ id: 1, email: 'a', name: 'b', test: 'c' }, {
+				id: 2,
+				email: 'aa',
+				name: 'bb',
+				test: 'cc',
+			}]);
+			await db.insert(orders).values([{ userId: 1, amount: 11, status: 'delivered' }, {
+				userId: 2,
+				amount: 22,
+				status: 'delivered',
+			}]);
+
+			const ordersWithUser = await db.query.orders.findMany({
+				with: {
+					user: {
+						columns: {
+							id: true,
+							// This fails type checking. `id` column works, but not `test`
+							test: true,
+						},
+					},
+				},
+			});
+
+			for (const order of ordersWithUser) {
+				expect(order.user!.id).toBeDefined();
+				expect(order.user!.test).toBeDefined();
+			}
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4169
+		// postpone
+		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent(
+			'RQB v2 find many - $count',
+			async ({ push, createDB }) => {
+				const users = pgTable('rqb_users_18', {
+					id: serial('id').primaryKey(),
+				});
+
+				const statusEnum = pgEnum('status', [
+					'IN_PROGRESS',
+					'CANCELED',
+					'CLOSED',
+				]);
+
+				const orders = pgTable('rqb_orders_18', {
+					id: serial('id').primaryKey(),
+					userId: integer('user_id').references(() => users.id).notNull(),
+					status: statusEnum('status'),
+				});
+
+				await push({ users, orders, statusEnum });
+				const db = createDB({ users, orders }, (r) => ({
+					orders: {
+						user: r.one.users({
+							from: [r.orders.userId],
+							to: [r.users.id],
+						}),
+					},
+				}));
+
+				await db.insert(users).values([{ id: 1 }, { id: 2 }]);
+				await db.insert(orders).values([{ userId: 1, status: 'CANCELED' }, { userId: 2, status: 'IN_PROGRESS' }]);
+
+				const recordsQuery = db.query.users.findMany({
+					extras: {
+						activeOrders: db
+							.$count(
+								orders,
+								and(
+									eq(orders.userId, users.id),
+									not(
+										inArray(orders.status, ['CANCELED', 'CLOSED']),
+									),
+								),
+							)
+							.as('activeOrders'),
+					},
+				});
+
+				const expectedResult = [{ id: 1, activeOrders: 0 }, { id: 2, activeOrders: 1 }];
+				const result = await recordsQuery;
+				expect(result).toStrictEqual(expectedResult);
+				expect(recordsQuery.toSQL()).toStrictEqual({
+					sql:
+						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where ("rqb_orders_18"."user_id" = "d0"."id" and not "rqb_orders_18"."status" in ($1, $2)))) as "activeOrders" from "rqb_users_18" as "d0"',
+					params: ['CANCELED', 'CLOSED'],
+					typings: ['none', 'none'],
+				});
+			},
+		);
 	});
 }

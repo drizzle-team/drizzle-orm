@@ -13,9 +13,7 @@ import {
 	doublePrecision,
 	duration,
 	foreignKey,
-	type GelColumn,
 	gelTable,
-	type GelTableWithColumns,
 	index,
 	integer,
 	json,
@@ -678,85 +676,8 @@ export const citiesCustom = customSchema.table('cities_table', {
 		population: integer('population').default(0),
 	}));
 
-	type Expected = GelTableWithColumns<{
-		name: 'cities_table';
-		schema: undefined;
-		dialect: 'gel';
-		columns: {
-			id: GelColumn<{
-				tableName: 'cities_table';
-				name: string;
-				dataType: 'number';
-				data: number;
-				driverParam: number;
-				hasDefault: false;
-				notNull: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			name: GelColumn<{
-				tableName: 'cities_table';
-				name: string;
-				dataType: 'string';
-				data: string;
-				driverParam: string;
-				hasDefault: false;
-				enumValues: undefined;
-				notNull: true;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			role: GelColumn<
-				{
-					tableName: 'cities_table';
-					name: string;
-					dataType: 'string';
-					data: 'admin' | 'user';
-					driverParam: string;
-					hasDefault: true;
-					enumValues: undefined;
-					notNull: true;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				},
-				{}
-			>;
-			population: GelColumn<{
-				tableName: 'cities_table';
-				name: string;
-				dataType: 'number';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-		};
-	}>;
-
-	// @ts-ignore - TODO: Remake type checks for new columns
-	Expect<Equal<Expected, typeof cities1>>;
-	// @ts-ignore - TODO: Remake type checks for new columns
-	Expect<Equal<Expected, typeof cities2>>;
+	Expect<Equal<typeof cities1.$inferSelect, typeof cities2.$inferSelect>>;
+	Expect<Equal<typeof cities1.$inferInsert, typeof cities2.$inferInsert>>;
 }
 
 {

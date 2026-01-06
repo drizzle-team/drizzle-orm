@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -22,7 +21,7 @@ export class PgJsonBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgJson<T extends ColumnBaseConfig<'object json'>> extends PgColumn<T> {
+export class PgJson extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJson';
 
 	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
@@ -33,16 +32,16 @@ export class PgJson<T extends ColumnBaseConfig<'object json'>> extends PgColumn<
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue(value: unknown): string {
 		return JSON.stringify(value);
 	}
 
-	override mapFromDriverValue(value: T['data'] | string): T['data'] {
+	override mapFromDriverValue(value: unknown): unknown {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
 			} catch {
-				return value as T['data'];
+				return value;
 			}
 		}
 		return value;

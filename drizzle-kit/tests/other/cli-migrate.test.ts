@@ -22,8 +22,8 @@ test('migrate #1', async (t) => {
 		credentials: {
 			url: 'postgresql://postgres:postgres@127.0.0.1:5432/db',
 		},
-		schema: undefined, // drizzle migrations table schema
-		table: undefined, // drizzle migrations table name
+		schema: 'drizzle', // drizzle migrations table schema
+		table: '__drizzle_migrations', // drizzle migrations table name
 	});
 });
 
@@ -37,8 +37,8 @@ test('migrate #2', async (t) => {
 			authToken: 'token',
 			url: 'turso.dev',
 		},
-		schema: undefined, // drizzle migrations table schema
-		table: undefined, // drizzle migrations table name
+		schema: 'drizzle', // drizzle migrations table schema
+		table: '__drizzle_migrations', // drizzle migrations table name
 	});
 });
 
@@ -54,8 +54,8 @@ test('migrate #3', async (t) => {
 			databaseId: 'dbid',
 			token: 'token',
 		},
-		schema: undefined, // drizzle migrations table schema
-		table: undefined, // drizzle migrations table name
+		schema: 'drizzle', // drizzle migrations table schema
+		table: '__drizzle_migrations', // drizzle migrations table name
 	});
 });
 
@@ -72,8 +72,8 @@ test('migrate #4', async (t) => {
 			port: 5432,
 			user: 'postgresql',
 		},
-		schema: undefined, // drizzle migrations table schema
-		table: undefined, // drizzle migrations table name
+		schema: 'drizzle', // drizzle migrations table schema
+		table: '__drizzle_migrations', // drizzle migrations table name
 	});
 });
 

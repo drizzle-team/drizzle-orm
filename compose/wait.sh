@@ -28,6 +28,11 @@ for db in "$@"; do
       ;;
     mssql)                wait_tcp 127.0.0.1 1433  "mssql" ;;
     cockroach)            wait_tcp 127.0.0.1 26257 "cockroach" ;;
+    cockroach-many)
+      for i in $(seq 26260 26262); do
+        wait_tcp 127.0.0.1 "$i" "cockroach-$((i-26260))"
+      done
+      ;;
     neon)                 wait_tcp 127.0.0.1 5446  "neon-serverless" ;;
     *) echo "Unknown db '$db'";;
   esac

@@ -2,17 +2,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 
 import { alias } from '~/pg-core/alias.ts';
-import {
-	boolean,
-	integer,
-	pgMaterializedView,
-	type PgSelect,
-	type PgSelectQueryBuilder,
-	pgTable,
-	pgView,
-	QueryBuilder,
-	text,
-} from '~/pg-core/index.ts';
+import { boolean, integer, pgMaterializedView, pgTable, pgView, QueryBuilder, text } from '~/pg-core/index.ts';
 import {
 	and,
 	arrayContained,
@@ -41,6 +31,7 @@ import {
 } from '~/sql/expressions/index.ts';
 import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
 
+import { PgSelect } from '~/pg-core/query-builders/select.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
 
@@ -1030,7 +1021,7 @@ await db
 }
 
 {
-	function withFriends<T extends PgSelectQueryBuilder>(qb: T) {
+	function withFriends<T extends PgSelect>(qb: T) {
 		const friends = alias(users, 'friends');
 		const friends2 = alias(users, 'friends2');
 		const friends3 = alias(users, 'friends3');
@@ -1046,6 +1037,7 @@ await db
 
 	const qb = db.select().from(users).$dynamic();
 	const result = await withFriends(qb);
+
 	Expect<
 		Equal<typeof result, {
 			users_table: typeof users.$inferSelect;
@@ -1070,7 +1062,7 @@ await db
 
 {
 	// TODO: add to docs
-	function dynamic<T extends PgSelectQueryBuilder>(qb: T) {
+	function dynamic<T extends PgSelect>(qb: T) {
 		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
 	}
 

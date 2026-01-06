@@ -1,6 +1,7 @@
-import { trimChar } from '../../utils';
+import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import type { Column, ForeignKey } from './ddl';
+import { escapeForTsLiteral } from '../utils';
+import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
 const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
@@ -24,7 +25,10 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	toTs(value: Column['default']): { def: string; options?: Record<string, string | number | boolean> } | string;
+	toTs(
+		value: Column['default'],
+		type: string,
+	): { def: string; options?: Record<string, string | number | boolean>; customType?: string } | string;
 }
 
 const intAffinities = [
@@ -45,9 +49,9 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	drizzleImport: () => 'integer',
 	defaultFromDrizzle: (value, mode) => {
-		if (typeof value === 'boolean') {
-			return value ? '1' : '0';
-		}
+		// if (typeof value === 'boolean') {
+		// 	return value ? '1' : '0';
+		// }
 
 		if (typeof value === 'bigint') {
 			return `'${value.toString()}'`;
@@ -69,8 +73,12 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	toTs: (value) => {
 		if (!value) return '';
-		const check = Number(value);
 
+		if (value === 'true' || value === 'false') {
+			return { def: value, options: { mode: 'boolean' } };
+		}
+
+		const check = Number(value);
 		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
 		return `${value}n`; // bigint
@@ -156,12 +164,14 @@ export const Text: SqlType = {
 	is: function(type: string): boolean {
 		const lowered = type.toLowerCase();
 		return textAffinities.indexOf(lowered) >= 0
+			|| lowered.startsWith('text(')
 			|| lowered.startsWith('character(')
 			|| lowered.startsWith('varchar(')
 			|| lowered.startsWith('varying character(')
 			|| lowered.startsWith('nchar(')
 			|| lowered.startsWith('native character(')
-			|| lowered.startsWith('nvarchar(');
+			|| lowered.startsWith('nvarchar(')
+			|| lowered.startsWith('clob(');
 	},
 	drizzleImport: function(): Import {
 		return 'text';
@@ -226,7 +236,7 @@ export const Blob: SqlType = {
 	defaultFromIntrospect: function(value: string) {
 		return value;
 	},
-	toTs: function(value) {
+	toTs: function(value, type) {
 		if (value === null) return '';
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
@@ -247,7 +257,26 @@ export const Blob: SqlType = {
 			}
 		} catch {}
 
-		return Text.toTs(value);
+		return Text.toTs(value, type);
+	},
+};
+
+export const Custom: SqlType = {
+	is: (_type: string) => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		if (!value) return '';
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: function(value, type) {
+		if (!value) return { def: '', customType: type };
+		const escaped = escapeForTsLiteral(value);
+		return { def: escaped, customType: type };
 	},
 };
 
@@ -257,11 +286,13 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Numeric.is(sqlType)) return Numeric;
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
+	if (Numeric.is(sqlType)) return Numeric;
 
-	// If no specific type matches, default to Numeric
-	return Numeric;
+	// If no specific type matches, default to Custom
+	return Custom;
 };
 
+// https://www.sqlite.org/datatype3.html
 export function sqlTypeFrom(sqlType: string): string {
 	const lowered = sqlType.toLowerCase();
 	if (
@@ -313,7 +344,14 @@ export function sqlTypeFrom(sqlType: string): string {
 		return 'real';
 	}
 
-	return 'numeric';
+	// https://www.sqlite.org/datatype3.html -> 3.1.1. Affinity Name Examples
+	if (
+		['numeric', 'decimal', 'boolean', 'date', 'datetime'].some((it) => lowered.startsWith(it))
+	) {
+		return 'numeric';
+	}
+
+	return sqlType;
 }
 
 export const parseDefault = (type: string, it: string): Column['default'] => {
@@ -571,3 +609,82 @@ export function parseSqliteFks(ddl: string): IFkConstraint[] {
 
 	return results;
 }
+
+// for integer mode timestamp | timestamp_ms
+function compareIntegerTimestamps(from: string, to: string): boolean {
+	from = trimChar(trimChar(from, "'"), '"');
+	to = trimChar(trimChar(to, "'"), '"');
+
+	const mappedFrom: number | string = /^\d+$/.test(from) ? Number(from) : from;
+	const mappedTo: number | string = /^\d+$/.test(to) ? Number(to) : to;
+
+	let timestampFrom = new Date(mappedFrom).getTime();
+	let timestampTo = new Date(mappedTo).getTime();
+	if (timestampFrom === timestampTo) return true;
+
+	if (typeof mappedFrom === 'number') {
+		timestampFrom = new Date(Number(from) * 1000).getTime();
+
+		return timestampFrom === timestampTo;
+	}
+
+	if (typeof mappedTo === 'number') {
+		timestampTo = new Date(Number(to) * 1000).getTime();
+
+		return timestampFrom === timestampTo;
+	}
+
+	return false;
+}
+// for legacy blobs
+function parseToHex(value: string | null) {
+	if (!value) return null;
+
+	try {
+		const parsed: any = JSON.parse(trimChar(value, "'"));
+		if (parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
+			value = Blob.defaultFromDrizzle(Buffer.from(parsed.data));
+		}
+	} catch {}
+
+	return value;
+}
+export const defaultsCommutative = (
+	diffDef: DiffEntities['columns']['default'],
+	type: string,
+): boolean => {
+	if (!diffDef) return false;
+
+	let from = diffDef.from;
+	let to = diffDef.to;
+
+	if (from === to) return true;
+	if (from === `(${to})`) return true;
+	if (to === `(${from})`) return true;
+
+	if (type.startsWith('integer')) {
+		if (from && to) {
+			// old snapshot has '"<iso_date>"'
+
+			return compareIntegerTimestamps(from, to);
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('blob')) {
+		return parseToHex(from) === parseToHex(to);
+	}
+
+	return false;
+};
+
+export const transformOnUpdateDelete = (on: 'no action' | 'cascade' | 'restrict' | 'set default' | 'set null') => {
+	if (on === 'no action') return 'NO ACTION';
+	if (on === 'cascade') return 'CASCADE';
+	if (on === 'restrict') return 'RESTRICT';
+	if (on === 'set default') return 'SET DEFAULT';
+	if (on === 'set null') return 'SET NULL';
+
+	assertUnreachable(on);
+};

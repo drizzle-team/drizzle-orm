@@ -10,14 +10,13 @@ import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import type { Driver, Prefix } from '../validations/common';
+import type { Driver } from '../validations/common';
 
 export const writeResult = (config: {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
 	outFolder: string;
 	breakpoints: boolean;
-	prefixMode: Prefix;
 	name?: string;
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';

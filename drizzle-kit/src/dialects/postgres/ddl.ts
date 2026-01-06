@@ -361,7 +361,14 @@ interface PrivilegeDuplicate {
 	name: string;
 }
 
+interface EnumValuesDuplicate {
+	type: 'enum_values_duplicate';
+	schema: string;
+	name: string;
+}
+
 export type SchemaError =
+	| EnumValuesDuplicate
 	| SchemaDuplicate
 	| EnumDuplicate
 	| TableDuplicate
@@ -406,6 +413,16 @@ export const interimToDDL = (
 
 	for (const it of schema.enums) {
 		const res = ddl.enums.push(it);
+
+		const uniqueElements = new Set(it.values);
+		if (uniqueElements.size !== it.values.length) {
+			errors.push({
+				type: 'enum_values_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
+		}
+
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'enum_name_duplicate',

@@ -6,6 +6,7 @@ import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
+import { defaultsCommutative } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
@@ -237,6 +238,14 @@ export const ddlDiff = async (
 			delete it.nameExplicit;
 		}
 
+		if (
+			it.columns && it.columns.to && it.columns.from && it.columns.from.length === it.columns.to.length
+		) {
+			const unique = new Set(it.columns.to);
+
+			if (it.columns.from.every((col) => unique.has(col))) delete it.columns;
+		}
+
 		return ddl2.pks.hasDiff(it);
 	});
 
@@ -250,9 +259,18 @@ export const ddlDiff = async (
 
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
-	const alteredColumnsBecameGenerated = updates.filter((it) => it.entityType === 'columns').filter((it) =>
-		it.generated?.to?.type === 'stored'
-	);
+	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
+		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
+			delete it.notNull;
+		}
+
+		if (it.default && defaultsCommutative(it.default, it.$right.type)) {
+			delete it.default;
+		}
+
+		return ddl2.columns.hasDiff(it);
+	});
+	const alteredColumnsBecameGenerated = alteredColumns.filter((it) => it.generated?.to?.type === 'stored');
 	const newStoredColumns = columnsToCreate.filter((it) => it.generated && it.generated.type === 'stored');
 
 	const setOfTablesToRecereate = new Set(
@@ -274,11 +292,8 @@ export const ddlDiff = async (
 		setOfTablesToRecereate.delete(it.name);
 	}
 
-	for (const it of updates) {
-		if (
-			it.entityType === 'columns'
-			&& (it.type || it.default || it.notNull || it.autoincrement)
-		) {
+	for (const it of [...alteredColumns, ...pksAlters, ...fksAlters, ...uniquesAlters, ...checksAlters]) {
+		if (it.entityType === 'columns' && (it.type || it.default || it.autoincrement || it.notNull)) {
 			setOfTablesToRecereate.add(it.table);
 		}
 		if (pksAlters.length > 0 && it.entityType === 'pks') setOfTablesToRecereate.add(it.table);
@@ -302,7 +317,7 @@ export const ddlDiff = async (
 			newStoredColumns: newStoredColumns.filter((column) => column.table === it),
 			checkDiffs: checksDiff.filter((checkDiff) => checkDiff.table === it),
 			checksAlters: checksAlters.filter((checkAlter) => checkAlter.table === it),
-			columnAlters: updates.filter((it) => it.entityType === 'columns').filter((column) => column.table === it),
+			columnAlters: alteredColumns.filter((column) => column.table === it),
 			fksAlters: fksAlters.filter((fkAlters) => fkAlters.table === it),
 			fksDiff: fksDiff.filter((fkDiff) => fkDiff.table === it),
 			indexesDiff: indexesDiff.filter((indexDiff) => indexDiff.table === it),
@@ -313,10 +328,8 @@ export const ddlDiff = async (
 		});
 	});
 
-	const jsonTableAlternations = updates.filter((it) => it.entityType === 'columns')
-		.filter(
-			(it) => !setOfTablesToRecereate.has(it.table),
-		).map((it) =>
+	const jsonTableAlternations = alteredColumns
+		.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) =>
 			prepareRecreateColumn(
 				it,
 				ddl2.columns.one({ table: it.table, name: it.name })!,

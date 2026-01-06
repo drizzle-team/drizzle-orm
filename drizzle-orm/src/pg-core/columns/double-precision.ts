@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -23,7 +22,7 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgDoublePrecision<T extends ColumnBaseConfig<'number double'>> extends PgColumn<T> {
+export class PgDoublePrecision extends PgColumn<'number double'> {
 	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {

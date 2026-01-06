@@ -27,6 +27,13 @@ export function mapEnumValues(values: string[]) {
 
 export function columnToSchema(column: Column): v.GenericSchema {
 	let schema!: v.GenericSchema;
+
+	// Check for PG array columns (have dimensions property instead of changing dataType)
+	const dimensions = (<{ dimensions?: number }> column).dimensions;
+	if (typeof dimensions === 'number' && dimensions > 0) {
+		return pgArrayColumnToSchema(column, dimensions);
+	}
+
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
@@ -223,6 +230,48 @@ function bigintColumnToSchema(column: Column, constraint: ColumnDataBigIntConstr
 	return actions.length > 0 ? v.pipe(v.bigint(), ...actions) : v.bigint();
 }
 
+function pgArrayColumnToSchema(
+	column: Column,
+	dimensions: number,
+): v.GenericSchema {
+	// PG style: the column IS the base type, with dimensions indicating array depth
+	// Get the base schema from the column's own dataType
+	const [baseType, baseConstraint] = column.dataType.split(' ');
+	let baseSchema: v.GenericSchema;
+
+	switch (baseType) {
+		case 'number':
+			baseSchema = numberColumnToSchema(column, baseConstraint as ColumnDataNumberConstraint);
+			break;
+		case 'bigint':
+			baseSchema = bigintColumnToSchema(column, baseConstraint as ColumnDataBigIntConstraint);
+			break;
+		case 'boolean':
+			baseSchema = v.boolean();
+			break;
+		case 'string':
+			baseSchema = stringColumnToSchema(column, baseConstraint as ColumnDataStringConstraint);
+			break;
+		case 'object':
+			baseSchema = objectColumnToSchema(column, baseConstraint as ColumnDataObjectConstraint);
+			break;
+		case 'array':
+			// Handle array types like point, line, etc.
+			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint);
+			break;
+		default:
+			baseSchema = v.any();
+	}
+
+	// Wrap in arrays based on dimensions
+	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
+	let schema: v.GenericSchema = v.array(baseSchema);
+	for (let i = 1; i < dimensions; i++) {
+		schema = v.array(schema);
+	}
+	return schema;
+}
+
 function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstraint | undefined): v.GenericSchema {
 	switch (constraint) {
 		case 'geometry':
@@ -249,12 +298,15 @@ function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstrai
 				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
 		}
 		case 'basecolumn': {
-			const { length } = column;
-			const schema = (<{ baseColumn?: Column }> column).baseColumn
-				? v.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!))
-				: v.array(v.any());
-			if (length) return v.pipe(schema, v.length(length));
-			return schema;
+			// CockroachDB/GEL style: has a separate baseColumn
+			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
+			if (baseColumn) {
+				const { length } = column;
+				const schema = v.array(columnToSchema(baseColumn));
+				if (length) return v.pipe(schema, v.length(length));
+				return schema;
+			}
+			return v.array(v.any());
 		}
 		default: {
 			return v.array(v.any());

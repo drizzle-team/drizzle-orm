@@ -12,7 +12,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils';
+import type { NeonAuthToken } from '~/utils.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface CockroachRefreshMaterializedView<TQueryResult extends CockroachQueryResultHKT>
