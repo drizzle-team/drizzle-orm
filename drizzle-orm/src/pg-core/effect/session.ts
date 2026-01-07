@@ -4,8 +4,8 @@ import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import { strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
+import { TaggedDrizzleQueryError, TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -47,7 +47,7 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 		queryString: string,
 		params: any[],
 		query: Effect.Effect<T, SqlError>,
-	): Effect.Effect<T, DrizzleQueryError> {
+	): Effect.Effect<T, TaggedDrizzleQueryError> {
 		const { cache, cacheConfig, queryMetadata } = this;
 		return Effect.gen(function*() {
 			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache
@@ -95,16 +95,16 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 			assertUnreachable(cacheStrat);
 		}).pipe(Effect.catchAll((e) => {
 			// eslint-disable-next-line @drizzle-internal/no-instanceof
-			return Effect.fail(new DrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+			return Effect.fail(new TaggedDrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
 		}));
 	}
 
 	abstract override execute(
 		placeholderValues?: Record<string, unknown>,
-	): Effect.Effect<T['execute'], DrizzleQueryError>;
+	): Effect.Effect<T['execute'], TaggedDrizzleQueryError>;
 
 	/** @internal */
-	abstract override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], DrizzleQueryError>;
+	abstract override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], TaggedDrizzleQueryError>;
 }
 
 export abstract class PgEffectSession<
@@ -142,13 +142,13 @@ export abstract class PgEffectSession<
 		) => T['execute'],
 	): PgEffectPreparedQuery<T>;
 
-	override execute<T>(query: SQL): Effect.Effect<T, DrizzleQueryError> {
+	override execute<T>(query: SQL): Effect.Effect<T, TaggedDrizzleQueryError> {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined, false)
 			.execute();
 	}
 
-	override all<T>(query: SQL): Effect.Effect<T[], DrizzleQueryError> {
+	override all<T>(query: SQL): Effect.Effect<T[], TaggedDrizzleQueryError> {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined, false)
 			.all();
@@ -157,8 +157,8 @@ export abstract class PgEffectSession<
 	abstract transaction<T>(
 		transaction: (
 			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>,
-	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>;
+		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
+	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>;
 }
 
 export abstract class PgEffectTransaction<
@@ -184,9 +184,9 @@ export abstract class PgEffectTransaction<
 		super(dialect, session, relations, schema, parseRqbJson);
 	}
 
-	rollback = function*() {
-		yield* Effect.fail(new TransactionRollbackError());
-	};
+	rollback(): Effect.Effect<never, TaggedTransactionRollbackError> {
+		return Effect.fail(new TaggedTransactionRollbackError());
+	}
 
 	/** @internal */
 	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
@@ -203,22 +203,22 @@ export abstract class PgEffectTransaction<
 		return sql.raw(chunks.join(' '));
 	}
 
-	setTransaction(config: PgTransactionConfig): Effect.Effect<void, DrizzleQueryError> {
+	setTransaction(config: PgTransactionConfig): Effect.Effect<void, TaggedDrizzleQueryError> {
 		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
 
 	abstract override transaction<T>(
 		transaction: (
 			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>,
-	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>;
+		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
+	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>;
 }
 
 export function migrate(
 	migrations: MigrationMeta[],
 	session: PgEffectSession,
 	config: string | MigrationConfig,
-): Effect.Effect<void | MigratorInitFailResponse, DrizzleQueryError, never> {
+): Effect.Effect<void | MigratorInitFailResponse, TaggedDrizzleQueryError, never> {
 	return Effect.gen(function*() {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
@@ -284,5 +284,5 @@ export function migrate(
 		);
 
 		return;
-	}) as Effect.Effect<void | MigratorInitFailResponse, DrizzleQueryError, never>;
+	}) as Effect.Effect<void | MigratorInitFailResponse, TaggedDrizzleQueryError, never>;
 }
