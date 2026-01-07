@@ -1,0 +1,49 @@
+{
+  "languages": {
+    "TypeScript": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "TSX": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "JavaScript": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "JSONC": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "JSON": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "Markdown": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "Python": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "Rust": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+    "Go": {
+      "enable_language_server": false,
+      "format_on_save": "off",
+      "formatter": null,
+    },
+  },
+}
