@@ -206,7 +206,7 @@ export class BunSQLTransaction<
 	override transaction<T>(
 		transaction: (tx: BunSQLTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
-		return (this.session.client as TransactionSQL).savepoint((client) => {
+		return (this.session.client as TransactionSQL).savepoint((client: SavepointSQL) => {
 			const session = new BunSQLSession<SavepointSQL, TFullSchema, TSchema>(
 				client,
 				this.dialect,
