@@ -1,5 +1,7 @@
-import { drizzle } from '~/better-sqlite3';
-import { sqliteTable, text } from '~/sqlite-core';
+// oxlint-disable no-unused-expressions
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { type Equal, Expect } from './utils.ts';
 
 export const test = sqliteTable(
 	'test',
@@ -13,6 +15,25 @@ export const test = sqliteTable(
 		dbdef: text('dbdef').default('dbdefval'),
 	},
 );
+
+Expect<
+	Equal<typeof test['$inferSelect'], {
+		id: string;
+		name: string;
+		title: string;
+		description: string;
+		dbdef: string;
+	}>
+>;
+
+Expect<
+	Equal<typeof test['$inferInsert'], {
+		title: string;
+		name?: string;
+		description?: string;
+		dbdef?: string;
+	}>
+>;
 
 const db = drizzle.mock();
 
