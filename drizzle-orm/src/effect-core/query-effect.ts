@@ -4,15 +4,15 @@ import { entityKind } from '~/entity.ts';
 import { applyMixins } from '~/utils.ts';
 import type { TaggedDrizzleQueryError } from './errors.ts';
 
-export interface QueryEffect<Succes = never, Failure = TaggedDrizzleQueryError, Context = never>
-	extends Effect.Effect<Succes, Failure, Context>
+export interface QueryEffect<Success = never, Failure = TaggedDrizzleQueryError, Context = never>
+	extends Effect.Effect<Success, Failure, Context>
 {
 }
 
-export abstract class QueryEffect<Succes = never, Failure = TaggedDrizzleQueryError, Context = never> {
+export abstract class QueryEffect<Success = never, Failure = TaggedDrizzleQueryError, Context = never> {
 	static readonly [entityKind]: string = 'EffectWrapper';
 
-	protected _effect!: Effect.Effect<Succes, Failure, Context>;
+	protected _effect!: Effect.Effect<Success, Failure, Context>;
 	protected get effect() {
 		this._effect = Effect.suspend(() => this.execute());
 
@@ -40,7 +40,7 @@ export abstract class QueryEffect<Succes = never, Failure = TaggedDrizzleQueryEr
 		return this._pipe;
 	}
 
-	abstract execute(...args: any[]): Effect.Effect<Succes, Failure, Context>;
+	abstract execute(...args: any[]): Effect.Effect<Success, Failure, Context>;
 
 	get [Effect.EffectTypeId]() {
 		return this.effect[Effect.EffectTypeId];
