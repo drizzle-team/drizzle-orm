@@ -18,8 +18,7 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { GelCredentials, gelCredentials } from '../validations/gel';
-import { printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import {
 	LibSQLCredentials,
 	libSQLCredentials,
@@ -47,7 +46,7 @@ import {
 	sqliteCredentials,
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error, grey } from '../views';
+import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -664,7 +663,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema } = result.data;
+	const { dialect, schema, casing } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -680,6 +679,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -696,6 +696,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -712,6 +713,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -728,6 +730,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
@@ -744,6 +747,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
+			casing,
 		};
 	}
 
