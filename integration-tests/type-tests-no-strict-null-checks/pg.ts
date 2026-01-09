@@ -1,22 +1,46 @@
-import { drizzle } from '~/cockroach';
-import { cockroachTable, int4, text } from '~/cockroach-core';
+// oxlint-disable no-unused-expressions
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { type Equal, Expect } from './utils.ts';
 
-export const test = cockroachTable(
+export const test = pgTable(
 	'test',
 	{
 		id: text('id')
 			.primaryKey()
 			.generatedAlwaysAs('genstr'),
-		intId: int4('int_id')
+		intId: integer('int_id')
 			.primaryKey()
 			.generatedAlwaysAsIdentity(),
-		int2Id: int4('int2_id').generatedByDefaultAsIdentity(),
+		int2Id: integer('int2_id').generatedByDefaultAsIdentity(),
 		name: text('name').$defaultFn(() => '' as string),
 		title: text('title').notNull(),
 		description: text('description'),
 		dbdef: text('dbdef').default('dbdefval'),
 	},
 );
+
+Expect<
+	Equal<typeof test['$inferSelect'], {
+		id: string;
+		intId: number;
+		int2Id: number;
+		name: string;
+		title: string;
+		description: string;
+		dbdef: string;
+	}>
+>;
+
+Expect<
+	Equal<typeof test['$inferInsert'], {
+		title: string;
+		int2Id?: number;
+		name?: string;
+		description?: string;
+		dbdef?: string;
+	}>
+>;
 
 const db = drizzle.mock();
 

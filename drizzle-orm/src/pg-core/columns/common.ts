@@ -79,7 +79,7 @@ export interface PgColumnBaseConfig<out TDataType extends ColumnType = ColumnTyp
 	enumValues: string[] | undefined;
 	generated: unknown;
 	identity: undefined | 'always' | 'byDefault';
-	insertType: unknown;
+	// insertType: unknown;
 }
 
 type WrapArray<T, N extends number> = N extends 1 ? T[]
@@ -130,10 +130,10 @@ export type ResolvePgColumnConfig<
 	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
 	identity: T['identity'] extends 'always' | 'byDefault' ? T['identity'] : undefined;
 	generated: T['generated'] extends true ? true : undefined;
-	insertType: T['generated'] extends true ? never
-		: T['identity'] extends 'always' ? never
-		: T['notNull'] extends true ? T['hasDefault'] extends true ? TData | undefined : TData
-		: TData | null | undefined;
+	// insertType: T['generated'] extends true ? never
+	// 	: T['identity'] extends 'always' ? never
+	// 	: T['notNull'] extends true ? T['hasDefault'] extends true ? TData | undefined : TData
+	// 	: TData | null | undefined;
 } & {};
 
 export interface AnyPgColumnBuilder {

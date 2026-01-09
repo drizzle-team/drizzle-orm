@@ -1,15 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-type PgVarcharBuilderConfig<TEnum extends [string, ...string[]] | undefined> = TEnum extends [string, ...string[]]
-	? { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string }
-	: { dataType: 'string'; data: string; driverParam: string };
+type PgVarcharBuilderConfig<TEnum extends [string, ...string[]]> = Equal<TEnum, [string, ...string[]]> extends true
+	? { dataType: 'string'; data: string; driverParam: string }
+	: { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string };
 
-export class PgVarcharBuilder<
-	TEnum extends [string, ...string[]] | undefined = undefined,
-> extends PgColumnBuilder<
+export class PgVarcharBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<
 	PgVarcharBuilderConfig<TEnum>,
 	{ length: number | undefined; enumValues: TEnum }
 > {
@@ -30,8 +28,8 @@ export class PgVarcharBuilder<
 	}
 }
 
-export class PgVarchar<TEnum extends [string, ...string[]] | undefined = undefined>
-	extends PgColumn<TEnum extends [string, ...string[]] ? 'string enum' : 'string'>
+export class PgVarchar<TEnum extends [string, ...string[]] = [string, ...string[]]>
+	extends PgColumn<Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'>
 {
 	static override readonly [entityKind]: string = 'PgVarchar';
 
@@ -54,10 +52,10 @@ export interface PgVarcharConfig<
 	length?: number;
 }
 
-export function varchar(): PgVarcharBuilder<undefined>;
-export function varchar(name: string): PgVarcharBuilder<undefined>;
-export function varchar(config: { length?: number }): PgVarcharBuilder<undefined>;
-export function varchar(name: string, config: { length?: number }): PgVarcharBuilder<undefined>;
+export function varchar(): PgVarcharBuilder;
+export function varchar(name: string): PgVarcharBuilder;
+export function varchar(config: { length?: number }): PgVarcharBuilder;
+export function varchar(name: string, config: { length?: number }): PgVarcharBuilder;
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config: PgVarcharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgVarcharBuilder<Writable<T>>;

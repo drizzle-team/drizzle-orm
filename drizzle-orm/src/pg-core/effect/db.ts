@@ -2,8 +2,8 @@ import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
+import type { TaggedDrizzleQueryError, TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
@@ -661,8 +661,8 @@ export class PgEffectDatabase<
 	transaction<T>(
 		transaction: (
 			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError>,
-	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError> {
+		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
+	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError> {
 		return this.session.transaction(
 			transaction,
 		);
