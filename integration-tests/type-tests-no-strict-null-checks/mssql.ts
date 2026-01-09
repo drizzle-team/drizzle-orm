@@ -1,7 +1,9 @@
-import { mysqlTable, text } from '~/mysql-core';
-import { drizzle } from '~/mysql2';
+// oxlint-disable no-unused-expressions
+import { mssqlTable, text } from 'drizzle-orm/mssql-core';
+import { drizzle } from 'drizzle-orm/node-mssql';
+import { type Equal, Expect } from './utils.ts';
 
-export const test = mysqlTable(
+export const test = mssqlTable(
 	'test',
 	{
 		id: text('id')
@@ -13,6 +15,25 @@ export const test = mysqlTable(
 		dbdef: text('dbdef').default('dbdefval'),
 	},
 );
+
+Expect<
+	Equal<typeof test['$inferSelect'], {
+		id: string;
+		name: string;
+		title: string;
+		description: string;
+		dbdef: string;
+	}>
+>;
+
+Expect<
+	Equal<typeof test['$inferInsert'], {
+		title: string;
+		name?: string;
+		description?: string;
+		dbdef?: string;
+	}>
+>;
 
 const db = drizzle.mock();
 

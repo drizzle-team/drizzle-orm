@@ -1,6 +1,7 @@
 import { PgClient } from '@effect/sql-pg';
 import { expect, expectTypeOf, it } from '@effect/vitest';
-import { and, asc, eq, gt, gte, inArray, lt, sql, TransactionRollbackError } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
+import { TaggedTransactionRollbackError } from 'drizzle-orm/effect-core/errors';
 import { drizzle, EffectPgDatabase } from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
@@ -1303,12 +1304,12 @@ it.layer(clientLayer)((it) => {
 					yield* tx.insert(users).values({ balance: 100 });
 					yield* tx.rollback();
 				})
-			).pipe(Effect.catchAll((e) => Effect.succeed(e as TransactionRollbackError)));
+			).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e)));
 
 			const result = yield* db.select().from(users);
 
 			expect(result).toEqual([]);
-			expect(res).toBeInstanceOf(TransactionRollbackError);
+			expect(res).toBeInstanceOf(TaggedTransactionRollbackError);
 		}));
 
 	it.effect('nested transaction', () =>
@@ -1360,8 +1361,8 @@ it.layer(clientLayer)((it) => {
 								yield* tx.update(users).set({ balance: 200 });
 								yield* tx.rollback();
 							})
-						).pipe(Effect.catchAll((e) => Effect.succeed(e as TransactionRollbackError))),
-					).toBeInstanceOf(TransactionRollbackError);
+						).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e))),
+					).toBeInstanceOf(TaggedTransactionRollbackError);
 				})
 			);
 

@@ -1,15 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-type PgCharBuilderConfig<TEnum extends [string, ...string[]] | undefined> = TEnum extends [string, ...string[]]
-	? { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string }
-	: { dataType: 'string'; data: string; driverParam: string };
+type PgCharBuilderConfig<TEnum extends [string, ...string[]]> = Equal<TEnum, [string, ...string[]]> extends true
+	? { dataType: 'string'; data: string; driverParam: string }
+	: { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string };
 
-export class PgCharBuilder<
-	TEnum extends [string, ...string[]] | undefined = undefined,
-> extends PgColumnBuilder<
+export class PgCharBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<
 	PgCharBuilderConfig<TEnum>,
 	{ enumValues: TEnum; length: number; setLength: boolean }
 > {
@@ -31,8 +29,8 @@ export class PgCharBuilder<
 	}
 }
 
-export class PgChar<TEnum extends [string, ...string[]] | undefined = undefined>
-	extends PgColumn<TEnum extends [string, ...string[]] ? 'string enum' : 'string'>
+export class PgChar<TEnum extends [string, ...string[]] = [string, ...string[]]>
+	extends PgColumn<Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 
@@ -57,10 +55,10 @@ export interface PgCharConfig<
 	length?: number;
 }
 
-export function char(): PgCharBuilder<undefined>;
-export function char(name: string): PgCharBuilder<undefined>;
-export function char(config: { length?: number }): PgCharBuilder<undefined>;
-export function char(name: string, config: { length?: number }): PgCharBuilder<undefined>;
+export function char(): PgCharBuilder;
+export function char(name: string): PgCharBuilder;
+export function char(config: { length?: number }): PgCharBuilder;
+export function char(name: string, config: { length?: number }): PgCharBuilder;
 export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config: PgCharConfig<T | Writable<T>> & { enum: T | Writable<T> },
 ): PgCharBuilder<Writable<T>>;

@@ -1,7 +1,7 @@
 import type { Effect } from 'effect/Effect';
+import type { TaggedDrizzleQueryError } from '~/effect-core/errors.ts';
 import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { PgDialect } from '../dialect.ts';
 import { PgCountBuilder } from '../query-builders/count.ts';
@@ -9,7 +9,7 @@ import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectSession } from './session.ts';
 
-export interface PgEffectCountBuilder extends PgCountBuilder, QueryEffect<number, DrizzleQueryError> {}
+export interface PgEffectCountBuilder extends PgCountBuilder, QueryEffect<number, TaggedDrizzleQueryError> {}
 
 export class PgEffectCountBuilder extends PgCountBuilder {
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
@@ -28,7 +28,7 @@ export class PgEffectCountBuilder extends PgCountBuilder {
 		this.session = session;
 	}
 
-	execute(placeholderValues?: Record<string, unknown>): Effect<number, DrizzleQueryError> {
+	execute(placeholderValues?: Record<string, unknown>): Effect<number, TaggedDrizzleQueryError> {
 		return this.session.prepareQuery<{
 			execute: number;
 			all: unknown;

@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-type PgTextBuilderConfig<TEnum extends [string, ...string[]] | undefined> = TEnum extends [string, ...string[]]
-	? { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string }
-	: { dataType: 'string'; data: string; driverParam: string };
+type PgTextBuilderConfig<TEnum extends [string, ...string[]]> = Equal<TEnum, [string, ...string[]]> extends true
+	? { dataType: 'string'; data: string; driverParam: string }
+	: { dataType: 'string enum'; data: TEnum[number]; enumValues: TEnum; driverParam: string };
 
-export class PgTextBuilder<TEnum extends [string, ...string[]] | undefined = undefined> extends PgColumnBuilder<
+export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<
 	PgTextBuilderConfig<TEnum>,
 	{ enumValues: TEnum }
 > {
@@ -27,8 +27,8 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] | undefined = und
 	}
 }
 
-export class PgText<TEnum extends [string, ...string[]] | undefined = undefined> extends PgColumn<
-	TEnum extends [string, ...string[]] ? 'string enum' : 'string'
+export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumn<
+	Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'
 > {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
@@ -54,8 +54,8 @@ export interface PgTextConfig<
 }
 
 // Original function overloads style
-export function text(): PgTextBuilder<undefined>;
-export function text(name: string): PgTextBuilder<undefined>;
+export function text(): PgTextBuilder;
+export function text(name: string): PgTextBuilder;
 export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config: PgTextConfig<T | Writable<T>>,
 ): PgTextBuilder<Writable<T>>;

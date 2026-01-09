@@ -1,7 +1,7 @@
 import type { Effect } from 'effect/Effect';
+import type { TaggedDrizzleQueryError } from '~/effect-core/errors.ts';
 import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import type { DrizzleQueryError } from '~/errors.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -17,7 +17,7 @@ export class PgEffectRaw<TResult> extends PgRaw<TResult> implements RunnableQuer
 	};
 
 	constructor(
-		public execute: () => Effect<TResult, DrizzleQueryError>,
+		public execute: () => Effect<TResult, TaggedDrizzleQueryError>,
 		sql: SQL,
 		query: Query,
 		mapBatchResult: (result: unknown) => unknown,

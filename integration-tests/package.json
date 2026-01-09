@@ -4,7 +4,7 @@
 	"description": "",
 	"type": "module",
 	"scripts": {
-		"test:types": "tsc && cd type-tests/join-nodenext && tsc",
+		"test:types": "tsc && cd type-tests/join-nodenext && tsc && cd ../../type-tests-no-strict-null-checks && tsc",
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",

@@ -1,7 +1,9 @@
-import { drizzle } from '~/node-postgres';
-import { integer, pgTable, text } from '~/pg-core';
+// oxlint-disable no-unused-expressions
+import { drizzle } from 'drizzle-orm/gel';
+import { gelTable, integer, text } from 'drizzle-orm/gel-core';
+import { type Equal, Expect } from './utils.ts';
 
-export const test = pgTable(
+export const test = gelTable(
 	'test',
 	{
 		id: text('id')
@@ -19,6 +21,28 @@ export const test = pgTable(
 );
 
 const db = drizzle.mock();
+
+Expect<
+	Equal<typeof test['$inferSelect'], {
+		id: string;
+		intId: number;
+		int2Id: number;
+		name: string;
+		title: string;
+		description: string;
+		dbdef: string;
+	}>
+>;
+
+Expect<
+	Equal<typeof test['$inferInsert'], {
+		title: string;
+		int2Id?: number;
+		name?: string;
+		description?: string;
+		dbdef?: string;
+	}>
+>;
 
 db.update(test)
 	.set({
