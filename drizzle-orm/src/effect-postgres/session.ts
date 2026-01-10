@@ -3,8 +3,8 @@ import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
+import { TaggedDrizzleQueryError, type TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError, type TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
@@ -46,7 +46,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
 
-	execute(placeholderValues?: Record<string, unknown>): Effect.Effect<T['execute'], DrizzleQueryError> {
+	execute(placeholderValues?: Record<string, unknown>): Effect.Effect<T['execute'], TaggedDrizzleQueryError> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
 		const { query, logger, customResultMapper, fields, joinsNotNullableMap, client } = this;
@@ -82,7 +82,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 	private executeRqbV2(
 		placeholderValues?: Record<string, unknown>,
-	): Effect.Effect<T['execute'], DrizzleQueryError> {
+	): Effect.Effect<T['execute'], TaggedDrizzleQueryError> {
 		const { query, logger, customResultMapper, client } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
@@ -97,12 +97,12 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 				),
 			).pipe(Effect.catchAll((e) => {
 				// eslint-disable-next-line @drizzle-internal/no-instanceof
-				return Effect.fail(new DrizzleQueryError(query.sql, params, e instanceof Error ? e : undefined));
+				return Effect.fail(new TaggedDrizzleQueryError(query.sql, params, e instanceof Error ? e : undefined));
 			}))
 		);
 	}
 
-	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], DrizzleQueryError, never> {
+	override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], TaggedDrizzleQueryError, never> {
 		const { query, logger, client } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
@@ -194,7 +194,7 @@ export class EffectPgSession<
 		);
 	}
 
-	override execute<T>(query: SQL): Effect.Effect<T, DrizzleQueryError> {
+	override execute<T>(query: SQL): Effect.Effect<T, TaggedDrizzleQueryError> {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 			this.dialect.sqlToQuery(query),
 			undefined,
@@ -203,7 +203,7 @@ export class EffectPgSession<
 		).execute();
 	}
 
-	override all<T>(query: SQL): Effect.Effect<T, DrizzleQueryError> {
+	override all<T>(query: SQL): Effect.Effect<T, TaggedDrizzleQueryError> {
 		return this.prepareQuery<PreparedQueryConfig & { all: T }>(
 			this.dialect.sqlToQuery(query),
 			undefined,
@@ -224,8 +224,8 @@ export class EffectPgSession<
 				TRelations,
 				TSchema
 			>,
-		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never>,
-	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never> {
+		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError, never>,
+	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError, never> {
 		const { dialect, relations, schema } = this;
 		const session = this;
 
@@ -238,7 +238,7 @@ export class EffectPgSession<
 			);
 
 			return yield* transaction(tx);
-		}));
+		})) as Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError, never>;
 	}
 }
 
@@ -253,8 +253,8 @@ export class EffectPgTransaction<
 	override transaction<T>(
 		transaction: (
 			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never>,
-	): Effect.Effect<T, DrizzleQueryError | TransactionRollbackError, never> {
+		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError, never>,
+	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError, never> {
 		return this.session.transaction(transaction);
 	}
 }

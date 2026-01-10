@@ -735,8 +735,8 @@ export const preparePostgresDB = async (
 	if (await checkPackage('bun')) {
 		console.log(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
-		const { drizzle } = await import('drizzle-orm/bun-sql');
-		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+		const { drizzle } = await import('drizzle-orm/bun-sql/postgres');
+		const { migrate } = await import('drizzle-orm/bun-sql/postgres/migrator');
 
 		const ssl = 'ssl' in credentials
 			? credentials.ssl === 'prefer'
@@ -1546,8 +1546,8 @@ export const connectToMySQL = async (
 	if (await checkPackage('bun')) {
 		console.log(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
-		const { drizzle } = await import('drizzle-orm/bun-sql');
-		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+		const { drizzle } = await import('drizzle-orm/bun-sql/mysql');
+		const { migrate } = await import('drizzle-orm/bun-sql/mysql/migrator');
 
 		const ssl = result.credentials && 'ssl' in result.credentials
 			? result.credentials.ssl === 'prefer'
@@ -2174,8 +2174,8 @@ export const connectToSQLite = async (
 	if (await checkPackage('bun')) {
 		console.log(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
-		const { drizzle } = await import('drizzle-orm/bun-sql');
-		const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+		const { drizzle } = await import('drizzle-orm/bun-sql/sqlite');
+		const { migrate } = await import('drizzle-orm/bun-sql/sqlite/migrator');
 
 		const client = new SQL({
 			adapter: 'sqlite',
