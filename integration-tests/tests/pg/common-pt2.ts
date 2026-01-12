@@ -3265,5 +3265,26 @@ export function tests(test: Test) {
 				expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5227
+		test.concurrent('select with bigint array in inArray', async ({ db, push }) => {
+			const users = pgTable('users_112', {
+				id: bigint('id', { mode: 'bigint' }).primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1n, name: 'John' }, { id: 2n, name: 'Jane' }, {
+				id: 9223372036854775807n,
+				name: 'Jane',
+			}]);
+			const result = await db
+				.select({ name: users.name })
+				.from(users)
+				.where(inArray(users.id, [9223372036854775807n, 2n]));
+
+			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }]);
+		});
 	});
 }

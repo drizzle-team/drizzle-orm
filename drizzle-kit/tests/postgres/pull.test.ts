@@ -38,6 +38,7 @@ import {
 	time,
 	timestamp,
 	unique,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -1604,6 +1605,49 @@ test('index with option', async () => {
 
 	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5224
+test('functional index', async () => {
+	const table1 = pgTable('table1', {
+		normalized_address: text(),
+		state: text(),
+	}, (t) => [
+		uniqueIndex('idx_addresses_natural_key')
+			.using(
+				'btree',
+				sql.raw(`upper(normalized_address)`),
+				sql.raw(`upper((state)::text)`),
+			)
+			.where(sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`)),
+	]);
+
+	// TODO: diffIntrospect returns empty array of sql statements even though table1 in test and table1 generated in functional_index.ts file are different
+	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'functional_index');
+	expect(sqlStatements).toStrictEqual([]);
+	throw new Error(`it's needed to fix the test`);
+	// it seems that fromDatabaseForDrizzle generates correct indices, but diffIntrospect generates invalid functional_index.ts file.
+
+	// const schema = { table1 };
+	// await push({ db, to: schema });
+
+	// const filter = prepareEntityFilter('postgresql', {
+	// 	tables: undefined,
+	// 	schemas: undefined,
+	// 	entities: undefined,
+	// 	extensions: undefined,
+	// }, []);
+	// const { indexes } = await fromDatabaseForDrizzle(
+	// 	db,
+	// 	filter,
+	// 	() => {},
+	// 	{
+	// 		table: '__drizzle_migrations',
+	// 		schema: 'drizzle',
+	// 	},
+	// );
+
+	// console.log(indexes[0].columns);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5193

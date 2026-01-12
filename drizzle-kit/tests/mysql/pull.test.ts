@@ -8,6 +8,7 @@ import {
 	char,
 	check,
 	customType,
+	datetime,
 	decimal,
 	double,
 	float,
@@ -27,6 +28,7 @@ import {
 	serial,
 	smallint,
 	text,
+	timestamp,
 	tinyblob,
 	tinyint,
 	tinytext,
@@ -739,4 +741,20 @@ test('pull after migrate with custom migrations table #2', async () => {
 			table: 'users',
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5212
+test('datetime', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: datetime().notNull().default(sql`CURRENT_TIMESTAMP`),
+		// col2: datetime().notNull().default(sql`CURRENT_TIMESTAMP`).onUpdateNow(), // can't add onUpdateNow(), but it is part of the issue
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'datetime',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
 });

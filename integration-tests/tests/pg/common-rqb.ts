@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, eq, inArray, not, or, sql } from 'drizzle-orm';
 import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
 import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -1025,26 +1025,5 @@ export function tests(test: Test) {
 				});
 			},
 		);
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/5227
-		test.concurrent('select with bigint array in inArray', async ({ db, push }) => {
-			const users = pgTable('users_110', {
-				id: bigint('id', { mode: 'bigint' }).primaryKey(),
-				name: text('name').notNull(),
-			});
-
-			await push({ users });
-
-			await db.insert(users).values([{ id: 1n, name: 'John' }, { id: 2n, name: 'Jane' }, {
-				id: 9223372036854775807n,
-				name: 'Jane',
-			}]);
-			const result = await db
-				.select({ name: users.name })
-				.from(users)
-				.where(inArray(users.id, [9223372036854775807n, 2n]));
-
-			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }]);
-		});
 	});
 }
