@@ -18,7 +18,6 @@ import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/n
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
 import type {
-	PgDatabase,
 	PgEnum,
 	PgEnumObject,
 	PgMaterializedView,
@@ -29,6 +28,7 @@ import type {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
@@ -477,16 +477,16 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 			batch: (statements: string[]) => Promise<any>;
 		};
 		client: any;
-		db: PgDatabase<any, any, typeof relations>;
+		db: PgAsyncDatabase<any, any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
-			<S extends PostgresSchema>(schema: S): PgDatabase<any, any, ReturnType<typeof defineRelations<S>>>;
+			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, any, ReturnType<typeof defineRelations<S>>>;
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-			): PgDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			): PgAsyncDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
-		caches: { all: PgDatabase<any, any, typeof relations>; explicit: PgDatabase<any, any, typeof relations> };
+		caches: { all: PgAsyncDatabase<any, any, typeof relations>; explicit: PgAsyncDatabase<any, any, typeof relations> };
 	}>({
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern

@@ -1,4 +1,3 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { NonArray, Writable } from '~/utils.ts';
@@ -39,20 +38,19 @@ export class PgEnumObjectColumnBuilder<
 	}
 }
 
-export class PgEnumObjectColumn<T extends ColumnBaseConfig<'string enum'> & { enumValues: object }>
-	extends PgColumn<T, { enum: PgEnumObject<object> }>
-{
+export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string enum'> {
 	static override readonly [entityKind]: string = 'PgEnumObjectColumn';
 
-	readonly enum;
-	override readonly enumValues = this.config.enum.enumValues;
+	readonly enum: PgEnumObject<TValues>;
+	override readonly enumValues: string[];
 
 	constructor(
 		table: PgTable<any>,
-		config: PgEnumObjectColumnBuilder<T['enumValues']>['config'],
+		config: PgEnumObjectColumnBuilder<TValues>['config'],
 	) {
-		super(table, config);
-		this.enum = config.enum;
+		super(table, config as any);
+		this.enum = config.enum as PgEnumObject<TValues>;
+		this.enumValues = config.enum.enumValues;
 	}
 
 	getSQLType(): string {
@@ -101,20 +99,19 @@ export class PgEnumColumnBuilder<
 	}
 }
 
-export class PgEnumColumn<T extends ColumnBaseConfig<'string enum'> & { enumValues: [string, ...string[]] }>
-	extends PgColumn<T, { enum: PgEnum<T['enumValues']> }>
-{
+export class PgEnumColumn<TValues extends [string, ...string[]]> extends PgColumn<'string enum'> {
 	static override readonly [entityKind]: string = 'PgEnumColumn';
 
-	readonly enum = this.config.enum;
-	override readonly enumValues = this.config.enum.enumValues;
+	readonly enum: PgEnum<TValues>;
+	override readonly enumValues: TValues;
 
 	constructor(
 		table: PgTable<any>,
-		config: PgEnumColumnBuilder<T['enumValues']>['config'],
+		config: PgEnumColumnBuilder<TValues>['config'],
 	) {
-		super(table, config);
+		super(table, config as any);
 		this.enum = config.enum;
+		this.enumValues = config.enum.enumValues;
 	}
 
 	getSQLType(): string {

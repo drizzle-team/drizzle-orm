@@ -253,6 +253,58 @@ export function tests(test: Test) {
 			>();
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5172
+		test.concurrent('RQB v2 simple find first - result type', async ({ push, createDB }) => {
+			const user = pgTable('users', {
+				id: text('id').primaryKey(),
+				email: text('email').notNull().unique(),
+				password: text('password').notNull(),
+			});
+
+			const userSession = pgTable('user_sessions', {
+				id: text('id').primaryKey(),
+				userId: text('user_id')
+					.notNull()
+					.references(() => user.id),
+				expiresAt: timestamp('expires_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+			});
+
+			const schema = { user, userSession };
+			const db = createDB(schema, (r) => ({
+				user: {
+					sessions: r.many.userSession(),
+				},
+				userSession: {
+					user: r.one.user({
+						from: r.userSession.userId,
+						to: r.user.id,
+						optional: false,
+					}),
+				},
+			}));
+
+			const query = db.query.userSession.findFirst({
+				where: { id: '' },
+				with: { user: true },
+			});
+
+			expectTypeOf(query).resolves.toEqualTypeOf<
+				{
+					id: string;
+					userId: string;
+					expiresAt: Date;
+					user: {
+						id: string;
+						email: string;
+						password: string;
+					};
+				} | undefined
+			>();
+		});
+
 		test.concurrent('RQB v2 simple find many - no rows', async ({ push, createDB }) => {
 			const users = pgTable('rqb_users_5', {
 				id: serial().primaryKey().notNull(),

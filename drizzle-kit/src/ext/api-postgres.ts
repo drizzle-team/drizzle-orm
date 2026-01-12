@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
-import type { AnyPgTable, PgDatabase } from 'drizzle-orm/pg-core';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import type { CasingType } from '../cli/validations/common';
@@ -110,7 +111,7 @@ export const generateMigration = async (
 
 export const pushSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: PgDatabase<any>,
+	drizzleInstance: PgAsyncDatabase<any>,
 	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
 	migrationsConfig?: {

@@ -2,12 +2,12 @@ import type { PGlite, QueryOptions, Results, Row, Transaction } from '@electric-
 import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
+import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
@@ -18,7 +18,7 @@ import type { AnyRelations } from '~/relations.ts';
 export type PgliteClient = PGlite;
 
 export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgPreparedQuery<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PglitePreparedQuery';
 
@@ -144,7 +144,7 @@ export class PgliteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
@@ -173,7 +173,7 @@ export class PgliteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
 			query.sql,
@@ -194,7 +194,7 @@ export class PgliteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
 			query.sql,
@@ -235,20 +235,13 @@ export class PgliteSession<
 			return transaction(tx);
 		}) as Promise<T>;
 	}
-
-	override async count(sql: SQL): Promise<number> {
-		const res = await this.execute<{ rows: [{ count: string }] }>(sql);
-		return Number(
-			res['rows'][0]['count'],
-		);
-	}
 }
 
 export class PgliteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgliteTransaction';
 
 	override async transaction<T>(

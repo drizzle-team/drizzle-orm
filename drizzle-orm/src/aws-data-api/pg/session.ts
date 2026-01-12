@@ -11,16 +11,10 @@ import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
-import {
-	type PgDialect,
-	PgPreparedQuery,
-	type PgQueryResultHKT,
-	PgSession,
-	PgTransaction,
-	type PgTransactionConfig,
-	type PreparedQueryConfig,
-} from '~/pg-core/index.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -31,7 +25,7 @@ export type AwsDataApiClient = RDSDataClient;
 export class AwsDataApiPreparedQuery<
 	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
 	TIsRqbV2 extends boolean = false,
-> extends PgPreparedQuery<T> {
+> extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
@@ -207,7 +201,7 @@ export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiSession';
 
 	/** @internal */
@@ -271,7 +265,7 @@ export class AwsDataApiSession<
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
 		transactionId?: string,
-	): PgPreparedQuery<T> {
+	): PgAsyncPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
 			query.sql,
@@ -287,17 +281,6 @@ export class AwsDataApiSession<
 			customResultMapper,
 			true,
 		);
-	}
-
-	override async count(sql: SQL): Promise<number> {
-		const query = this.dialect.sqlToQuery(sql);
-		const prepared = this.prepareQuery(query, undefined, undefined, true);
-
-		const { rows } = await prepared.values();
-		const count = rows[0]?.[0] ?? 0;
-
-		if (typeof count === 'number') return count;
-		return Number(count);
 	}
 
 	override execute<T>(query: SQL): Promise<T> {
@@ -352,7 +335,7 @@ export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
 	override async transaction<T>(

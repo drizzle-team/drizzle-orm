@@ -4,14 +4,12 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { QueryWithTypings } from '~/sql/sql.ts';
-import { fillPlaceholders } from '~/sql/sql.ts';
+import { fillPlaceholders, type QueryWithTypings } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
@@ -25,7 +23,7 @@ export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
@@ -104,7 +102,7 @@ export class PgProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgProxyTransaction';
 
 	override async transaction<T>(
@@ -115,7 +113,7 @@ export class PgProxyTransaction<
 }
 
 export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PreparedQueryBase<T>
+	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
 

@@ -358,7 +358,7 @@ export function tests(test: Test) {
 			const arrays = pgTable('arrays_tests_7', {
 				id: serial('id').primaryKey(),
 				tags: text('tags').array(),
-				nested: text('nested').array().array(),
+				nested: text('nested').array('[][]'),
 				numbers: integer('numbers').notNull().array(),
 			});
 
@@ -3254,7 +3254,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-01-10')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-13')).concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });

@@ -11,6 +11,26 @@ const sqliteUsers = sqliteTable('users', {
 });
 
 {
+	const db = betterSqlite3Drizzle('');
+
+	await seed(db, { users: sqliteUsers });
+	await reset(db, { users: sqliteUsers });
+}
+
+{
+	const db = libsqlDrizzle({
+		schema: { sqliteUsers },
+		connection: {
+			url: 'libsql://testturso-oleksiikh0240.turso.io',
+		},
+	});
+
+	await reset(db, { sqliteUsers });
+
+	await seed(db, { sqliteUsers });
+}
+
+{
 	const db0 = betterSqlite3Drizzle('', { schema: { users: sqliteUsers } });
 
 	await seed(db0, { users: sqliteUsers });

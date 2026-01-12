@@ -26,6 +26,12 @@ export function mapEnumValues(values: string[]) {
 export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 	let schema!: TSchema;
 
+	// Check for PG array columns (have dimensions property instead of changing dataType)
+	const dimensions = (<{ dimensions?: number }> column).dimensions;
+	if (typeof dimensions === 'number' && dimensions > 0) {
+		return pgArrayColumnToSchema(column, dimensions, t);
+	}
+
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
@@ -217,6 +223,49 @@ export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
 	type: 'string',
 } as any;
 
+function pgArrayColumnToSchema(
+	column: Column,
+	dimensions: number,
+	t: typeof typebox,
+): TSchema {
+	// PG style: the column IS the base type, with dimensions indicating array depth
+	// Get the base schema from the column's own dataType
+	const [baseType, baseConstraint] = column.dataType.split(' ');
+	let baseSchema: TSchema;
+
+	switch (baseType) {
+		case 'number':
+			baseSchema = numberColumnToSchema(column, baseConstraint as ColumnDataNumberConstraint, t);
+			break;
+		case 'bigint':
+			baseSchema = bigintColumnToSchema(column, baseConstraint as ColumnDataBigIntConstraint, t);
+			break;
+		case 'boolean':
+			baseSchema = t.Boolean();
+			break;
+		case 'string':
+			baseSchema = stringColumnToSchema(column, baseConstraint as ColumnDataStringConstraint, t);
+			break;
+		case 'object':
+			baseSchema = objectColumnToSchema(column, baseConstraint as ColumnDataObjectConstraint, t);
+			break;
+		case 'array':
+			// Handle array types like point, line, etc.
+			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint, t);
+			break;
+		default:
+			baseSchema = t.Any();
+	}
+
+	// Wrap in arrays based on dimensions
+	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
+	let schema: TSchema = t.Array(baseSchema);
+	for (let i = 1; i < dimensions; i++) {
+		schema = t.Array(schema);
+	}
+	return schema;
+}
+
 function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
@@ -258,22 +307,19 @@ function arrayColumnToSchema(
 			);
 		}
 		case 'basecolumn': {
-			const size = column.length;
-			const sizeParam = size
-				? {
-					minItems: size,
-					maxItems: size,
-				}
-				: undefined;
-			return (<{ baseColumn?: Column }> column).baseColumn
-				? t.Array(
-					columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, t),
-					sizeParam,
-				)
-				: t.Array(
-					t.Any(),
-					sizeParam,
-				);
+			// CockroachDB/GEL style: has a separate baseColumn
+			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
+			if (baseColumn) {
+				const size = column.length;
+				const sizeParam = size
+					? {
+						minItems: size,
+						maxItems: size,
+					}
+					: undefined;
+				return t.Array(columnToSchema(baseColumn, t), sizeParam);
+			}
+			return t.Array(t.Any());
 		}
 		default: {
 			return t.Array(t.Any());

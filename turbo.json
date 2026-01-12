@@ -15,7 +15,7 @@
 		},
 		"test:types": {
 			"dependsOn": [
-				"^test:types"
+				"drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -23,6 +23,12 @@
 				"tsconfig.json",
 				"tests/tsconfig.json",
 				"../tsconfig.json"
+			],
+			"outputLogs": "new-only"
+		},
+		"build": {
+			"dependsOn": [
+				"drizzle-orm#build"
 			],
 			"outputLogs": "new-only"
 		},
@@ -189,7 +195,8 @@
 		},
 		"drizzle-seed#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"drizzle-orm#build",
+				"drizzle-zod#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -395,7 +402,8 @@
 		},
 		"drizzle-seed#build:artifact": {
 			"dependsOn": [
-				"drizzle-orm#build:artifact"
+				"drizzle-orm#build:artifact",
+				"drizzle-zod#build:artifact"
 			],
 			"inputs": [
 				"src/**/*.ts",

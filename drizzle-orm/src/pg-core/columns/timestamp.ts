@@ -1,11 +1,9 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn } from './common.ts';
-import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
+export class PgTimestampBuilder extends PgColumnBuilder<
 	{
 		dataType: 'object date';
 		data: Date;
@@ -31,7 +29,7 @@ export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
+export class PgTimestamp extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgTimestamp';
 
 	readonly withTimezone: boolean;
@@ -60,7 +58,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgCo
 	}
 }
 
-export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
+export class PgTimestampStringBuilder extends PgColumnBuilder<
 	{
 		dataType: 'string timestamp';
 		data: string;
@@ -89,7 +87,7 @@ export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTimestampString<T extends ColumnBaseConfig<'string timestamp'>> extends PgColumn<T> {
+export class PgTimestampString extends PgColumn<'string timestamp'> {
 	static override readonly [entityKind]: string = 'PgTimestampString';
 
 	readonly withTimezone: boolean;

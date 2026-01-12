@@ -1,4 +1,4 @@
-import { Column as DrizzleColumn, getColumnTable, getTableName, is } from 'drizzle-orm';
+import { type AnyColumn, Column as DrizzleColumn, getColumnTable, getTableName, is } from 'drizzle-orm';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -100,7 +100,7 @@ export const getSchemaInfo = (
 	drizzleTablesAndRelations: { [key: string]: DrizzleTable | Relations },
 	drizzleTables: { [key: string]: DrizzleTable },
 	mapColumns: (
-		tableConfig: TableConfigT,
+		tableConfig: AnyColumn[],
 		dbToTsColumnNamesMap: { [key: string]: string },
 	) => Column[],
 ) => {
@@ -194,7 +194,7 @@ export const getSchemaInfo = (
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),
-			columns: mapColumns(tableConfig, dbToTsColumnNamesMap),
+			columns: mapColumns(tableConfig.columns, dbToTsColumnNamesMap),
 		};
 		tables.push(mappedTable);
 	}

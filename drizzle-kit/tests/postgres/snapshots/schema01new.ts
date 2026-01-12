@@ -54,9 +54,9 @@ export const users4 = pgTable('users4', {
 	c3: text(),
 	c4: text(),
 	c5: text().array().default([]),
-	c6: text().array().array().default([[]]),
-	c7: text().array().array().array().default([[[]]]),
-	c8: text().array(2).array(10),
+	c6: text().array('[][]').default([[]]),
+	c7: text().array('[][][]').default([[[]]]),
+	c8: text().array('[][]'),
 }, (t) => [foreignKey({ columns: [t.c3, t.c4], foreignColumns: [users3.c2, users3.c3] })]);
 
 export const users5 = pgTable('users5', {

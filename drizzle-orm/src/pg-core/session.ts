@@ -1,14 +1,7 @@
-import type * as V1 from '~/_relations.ts';
-import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { type Query, type SQL, sql } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils.ts';
-import { PgDatabase } from './db.ts';
+import type { Query, SQL } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
@@ -18,29 +11,10 @@ export interface PreparedQueryConfig {
 	values: unknown;
 }
 
-export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
-	constructor(
-		protected query: Query,
-		// cache instance
-		private cache: Cache | undefined,
-		// per query related metadata
-		private queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig,
-	) {
-		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enable: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enable) {
-			this.cacheConfig = undefined;
-		}
-	}
+export abstract class PgBasePreparedQuery implements PreparedQuery {
+	static readonly [entityKind]: string = 'PgBasePreparedQuery';
 
-	protected authToken?: NeonAuthToken;
+	constructor(protected query: Query) {}
 
 	getQuery(): Query {
 		return this.query;
@@ -51,113 +25,22 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 	}
 
 	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
-	static readonly [entityKind]: string = 'PgPreparedQuery';
-
-	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
 	/** @internal */
-	protected async queryWithCache<T>(
+	abstract isResponseInArrayMode(): boolean;
+
+	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
+
+	/** @internal */
+	abstract all(placeholderValues?: Record<string, unknown>): unknown;
+
+	/** @internal */
+	protected abstract queryWithCache(
 		queryString: string,
 		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// don't do any mutations, if globally is false
-		if (this.cacheConfig && !this.cacheConfig.enable) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
-		if (
-			(
-				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
-				|| this.queryMetadata.type === 'delete'
-			) && this.queryMetadata.tables.length > 0
-		) {
-			try {
-				const [res] = await Promise.all([
-					query(),
-					this.cache.onMutate({ tables: this.queryMetadata.tables }),
-				]);
-				return res;
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		// don't do any reads if globally disabled
-		if (!this.cacheConfig) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
-				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
-			);
-			if (fromCache === undefined) {
-				let result;
-				try {
-					result = await query();
-				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
-				}
-				// put actual key
-				await this.cache.put(
-					this.cacheConfig.tag ?? await hashQuery(queryString, params),
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-					this.cacheConfig.tag !== undefined,
-					this.cacheConfig.config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-		try {
-			return await query();
-		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
-		}
-	}
-
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
+		query: unknown,
+	): unknown;
 }
 
 export interface PgTransactionConfig {
@@ -166,12 +49,7 @@ export interface PgTransactionConfig {
 	deferrable?: boolean;
 }
 
-export abstract class PgSession<
-	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> {
+export abstract class PgSession {
 	static readonly [entityKind]: string = 'PgSession';
 
 	constructor(protected dialect: PgDialect) {}
@@ -187,7 +65,7 @@ export abstract class PgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T>;
+	): PgBasePreparedQuery;
 
 	abstract prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -197,103 +75,11 @@ export abstract class PgSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
-	): PgPreparedQuery<T>;
+	): PgBasePreparedQuery;
 
-	execute<T>(query: SQL): Promise<T>;
-	/** @internal */
-	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T>;
-	/** @internal */
-	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T> {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-					this.dialect.sqlToQuery(query),
-					undefined,
-					undefined,
-					false,
-				);
-			});
+	abstract execute(query: SQL): unknown;
 
-			return prepared.setToken(token).execute(undefined, token);
-		});
-	}
-
-	all<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-		).all();
-	}
-
-	async count(sql: SQL): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
-		const res = await this.execute<[{ count: string }]>(sql, token);
-
-		return Number(
-			res[0]['count'],
-		);
-	}
-
-	abstract transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
-		config?: PgTransactionConfig,
-	): Promise<T>;
-}
-
-export abstract class PgTransaction<
-	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
-	static override readonly [entityKind]: string = 'PgTransaction';
-
-	constructor(
-		dialect: PgDialect,
-		session: PgSession<any, any, any, any>,
-		protected relations: TRelations,
-		protected schema: {
-			fullSchema: Record<string, unknown>;
-			schema: TSchema;
-			tableNamesMap: Record<string, string>;
-		} | undefined,
-		protected readonly nestedIndex = 0,
-		parseRqbJson?: boolean,
-	) {
-		super(dialect, session, relations, schema, parseRqbJson);
-	}
-
-	rollback(): never {
-		throw new TransactionRollbackError();
-	}
-
-	/** @internal */
-	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
-		const chunks: string[] = [];
-		if (config.isolationLevel) {
-			chunks.push(`isolation level ${config.isolationLevel}`);
-		}
-		if (config.accessMode) {
-			chunks.push(config.accessMode);
-		}
-		if (typeof config.deferrable === 'boolean') {
-			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
-		}
-		return sql.raw(chunks.join(' '));
-	}
-
-	setTransaction(config: PgTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
-	}
-
-	abstract override transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T>;
+	abstract all(query: SQL): unknown;
 }
 
 export interface PgQueryResultHKT {

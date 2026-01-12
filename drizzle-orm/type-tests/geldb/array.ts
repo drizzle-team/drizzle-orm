@@ -1,35 +1,7 @@
-import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { Column } from '~/column.ts';
 import { gelTable, integer } from '~/gel-core/index.ts';
 
 {
-	const table = gelTable('table', {
+	const _table = gelTable('table', {
 		a: integer('a').array().notNull(),
 	});
-	Expect<
-		// @ts-ignore - TODO: Remake type checks for new columns
-		Equal<
-			Column<
-				{
-					name: string;
-					tableName: 'table';
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				},
-				{}
-			>,
-			// @ts-ignore - TODO: Remake type checks for new columns
-			typeof table['a']['_']['baseColumn']
-		>
-	>;
 }

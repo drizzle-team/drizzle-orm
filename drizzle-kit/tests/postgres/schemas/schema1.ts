@@ -728,7 +728,7 @@ export const auditLogsInCore = core.table('audit_logs', {
 	organizationId: uuid('organization_id'),
 	actorId: uuid('actor_id'),
 	objectType: text('object_type').notNull(),
-	objectId: uuid('object_id').array().array().array(),
+	objectId: uuid('object_id').array('[][][]'),
 	action: text().notNull(),
 	beforeState: jsonb('before_state'),
 	afterState: jsonb('after_state'),
@@ -745,7 +745,7 @@ export const rateLimitsInCore = core.table('rate_limits', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	apiKeyId: uuid('api_key_id').notNull(),
 	windowStart: timestamp('window_start', { withTimezone: true, mode: 'string' }).notNull(),
-	requests: integer().generatedByDefaultAsIdentity().notNull().array(),
+	requests: integer().generatedByDefaultAsIdentity().notNull(),
 	limit: integer().generatedAlwaysAs(() => sql`1`).notNull(),
 }, (table) => [
 	foreignKey({
