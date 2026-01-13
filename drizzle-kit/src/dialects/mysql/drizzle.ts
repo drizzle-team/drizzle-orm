@@ -119,7 +119,7 @@ export const fromDrizzleSchema = (
 			let onUpdateNow: boolean = false;
 			let onUpdateNowFsp: number | null = null;
 			if (is(column, MySqlTimestamp) || is(column, MySqlDateTime)) {
-				onUpdateNow = column.hasOnUpdateNow;
+				onUpdateNow = column.hasOnUpdateNow ?? false;
 				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
 			}
 

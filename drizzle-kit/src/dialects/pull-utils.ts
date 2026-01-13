@@ -45,18 +45,18 @@ export const prepareEntityFilter = (
 		: params.schemas;
 
 	const existingSchemas = existingEntities.filter((x) => x.type === 'schema').map((x) => x.name);
+	// for psql we always exclude pscale_extensions schema
+	// this is plantscale extension
+	if (dialect === 'postgresql') {
+		schemasConfig.push('!pscale_extensions');
+	}
+
 	const schemasFilter = prepareSchemasFitler(schemasConfig, existingSchemas);
 
 	const postgisTablesGlobs = ['!geography_columns', '!geometry_columns', '!spatial_ref_sys'];
 	for (const ext of params.extensions ?? []) {
 		if (ext === 'postgis') tablesConfig.push(...postgisTablesGlobs);
 		else assertUnreachable(ext);
-	}
-
-	// for psql we always exclude pscale_extensions schema
-	// this is plantscale extension
-	if (dialect === 'postgresql') {
-		schemasConfig.push('!pscale_extensions');
 	}
 
 	const existingViews = existingEntities.filter((x) => x.type === 'table').map((x) => ({
@@ -100,19 +100,19 @@ const prepareSchemasFitler = (globs: string[], schemasExisting: string[]) => {
 	return (it: Schema) => {
 		if (!filterForExisting(it)) return false;
 
-		let flags: boolean[] = [];
+		const nonnegate = matchers.filter((it) => it.negate === false);
+		const negate = matchers.filter((it) => it.negate === true);
 
-		for (let matcher of matchers) {
-			if (matcher.negate && !matcher.match(it.name)) {
-				flags.push(false);
-			} else if (matcher.match(it.name)) {
-				flags.push(true);
-			}
+		const hasNonnegate = nonnegate.length > 0;
+		const hasNegate = negate.length > 0;
+
+		if (hasNonnegate) {
+			return nonnegate.find((matcher) => matcher.match(it.name)) !== undefined;
+		}
+		if (hasNegate) {
+			return negate.every((matcher) => matcher.match(it.name));
 		}
 
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
 		return false;
 	};
 };

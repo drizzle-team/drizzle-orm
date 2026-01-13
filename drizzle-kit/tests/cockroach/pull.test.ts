@@ -995,13 +995,11 @@ test('functional index', async ({ db }) => {
 			{
 				asc: true,
 				isExpression: true,
-				nullsFirst: false,
 				value: 'upper(normalized_address)',
 			},
 			{
 				asc: true,
 				isExpression: true,
-				nullsFirst: false,
 				value: 'upper(state)',
 			},
 		],

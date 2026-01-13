@@ -269,6 +269,12 @@ test('push schema #5', async () => {
 		expect(pst).toStrictEqual(st0);
 		await _.clear();
 	}
+
+	{
+		const { sqlStatements: pst } = await push({ db, to, schemas: ['public', '!dev'] });
+		expect(pst).toStrictEqual([]);
+		await _.clear();
+	}
 });
 
 test('push schema #6', async () => {
@@ -343,4 +349,42 @@ test('huge schema #1', async () => {
 
 	const res2 = await push({ db, to: schema });
 	expect(res2.sqlStatements).toStrictEqual([]);
+});
+
+test.only('push schema #10', async () => {
+	{
+		await db.query('create schema dev;');
+		await db.query('create schema dev2;');
+		await db.query('create schema test;');
+		await db.query('create schema test2;');
+
+		const to = { dev2: pgSchema('dev2'), test2: pgSchema('test2') };
+		const { sqlStatements: pst } = await push({ db, to, schemas: ['test2', '!dev'] });
+		expect(pst).toStrictEqual([]);
+		await _.clear();
+	}
+
+	{
+		await db.query('create schema dev;');
+		await db.query('create schema dev2;');
+		await db.query('create schema test;');
+		await db.query('create schema test2;');
+
+		const to = { dev2: pgSchema('dev2'), test2: pgSchema('test2') };
+		const { sqlStatements: pst } = await push({ db, to, schemas: ['!dev'] });
+		expect(pst).toStrictEqual([`DROP SCHEMA "test";\n`]);
+		await _.clear();
+	}
+
+	{
+		await db.query('create schema dev;');
+		await db.query('create schema dev2;');
+		await db.query('create schema test;');
+		await db.query('create schema test2;');
+
+		const to = { dev2: pgSchema('dev2'), test2: pgSchema('test2') };
+		const { sqlStatements: pst } = await push({ db, to, schemas: ['!dev', '!dev2'] });
+		expect(pst).toStrictEqual([`DROP SCHEMA "test";\n`]);
+		await _.clear();
+	}
 });
