@@ -53,6 +53,12 @@ export const prepareEntityFilter = (
 		else assertUnreachable(ext);
 	}
 
+	// for psql we always exclude pscale_extensions schema
+	// this is plantscale extension
+	if (dialect === 'postgresql') {
+		schemasConfig.push('!pscale_extensions');
+	}
+
 	const existingViews = existingEntities.filter((x) => x.type === 'table').map((x) => ({
 		schema: x.schema,
 		name: x.name,
