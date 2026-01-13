@@ -373,11 +373,11 @@ export const Varbinary: SqlType = {
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
+
+		if (!value) return { default: '', options };
 
 		let trimmed = value.startsWith('(') ? value.substring(1, value.length - 1) : value;
 		trimmed = trimChar(value, "'");
@@ -445,8 +445,15 @@ export const Timestamp: SqlType = {
 
 		if (!def) return { options, default: '' };
 		const trimmed = trimChar(def, "'");
-		if (trimmed === 'now()' || trimmed === '(now())' || trimmed === '(CURRENT_TIMESTAMP)') {
+		if (
+			trimmed === 'now()' || trimmed === '(now())' || trimmed === '(CURRENT_TIMESTAMP)'
+			|| trimmed === 'CURRENT_TIMESTAMP'
+		) {
 			return { options, default: '.defaultNow()' };
+		}
+
+		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+			return { options, default: `sql\`${trimmed}\`` };
 		}
 
 		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };

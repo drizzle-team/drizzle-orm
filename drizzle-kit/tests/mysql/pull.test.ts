@@ -34,6 +34,7 @@ import {
 	tinytext,
 	unique,
 	uniqueIndex,
+	varbinary,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -754,6 +755,34 @@ test('datetime', async () => {
 		db,
 		{ table1 },
 		'datetime',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('varbinary', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: varbinary({ length: 16 }),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'varbinary',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('timestamp def CURRENT_TIMESTAMP with precision', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: timestamp({ fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'timestamp-def-current-timestamp-with-precision',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);

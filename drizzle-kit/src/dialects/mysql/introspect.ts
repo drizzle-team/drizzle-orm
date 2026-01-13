@@ -80,7 +80,7 @@ export const fromDatabase = async (
 		SELECT 
 			* 
 		FROM information_schema.columns
-		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
+		WHERE table_schema = '${schema}'
 		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
@@ -96,9 +96,8 @@ export const fromDatabase = async (
 			* 
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
-			AND INFORMATION_SCHEMA.STATISTICS.TABLE_NAME != '__drizzle_migrations'
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
-		ORDER BY lower(INDEX_NAME);
+		ORDER BY seq_in_index ASC;
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
 		queryCallback('indexes', filtered, null);
@@ -214,7 +213,6 @@ export const fromDatabase = async (
 		FROM information_schema.table_constraints t
 		LEFT JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
 		WHERE t.constraint_type='PRIMARY KEY'
-			AND table_name != '__drizzle_migrations'
 			AND t.table_schema = '${schema}'
 		ORDER BY ordinal_position
 	`).then((rows) => {

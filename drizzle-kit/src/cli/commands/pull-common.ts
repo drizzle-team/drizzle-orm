@@ -1,3 +1,4 @@
+import { toCamelCase } from 'drizzle-orm/casing';
 import { plural, singular } from 'pluralize';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
@@ -8,7 +9,7 @@ const withCasing = (value: string, casing: Casing) => {
 		return value;
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return toCamelCase(value);
 	}
 
 	assertUnreachable(casing);
