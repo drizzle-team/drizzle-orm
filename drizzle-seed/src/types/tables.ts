@@ -22,6 +22,7 @@ export type Column = {
 		length?: number;
 		dimensions?: number;
 		vectorValueType?: 'I8' | 'I16' | 'I32' | 'I64' | 'F32' | 'F64';
+		unsigned?: boolean;
 	};
 	size?: number;
 	default?: any;

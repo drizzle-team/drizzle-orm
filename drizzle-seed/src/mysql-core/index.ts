@@ -125,6 +125,10 @@ const getTypeParams = (sqlType: string) => {
 		}
 	}
 
+	if (sqlType.includes('unsigned')) {
+		typeParams['unsigned'] = true;
+	}
+
 	return typeParams;
 };
 

@@ -22,26 +22,44 @@ export const selectGeneratorForSingleStoreColumn = (
 			minValue = BigInt(0);
 			maxValue = BigInt('9223372036854775807');
 		} else if (col.columnType.includes('int')) {
-			if (col.columnType === 'tinyint') {
-				// 2^8 / 2 - 1, 1 bytes
-				minValue = -128;
-				maxValue = 127;
-			} else if (col.columnType === 'smallint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -32768;
-				maxValue = 32767;
-			} else if (col.columnType === 'mediumint') {
-				// 2^16 / 2 - 1, 2 bytes
-				minValue = -8388608;
-				maxValue = 8388607;
-			} else if (col.columnType === 'int') {
-				// 2^32 / 2 - 1, 4 bytes
-				minValue = -2147483648;
-				maxValue = 2147483647;
-			} else if (col.columnType === 'bigint') {
-				// 2^64 / 2 - 1, 8 bytes
-				minValue = BigInt('-9223372036854775808');
-				maxValue = BigInt('9223372036854775807');
+			if (col.typeParams.unsigned) minValue = 0;
+			if (col.columnType.startsWith('tinyint')) {
+				if (col.typeParams.unsigned) maxValue = 255;
+				else {
+					// 2^8 / 2 - 1, 1 bytes
+					minValue = -128;
+					maxValue = 127;
+				}
+			} else if (col.columnType.startsWith('smallint')) {
+				if (col.typeParams.unsigned) maxValue = 65535;
+				else {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -32768;
+					maxValue = 32767;
+				}
+			} else if (col.columnType.startsWith('mediumint')) {
+				if (col.typeParams.unsigned) maxValue = 16777215;
+				else {
+					// 2^16 / 2 - 1, 2 bytes
+					minValue = -8388608;
+					maxValue = 8388607;
+				}
+			} else if (col.columnType.startsWith('int')) {
+				if (col.typeParams.unsigned) maxValue = 4294967295;
+				else {
+					// 2^32 / 2 - 1, 4 bytes
+					minValue = -2147483648;
+					maxValue = 2147483647;
+				}
+			} else if (col.columnType.startsWith('bigint')) {
+				if (col.typeParams.unsigned) {
+					minValue = BigInt(0);
+					maxValue = BigInt('18446744073709551615');
+				} else {
+					// 2^64 / 2 - 1, 8 bytes
+					minValue = BigInt('-9223372036854775808');
+					maxValue = BigInt('9223372036854775807');
+				}
 			}
 		}
 
@@ -67,20 +85,23 @@ export const selectGeneratorForSingleStoreColumn = (
 			|| col.columnType.startsWith('float')
 			|| col.columnType.startsWith('numeric')
 		) {
+			let minValue: number | undefined;
+			if (col.typeParams.unsigned) minValue = 0;
+
 			if (col.typeParams.precision !== undefined) {
 				const precision = col.typeParams.precision;
-				const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
+				const scale = col.typeParams.scale ?? 0;
 
 				const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
 				const generator = new generatorsMap.GenerateNumber[0]({
-					minValue: -maxAbsoluteValue,
+					minValue: minValue ?? -maxAbsoluteValue,
 					maxValue: maxAbsoluteValue,
 					precision: Math.pow(10, scale),
 				});
 				return generator;
 			}
 
-			const generator = new generatorsMap.GenerateNumber[0]();
+			const generator = new generatorsMap.GenerateNumber[0]({ minValue });
 			return generator;
 		}
 

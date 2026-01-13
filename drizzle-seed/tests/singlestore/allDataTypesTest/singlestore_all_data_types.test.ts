@@ -18,15 +18,24 @@ test.beforeEach(async ({ db }) => {
 			sql`
 			    CREATE TABLE \`all_data_types\` (
 				\`int\` int,
+				\`int_unsigned\` int unsigned,
 				\`tinyint\` tinyint,
+				\`tinyint_unsigned\` tinyint unsigned,
 				\`smallint\` smallint,
+				\`smallint_unsigned\` smallint unsigned,
 				\`mediumint\` mediumint,
+				\`mediumint_unsigned\` mediumint unsigned,
 				\`bigint\` bigint,
+				\`bigint_unsigned\` bigint unsigned,
 				\`bigint_number\` bigint,
+				\`bigint_number_unsigned\` bigint unsigned,
 				\`real\` real,
 				\`decimal\` decimal,
+				\`decimal_unsigned\` decimal unsigned,
 				\`double\` double,
+				\`double_unsigned\` double unsigned,
 				\`float\` float,
+				\`float_unsigned\` float unsigned,
 				\`serial\` serial,
 				\`binary\` binary(255),
 				\`varbinary\` varbinary(256),
@@ -65,7 +74,7 @@ test.beforeEach(async ({ db }) => {
 });
 
 test('basic seed test', async ({ db }) => {
-	await seed(db, schema, { count: 1 });
+	await seed(db, schema, { count: 10 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
 
