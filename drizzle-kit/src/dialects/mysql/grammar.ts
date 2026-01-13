@@ -467,7 +467,22 @@ export const DateTime: SqlType = {
 	drizzleImport: () => 'datetime',
 	defaultFromDrizzle: Timestamp.defaultFromDrizzle,
 	defaultFromIntrospect: Timestamp.defaultFromIntrospect,
-	toTs: Timestamp.toTs,
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		const trimmed = trimChar(def, "'");
+
+		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+			return { options, default: `sql\`${trimmed}\`` };
+		}
+
+		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
+		// TODO: we can handle fsp 6 here too, using sql``
+		return { options, default: `new Date("${trimmed}Z")` };
+	},
 };
 
 export const Time: SqlType = {

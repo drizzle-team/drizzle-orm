@@ -1622,32 +1622,38 @@ test('functional index', async () => {
 			.where(sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`)),
 	]);
 
-	// TODO: diffIntrospect returns empty array of sql statements even though table1 in test and table1 generated in functional_index.ts file are different
-	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'functional_index');
+	const { sqlStatements, schema2 } = await diffIntrospect(db, { table1 }, 'functional_index');
 	expect(sqlStatements).toStrictEqual([]);
-	throw new Error(`it's needed to fix the test`);
-	// it seems that fromDatabaseForDrizzle generates correct indices, but diffIntrospect generates invalid functional_index.ts file.
-
-	// const schema = { table1 };
-	// await push({ db, to: schema });
-
-	// const filter = prepareEntityFilter('postgresql', {
-	// 	tables: undefined,
-	// 	schemas: undefined,
-	// 	entities: undefined,
-	// 	extensions: undefined,
-	// }, []);
-	// const { indexes } = await fromDatabaseForDrizzle(
-	// 	db,
-	// 	filter,
-	// 	() => {},
-	// 	{
-	// 		table: '__drizzle_migrations',
-	// 		schema: 'drizzle',
-	// 	},
-	// );
-
-	// console.log(indexes[0].columns);
+	expect(schema2.indexes).toStrictEqual([{
+		columns: [
+			{
+				asc: true,
+				isExpression: true,
+				nullsFirst: false,
+				opclass: null,
+				value: 'upper(normalized_address)',
+			},
+			{
+				asc: true,
+				isExpression: true,
+				nullsFirst: false,
+				opclass: null,
+				value: 'upper(state)',
+			},
+		],
+		concurrently: false,
+		entityType: 'indexes',
+		forPK: false,
+		forUnique: false,
+		isUnique: true,
+		method: 'btree',
+		name: 'idx_addresses_natural_key',
+		nameExplicit: true,
+		schema: 'public',
+		table: 'table1',
+		where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
+		with: '',
+	}]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5193

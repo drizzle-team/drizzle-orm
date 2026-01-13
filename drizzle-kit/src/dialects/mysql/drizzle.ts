@@ -8,6 +8,7 @@ import {
 	MySqlChar,
 	MySqlColumn,
 	MySqlCustomColumn,
+	MySqlDateTime,
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
@@ -117,8 +118,8 @@ export const fromDrizzleSchema = (
 
 			let onUpdateNow: boolean = false;
 			let onUpdateNowFsp: number | null = null;
-			if (is(column, MySqlTimestamp)) {
-				onUpdateNow = column.hasOnUpdateNow ?? false; // TODO
+			if (is(column, MySqlTimestamp) || is(column, MySqlDateTime)) {
+				onUpdateNow = column.hasOnUpdateNow;
 				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
 			}
 
