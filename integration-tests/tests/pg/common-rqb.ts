@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, eq, inArray, not, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
 import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -1025,5 +1025,57 @@ export function tests(test: Test) {
 				});
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5186
+		test.concurrent('RQB v2 incorrect aliasing with RAW in where clause', async ({ push, createDB }) => {
+			const users = pgTable('rqb_users_19', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				email: text('email').notNull().unique(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			const orders = pgTable('rqb_orders_19', {
+				id: serial('id').primaryKey(),
+				userId: integer('user_id').references(() => users.id).notNull(),
+				amount: integer('amount').notNull(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			await push({ users, orders });
+			const db = createDB({ users, orders }, (r) => ({
+				orders: {
+					user: r.one.users({
+						from: [r.orders.userId],
+						to: [r.users.id],
+					}),
+				},
+			}));
+
+			await db.insert(users).values([{ id: 1, email: 'a', name: 'b' }, { id: 2, email: 'aa', name: 'bb' }]);
+			await db.insert(orders).values([{ userId: 1, amount: 11 }, { userId: 2, amount: 22 }]);
+
+			const query = db.query.orders.findFirst({
+				columns: {
+					id: true,
+				},
+				with: {
+					user: {
+						columns: {
+							id: true,
+							name: true,
+							email: true,
+							createdAt: true,
+						},
+					},
+				},
+				where: {
+					RAW: isNotNull(orders.userId),
+				},
+			});
+
+			const orderWithUser = await query;
+			expect(orderWithUser?.user!.id).toBeDefined();
+		});
 	});
 }
