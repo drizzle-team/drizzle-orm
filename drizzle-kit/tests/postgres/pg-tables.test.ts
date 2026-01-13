@@ -1482,3 +1482,25 @@ test('push after migrate with custom migrations table #4', async () => {
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5190
+test('push with pscale_extensions schema', async () => {
+	const schema1 = {
+		pscaleExtensions: pgSchema('pscale_extensions'),
+		table1: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+	};
+	const schema2 = {
+		table1: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [];
+
+	expect(pst2).toStrictEqual(expectedSt2);
+});
