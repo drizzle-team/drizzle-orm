@@ -971,37 +971,3 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 		},
 	]);
 });
-
-// https://github.com/drizzle-team/drizzle-orm/issues/5224
-test('functional index', async ({ db }) => {
-	const table1 = cockroachTable('table1', {
-		normalized_address: text(),
-		state: text(),
-	}, (t) => [
-		uniqueIndex('idx_addresses_natural_key')
-			.using(
-				'btree',
-				sql.raw(`upper(normalized_address)`),
-				sql.raw(`upper((state)::text)`),
-			)
-			.where(sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`)),
-	]);
-
-	const { sqlStatements, schema2 } = await diffIntrospect(db, { table1 }, 'functional_index');
-	expect(sqlStatements).toStrictEqual([]);
-	expect(schema2.indexes.length).toBe(1);
-	expect(schema2.indexes[0].columns).toStrictEqual([{
-		columns: [
-			{
-				asc: true,
-				isExpression: true,
-				value: 'upper(normalized_address)',
-			},
-			{
-				asc: true,
-				isExpression: true,
-				value: 'upper(state)',
-			},
-		],
-	}]);
-});

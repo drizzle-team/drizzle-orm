@@ -351,7 +351,7 @@ test('huge schema #1', async () => {
 	expect(res2.sqlStatements).toStrictEqual([]);
 });
 
-test.only('push schema #10', async () => {
+test('push schema #10', async () => {
 	{
 		await db.query('create schema dev;');
 		await db.query('create schema dev2;');
