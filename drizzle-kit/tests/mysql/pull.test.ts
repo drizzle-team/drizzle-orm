@@ -789,8 +789,8 @@ test('timestamp def CURRENT_TIMESTAMP with precision', async () => {
 });
 
 test('fks with same names but in diff databases', async () => {
-	await db.query('DROP DATABASE `fk_test`;');
-	await db.query('DROP DATABASE `fk_test_2`;');
+	await db.query('DROP DATABASE if exists `fk_test`;');
+	await db.query('DROP DATABASE if exists `fk_test_2`;');
 	await db.query('CREATE DATABASE `fk_test`;');
 	await db.query('CREATE DATABASE `fk_test_2`;');
 
