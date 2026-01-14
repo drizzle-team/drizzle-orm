@@ -109,9 +109,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 
 		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
 		if (this.withTimezone) {
-			const offset = value.getTimezoneOffset();
-			const sign = offset <= 0 ? '+' : '-';
-			return `${shortened}${sign}${Math.floor(Math.abs(offset) / 60).toString().padStart(2, '0')}`;
+			return `${shortened}+00`;
 		}
 
 		return shortened;
