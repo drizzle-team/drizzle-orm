@@ -146,7 +146,7 @@ export const fromDatabase = async (
 		const extra = column['EXTRA'] ?? '';
 		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
 		// const dataType = column['DATA_TYPE']; // varchar
-		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
+		// const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
 		// const numericPrecision = column['NUMERIC_PRECISION'];
 		// const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
@@ -188,7 +188,6 @@ export const fromDatabase = async (
 			table: table,
 			name: name,
 			type: changedType,
-			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			collation: collation,
@@ -203,6 +202,9 @@ export const fromDatabase = async (
 				}
 				: null,
 			isUnique: false,
+			// If to create "unique + not null" column, mysql shows it as "PRI"
+			// need to check by constraints only
+			isPK: false,
 			uniqueName: null,
 		});
 	}
