@@ -1492,12 +1492,6 @@ test('push with pscale_extensions schema', async () => {
 		}),
 	};
 
-	const schema2 = {
-		table1: pgTable('table1', {
-			id: text().primaryKey(),
-		}),
-	};
-
 	const { sqlStatements: pst2 } = await push({ db, to: schema1 });
 
 	const expectedSt2: string[] = [`CREATE TABLE "table1" (\n\t"id" text PRIMARY KEY\n);\n`];

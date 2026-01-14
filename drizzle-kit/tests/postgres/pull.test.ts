@@ -1879,3 +1879,40 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5190
+test('pscale_extensions schema', async () => {
+	await db.query(`CREATE SCHEMA test;`);
+	await db.query(`CREATE SCHEMA pscale_extensions;`);
+
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const schema1 = {
+		table1: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+	};
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(schemas).toStrictEqual([{ name: 'test', entityType: 'schemas' }]);
+});
