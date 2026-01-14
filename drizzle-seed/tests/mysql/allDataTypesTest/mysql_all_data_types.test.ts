@@ -9,23 +9,33 @@ let resolveFunc: (val: any) => void;
 const promise = new Promise((resolve) => {
 	resolveFunc = resolve;
 });
-test.beforeEach(async ({ db }) => {
+test.beforeEach(async ({ db, push }) => {
 	if (firstTime) {
 		firstTime = false;
 
+		// await push({ allDataTypes: schema.allDataTypes });
 		await db.execute(
 			sql`
 			    CREATE TABLE \`all_data_types\` (
 				\`integer\` int,
+				\`integer_unsigned\` int unsigned,
 				\`tinyint\` tinyint,
+				\`tinyint_unsigned\` tinyint unsigned,
 				\`smallint\` smallint,
+				\`smallint_unsigned\` smallint unsigned,
 				\`mediumint\` mediumint,
+				\`mediumint_unsigned\` mediumint unsigned,
 				\`bigint\` bigint,
+				\`bigint_unsigned\` bigint unsigned,
 				\`bigint_number\` bigint,
+				\`bigint_number_unsigned\` bigint unsigned,
 				\`real\` real,
 				\`decimal\` decimal,
+				\`decimal_unsigned\` decimal unsigned,
 				\`double\` double,
+				\`double_unsigned\` double unsigned,
 				\`float\` float,
+				\`float_unsigned\` float unsigned,
 				\`serial\` serial AUTO_INCREMENT,
 				\`binary\` binary(255),
 				\`varbinary\` varbinary(256),
@@ -58,7 +68,7 @@ test('basic seed test', async ({ db }) => {
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
 
-	// every value in each 10 rows does not equal undefined.
+	// every value in each row does not equal undefined.
 	const predicate = allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 
 	expect(predicate).toBe(true);
