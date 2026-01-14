@@ -265,7 +265,7 @@ export const fromDatabase = async (
 			rc.UPDATE_RULE,
 			rc.DELETE_RULE
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;

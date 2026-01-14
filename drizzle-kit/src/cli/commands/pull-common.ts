@@ -39,6 +39,7 @@ export type SchemaForPull = {
 export const relationsToTypeScript = (
 	schema: SchemaForPull,
 	casing: Casing,
+	schemaPath?: string, // for tests purposes
 ) => {
 	const imports: string[] = [];
 	const tableRelations: Record<
@@ -177,7 +178,9 @@ export const relationsToTypeScript = (
 		}
 	});
 
-	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "./schema";\n\n`;
+	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "${
+		schemaPath ?? './schema'
+	}";\n\n`;
 
 	let relationString = `export const relations = defineRelations(schema, (r) => ({`;
 
