@@ -45,11 +45,6 @@ export const prepareEntityFilter = (
 		: params.schemas;
 
 	const existingSchemas = existingEntities.filter((x) => x.type === 'schema').map((x) => x.name);
-	// for psql we always exclude pscale_extensions schema
-	// this is plantscale extension
-	if (dialect === 'postgresql') {
-		schemasConfig.push('!pscale_extensions');
-	}
 
 	const schemasFilter = prepareSchemasFitler(schemasConfig, existingSchemas);
 
@@ -100,17 +95,17 @@ const prepareSchemasFitler = (globs: string[], schemasExisting: string[]) => {
 	return (it: Schema) => {
 		if (!filterForExisting(it)) return false;
 
-		const nonnegate = matchers.filter((it) => it.negate === false);
-		const negate = matchers.filter((it) => it.negate === true);
-
-		const hasNonnegate = nonnegate.length > 0;
-		const hasNegate = negate.length > 0;
-
-		if (hasNonnegate) {
-			return nonnegate.find((matcher) => matcher.match(it.name)) !== undefined;
+		const flags: boolean[] = [];
+		for (let matcher of matchers) {
+			if (matcher.negate && !matcher.match(it.name)) {
+				flags.push(false);
+			} else if (matcher.match(it.name)) {
+				flags.push(true);
+			}
 		}
-		if (hasNegate) {
-			return negate.every((matcher) => matcher.match(it.name));
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
 		}
 
 		return false;

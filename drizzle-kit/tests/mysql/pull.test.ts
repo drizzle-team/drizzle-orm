@@ -760,7 +760,7 @@ test('datetime', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('varbinary', async () => {
+test('introspect varbinary', async () => {
 	const table1 = mysqlTable('table1', {
 		col1: varbinary({ length: 16 }),
 	});
@@ -786,4 +786,60 @@ test('timestamp def CURRENT_TIMESTAMP with precision', async () => {
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('fks with same names but in diff databases', async () => {
+	await db.query('DROP DATABASE if exists `fk_test`;');
+	await db.query('DROP DATABASE if exists `fk_test_2`;');
+	await db.query('CREATE DATABASE `fk_test`;');
+	await db.query('CREATE DATABASE `fk_test_2`;');
+
+	await db.query(`USE fk_test;`);
+	await db.query(`
+		CREATE TABLE parent (
+			id INT PRIMARY KEY
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			id INT PRIMARY KEY,
+			parent_id INT,
+			CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent(id)
+		);
+	`);
+
+	await db.query(`USE fk_test_2;`);
+	await db.query(`
+		CREATE TABLE parent (
+			id INT PRIMARY KEY
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			id INT PRIMARY KEY,
+			parent_id INT,
+			CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent(id)
+		);
+	`);
+
+	const { fks } = await fromDatabaseForDrizzle(db, 'fk_test', () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(fks).toStrictEqual([{
+		columns: [
+			'parent_id',
+		],
+		columnsTo: [
+			'id',
+		],
+		entityType: 'fks',
+		name: 'fk_parent',
+		nameExplicit: true,
+		onDelete: 'NO ACTION',
+		onUpdate: 'NO ACTION',
+		table: 'child',
+		tableTo: 'parent',
+	}]);
 });
