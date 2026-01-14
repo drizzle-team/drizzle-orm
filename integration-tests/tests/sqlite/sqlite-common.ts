@@ -4668,4 +4668,17 @@ export function tests(test: Test, exclude: string[] = []) {
 			timest_ms: new Date('2023-12-12T00:00:00.000Z'),
 		}]);
 	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	test.concurrent('insert with column omitted in values', async ({ db }) => {
+		const users = sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull(),
+			email: text('email'),
+		});
+
+		const query = db.insert(users).values({ id: 1, name: 'John' });
+
+		expect(query.toSQL().sql).toEqual('insert into "users" ("id", "name") values (?, ?)');
+	});
 }
