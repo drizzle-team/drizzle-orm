@@ -22,6 +22,18 @@ export interface MigrationMeta {
 	bps: boolean;
 }
 
+export interface MigratorFromDataConfig {
+	migrationsData: MigrationData[];
+	migrationsTable?: string;
+	migrationsSchema?: string;
+	init?: boolean;
+}
+
+export interface MigrationData {
+	queries: string;
+	timestamp: number;
+}
+
 /** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
 export interface MigratorInitFailResponse {
 	exitCode: 'databaseMigrations' | 'localMigrations';

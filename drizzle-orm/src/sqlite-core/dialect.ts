@@ -1142,7 +1142,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			AnyRelations,
 			V1.TablesRelationalConfig
 		>,
-		config?: string | MigrationConfig,
+		config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 	): void | MigratorInitFailResponse {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
@@ -1222,7 +1222,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			AnyRelations,
 			V1.TablesRelationalConfig
 		>,
-		config?: string | MigrationConfig,
+		config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
