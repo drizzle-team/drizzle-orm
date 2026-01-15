@@ -60,7 +60,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new EffectPgSession(client, dialect, relations, schema, { logger });
+	const session = new EffectPgSession(client, dialect, relations, schema, { logger, cache: config.cache });
 	const db = new EffectPgDatabase(
 		dialect,
 		session,
