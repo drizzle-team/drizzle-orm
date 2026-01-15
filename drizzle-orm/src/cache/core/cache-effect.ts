@@ -6,7 +6,7 @@ import type { CacheConfig } from './types.ts';
 export class EffectCache {
 	static readonly [entityKind]: string = 'EffectCache';
 
-	constructor(private readonly wrapped: Wrapped) {}
+	constructor(readonly wrapped: Wrapped) {}
 
 	strategy = () => this.wrapped.strategy();
 

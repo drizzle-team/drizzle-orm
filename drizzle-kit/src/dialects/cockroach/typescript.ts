@@ -610,7 +610,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 			it.columns
 				.map((it) => {
 					if (it.isExpression) {
-						return `sql\`${it.isExpression}\``;
+						return `sql\`${it.value}\``;
 					} else {
 						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}`;
 					}

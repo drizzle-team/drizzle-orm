@@ -1,8 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBuilder } from './int.common.ts';
 
-export class PgSmallIntBuilder extends PgColumnBuilder<{
+export class PgSmallIntBuilder extends PgIntColumnBuilder<{
 	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;

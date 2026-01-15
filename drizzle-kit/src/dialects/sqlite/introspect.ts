@@ -89,7 +89,6 @@ export const fromDatabase = async (
 			JOIN pragma_table_xinfo(m.name) AS p
 		WHERE 
 			m.type = 'table'
-			and m.tbl_name != '__drizzle_migrations' 
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -116,7 +115,6 @@ export const fromDatabase = async (
 		FROM sqlite_master AS m
 			WHERE
 			m.type = 'view'
-			and m.tbl_name != '__drizzle_migrations'
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -181,7 +179,6 @@ export const fromDatabase = async (
 				JOIN pragma_table_xinfo(m.name) AS p
 			WHERE 
 				m.type = 'view'
-				and m.tbl_name != '__drizzle_migrations' 
 				and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
