@@ -678,15 +678,26 @@ const commutativeTypes = [
 	['tinyint(1)', 'boolean'],
 	['binary(1)', 'binary'],
 	['char(1)', 'char'],
-	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
-
 export const commutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
 		const rightIn = it.some((x) => x === right);
 
 		if (leftIn && rightIn) return true;
+	}
+
+	// commutativity for:
+	// - now(4) and CURRENT_TIMESTAMP(4)
+	// - (now()) and (CURRENT_TIMESTAMP
+	// ...etc
+	const timeDefaultValueRegex = /^\(?(?:now|CURRENT_TIMESTAMP)(?:\((\d*)\))?\)?$/;
+	const leftMatch = left.match(timeDefaultValueRegex);
+	const rightMatch = right.match(timeDefaultValueRegex);
+	if (leftMatch && rightMatch) {
+		const leftValue = leftMatch[1] ?? ''; // undefined becomes '' for comparison
+		const rightValue = rightMatch[1] ?? '';
+		if (leftValue === rightValue) return true;
 	}
 
 	const leftPatched = left.replace(', ', ',');
