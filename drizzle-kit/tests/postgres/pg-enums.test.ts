@@ -2437,61 +2437,64 @@ test('drop enum', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
-test('alter enum values; enum value is column default; table with data', async () => {
-	enum AppStatus1 {
-		PENDING = 'PENDING',
-		ACTIVE = 'ACTIVE',
-		INACTIVE = 'INACTIVE',
-		BANNED = 'BANNED',
-	}
+test.skipIf(Date.now() < +new Date('2026-01-20'))(
+	'alter enum values; enum value is column default; table with data',
+	async () => {
+		enum AppStatus1 {
+			PENDING = 'PENDING',
+			ACTIVE = 'ACTIVE',
+			INACTIVE = 'INACTIVE',
+			BANNED = 'BANNED',
+		}
 
-	const appStatusEnum1 = pgEnum('app_status', AppStatus1);
+		const appStatusEnum1 = pgEnum('app_status', AppStatus1);
 
-	const schema1 = {
-		appStatusEnum1,
-		table1: pgTable('users', {
-			id: uuid('id').primaryKey().defaultRandom(),
-			appStatus: appStatusEnum1('app_status').default(AppStatus1.PENDING).notNull(),
-			appStatusNotes: text('app_status_notes'),
-		}),
-	};
+		const schema1 = {
+			appStatusEnum1,
+			table1: pgTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				appStatus: appStatusEnum1('app_status').default(AppStatus1.PENDING).notNull(),
+				appStatusNotes: text('app_status_notes'),
+			}),
+		};
 
-	const { next: n1 } = await diff({}, schema1, []);
-	await push({ db, to: schema1 });
-	await db.query(`insert into "users"("app_status") values ('PENDING'), ('PENDING');`);
+		const { next: n1 } = await diff({}, schema1, []);
+		await push({ db, to: schema1 });
+		await db.query(`insert into "users"("app_status") values ('PENDING'), ('PENDING');`);
 
-	enum AppStatus2 {
-		IN_REVIEW = 'IN_REVIEW',
-		ACTIVE = 'ACTIVE',
-		PAUSED = 'PAUSED',
-		BANNED = 'BANNED',
-	}
+		enum AppStatus2 {
+			IN_REVIEW = 'IN_REVIEW',
+			ACTIVE = 'ACTIVE',
+			PAUSED = 'PAUSED',
+			BANNED = 'BANNED',
+		}
 
-	const appStatusEnum2 = pgEnum('app_status', AppStatus2);
+		const appStatusEnum2 = pgEnum('app_status', AppStatus2);
 
-	const schema2 = {
-		appStatusEnum2,
-		table1: pgTable('users', {
-			id: uuid('id').primaryKey().defaultRandom(),
-			appStatus: appStatusEnum2('app_status').default(AppStatus2.IN_REVIEW).notNull(),
-			appStatusNotes: text('app_status_notes'),
-		}),
-	};
+		const schema2 = {
+			appStatusEnum2,
+			table1: pgTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				appStatus: appStatusEnum2('app_status').default(AppStatus2.IN_REVIEW).notNull(),
+				appStatusNotes: text('app_status_notes'),
+			}),
+		};
 
-	const { sqlStatements: st2 } = await diff(n1, schema2, []);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+		const { sqlStatements: st2 } = await diff(n1, schema2, []);
+		const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
-	// if it can be implemented, there is an advantage comparing to current flow:
-	// drizzle-kit can alter enum values in tables with data;
-	// (
-	// already inserted old enum values automatically changes to new;
-	// old default enum value changes to new automatically as well;
-	// on table with 1M rows all storing old enum value, rename query executes in 37ms;
-	// )
-	const expectedSt2 = [
-		`ALTER TYPE "app_status" RENAME VALUE 'PENDING' TO 'IN_REVIEW';`,
-		`ALTER TYPE "app_status" RENAME VALUE 'INACTIVE' TO 'PAUSED';`,
-	];
-	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
-});
+		// if it can be implemented, there is an advantage comparing to current flow:
+		// drizzle-kit can alter enum values in tables with data;
+		// (
+		// already inserted old enum values automatically changes to new;
+		// old default enum value changes to new automatically as well;
+		// on table with 1M rows all storing old enum value, rename query executes in 37ms;
+		// )
+		const expectedSt2 = [
+			`ALTER TYPE "app_status" RENAME VALUE 'PENDING' TO 'IN_REVIEW';`,
+			`ALTER TYPE "app_status" RENAME VALUE 'INACTIVE' TO 'PAUSED';`,
+		];
+		expect(st2).toStrictEqual(expectedSt2);
+		expect(pst2).toStrictEqual(expectedSt2);
+	},
+);

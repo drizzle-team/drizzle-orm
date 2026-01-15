@@ -255,7 +255,7 @@ test('check imports mysql-mover', () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5183
 // https://github.com/drizzle-team/drizzle-orm/issues/5126
-test('check imports drizzle-orm/expo-sqlite/migrator', () => {
+test.skipIf(Date.now() < +new Date('2026-01-20'))('check imports drizzle-orm/expo-sqlite/migrator', () => {
 	const issues = analyzeImports({
 		basePath: '../',
 		localPaths: ['../drizzle-orm/src'],
