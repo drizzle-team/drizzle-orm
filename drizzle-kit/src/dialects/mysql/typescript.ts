@@ -154,7 +154,7 @@ export const ddlToTypeScript = (
 
 		// more than 2 fields or self reference or cyclic
 		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it) || isCyclic(it) || it.nameExplicit;
+			return it.columns.length > 1 || isSelf(it);
 		});
 
 		const hasIndexes = indexes.length > 0;
@@ -330,7 +330,7 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const columnFKs = fks.filter((x) => !x.nameExplicit && x.columns.length === 1 && x.columns[0] === it.name);
+		const columnFKs = fks.filter((x) => x.columns.length === 1 && x.columns[0] === it.name && !isSelf(x));
 
 		for (const fk of columnFKs) {
 			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete?.toLowerCase() : null;

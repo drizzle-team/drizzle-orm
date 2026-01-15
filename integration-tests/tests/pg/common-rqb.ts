@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -199,6 +199,58 @@ export function tests(test: Test) {
 				createdAt: date,
 				name: 'Second',
 			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5172
+		test.concurrent('RQB v2 simple find first - result type', async ({ push, createDB }) => {
+			const user = pgTable('users', {
+				id: text('id').primaryKey(),
+				email: text('email').notNull().unique(),
+				password: text('password').notNull(),
+			});
+
+			const userSession = pgTable('user_sessions', {
+				id: text('id').primaryKey(),
+				userId: text('user_id')
+					.notNull()
+					.references(() => user.id),
+				expiresAt: timestamp('expires_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+			});
+
+			const schema = { user, userSession };
+			const db = createDB(schema, (r) => ({
+				user: {
+					sessions: r.many.userSession(),
+				},
+				userSession: {
+					user: r.one.user({
+						from: r.userSession.userId,
+						to: r.user.id,
+						optional: false,
+					}),
+				},
+			}));
+
+			const query = db.query.userSession.findFirst({
+				where: { id: '' },
+				with: { user: true },
+			});
+
+			expectTypeOf(query).resolves.toEqualTypeOf<
+				{
+					id: string;
+					userId: string;
+					expiresAt: Date;
+					user: {
+						id: string;
+						email: string;
+						password: string;
+					};
+				} | undefined
+			>();
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5172
@@ -914,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-01-17')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -971,6 +1023,89 @@ export function tests(test: Test) {
 					params: ['CANCELED', 'CLOSED'],
 					typings: ['none', 'none'],
 				});
+			},
+		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5186
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
+			'RQB v2 incorrect aliasing with RAW in where clause',
+			async ({ push, createDB }) => {
+				const users = pgTable('rqb_users_19', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					email: text('email').notNull().unique(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+				});
+
+				const orders = pgTable('rqb_orders_19', {
+					id: serial('id').primaryKey(),
+					userId: integer('user_id').references(() => users.id).notNull(),
+					amount: integer('amount').notNull(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+				});
+
+				await push({ users, orders });
+				const db = createDB({ users, orders }, (r) => ({
+					orders: {
+						user: r.one.users({
+							from: [r.orders.userId],
+							to: [r.users.id],
+						}),
+					},
+				}));
+
+				await db.insert(users).values([{ id: 1, email: 'a', name: 'b' }, { id: 2, email: 'aa', name: 'bb' }]);
+				await db.insert(orders).values([{ userId: 1, amount: 11 }, { userId: 2, amount: 22 }]);
+
+				const query = db.query.orders.findFirst({
+					columns: {
+						id: true,
+					},
+					with: {
+						user: {
+							columns: {
+								id: true,
+								name: true,
+								email: true,
+								createdAt: true,
+							},
+						},
+					},
+					where: {
+						RAW: isNotNull(orders.userId),
+					},
+				});
+
+				const orderWithUser = await query;
+				expect(orderWithUser?.user!.id).toBeDefined();
+			},
+		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5020
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
+			'RQB v2 incorrect aliasing in extras clause',
+			async ({ push, createDB }) => {
+				const orders = pgTable('rqb_orders_20', {
+					id: serial('id').primaryKey(),
+					amount: integer('amount').notNull(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+				});
+
+				await push({ orders });
+				const db = createDB({ orders });
+
+				await db.insert(orders).values([{ id: 1, amount: 11 }, { id: 2, amount: 22 }]);
+
+				const res = await db.query.orders.findMany({
+					columns: {
+						id: true,
+					},
+					extras: {
+						status: sql.raw(`CASE WHEN ${eq(orders.amount, 11)} THEN ${1} ELSE ${0} END`),
+					},
+				});
+
+				expect(res).toStrictEqual([{ id: 1, status: 1 }, { id: 2, status: 0 }]);
 			},
 		);
 	});

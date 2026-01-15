@@ -18,7 +18,7 @@ import { CasingType, configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
 import { EmptyProgressView } from '../../src/cli/views';
 import { hash } from '../../src/dialects/common';
-import { MysqlDDL, MysqlEntity } from '../../src/dialects/mysql/ddl';
+import { MysqlDDL, MysqlEntity, mysqlToRelationsPull } from '../../src/dialects/mysql/ddl';
 import { createDDL, interimToDDL } from '../../src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../src/dialects/mysql/diff';
 import { defaultFromColumn } from '../../src/dialects/mysql/drizzle';
@@ -31,6 +31,7 @@ import { DB } from '../../src/utils';
 import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
 import 'zx/globals';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { expect } from 'vitest';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -119,9 +120,14 @@ export const diffIntrospect = async (
 
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
+	const filePathRelations = `tests/mysql/tmp/${testName}-relations.ts`;
+	// path
+	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl1), 'camel', `./tests/mysql/tmp/${testName}`);
 
 	writeFileSync(filePath, file.file);
+	writeFileSync(filePathRelations, relations.file);
 	await tsc(file.file);
+	await tsc(relations.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -152,6 +158,7 @@ export const diffIntrospect = async (
 	);
 
 	rmSync(`tests/mysql/tmp/${testName}.ts`);
+	rmSync(`tests/mysql/tmp/${testName}-relations.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

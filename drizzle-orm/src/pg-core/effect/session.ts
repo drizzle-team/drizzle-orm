@@ -2,10 +2,10 @@ import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
-import { strategyFor } from '~/cache/core/cache.ts';
+import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { TaggedDrizzleQueryError, TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -50,7 +50,7 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 	): Effect.Effect<T, TaggedDrizzleQueryError> {
 		const { cache, cacheConfig, queryMetadata } = this;
 		return Effect.gen(function*() {
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.wrapped, NoopCache)
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)

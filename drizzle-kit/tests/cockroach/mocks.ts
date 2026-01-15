@@ -344,6 +344,7 @@ export const diffIntrospect = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		schema2,
 	};
 };
 

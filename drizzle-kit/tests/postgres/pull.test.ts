@@ -38,6 +38,7 @@ import {
 	time,
 	timestamp,
 	unique,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -717,7 +718,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-20'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -1373,7 +1374,7 @@ test('introspect view with table filter', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
-test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-20'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -1606,6 +1607,55 @@ test('index with option', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5224
+test('functional index', async () => {
+	const table1 = pgTable('table1', {
+		normalized_address: text(),
+		state: text(),
+	}, (t) => [
+		uniqueIndex('idx_addresses_natural_key')
+			.using(
+				'btree',
+				sql.raw(`upper(normalized_address)`),
+				sql.raw(`upper((state)::text)`),
+			)
+			.where(sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`)),
+	]);
+
+	const { sqlStatements, schema2 } = await diffIntrospect(db, { table1 }, 'functional_index');
+	expect(sqlStatements).toStrictEqual([]);
+	expect(schema2.indexes).toStrictEqual([{
+		columns: [
+			{
+				asc: true,
+				isExpression: true,
+				nullsFirst: false,
+				opclass: null,
+				value: 'upper(normalized_address)',
+			},
+			{
+				asc: true,
+				isExpression: true,
+				nullsFirst: false,
+				opclass: null,
+				value: 'upper(state)',
+			},
+		],
+		concurrently: false,
+		entityType: 'indexes',
+		forPK: false,
+		forUnique: false,
+		isUnique: true,
+		method: 'btree',
+		name: 'idx_addresses_natural_key',
+		nameExplicit: true,
+		schema: 'public',
+		table: 'table1',
+		where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
+		with: '',
+	}]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5193
 test('check definition', async () => {
 	const table1 = pgTable('table1', {
@@ -1828,4 +1878,41 @@ test('pull after migrate with custom migrations table #3', async () => {
 			table: 'users',
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5190
+test('pscale_extensions schema', async () => {
+	await db.query(`CREATE SCHEMA test;`);
+	await db.query(`CREATE SCHEMA pscale_extensions;`);
+
+	await db.query(`
+		CREATE TABLE IF NOT EXISTS public.users (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+
+	const schema1 = {
+		table1: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+	};
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: undefined,
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+	const { schemas } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(schemas).toStrictEqual([{ name: 'test', entityType: 'schemas' }]);
 });
