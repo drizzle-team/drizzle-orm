@@ -24,9 +24,9 @@ export function migrate<TSchema extends Record<string, unknown>, TRelations exte
 	db: SQLiteBunDatabase<TSchema, TRelations>,
 	config: MigrationConfig | MigrationFromJournalConfig | MigrationsJournal,
 ): void | MigratorInitFailResponse {
-	if ('migrationsJournal' in config) {
-		const journal = config.migrationsJournal;
-		const migrationsTable = config.migrationsTable;
+	if (Array.isArray(config) || 'migrationsJournal' in config) {
+		const journal = Array.isArray(config) ? config : config.migrationsJournal;
+		const migrationsTable = Array.isArray(config) ? undefined : config.migrationsTable;
 
 		const migrations: MigrationMeta[] = journal.map((d) => ({
 			sql: d.sql.split('--> statement-breakpoint'),
