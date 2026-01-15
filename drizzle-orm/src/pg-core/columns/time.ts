@@ -1,10 +1,11 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgDateColumnBuilder } from './date.common.ts';
 import type { Precision } from './timestamp.ts';
 
-export class PgTimeBuilder extends PgColumnBuilder<
+export class PgTimeBuilder extends PgDateColumnBuilder<
 	{
 		dataType: 'string time';
 		data: string;

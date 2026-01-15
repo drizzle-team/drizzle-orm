@@ -5,11 +5,9 @@ import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
-import { sql } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import type { PgSequenceOptions } from '../sequence.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
 declare const PgColumnBuilderBrand: unique symbol;
@@ -106,7 +104,7 @@ export type SetIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 	readonly [PgColumnBuilderBrand]: { notNull: true; hasDefault: true; identity: TType };
 };
 
-export type HasIdentity<T extends PgColumnBuilder, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
+export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
 
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
@@ -392,62 +390,6 @@ export abstract class PgColumnBuilder<
 			mode: 'stored',
 		};
 		return this as SetHasGenerated<this>;
-	}
-
-	/**
-	 * Adds a `default now()` clause to the column definition.
-	 * Available for date/time column types.
-	 */
-	defaultNow(): SetHasDefault<this> {
-		return this.default(sql`now()`);
-	}
-
-	/**
-	 * Adds an `ALWAYS AS IDENTITY` clause to the column definition.
-	 * Available for integer column types.
-	 */
-	generatedAlwaysAsIdentity(
-		sequence?: PgSequenceOptions & { name?: string },
-	): HasIdentity<this, 'always'> {
-		if (sequence) {
-			const { name, ...options } = sequence;
-			(this.config as any).generatedIdentity = {
-				type: 'always',
-				sequenceName: name,
-				sequenceOptions: options,
-			} satisfies GeneratedIdentityConfig;
-		} else {
-			(this.config as any).generatedIdentity = {
-				type: 'always',
-			} satisfies GeneratedIdentityConfig;
-		}
-		this.config.hasDefault = true;
-		this.config.notNull = true;
-		return this as HasIdentity<this, 'always'>;
-	}
-
-	/**
-	 * Adds a `BY DEFAULT AS IDENTITY` clause to the column definition.
-	 * Available for integer column types.
-	 */
-	generatedByDefaultAsIdentity(
-		sequence?: PgSequenceOptions & { name?: string },
-	): HasIdentity<this, 'byDefault'> {
-		if (sequence) {
-			const { name, ...options } = sequence;
-			(this.config as any).generatedIdentity = {
-				type: 'byDefault',
-				sequenceName: name,
-				sequenceOptions: options,
-			} satisfies GeneratedIdentityConfig;
-		} else {
-			(this.config as any).generatedIdentity = {
-				type: 'byDefault',
-			} satisfies GeneratedIdentityConfig;
-		}
-		this.config.hasDefault = true;
-		this.config.notNull = true;
-		return this as HasIdentity<this, 'byDefault'>;
 	}
 
 	/** @internal */

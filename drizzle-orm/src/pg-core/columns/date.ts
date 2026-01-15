@@ -1,9 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgDateColumnBuilder } from './date.common.ts';
 
-export class PgDateBuilder extends PgColumnBuilder<{
+export class PgDateBuilder extends PgDateColumnBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string;
@@ -38,7 +39,7 @@ export class PgDate extends PgColumn<'object date'> {
 	}
 }
 
-export class PgDateStringBuilder extends PgColumnBuilder<{
+export class PgDateStringBuilder extends PgDateColumnBuilder<{
 	dataType: 'string date';
 	data: string;
 	driverParam: string;

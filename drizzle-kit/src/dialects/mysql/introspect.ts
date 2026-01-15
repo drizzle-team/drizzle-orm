@@ -80,7 +80,7 @@ export const fromDatabase = async (
 		SELECT 
 			* 
 		FROM information_schema.columns
-		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
+		WHERE table_schema = '${schema}'
 		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
@@ -96,9 +96,8 @@ export const fromDatabase = async (
 			* 
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
-			AND INFORMATION_SCHEMA.STATISTICS.TABLE_NAME != '__drizzle_migrations'
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
-		ORDER BY lower(INDEX_NAME);
+		ORDER BY seq_in_index ASC;
 	`).then((rows) => {
 		const filtered = rows.filter((it) => tablesAndViews.some((x) => it['TABLE_NAME'] === x.name));
 		queryCallback('indexes', filtered, null);
@@ -147,7 +146,7 @@ export const fromDatabase = async (
 		const extra = column['EXTRA'] ?? '';
 		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
 		// const dataType = column['DATA_TYPE']; // varchar
-		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
+		// const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
 		// const numericPrecision = column['NUMERIC_PRECISION'];
 		// const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
@@ -189,7 +188,6 @@ export const fromDatabase = async (
 			table: table,
 			name: name,
 			type: changedType,
-			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			collation: collation,
@@ -204,6 +202,9 @@ export const fromDatabase = async (
 				}
 				: null,
 			isUnique: false,
+			// If to create "unique + not null" column, mysql shows it as "PRI"
+			// need to check by constraints only
+			isPK: false,
 			uniqueName: null,
 		});
 	}
@@ -214,7 +215,6 @@ export const fromDatabase = async (
 		FROM information_schema.table_constraints t
 		LEFT JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
 		WHERE t.constraint_type='PRIMARY KEY'
-			AND table_name != '__drizzle_migrations'
 			AND t.table_schema = '${schema}'
 		ORDER BY ordinal_position
 	`).then((rows) => {
@@ -265,7 +265,7 @@ export const fromDatabase = async (
 			rc.UPDATE_RULE,
 			rc.DELETE_RULE
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;

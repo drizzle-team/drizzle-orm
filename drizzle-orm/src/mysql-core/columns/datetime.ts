@@ -2,9 +2,9 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
-export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
+export class MySqlDateTimeBuilder extends MySqlDateColumnBaseBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
@@ -25,7 +25,7 @@ export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
 	}
 }
 
-export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends MySqlColumn<T> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends MySqlDateBaseColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;
@@ -54,7 +54,7 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends My
 	}
 }
 
-export class MySqlDateTimeStringBuilder extends MySqlColumnBuilder<{
+export class MySqlDateTimeStringBuilder extends MySqlDateColumnBaseBuilder<{
 	dataType: 'string datetime';
 	data: string;
 	driverParam: string | number;
@@ -75,7 +75,7 @@ export class MySqlDateTimeStringBuilder extends MySqlColumnBuilder<{
 	}
 }
 
-export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends MySqlColumn<T> {
+export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends MySqlDateBaseColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTimeString';
 
 	readonly fsp: number | undefined;

@@ -297,6 +297,7 @@ export function mysqlToRelationsPull(schema: MysqlDDL): SchemaForPull {
 		const rawTable = tableFromDDL(table, schema);
 		return {
 			foreignKeys: rawTable.fks,
+			columns: rawTable.columns.map((it) => ({ name: it.name })),
 			uniques: Object.values(rawTable.indexes).map((idx) => ({
 				columns: idx.columns.map((idxc) => {
 					if (!idxc.isExpression && idx.isUnique) {

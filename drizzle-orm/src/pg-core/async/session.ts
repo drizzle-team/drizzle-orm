@@ -60,7 +60,7 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extend
 		params: any[],
 		query: () => Promise<T>,
 	): Promise<T> {
-		const cacheStrat = this.cache !== undefined || is(this.cache, NoopCache)
+		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
 			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
 			: { type: 'skip' as const };
 

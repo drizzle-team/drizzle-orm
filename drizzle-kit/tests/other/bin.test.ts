@@ -252,3 +252,25 @@ test('check imports mysql-mover', () => {
 
 	assert.equal(issues.length, 0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5183
+// https://github.com/drizzle-team/drizzle-orm/issues/5126
+test.skipIf(Date.now() < +new Date('2026-01-20'))('check imports drizzle-orm/expo-sqlite/migrator', () => {
+	const issues = analyzeImports({
+		basePath: '../',
+		localPaths: ['../drizzle-orm/src'],
+		blackList: ['node:crypto', 'node:fs', 'node:path'],
+		entry: '../drizzle-orm/src/expo-sqlite/migrator.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	for (const issue of issues) {
+		// console.log('imports', issue.imports);
+		// console.log('accessChains', issue.accessChains);
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});

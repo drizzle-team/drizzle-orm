@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
-import { formatToMillis, type MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { formatToMillis, type MigrationMeta } from '../migrator.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
