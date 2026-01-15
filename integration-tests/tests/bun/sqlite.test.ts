@@ -3,8 +3,7 @@ import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { defineRelations, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
-import { migrate, migrateFromData } from 'drizzle-orm/bun-sqlite/migrator';
-import { MigrationData } from 'drizzle-orm/migrator';
+import { migrate, migrateFromJournal } from 'drizzle-orm/bun-sqlite/migrator';
 import { blob, getTableConfig, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 const usersTable = sqliteTable('users', {
@@ -981,14 +980,14 @@ test.concurrent('migrator : --init - db migrations error', async () => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-import { formatToMillis } from 'drizzle-orm/migrator';
+import { formatToMillis, MigrationsJournal } from 'drizzle-orm/migrator';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export function readMigrationFiles(path: string): MigrationData[] {
+export function readMigrationFiles(path: string): MigrationsJournal[] {
 	const migrationFolderTo = path;
 
-	const migrationQueries: MigrationData[] = [];
+	const migrationQueries: MigrationsJournal[] = [];
 
 	const migrations = readdirSync(migrationFolderTo)
 		.map((subdir) => ({ path: join(migrationFolderTo, subdir, 'migration.sql'), name: subdir }))
@@ -1004,7 +1003,7 @@ export function readMigrationFiles(path: string): MigrationData[] {
 		const timestamp = formatToMillis(migrationDate);
 
 		migrationQueries.push({
-			queries,
+			sql: queries.split('--> statement-breakpoint'),
 			timestamp,
 		});
 	}
@@ -1012,12 +1011,12 @@ export function readMigrationFiles(path: string): MigrationData[] {
 	return migrationQueries;
 }
 
-test.concurrent('migratorFromData', async () => {
+test.concurrent('migratorFromJournal', async () => {
 	db.run(sql`drop table if exists another_users`);
 	db.run(sql`drop table if exists users12`);
 	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	migrateFromData(db, { migrationsData: readMigrationFiles('./drizzle2/sqlite') });
+	migrateFromJournal(db, { migrationsData: readMigrationFiles('./drizzle2/sqlite') });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -1032,14 +1031,14 @@ test.concurrent('migratorFromData', async () => {
 	db.run(sql`drop table __drizzle_migrations`);
 });
 
-test.concurrent('migratorFromData : --init', async () => {
+test.concurrent('migratorFromJournal : --init', async () => {
 	const migrationsTable = 'drzl_init';
 
 	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	db.run(sql`drop table if exists ${usersMigratorTable}`);
 	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrateFromData(db, {
+	const migratorRes = migrateFromJournal(db, {
 		migrationsData: readMigrationFiles('./drizzle2/sqlite'),
 		migrationsTable,
 		init: true,
@@ -1061,14 +1060,14 @@ test.concurrent('migratorFromData : --init', async () => {
 	expect(!!res?.tableExists).toStrictEqual(false);
 });
 
-test.concurrent('migratorFromData : --init - local migrations error', async () => {
+test.concurrent('migratorFromJournal : --init - local migrations error', async () => {
 	const migrationsTable = 'drzl_init';
 
 	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	db.run(sql`drop table if exists ${usersMigratorTable}`);
 	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrateFromData(db, {
+	const migratorRes = migrateFromJournal(db, {
 		migrationsData: readMigrationFiles('./drizzle2/sqlite-init'),
 		migrationsTable,
 		init: true,
@@ -1090,19 +1089,19 @@ test.concurrent('migratorFromData : --init - local migrations error', async () =
 	expect(!!res?.tableExists).toStrictEqual(false);
 });
 
-test.concurrent('migratorFromData : --init - db migrations error', async () => {
+test.concurrent('migratorFromJournal : --init - db migrations error', async () => {
 	const migrationsTable = 'drzl_init';
 
 	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
 	db.run(sql`drop table if exists ${usersMigratorTable}`);
 	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	migrateFromData(db, {
+	migrateFromJournal(db, {
 		migrationsData: readMigrationFiles('./drizzle2/sqlite'),
 		migrationsTable,
 	});
 
-	const migratorRes = migrateFromData(db, {
+	const migratorRes = migrateFromJournal(db, {
 		migrationsData: readMigrationFiles('./drizzle2/sqlite-init'),
 		migrationsTable,
 		init: true,

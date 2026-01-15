@@ -22,15 +22,15 @@ export interface MigrationMeta {
 	bps: boolean;
 }
 
-export interface MigratorFromDataConfig {
-	migrationsData: MigrationData[];
+export interface MigratorFromJournalConfig {
+	migrationsData: MigrationsJournal[];
 	migrationsTable?: string;
 	migrationsSchema?: string;
 	init?: boolean;
 }
 
-export interface MigrationData {
-	queries: string;
+export interface MigrationsJournal {
+	sql: string[];
 	timestamp: number;
 }
 
