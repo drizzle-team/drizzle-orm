@@ -169,7 +169,6 @@ async function main() {
 			input: './src/ext/api-postgres.ts',
 			outputName: 'api-postgres.mjs',
 			format: 'esm',
-			banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 		}),
 		buildBundle({
 			name: 'api-mysql-cjs',
@@ -182,7 +181,6 @@ async function main() {
 			input: './src/ext/api-mysql.ts',
 			outputName: 'api-mysql.mjs',
 			format: 'esm',
-			banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 		}),
 		buildBundle({
 			name: 'api-sqlite-cjs',
@@ -195,7 +193,6 @@ async function main() {
 			input: './src/ext/api-sqlite.ts',
 			outputName: 'api-sqlite.mjs',
 			format: 'esm',
-			banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 		}),
 		buildDeclarations(),
 	]);

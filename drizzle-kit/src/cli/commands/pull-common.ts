@@ -1,3 +1,4 @@
+import { toCamelCase } from 'drizzle-orm/casing';
 import { plural, singular } from 'pluralize';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
@@ -8,7 +9,7 @@ const withCasing = (value: string, casing: Casing) => {
 		return value;
 	}
 	if (casing === 'camel') {
-		return value.camelCase();
+		return toCamelCase(value);
 	}
 
 	assertUnreachable(casing);
@@ -29,15 +30,21 @@ export type SchemaForPull = {
 		name: string;
 		entityType: 'fks';
 	}[];
+	columns?: { name: string }[];
 	// both unique constraints and unique indexes
 	uniques: {
 		columns: string[];
 	}[];
 }[];
 
+function prepareNameFor(name: string, tableColumns: string[]) {
+	return tableColumns.includes(name) ? `${name}Relation` : name;
+}
+
 export const relationsToTypeScript = (
 	schema: SchemaForPull,
 	casing: Casing,
+	schemaPath?: string, // for tests purposes
 ) => {
 	const imports: string[] = [];
 	const tableRelations: Record<
@@ -61,6 +68,7 @@ export const relationsToTypeScript = (
 	// Process all foreign keys as before.
 	schema.forEach((table) => {
 		const fks = Object.values(table.foreignKeys);
+		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
@@ -84,7 +92,7 @@ export const relationsToTypeScript = (
 				}
 
 				tableRelations[toTable1].push({
-					name: plural(toTable2),
+					name: prepareNameFor(plural(toTable2), tableColumns),
 					type: 'through',
 					tableFrom: toTable1,
 					columnsFrom: columnsTo1,
@@ -100,7 +108,7 @@ export const relationsToTypeScript = (
 				}
 
 				tableRelations[toTable2].push({
-					name: plural(toTable1),
+					name: prepareNameFor(plural(toTable1), tableColumns),
 					// this type is used for .many() side of relation, when another side has .through() with from and to fields
 					type: 'many-through',
 					tableFrom: toTable2,
@@ -129,7 +137,7 @@ export const relationsToTypeScript = (
 				}
 
 				tableRelations[keyFrom].push({
-					name: singular(tableTo),
+					name: prepareNameFor(singular(tableTo), tableColumns),
 					type: 'one',
 					tableFrom,
 					columnsFrom,
@@ -155,7 +163,7 @@ export const relationsToTypeScript = (
 					// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
 					// but I decided just to have a different type field here
 					tableRelations[keyTo].push({
-						name: plural(tableFrom),
+						name: prepareNameFor(plural(tableFrom), tableColumns),
 						type: 'one-one',
 						tableFrom: tableTo,
 						columnsFrom: columnsTo,
@@ -164,7 +172,7 @@ export const relationsToTypeScript = (
 					});
 				} else {
 					tableRelations[keyTo].push({
-						name: plural(tableFrom),
+						name: prepareNameFor(plural(tableFrom), tableColumns),
 						type: 'many',
 						tableFrom: tableTo,
 						columnsFrom: columnsTo,
@@ -176,7 +184,9 @@ export const relationsToTypeScript = (
 		}
 	});
 
-	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "./schema";\n\n`;
+	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "${
+		schemaPath ?? './schema'
+	}";\n\n`;
 
 	let relationString = `export const relations = defineRelations(schema, (r) => ({`;
 

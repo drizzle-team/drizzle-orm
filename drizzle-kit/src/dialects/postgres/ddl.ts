@@ -241,6 +241,7 @@ export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 		return {
 			schema: rawTable.schema,
 			foreignKeys: rawTable.fks,
+			columns: rawTable.columns.map((it) => ({ name: it.name })),
 			uniques: [
 				...Object.values(rawTable.uniques).map((unq) => ({
 					columns: unq.columns,

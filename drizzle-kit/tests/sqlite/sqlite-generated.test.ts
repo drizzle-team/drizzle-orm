@@ -1,5 +1,5 @@
 import { SQL, sql } from 'drizzle-orm';
-import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -990,6 +990,53 @@ test('generated as sql: add table with column with virtual generated constraint'
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5241
+test('generated as sql: change column with virtual generated constraint on another column', async () => {
+	const schema1 = {
+		table: sqliteTable('test_table', {
+			id: text().primaryKey(),
+			likes: integer('likes').notNull().default(0),
+			dislikes: integer('dislikes').notNull().default(0),
+			votes: integer('votes').generatedAlwaysAs(sql`likes + dislikes`),
+			count: integer('count').notNull(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+	await db.run("insert into `test_table`(`id`,`count`) values('a',1);");
+
+	const schema2 = {
+		table: sqliteTable('test_table', {
+			id: text().primaryKey(),
+			likes: integer('likes').notNull().default(0),
+			dislikes: integer('dislikes').notNull().default(0),
+			votes: integer('votes').generatedAlwaysAs(sql`likes + dislikes`),
+			count: integer('count'),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_test_table` (\n'
+		+ '\t`id` text PRIMARY KEY,\n'
+		+ '\t`likes` integer DEFAULT 0 NOT NULL,\n'
+		+ '\t`dislikes` integer DEFAULT 0 NOT NULL,\n'
+		+ '\t`votes` integer GENERATED ALWAYS AS (likes + dislikes) VIRTUAL,\n'
+		+ '\t`count` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_test_table`(`id`, `likes`, `dislikes`, `count`) SELECT `id`, `likes`, `dislikes`, `count` FROM `test_table`;',
+		'DROP TABLE `test_table`;',
+		'ALTER TABLE `__new_test_table` RENAME TO `test_table`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
 
 // ---
