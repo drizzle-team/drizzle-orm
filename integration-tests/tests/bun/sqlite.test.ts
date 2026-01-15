@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { defineRelations, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
-import { migrate, migrateFromJournal } from 'drizzle-orm/bun-sqlite/migrator';
+import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 import { blob, getTableConfig, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 const usersTable = sqliteTable('users', {
@@ -893,9 +893,8 @@ test.concurrent('migrator : --init', async () => {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
-		// @ts-ignore - internal param
 		init: true,
-	});
+	} as MigrationConfig);
 
 	const meta = db.select({
 		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -924,9 +923,8 @@ test.concurrent('migrator : --init - local migrations error', async () => {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
-		// @ts-ignore - internal param
 		init: true,
-	});
+	} as MigrationConfig);
 
 	const meta = db.select({
 		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -960,9 +958,8 @@ test.concurrent('migrator : --init - db migrations error', async () => {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
-		// @ts-ignore - internal param
 		init: true,
-	});
+	} as MigrationConfig);
 
 	const meta = db.select({
 		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -980,14 +977,14 @@ test.concurrent('migrator : --init - db migrations error', async () => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-import { formatToMillis, MigrationsJournal } from 'drizzle-orm/migrator';
+import { formatToMillis, MigrationConfig, MigrationsJournal } from 'drizzle-orm/migrator';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export function readMigrationFiles(path: string): MigrationsJournal[] {
+export function readMigrationFiles(path: string): MigrationsJournal {
 	const migrationFolderTo = path;
 
-	const migrationQueries: MigrationsJournal[] = [];
+	const migrationQueries: MigrationsJournal = [];
 
 	const migrations = readdirSync(migrationFolderTo)
 		.map((subdir) => ({ path: join(migrationFolderTo, subdir, 'migration.sql'), name: subdir }))
@@ -999,11 +996,11 @@ export function readMigrationFiles(path: string): MigrationsJournal[] {
 		const migrationPath = migration.path;
 		const migrationDate = migration.name.slice(0, 14);
 
-		const queries = readFileSync(migrationPath).toString();
+		const sql = readFileSync(migrationPath).toString();
 		const timestamp = formatToMillis(migrationDate);
 
 		migrationQueries.push({
-			sql: queries.split('--> statement-breakpoint'),
+			sql,
 			timestamp,
 		});
 	}
@@ -1016,7 +1013,7 @@ test.concurrent('migratorFromJournal', async () => {
 	db.run(sql`drop table if exists users12`);
 	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	migrateFromJournal(db, { migrationsData: readMigrationFiles('./drizzle2/sqlite') });
+	migrate(db, { migrationsJournal: readMigrationFiles('./drizzle2/sqlite') });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -1029,96 +1026,4 @@ test.concurrent('migratorFromJournal', async () => {
 	db.run(sql`drop table another_users`);
 	db.run(sql`drop table users12`);
 	db.run(sql`drop table __drizzle_migrations`);
-});
-
-test.concurrent('migratorFromJournal : --init', async () => {
-	const migrationsTable = 'drzl_init';
-
-	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
-	db.run(sql`drop table if exists ${usersMigratorTable}`);
-	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
-
-	const migratorRes = migrateFromJournal(db, {
-		migrationsData: readMigrationFiles('./drizzle2/sqlite'),
-		migrationsTable,
-		init: true,
-	});
-
-	const meta = db.select({
-		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
-		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
-	}).from(sql`${sql.identifier(migrationsTable)}`).all();
-
-	const res = db.get<{ tableExists: boolean | number }>(
-		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
-			getTableConfig(usersMigratorTable).name
-		}) AS ${sql.identifier('tableExists')};`,
-	);
-
-	expect(migratorRes).toStrictEqual(undefined);
-	expect(meta.length).toStrictEqual(1);
-	expect(!!res?.tableExists).toStrictEqual(false);
-});
-
-test.concurrent('migratorFromJournal : --init - local migrations error', async () => {
-	const migrationsTable = 'drzl_init';
-
-	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
-	db.run(sql`drop table if exists ${usersMigratorTable}`);
-	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
-
-	const migratorRes = migrateFromJournal(db, {
-		migrationsData: readMigrationFiles('./drizzle2/sqlite-init'),
-		migrationsTable,
-		init: true,
-	});
-
-	const meta = db.select({
-		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
-		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
-	}).from(sql`${sql.identifier(migrationsTable)}`).all();
-
-	const res = db.get<{ tableExists: boolean | number }>(
-		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
-			getTableConfig(usersMigratorTable).name
-		}) AS ${sql.identifier('tableExists')};`,
-	);
-
-	expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
-	expect(meta.length).toStrictEqual(0);
-	expect(!!res?.tableExists).toStrictEqual(false);
-});
-
-test.concurrent('migratorFromJournal : --init - db migrations error', async () => {
-	const migrationsTable = 'drzl_init';
-
-	db.run(sql`drop table if exists ${sql.identifier(migrationsTable)};`);
-	db.run(sql`drop table if exists ${usersMigratorTable}`);
-	db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
-
-	migrateFromJournal(db, {
-		migrationsData: readMigrationFiles('./drizzle2/sqlite'),
-		migrationsTable,
-	});
-
-	const migratorRes = migrateFromJournal(db, {
-		migrationsData: readMigrationFiles('./drizzle2/sqlite-init'),
-		migrationsTable,
-		init: true,
-	});
-
-	const meta = db.select({
-		hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
-		createdAt: sql<number>`${sql.identifier('created_at')}`.mapWith(Number).as('created_at'),
-	}).from(sql`${sql.identifier(migrationsTable)}`).all();
-
-	const res = db.get<{ tableExists: boolean | number }>(
-		sql`SELECT EXISTS (SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${
-			getTableConfig(usersMigratorTable).name
-		}) AS ${sql.identifier('tableExists')};`,
-	);
-
-	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
-	expect(meta.length).toStrictEqual(1);
-	expect(!!res?.tableExists).toStrictEqual(true);
 });

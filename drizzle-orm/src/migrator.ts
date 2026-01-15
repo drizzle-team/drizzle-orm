@@ -22,17 +22,15 @@ export interface MigrationMeta {
 	bps: boolean;
 }
 
-export interface MigratorFromJournalConfig {
-	migrationsData: MigrationsJournal[];
+export interface MigrationFromJournalConfig {
+	migrationsJournal: MigrationsJournal;
 	migrationsTable?: string;
-	migrationsSchema?: string;
-	init?: boolean;
 }
 
-export interface MigrationsJournal {
-	sql: string[];
+export type MigrationsJournal = {
+	sql: string;
 	timestamp: number;
-}
+}[];
 
 /** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
 export interface MigratorInitFailResponse {
