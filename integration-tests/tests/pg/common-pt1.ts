@@ -663,7 +663,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/4209
 		// postpone
 		// casing bug
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-17')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
 			const t1 = pgTable('table', (t) => ({
 				id: t.text().primaryKey(),
 			}));

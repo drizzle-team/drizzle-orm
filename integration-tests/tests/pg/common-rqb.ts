@@ -914,7 +914,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-17')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {

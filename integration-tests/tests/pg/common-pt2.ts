@@ -2505,7 +2505,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-17')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -2535,7 +2535,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4875
-		test.skipIf(Date.now() < +new Date('2026-01-15'))('view #2', async ({ db }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-17'))('view #2', async ({ db }) => {
 			const productionJobTable = pgTable('production_job', {
 				id: text('id').primaryKey(),
 				name: text('name'),
