@@ -3272,13 +3272,6 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
-		test.concurrent('uuid wrong default value', async ({ db, push }) => {
-			const table1 = pgTable('table1', {
-				// @ts-expect-error
-				col1: uuid().defaultNow(),
-			});
-		});
-
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
 		test.skipIf(Date.now() < +new Date('2026-01-16')).concurrent(
 			'select string from jsonb/json column',

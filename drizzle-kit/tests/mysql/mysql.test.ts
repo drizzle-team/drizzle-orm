@@ -2231,3 +2231,33 @@ test('create table with datetime .onUpdateNow() diff variations', async () => {
 		+ ');\n',
 	]);
 });
+
+test('create table with datetime .onUpdateNow() diff variations', async () => {
+	const orders = mysqlTable('orders', {
+		id: int({ unsigned: true }).notNull().primaryKey().autoincrement(),
+		catalog_id: int({ unsigned: true }).notNull().default(0),
+		created_at: timestamp('created_at', { mode: 'date', fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+	}, (table) => [
+		index('orders_created_at').on(table.created_at),
+		index('orders_catalog_id').on(table.catalog_id),
+	]);
+
+	const orderItems = mysqlTable('orderitems', {
+		id: int({ unsigned: true }).notNull().primaryKey().autoincrement(),
+		catalog_id: int({ unsigned: true }).notNull().default(0),
+		order_id: int({ unsigned: true }).notNull(),
+		sku: varchar({ length: 255 }).default('').notNull(),
+	}, (table) => [
+		index('orderitems_order_id').on(table.order_id),
+		index('orderitems_catalog_id').on(table.catalog_id),
+		index('orderitems_sku').on(table.sku),
+		primaryKey({ columns: [table.id] }),
+	]);
+
+	const to = {
+		orders,
+		orderItems,
+	};
+
+	await expect(push({ db, to })).resolves.not.toThrowError();
+});
