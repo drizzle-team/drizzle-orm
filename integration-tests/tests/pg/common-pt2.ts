@@ -2590,6 +2590,25 @@ export function tests(test: Test) {
 			expect(res).toStrictEqual([]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5049
+		test('view #3', async ({ db }) => {
+			const table1 = pgTable('table1', {
+				id: integer(),
+				name: text(),
+			});
+
+			const view1 = pgView('view1').as((qb) => qb.select().from(table1));
+
+			const query = db.select({
+				id: view1.id,
+				name: view1.name,
+			}).from(view1)
+				.innerJoin(table1, eq(view1.id, table1.id));
+			expect(query.toSQL().sql).toEqual(
+				'select "view1"."id", "view1"."name" from "view1" inner join "table1" on "view1"."id" = "table1"."id"',
+			);
+		});
+
 		test.concurrent('select from a many subquery', async ({ db, push }) => {
 			const citiesTable = pgTable('cities_many_subquery', {
 				id: serial('id').primaryKey(),
@@ -3251,6 +3270,13 @@ export function tests(test: Test) {
 
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
+		});
+
+		test.concurrent('uuid wrong default value', async ({ db, push }) => {
+			const table1 = pgTable('table1', {
+				// @ts-expect-error
+				col1: uuid().defaultNow(),
+			});
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

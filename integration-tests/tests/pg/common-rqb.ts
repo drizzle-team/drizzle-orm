@@ -1077,5 +1077,30 @@ export function tests(test: Test) {
 			const orderWithUser = await query;
 			expect(orderWithUser?.user!.id).toBeDefined();
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5020
+		test.concurrent('RQB v2 incorrect aliasing in extras clause', async ({ push, createDB }) => {
+			const orders = pgTable('rqb_orders_20', {
+				id: serial('id').primaryKey(),
+				amount: integer('amount').notNull(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			await push({ orders });
+			const db = createDB({ orders });
+
+			await db.insert(orders).values([{ id: 1, amount: 11 }, { id: 2, amount: 22 }]);
+
+			const res = await db.query.orders.findMany({
+				columns: {
+					id: true,
+				},
+				extras: {
+					status: sql.raw(`CASE WHEN ${eq(orders.amount, 11)} THEN ${1} ELSE ${0} END`),
+				},
+			});
+
+			expect(res).toStrictEqual([{ id: 1, status: 1 }, { id: 2, status: 0 }]);
+		});
 	});
 }

@@ -574,6 +574,35 @@ test('index #1', async () => {
 	expect(pst1).toStrictEqual(expectedSt1);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4962
+test('functional index #1', async () => {
+	const table1 = mysqlTable('table1', {
+		id: varchar('id', { length: 21 }).primaryKey().notNull(),
+		otherId: varchar('other_id', { length: 21 }),
+		url: varchar('url', { length: 2048 }),
+	}, (table) => [
+		uniqueIndex('uniqueUrl').on(
+			table.otherId,
+			sql`${table.url}(747)`,
+		),
+	]);
+	const schema1 = { table1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n'
+		+ '\t`id` varchar(21) PRIMARY KEY,\n'
+		+ '\t`other_id` varchar(21),\n'
+		+ '\t`url` varchar(2048),\n'
+		+ '\tCONSTRAINT `uniqueUrl` UNIQUE INDEX(`other_id`,`url`(747))\n'
+		+ ');\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4221
 test('fk on char column', async () => {
 	function column1() {

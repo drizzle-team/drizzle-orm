@@ -159,15 +159,14 @@ export class SQLiteDOPreparedQuery<
 		super('sync', executeMethod, query, undefined, undefined, undefined);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): void {
+	run(placeholderValues?: Record<string, unknown>): SqlStorageCursor<Record<string, SqlStorageValue>> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
 		if (params.length > 0) {
-			this.client.sql.exec(this.query.sql, ...params);
-			return;
+			return this.client.sql.exec(this.query.sql, ...params);
 		}
-		this.client.sql.exec(this.query.sql);
+		return this.client.sql.exec(this.query.sql);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
