@@ -101,7 +101,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 	if (errors2.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		console.log(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

@@ -67,12 +67,12 @@ export const handle = async (
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
 
 	if (errors1.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		console.log(errors1.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	if (errors2.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		console.log(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

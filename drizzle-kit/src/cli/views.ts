@@ -923,6 +923,42 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		return withStyle.errorWarning(`There's a sequence name duplicate '${error.name}' in '${error.schema}' schema`);
 	}
 
+	if (error.type === 'table_name_duplicate') {
+		const { schema, name } = error;
+		return withStyle.errorWarning(
+			`There's a duplicate table name '${name}' in '${schema}' schema. This can happen if you export the same table under multiple names.`,
+		);
+	}
+
+	if (error.type === 'column_name_duplicate') {
+		const { schema, table, name } = error;
+		return withStyle.errorWarning(
+			`There's a duplicate column name '${name}' in '${schema}.${table}' table.`,
+		);
+	}
+
+	if (error.type === 'schema_name_duplicate') {
+		return withStyle.errorWarning(`There's a duplicate schema name '${error.name}'.`);
+	}
+
+	if (error.type === 'enum_name_duplicate') {
+		const { schema, name } = error;
+		return withStyle.errorWarning(`There's a duplicate enum name '${name}' in '${schema}' schema.`);
+	}
+
+	if (error.type === 'enum_values_duplicate') {
+		const { schema, name } = error;
+		return withStyle.errorWarning(`There are duplicate values in enum '${name}' in '${schema}' schema.`);
+	}
+
+	if (error.type === 'role_duplicate') {
+		return withStyle.errorWarning(`There's a duplicate role name '${error.name}'.`);
+	}
+
+	if (error.type === 'privilege_duplicate') {
+		return withStyle.errorWarning(`There's a duplicate privilege '${error.name}'.`);
+	}
+
 	// assertUnreachable(error);
 	return '';
 };
