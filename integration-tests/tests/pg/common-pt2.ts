@@ -3315,5 +3315,60 @@ export function tests(test: Test) {
 				expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }]);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4950
+		test.concurrent('mySchema :: select with for', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema');
+			const users = mySchema.table('users_113', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+			const query = db
+				.select({ name: users.name })
+				.from(users)
+				.for('update', { of: users });
+
+			expect(query.toSQL().sql).toEqual('select "name" from "mySchema"."users_113" for update of "users_113"');
+			const result = await query;
+			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5253
+		test.concurrent('insert into ... select', async ({ db, push }) => {
+			const users = pgTable('users_114', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				role: text().notNull(),
+			});
+			const employees = pgTable('employees_114', {
+				id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users, employees });
+
+			await db.insert(users).values([{ id: 1, name: 'John', role: 'employee' }, {
+				id: 2,
+				name: 'Jane',
+				role: 'admin',
+			}]);
+
+			await db
+				.insert(employees)
+				.select(
+					db.select({ name: users.name }).from(users).where(eq(users.role, 'employee')),
+				)
+				.returning({
+					id: employees.id,
+					name: employees.name,
+				});
+
+			const employeesList = await db.select().from(employees);
+			expect(employeesList).toStrictEqual([{ id: 1, name: 'John' }]);
+		});
 	});
 }

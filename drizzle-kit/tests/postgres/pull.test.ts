@@ -420,6 +420,7 @@ test('introspect all column types', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4956
 // https://github.com/drizzle-team/drizzle-orm/issues/5093
 test('introspect uuid column with custom default function', async () => {
 	await db.query(`CREATE OR REPLACE FUNCTION uuidv7()
@@ -434,6 +435,7 @@ $$;`);
 		columns: pgTable('columns', {
 			uuid1: uuid().default(sql`uuidv7()`),
 			text: text().default(sql`uuidv7()`),
+			text1: text().default(sql`upper(substr(md5((random())::text), 1, 6))`).notNull(),
 			char: char().default(sql`uuidv7()`),
 			varchar: varchar().default(sql`uuidv7()`),
 		}),
