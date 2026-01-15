@@ -373,11 +373,11 @@ export const Varbinary: SqlType = {
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
+
+		if (!value) return { default: '', options };
 
 		let trimmed = value.startsWith('(') ? value.substring(1, value.length - 1) : value;
 		trimmed = trimChar(value, "'");
@@ -445,8 +445,15 @@ export const Timestamp: SqlType = {
 
 		if (!def) return { options, default: '' };
 		const trimmed = trimChar(def, "'");
-		if (trimmed === 'now()' || trimmed === '(now())' || trimmed === '(CURRENT_TIMESTAMP)') {
+		if (
+			trimmed === 'now()' || trimmed === '(now())' || trimmed === '(CURRENT_TIMESTAMP)'
+			|| trimmed === 'CURRENT_TIMESTAMP'
+		) {
 			return { options, default: '.defaultNow()' };
+		}
+
+		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+			return { options, default: `sql\`${trimmed}\`` };
 		}
 
 		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
@@ -460,7 +467,22 @@ export const DateTime: SqlType = {
 	drizzleImport: () => 'datetime',
 	defaultFromDrizzle: Timestamp.defaultFromDrizzle,
 	defaultFromIntrospect: Timestamp.defaultFromIntrospect,
-	toTs: Timestamp.toTs,
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		const trimmed = trimChar(def, "'");
+
+		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+			return { options, default: `sql\`${trimmed}\`` };
+		}
+
+		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
+		// TODO: we can handle fsp 6 here too, using sql``
+		return { options, default: `new Date("${trimmed}Z")` };
+	},
 };
 
 export const Time: SqlType = {
@@ -656,15 +678,26 @@ const commutativeTypes = [
 	['tinyint(1)', 'boolean'],
 	['binary(1)', 'binary'],
 	['char(1)', 'char'],
-	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
-
 export const commutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
 		const rightIn = it.some((x) => x === right);
 
 		if (leftIn && rightIn) return true;
+	}
+
+	// commutativity for:
+	// - now(4) and CURRENT_TIMESTAMP(4)
+	// - (now()) and (CURRENT_TIMESTAMP
+	// ...etc
+	const timeDefaultValueRegex = /^\(?(?:now|CURRENT_TIMESTAMP)(?:\((\d*)\))?\)?$/;
+	const leftMatch = left.match(timeDefaultValueRegex);
+	const rightMatch = right.match(timeDefaultValueRegex);
+	if (leftMatch && rightMatch) {
+		const leftValue = leftMatch[1] ?? ''; // undefined becomes '' for comparison
+		const rightValue = rightMatch[1] ?? '';
+		if (leftValue === rightValue) return true;
 	}
 
 	const leftPatched = left.replace(', ', ',');

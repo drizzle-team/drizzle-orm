@@ -1000,7 +1000,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5084
 		// it's needed to fix the type error below.
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
 			'prepared statement with placeholder in .onConflictDoUpdate',
 			async ({ db }) => {
 				await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();

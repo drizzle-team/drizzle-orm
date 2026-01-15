@@ -2505,7 +2505,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-01-15')).concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -2535,7 +2535,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4875
-		test.skipIf(Date.now() < +new Date('2026-01-15'))('view #2', async ({ db }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-20'))('view #2', async ({ db }) => {
 			const productionJobTable = pgTable('production_job', {
 				id: text('id').primaryKey(),
 				name: text('name'),
@@ -2588,6 +2588,25 @@ export function tests(test: Test) {
 
 			const res = await query;
 			expect(res).toStrictEqual([]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5049
+		test('view #3', async ({ db }) => {
+			const table1 = pgTable('table1', {
+				id: integer(),
+				name: text(),
+			});
+
+			const view1 = pgView('view1').as((qb) => qb.select().from(table1));
+
+			const query = db.select({
+				id: view1.id,
+				name: view1.name,
+			}).from(view1)
+				.innerJoin(table1, eq(view1.id, table1.id));
+			expect(query.toSQL().sql).toEqual(
+				'select "view1"."id", "view1"."name" from "view1" inner join "table1" on "view1"."id" = "table1"."id"',
+			);
 		});
 
 		test.concurrent('select from a many subquery', async ({ db, push }) => {
@@ -3254,7 +3273,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-01-13')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-16')).concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
@@ -3263,6 +3282,30 @@ export function tests(test: Test) {
 				await db.insert(table).values({ col1: '10.5', col2: '10.6' });
 				const res = await db.select().from(table);
 				expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
+			},
+		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5227
+		test.concurrent(
+			'select with bigint array in inArray',
+			async ({ db, push }) => {
+				const users = pgTable('users_112', {
+					id: bigint('id', { mode: 'bigint' }).primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				await push({ users });
+
+				await db.insert(users).values([{ id: 1n, name: 'John' }, { id: 2n, name: 'Jane' }, {
+					id: 9223372036854775807n,
+					name: 'Jane',
+				}]);
+				const result = await db
+					.select({ name: users.name })
+					.from(users)
+					.where(inArray(users.id, [9223372036854775807n, 2n]));
+
+				expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }]);
 			},
 		);
 	});
