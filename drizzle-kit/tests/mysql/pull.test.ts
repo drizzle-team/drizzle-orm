@@ -843,3 +843,20 @@ test('fks with same names but in diff databases', async () => {
 		tableTo: 'parent',
 	}]);
 });
+
+test('introspect cyclic foreign key', async () => {
+	const inviteCode = mysqlTable('InviteCode', {
+		id: int().primaryKey(),
+		inviterUserId: int().references((): AnyMySqlColumn => users.id),
+	});
+
+	const users = mysqlTable('Users', {
+		id: int().primaryKey(),
+		inviteId: int().references((): AnyMySqlColumn => inviteCode.id),
+	});
+
+	const { statements, sqlStatements } = await diffIntrospect(db, { inviteCode, users }, 'cyclic-foreign-key');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});

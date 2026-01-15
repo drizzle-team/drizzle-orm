@@ -682,6 +682,38 @@ test('fk multistep #1', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+test('cyclic fk with custom names', async () => {
+	await db.query(`CREATE TABLE \`Users\` (
+	\`id\` int primary key,
+	\`inviteId\` int
+);`);
+	await db.query(`CREATE TABLE \`InviteCode\` (
+	\`id\` int primary key,
+	\`inviterUserId\` int
+);`);
+	await db.query(
+		'ALTER TABLE `Users` ADD CONSTRAINT `usersToInviteCode` FOREIGN KEY (`inviteId`) REFERENCES `InviteCode` (`id`);',
+	);
+	await db.query(
+		'ALTER TABLE `InviteCode` ADD CONSTRAINT `InviteCodeToUsers` FOREIGN KEY (`inviterUserId`) REFERENCES `Users` (`id`);',
+	);
+
+	const inviteCode = mysqlTable('InviteCode', {
+		id: int().primaryKey(),
+		inviterUserId: int().references((): AnyMySqlColumn => users.id),
+	});
+
+	const users = mysqlTable('Users', {
+		id: int().primaryKey(),
+		inviteId: int().references((): AnyMySqlColumn => inviteCode.id),
+	});
+
+	const schema1 = { inviteCode, users };
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	expect(pst1).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/265
 // https://github.com/drizzle-team/drizzle-orm/issues/3293
 // https://github.com/drizzle-team/drizzle-orm/issues/2018

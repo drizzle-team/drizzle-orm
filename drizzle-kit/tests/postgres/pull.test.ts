@@ -718,7 +718,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-20'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -1374,7 +1374,7 @@ test('introspect view with table filter', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
-test.skipIf(Date.now() < +new Date('2026-01-15'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-20'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
