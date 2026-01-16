@@ -4,7 +4,7 @@ import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { resolver } from '../prompts';
-import { warning } from '../views';
+import { sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -66,7 +66,13 @@ export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
-	const { ddl } = interimToDDL(schema);
+	const { ddl, errors } = interimToDDL(schema);
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };

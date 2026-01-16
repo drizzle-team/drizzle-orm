@@ -254,6 +254,8 @@ export const fromDrizzleSchema = (
 			const name = index.config.name;
 
 			for (const column of columns) {
+				// TODO index names are required, why this is here?
+				// potentially can be removed
 				if (is(column, SQL) && !index.config.name) {
 					errors.push({
 						type: 'index_no_name',

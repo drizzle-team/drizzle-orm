@@ -2437,6 +2437,7 @@ test('drop enum', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
+// enhancement
 test.skipIf(Date.now() < +new Date('2026-01-20'))(
 	'alter enum values; enum value is column default; table with data',
 	async () => {
