@@ -974,7 +974,7 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		const schemaName = chalk.underline.blue(`"${schema}"`);
 		const enumName = chalk.underline.blue(`'${name}'`);
 		return withStyle.errorWarning(
-			`There are duplicate values in ${schemaName}.${enumName} enum`,
+			`There are duplicate values in enum ${enumName} in ${schemaName} schema`,
 		);
 	}
 

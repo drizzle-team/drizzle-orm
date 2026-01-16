@@ -15,7 +15,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { explain, ProgressView } from '../views';
+import { explain, ProgressView, sqliteSchemaError } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -41,7 +41,13 @@ export const handle = async (
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
 
-	const { ddl: ddl2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+
+	if (errors1.length > 0) {
+		console.log(errors1.map((it) => sqliteSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const progress = new ProgressView(
 		'Pulling schema from database...',
 		'Pulling schema from database...',

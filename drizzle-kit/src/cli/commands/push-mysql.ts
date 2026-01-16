@@ -15,7 +15,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, ProgressView } from '../views';
+import { explain, mysqlSchemaError, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -51,8 +51,13 @@ export const handle = async (
 	const interimFromFiles = fromDrizzleSchema(res.tables, res.views, casing);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
-	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
 	// TODO: handle errors
+
+	if (errors1.length > 0) {
+		console.log(errors1.map((it) => mysqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
