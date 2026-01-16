@@ -643,6 +643,83 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	return { db, close: async () => {}, clear, client };
 };
 
+export const preparePg18TestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
+	const envURL = process.env.PG18_URL;
+	if (!envURL) {
+		throw new Error('PG18_URL is not set');
+	}
+
+	const parsed = new URL(envURL);
+	parsed.pathname = '/postgres';
+
+	const adminUrl = parsed.toString();
+	const admin = new Client({ connectionString: adminUrl });
+	await admin.connect();
+	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
+	await admin!.query(`CREATE DATABASE drizzle;`);
+	admin.end();
+
+	const pgClient = new Client({ connectionString: envURL });
+	await pgClient.connect();
+	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
+	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
+	// await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
+	if (tx) {
+		await pgClient!.query('BEGIN').catch();
+		await pgClient!.query('SAVEPOINT drizzle');
+	}
+
+	const clear = async () => {
+		if (tx) {
+			await pgClient.query('ROLLBACK TO SAVEPOINT drizzle');
+			await pgClient.query('BEGIN');
+			await pgClient.query('SAVEPOINT drizzle');
+			return;
+		}
+
+		const namespaces = await pgClient.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
+			res,
+		) => res.rows.filter((r) => !isSystemNamespace(r.name)));
+
+		const roles = await pgClient.query<{ rolname: string }>(
+			`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
+
+		for (const namespace of namespaces) {
+			await pgClient.query(`DROP SCHEMA "${namespace.name}" cascade`);
+		}
+
+		await pgClient.query('CREATE SCHEMA public;');
+
+		for (const role of roles) {
+			await pgClient.query(`DROP ROLE "${role.rolname}"`);
+		}
+
+		// await pgClient.query(`CREATE EXTENSION vector;`);
+		await pgClient.query(`CREATE EXTENSION pg_trgm;`);
+	};
+
+	const close = async () => {
+		await pgClient.end().catch(console.error);
+	};
+
+	const db: TestDatabase['db'] = {
+		query: async (sql, params) => {
+			return pgClient.query(sql, params).then((it) => it.rows as any[]).catch((e: Error) => {
+				const error = new Error(`query error: ${sql}\n\n${e.message}`);
+				throw error;
+			});
+		},
+		batch: async (sqls) => {
+			for (const sql of sqls) {
+				await pgClient.query(sql);
+			}
+		},
+	};
+	return { db, close, clear, client };
+};
+
 export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
 	const envURL = process.env.POSTGIS_URL;
 	if (!envURL) {
