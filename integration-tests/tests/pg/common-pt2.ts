@@ -3304,7 +3304,7 @@ export function tests(test: Test) {
 					.select({ name: users.name })
 					.from(users)
 					.where(inArray(users.id, [9223372036854775807n, 2n]));
-
+				// change
 				expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }]);
 			},
 		);
