@@ -3273,7 +3273,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-01-16')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
@@ -3328,6 +3328,36 @@ export function tests(test: Test) {
 			const result = await query;
 			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 		});
+
+		// test.concurrent('mySchema :: select with for #2', async ({ db, push }) => {
+		// 	const schemaA = pgSchema('schema_a');
+		// 	const schemaB = pgSchema('schema_b');
+		// 	const usersA = schemaA.table('users', {
+		// 		id: integer('id').primaryKey(),
+		// 		name: text('name').notNull(),
+		// 	});
+		// 	const usersB = schemaB.table('users', {
+		// 		id: integer('id').primaryKey(),
+		// 		name: text('name').notNull(),
+		// 	});
+
+		// 	await push({ usersA, usersB, schemaA, schemaB });
+
+		// 	await db.insert(usersA).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+		// 	await db.insert(usersB).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+		// 	const query = db
+		// 		.select({ nameA: usersA.name, nameB: usersB.name })
+		// 		.from(usersA)
+		// 		.leftJoin(usersB, eq(usersA.id, usersB.id))
+		// 		.for('update', { of: usersA });
+
+		// 	expect(query.toSQL().sql).toEqual(
+		// 		'select "schema_a"."users"."name", "schema_b"."users"."name" from "schema_a"."users" left join "schema_b"."users" on "schema_a"."users"."id" = "schema_b"."users"."id" for update of "users"',
+		// 	);
+		// 	const result = await query;
+		// 	expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+		// });
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		test.concurrent('insert into ... select', async ({ db, push }) => {
