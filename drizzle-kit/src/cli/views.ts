@@ -79,8 +79,27 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 		return `'${error.view}' view name is a duplicate`;
 	}
 
-	// assertUnreachable(error.type)
-	return '';
+	if (error.type === 'conflict_column') {
+		return `'${error.column}' column name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_fk') {
+		return `'${error.name}' foreign key name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_index') {
+		return `'${error.name}' index name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_pk') {
+		return `'${error.name}' primary key name is a duplicate`;
+	}
+
+	if (error.type === 'table_no_columns') {
+		return `'${error.table}' table has no columns`;
+	}
+
+	assertUnreachable(error);
 };
 
 function formatOptionChanges(
@@ -923,11 +942,70 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		return withStyle.errorWarning(`There's a sequence name duplicate '${error.name}' in '${error.schema}' schema`);
 	}
 
-	// assertUnreachable(error);
-	return '';
+	if (error.type === 'table_name_duplicate') {
+		const { name, schema } = error;
+		const schemaName = chalk.underline.blue(`"${schema}"`);
+		const tableName = chalk.underline.blue(`"${name}"`);
+		return withStyle.errorWarning(
+			`There's a duplicate table name ${tableName} in ${schemaName} schema`,
+		);
+	}
+
+	if (error.type === 'column_name_duplicate') {
+		const { name, schema, table } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		const columnName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate column name ${columnName} in ${tableName} table`,
+		);
+	}
+
+	if (error.type === 'enum_name_duplicate') {
+		const { name, schema } = error;
+		const schemaName = chalk.underline.blue(`"${schema}"`);
+		const enumName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate enum name ${enumName} in ${schemaName} schema`,
+		);
+	}
+
+	if (error.type === 'enum_values_duplicate') {
+		const { name, schema } = error;
+		const schemaName = chalk.underline.blue(`"${schema}"`);
+		const enumName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There are duplicate values in ${schemaName}.${enumName} enum`,
+		);
+	}
+
+	if (error.type === 'privilege_duplicate') {
+		const { name } = error;
+		const privilegeName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate privilege name ${privilegeName}`,
+		);
+	}
+
+	if (error.type === 'role_duplicate') {
+		const { name } = error;
+		const roleName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate role name ${roleName}`,
+		);
+	}
+
+	if (error.type === 'schema_name_duplicate') {
+		const { name } = error;
+		const schemaName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate schema name ${schemaName}`,
+		);
+	}
+
+	assertUnreachable(error);
 };
 
-export const cockraochSchemaError = (error: CockroachSchemaError): string => {
+export const cockroachSchemaError = (error: CockroachSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
 		const { name, schema, table } = error;
 		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
@@ -1050,7 +1128,8 @@ export const cockraochSchemaError = (error: CockroachSchemaError): string => {
 			`There's a duplicate role name ${roleName}`,
 		);
 	}
-	return '';
+
+	assertUnreachable(error);
 };
 
 export const mysqlSchemaError = (error: MysqlSchemaError): string => {
@@ -1101,7 +1180,6 @@ const users = mysqlTable('users', {
 	}
 
 	assertUnreachable(error);
-	return '';
 };
 
 export const mssqlSchemaError = (error: MssqlSchemaError): string => {
