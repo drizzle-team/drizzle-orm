@@ -23,7 +23,7 @@ export type EffectDrizzleConfig<
 > =
 	& Omit<DrizzleConfig<TSchema, TRelations>, 'cache'>
 	& {
-		cache?: EffectCache;
+		cache?: EffectCache | undefined;
 	};
 
 function construct<
