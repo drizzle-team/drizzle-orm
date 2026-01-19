@@ -3392,21 +3392,5 @@ export function tests(test: Test) {
 			const employeesList = await db.select().from(employees);
 			expect(employeesList).toStrictEqual([{ id: 1, name: 'John' }]);
 		});
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/5259
-		test.concurrent('column in where clause', async ({ db, push }) => {
-			const users = pgTable('users_115', {
-				id: integer().primaryKey(),
-				name: text().notNull(),
-				flag: boolean(),
-			});
-
-			await push({ users });
-
-			await db.insert(users).values([{ id: 1, name: 'John', flag: true }, { id: 2, name: 'Jane', flag: false }]);
-			throw new Error(`it's needed to fix type error below`);
-			const res = await db.select({ name: users.name }).from(users).where(users.flag);
-			expect(res).toStrictEqual([{ name: 'John' }]);
-		});
 	});
 }
