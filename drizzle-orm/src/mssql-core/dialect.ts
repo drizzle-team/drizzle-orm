@@ -409,6 +409,14 @@ export class MsSqlDialect {
 				return fullName;
 			}
 
+			if (is(table, View) && table[ViewBaseConfig].isAlias) {
+				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
+				if (table[ViewBaseConfig].schema) {
+					fullName = sql`${sql.identifier(table[ViewBaseConfig].schema)}.${fullName}`;
+				}
+				return sql`${fullName} ${sql.identifier(table[ViewBaseConfig].name)}`;
+			}
+
 			return table;
 		})();
 

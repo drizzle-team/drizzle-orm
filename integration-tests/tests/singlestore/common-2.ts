@@ -1153,6 +1153,40 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table ${users}`);
 		});
 
+		test.concurrent('update with placeholder', async ({ db }) => {
+			const users = singlestoreTable('userstest_update_p', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`drop table if exists ${users};`);
+			await db.execute(sql`create table ${users} (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false
+			);`);
+
+			await db.insert(users).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.update(users).set({ verified: sql.placeholder('verified') }).execute({
+				verified: true,
+			});
+
+			const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+				asc(users.name),
+			);
+			expect(result).toStrictEqual([
+				{ name: 'Alan', verified: true },
+				{ name: 'Barry', verified: true },
+				{ name: 'Carl', verified: true },
+			]);
+		});
+
 		test.concurrent('utc config for datetime', async ({ db }) => {
 			await db.execute(sql`drop table if exists \`datestable\``);
 			await db.execute(

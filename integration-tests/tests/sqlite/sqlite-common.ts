@@ -7,6 +7,7 @@ import {
 	countDistinct,
 	eq,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -37,6 +38,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	type SQLiteDialect,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -608,6 +610,19 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(users).toEqual([{ name: 'JANE' }]);
 		});
 
+		test.concurrent('update placeholder', async ({ db }) => {
+			await db.insert(usersTable).values({ name: 'John' }).run();
+			const users = await db.update(usersTable).set({ name: sql.placeholder('name') }).where(
+				eq(usersTable.name, 'John'),
+			).returning({
+				name: sql`upper(${usersTable.name})`,
+			}).all({
+				name: 'Jane',
+			});
+
+			expect(users).toEqual([{ name: 'JANE' }]);
+		});
+
 		test.concurrent('insert with auto increment', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ name: 'John' },
@@ -1000,7 +1015,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5084
 		// it's needed to fix the type error below.
-		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
+		test.concurrent(
 			'prepared statement with placeholder in .onConflictDoUpdate',
 			async ({ db }) => {
 				await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();
@@ -1013,12 +1028,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					.onConflictDoUpdate({
 						target: usersTable.id,
 						set: {
-							// Casts necessary as `set` does not accept placeholders, even though
-							// it works at runtime
-
-							// @ts-expect-error
 							id: sql.placeholder('id'),
-							// @ts-expect-error
 							name: sql.placeholder('name'),
 						},
 					})
@@ -4667,5 +4677,66 @@ export function tests(test: Test, exclude: string[] = []) {
 			timest: new Date('2023-12-12T00:00:00.000Z'),
 			timest_ms: new Date('2023-12-12T00:00:00.000Z'),
 		}]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4875
+	test.concurrent('select aliased view', async ({ db }) => {
+		const productionJobTable = sqliteTable('production_job', {
+			id: text('id').primaryKey(),
+			name: text('name'),
+		});
+
+		const rfidTagTable = sqliteTable(
+			'rfid_tag',
+			{
+				createdAt: integer('created_at', {
+					mode: 'timestamp',
+				})
+					.notNull()
+					.default(sql`now()`),
+				epc: text('epc').notNull(),
+				locationId: text('location_id')
+					.notNull(),
+				id: text('id').notNull().unique().$default(() => 'abc'),
+			},
+		);
+
+		const productionJobWithLocationView = sqliteView(
+			'production_job_with_location',
+		).as((qb) => {
+			const productionColumns = getColumns(productionJobTable);
+			const sub = qb
+				.selectDistinct()
+				.from(rfidTagTable)
+				.as('r');
+			return qb
+				.select({
+					...productionColumns,
+					locationId: sub.locationId,
+					tagId: sub.id.as('tag_id'),
+					tagCreatedAt: sub.createdAt.as('tag_created_at'),
+				})
+				.from(productionJobTable)
+				.leftJoin(
+					sub,
+					and(
+						eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+						sql`${sub.epc} ~ '^0?[0-9]+'`,
+					),
+				);
+		});
+
+		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+		const query = db.select().from(sub);
+		expect(query.toSQL().sql).toStrictEqual(
+			(<{ dialect: SQLiteDialect }> <any> db).dialect.sqlToQuery(
+				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
+					sql.identifier('tag_id')
+				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
+					sql.identifier('p')
+				}`,
+			).sql,
+		);
 	});
 }

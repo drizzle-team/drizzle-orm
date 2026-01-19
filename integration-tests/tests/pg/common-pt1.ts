@@ -279,6 +279,33 @@ export function tests(test: Test) {
 			]);
 		});
 
+		test.concurrent('update with placeholder returning all fields', async ({ db, push }) => {
+			const users = pgTable('users_9_p', {
+				id: serial('id' as string).primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				jsonb: jsonb('jsonb').$type<string[]>(),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await push({ users });
+
+			const now = Date.now();
+
+			await db.insert(users).values({ name: 'John' });
+			const usersResult = await db
+				.update(users)
+				.set({ name: sql.placeholder('name') })
+				.where(eq(users.name, 'John'))
+				.returning().execute({ name: 'Jane' });
+
+			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
+			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expect(usersResult).toEqual([
+				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
+			]);
+		});
+
 		test.concurrent('update with returning partial', async ({ db, push }) => {
 			const users = pgTable('users_10', {
 				id: serial('id' as string).primaryKey(),
@@ -1062,6 +1089,30 @@ export function tests(test: Test) {
 				.insert(usersTable)
 				.values({ id: 1, name: 'John' })
 				.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John1' } });
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1));
+
+			expect(res).toEqual([{ id: 1, name: 'John1' }]);
+		});
+
+		test.concurrent('insert with onConflict do update placeholder', async ({ db, push }) => {
+			const usersTable = pgTable('users_48_p', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John' })
+				.onConflictDoUpdate({ target: usersTable.id, set: { name: sql.placeholder('name') } })
+				.execute({ name: 'John1' });
 
 			const res = await db
 				.select({ id: usersTable.id, name: usersTable.name })
