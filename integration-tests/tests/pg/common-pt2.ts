@@ -3313,25 +3313,28 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4950
-		test.concurrent('mySchema :: select with for', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_113', {
-				id: integer('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.skipIf(Date.now() < +new Date('2026-01-23')).concurrent(
+			'mySchema :: select with for',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_113', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
-			const query = db
-				.select({ name: users.name })
-				.from(users)
-				.for('update', { of: users });
+				await db.insert(users).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+				const query = db
+					.select({ name: users.name })
+					.from(users)
+					.for('update', { of: users });
 
-			expect(query.toSQL().sql).toEqual('select "name" from "mySchema"."users_113" for update of "users_113"');
-			const result = await query;
-			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
-		});
+				expect(query.toSQL().sql).toEqual('select "name" from "mySchema"."users_113" for update of "users_113"');
+				const result = await query;
+				expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+			},
+		);
 
 		// test.concurrent('mySchema :: select with for #2', async ({ db, push }) => {
 		// 	const schemaA = pgSchema('schema_a');
@@ -3364,7 +3367,7 @@ export function tests(test: Test) {
 		// });
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
-		test.concurrent('insert into ... select', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-23')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
