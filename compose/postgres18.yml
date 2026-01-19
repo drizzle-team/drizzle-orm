@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: drizzle
+      TZ: UTC
+    ports:
+      - "54323:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d drizzle"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

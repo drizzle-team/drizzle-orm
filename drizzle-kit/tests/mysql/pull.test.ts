@@ -449,6 +449,7 @@ test('introspect table with self reference', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4885
 // https://github.com/drizzle-team/drizzle-orm/issues/4110
 test('introspect table with boolean(tinyint(1))', async () => {
 	const schema = {
