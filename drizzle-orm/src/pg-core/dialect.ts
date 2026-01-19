@@ -405,7 +405,9 @@ export class PgDialect {
 				clauseSql.append(
 					sql` of ${
 						sql.join(
-							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							Array.isArray(lockingClause.config.of)
+								? lockingClause.config.of.map((it) => sql.identifier(it[PgTable.Symbol.Name]))
+								: [sql.identifier(lockingClause.config.of[PgTable.Symbol.Name])],
 							sql`, `,
 						)
 					}`,
