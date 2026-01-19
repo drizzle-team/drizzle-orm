@@ -3313,7 +3313,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4950
-		test.skipIf(Date.now() < +new Date('2026-01-23')).concurrent(
+		test.concurrent(
 			'mySchema :: select with for',
 			async ({ db, push }) => {
 				const mySchema = pgSchema('mySchema');

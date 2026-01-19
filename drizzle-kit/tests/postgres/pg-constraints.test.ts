@@ -1,4 +1,4 @@
-import { and, isNull, SQL, sql } from 'drizzle-orm';
+import { and, desc, isNull, SQL, sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
 	bigint,
@@ -2642,4 +2642,30 @@ test('not null', async () => {
 	}
 	await clear();
 	await close();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4704
+test('issue No4704. Composite index with sort outputs', async () => {
+	const schema1 = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [
+				index('table_composite_idx').on(
+					table.col1,
+					table.col2,
+					desc(table.col3), // Attempting to sort by col3 DESC
+				),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table" (\n\t"col1" integer,\n\t"col2" integer,\n\t"col3" integer\n);\n',
+		'CREATE INDEX "table_composite_idx" ON "table" ("col1","col2","col3" desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

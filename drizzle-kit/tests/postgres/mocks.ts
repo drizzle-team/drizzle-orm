@@ -45,6 +45,8 @@ import { PGlite } from '@electric-sql/pglite';
 // @ts-ignore
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-ignore
+import { citext } from '@electric-sql/pglite/contrib/citext';
+// @ts-ignore
 import { vector } from '@electric-sql/pglite/vector';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
@@ -586,7 +588,7 @@ export type TestDatabase<TClient = any> = {
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { vector, pg_trgm } });
+const client = new PGlite({ extensions: { citext, vector, pg_trgm } });
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);

@@ -1918,3 +1918,20 @@ test('pscale_extensions schema', async () => {
 
 	expect(schemas).toStrictEqual([{ name: 'test', entityType: 'schemas' }]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4655
+test('issue No4655. Problem with backslash in check constraint', async () => {
+	await db.query(`CREATE EXTENSION citext;`);
+
+	await db.query(`
+	CREATE TABLE public.email (
+		id integer NOT NULL,
+		email public.citext NOT NULL,
+		CONSTRAINT email_email_check CHECK ((email OPERATOR(public.~) '^[a-zA-Z0-9.!#$%&''*+/=?^_\`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'::public.citext))
+	);
+	`);
+
+	const { sqlStatements, statements } = await diffIntrospect(db, {}, 'functional_index');
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
