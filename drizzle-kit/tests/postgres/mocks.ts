@@ -588,13 +588,12 @@ export type TestDatabase<TClient = any> = {
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { vector, pg_trgm, citext } });
+const client = new PGlite({ extensions: { citext, vector, pg_trgm } });
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await client.query(`CREATE EXTENSION vector;`);
 	await client.query(`CREATE EXTENSION pg_trgm;`);
-	await client.query(`CREATE EXTENSION IF NOT EXISTS citext;`);
 	if (tx) {
 		await client.query('BEGIN');
 		await client.query('SAVEPOINT drizzle');
@@ -628,7 +627,6 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 
 		await client.query(`CREATE EXTENSION vector;`);
 		await client.query(`CREATE EXTENSION pg_trgm;`);
-		await client.query(`CREATE EXTENSION IF NOT EXISTS citext;`);
 	};
 
 	const db: TestDatabase<any>['db'] = {
