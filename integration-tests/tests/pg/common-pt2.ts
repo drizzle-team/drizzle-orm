@@ -1,5 +1,6 @@
 import {
 	and,
+	arrayContains,
 	asc,
 	avg,
 	avgDistinct,
@@ -3398,6 +3399,46 @@ export function tests(test: Test) {
 
 			const employeesList = await db.select().from(employees);
 			expect(employeesList).toStrictEqual([{ id: 1, name: 'John' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4612
+		test('select with inline params in sql', async ({ db }) => {
+			const users = pgTable('users_115', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const query = db
+				.select({ sum: sql`sum(${3})`.inlineParams() })
+				.from(users);
+
+			expect(query.toSQL()).toStrictEqual([{
+				sql: 'select sum(3) from "users_115"',
+				params: [],
+			}]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4578
+		test('arrayContains', async ({ db, push }) => {
+			const myTable = pgTable('my_table', {
+				id: integer().primaryKey(),
+				movieId: integer(),
+				tag: text(),
+			});
+
+			await push({ myTable });
+			await db.insert(myTable).values([{ id: 1, movieId: 1, tag: 'abc' }, { id: 2, movieId: 1, tag: 'def' }]);
+
+			const subquery = db.select({
+				tags_array: sql<string[] | null>`array_agg(${myTable.tag})`.as('selectedIds'),
+			})
+				.from(myTable)
+				.groupBy(myTable.movieId).as('subquery');
+
+			const result = await db.select().from(subquery)
+				.where(arrayContains(subquery.tags_array, ['abc', 'def']));
+
+			expect(result).toStrictEqual([{ tags_array: ['abc', 'def'] }]);
 		});
 	});
 }

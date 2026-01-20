@@ -6558,5 +6558,23 @@ export function tests() {
 
 			expect(db.insert(genColumns).values({ id: 1 })).resolves;
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4612
+		test('select with inline params in sql', async (ctx) => {
+			const { db } = ctx.cockroach;
+			const users = cockroachTable('users_115', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const query = db
+				.select({ sum: sql`sum(${3})`.inlineParams() })
+				.from(users);
+
+			expect(query.toSQL()).toStrictEqual([{
+				sql: 'select sum(3) from "users_115"',
+				params: [],
+			}]);
+		});
 	});
 }

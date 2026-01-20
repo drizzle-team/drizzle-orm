@@ -4068,3 +4068,20 @@ test('select aliased view', async ({ db }) => {
 		).sql,
 	);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4612
+test.only('select with inline params in sql', async ({ db }) => {
+	const users = mssqlTable('users_115', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const query = db
+		.select({ sum: sql`sum(${3})`.inlineParams() })
+		.from(users);
+
+	expect(query.toSQL()).toStrictEqual([{
+		sql: 'select sum(3) from [users_115]',
+		params: [],
+	}]);
+});

@@ -1,7 +1,7 @@
 // test cases
 
 import { SQL, sql } from 'drizzle-orm';
-import { integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -450,6 +450,29 @@ test('generated as string: change generated constraint', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4622
+test('generated as string: enum column', async () => {
+	const roleEnum = pgEnum('role-enum', ['admin', 'manager']);
+	const to = {
+		roleEnum,
+		users: pgTable('users', {
+			role: roleEnum('gen_name').generatedAlwaysAs('admin'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TYPE "role-enum" AS ENUM('admin', 'manager');`,
+		'CREATE TABLE "users" (\n'
+		+ `\t"gen_name" "role-enum" GENERATED ALWAYS AS ('admin') STORED\n`
+		+ ');\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter generated constraint', async () => {

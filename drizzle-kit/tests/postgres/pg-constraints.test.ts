@@ -2518,6 +2518,7 @@ test('drop column with pk and add pk to another column #1', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4645
 // https://github.com/drizzle-team/drizzle-orm/issues/3280
 test('fk name is too long', async () => {
 	const table1 = pgTable(
@@ -2625,11 +2626,17 @@ test('not null', async () => {
 		const table1 = pgTable('table1', {
 			col1: integer().primaryKey(),
 			col2: integer().notNull(),
-		});
+			col3: integer(),
+		}, (table) => [
+			// this works too
+			// check('table1_col3_not_null', sql`col3 IS NOT NULL`),
+			check('table1_col3_not_null', sql`${table.col3} IS NOT NULL`),
+		]);
 
 		const schema = { table1 };
 		const { next: n1 } = await diff({}, schema, []);
-		await push({ db, to: schema });
+		const { sqlStatements: st1 } = await push({ db, to: schema });
+		console.log(st1);
 
 		const { sqlStatements: st2 } = await diff(n1, schema, []);
 		const { sqlStatements: pst2 } = await push({ db, to: schema });

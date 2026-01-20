@@ -1918,3 +1918,28 @@ test('pscale_extensions schema', async () => {
 
 	expect(schemas).toStrictEqual([{ name: 'test', entityType: 'schemas' }]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4655
+test('custom type + backslash in check', async () => {
+	const schema = {
+		email: pgTable('email', {
+			id: integer().notNull(),
+			email: customType({ dataType: () => 'citext' })().notNull(),
+		}, () => [
+			check(
+				'email_email_check',
+				// backslash should be escaped like this: \`
+				sql`(email ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_\`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'::citext)`,
+			),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'custom-type-backslash-in-check',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
