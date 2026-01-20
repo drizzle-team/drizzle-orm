@@ -1194,7 +1194,6 @@ test('introspect foreign keys #2', async () => {
 		'introspect-foreign-keys-2',
 		['public'],
 	);
-	console.log(ddlAfterPull.fks);
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -1897,12 +1896,6 @@ test('pscale_extensions schema', async () => {
 		);
 	`);
 
-	const schema1 = {
-		table1: pgTable('table1', {
-			id: text().primaryKey(),
-		}),
-	};
-
 	const filter = prepareEntityFilter('postgresql', {
 		tables: undefined,
 		schemas: undefined,
@@ -1934,7 +1927,7 @@ test('issue No4655. Problem with backslash in check constraint', async () => {
 	);
 	`);
 
-	const { sqlStatements, statements } = await diffIntrospect(db, {}, 'functional_index');
+	const { sqlStatements, statements } = await diffIntrospect(db, {}, 'problem-with-backslash-in-check-constraint');
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
 });
