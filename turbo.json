@@ -20,157 +20,28 @@
       ],
       "outputLogs": "new-only"
     },
+    "build": {
+      "dependsOn": ["drizzle-orm#build"],
+      "inputs": [
+        "src/**/*.ts",
+        "package.json",
+        "README.md",
+        "$TURBO_ROOT$/README.md",
+        "tsconfig.json",
+        "tsconfig.*.json",
+        "tsup.config.ts",
+        "scripts/build.ts",
+        "scripts/fix-imports.ts",
+        "$TURBO_ROOT$/tsconfig.json"
+      ],
+      "outputs": ["dist/**", "dist-dts/**"],
+      "outputLogs": "new-only"
+    },
     "drizzle-orm#build": {
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-kit#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-zod#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-typebox#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-valibot#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-arktype#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "eslint-plugin-drizzle#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
-    },
-    "drizzle-seed#build": {
-      "dependsOn": ["drizzle-orm#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
+      "dependsOn": []
     },
     "integration-tests#build": {
-      "dependsOn": ["drizzle-orm#build", "drizzle-seed#build"],
-      "inputs": [
-        "src/**/*.ts",
-        "package.json",
-        "README.md",
-        "$TURBO_ROOT$/README.md",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "tsup.config.ts",
-        "scripts/build.ts",
-        "scripts/fix-imports.ts",
-        "$TURBO_ROOT$/tsconfig.json"
-      ],
-      "outputs": ["dist/**", "dist-dts/**"],
-      "outputLogs": "new-only"
+      "dependsOn": ["drizzle-orm#build", "drizzle-seed#build"]
     },
     "pack": {
       "dependsOn": ["build", "test:types"],
