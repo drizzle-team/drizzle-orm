@@ -1035,7 +1035,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/4612
-	test.concurrent.only('select with inline params in sql', async ({ db }) => {
+	test.concurrent('select with inline params in sql', async ({ db }) => {
 		const users = mysqlTable('users_115', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
