@@ -517,11 +517,11 @@ export namespace sql {
 	}
 
 	/**
-	 * Convenience function to create an SQL query from a raw string.
-	 * @param str The raw SQL query string.
+	 * Convenience function to create an SQL query from a raw string or a primitive value.
+	 * @param input The raw SQL query string or a primitive value.
 	 */
-	export function raw(str: string): SQL {
-		return new SQL([new StringChunk(str)]);
+	export function raw<T extends string | number | boolean | null>(input: T): SQL<T extends string ? unknown : T> {
+		return new SQL([new StringChunk(String(input))]);
 	}
 
 	/**
