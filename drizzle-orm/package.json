@@ -75,7 +75,7 @@
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
 		"gel": ">=2",
-		"mssql": "^11.0.1",
+		"mssql": ">=11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
