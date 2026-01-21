@@ -597,6 +597,10 @@ export namespace SQL {
 			return this.sql as SQL<T>;
 		}
 
+		as(alias: string): SQL.Aliased<T> {
+			return new SQL.Aliased(new SQL([this]), alias);
+		}
+
 		/** @internal */
 		clone() {
 			return new Aliased<T>(this.sql, this.fieldAlias);
