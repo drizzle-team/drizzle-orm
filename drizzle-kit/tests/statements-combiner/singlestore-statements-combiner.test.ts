@@ -576,7 +576,7 @@ test(`drop not null`, async (t) => {
 	);
 });
 
-test(`renamed column and droped column "test"`, async (t) => {
+test(`renamed column and dropped column "test"`, async (t) => {
 	const statements: JsonStatement[] = [
 		{
 			type: 'alter_table_rename_column',
@@ -683,7 +683,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 	);
 });
 
-test(`droped column that is part of composite pk`, async (t) => {
+test(`dropped column that is part of composite pk`, async (t) => {
 	const statements: JsonStatement[] = [
 		{ type: 'delete_composite_pk', tableName: 'user', data: 'id,iq' },
 		{
