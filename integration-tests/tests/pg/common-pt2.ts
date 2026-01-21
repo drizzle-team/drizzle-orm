@@ -21,12 +21,14 @@ import {
 	min,
 	not,
 	or,
+	SQL,
 	sql,
 	sum,
 	sumDistinct,
 } from 'drizzle-orm';
 import {
 	alias,
+	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
@@ -62,6 +64,7 @@ import {
 	time,
 	timestamp,
 	union,
+	uniqueIndex,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -3439,6 +3442,40 @@ export function tests(test: Test) {
 				.where(arrayContains(subquery.tags_array, ['abc', 'def']));
 
 			expect(result).toStrictEqual([{ tags_array: ['abc', 'def'] }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4596
+		test('functional index; onConflict do update', async ({ db, push }) => {
+			const lower = (email: AnyPgColumn): SQL => {
+				return sql`lower(${email})`;
+			};
+			const users = pgTable('users_116', {
+				id: integer().primaryKey(),
+				name: varchar(),
+				email: text().notNull(),
+				deletedAt: timestamp(),
+			}, (table) => [
+				uniqueIndex('email_idx').on(lower(table.email)).where(isNull(table.deletedAt)),
+			]);
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, email: 'a', name: 'aName' }])
+				.onConflictDoUpdate({
+					target: lower(users.email),
+					targetWhere: isNull(users.deletedAt),
+					set: { name: sql`excluded.name` },
+				});
+
+			await db.insert(users).values([{ id: 2, email: 'A', name: 'bName' }])
+				.onConflictDoUpdate({
+					target: lower(users.email),
+					targetWhere: isNull(users.deletedAt),
+					set: { name: sql`excluded.name` },
+				});
+
+			const result = await db.select({ name: users.name }).from(users);
+			expect(result).toStrictEqual([{ name: 'bName' }]);
 		});
 	});
 }

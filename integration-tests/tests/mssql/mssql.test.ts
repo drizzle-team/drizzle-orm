@@ -4070,7 +4070,7 @@ test('select aliased view', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4612
-test.only('select with inline params in sql', async ({ db }) => {
+test('select with inline params in sql', async ({ db }) => {
 	const users = mssqlTable('users_115', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
