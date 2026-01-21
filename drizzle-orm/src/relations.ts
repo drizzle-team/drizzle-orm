@@ -273,6 +273,12 @@ export type RelationsRecord = Record<string, AnyRelation>;
 export type EmptyRelations = {};
 export type AnyRelations = TablesRelationalConfig;
 
+/** Function that builds column SQL given the aliased table */
+export type RelationColumnBuilder = (table: SQL) => SQL;
+
+/** A relation column can be either a Column or a builder function */
+export type RelationColumnValue = Column<any> | RelationColumnBuilder;
+
 export abstract class Relation<
 	TTargetTableName extends string = string,
 > {
@@ -281,8 +287,8 @@ export abstract class Relation<
 	declare public readonly relationType: 'many' | 'one';
 
 	fieldName!: string;
-	sourceColumns!: Column<any>[];
-	targetColumns!: Column<any>[];
+	sourceColumns!: RelationColumnValue[];
+	targetColumns!: RelationColumnValue[];
 	alias: string | undefined;
 	where: AnyTableFilter | undefined;
 	sourceTable!: SchemaEntry;
@@ -330,30 +336,38 @@ export class One<
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
+			this.sourceColumns = (Array.isArray(config.from)
 				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
+				: [config.from]).map((it: RelationConfigValue) => {
+					if (isRelationsBuilderColumnBase(it)) {
+						this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+						this.sourceColumnTableNames.push(it._.tableName);
+						return it._.column as Column;
+					}
+					return it; // It's a function, pass through
 				});
 		}
 		if (config?.to) {
 			this.targetColumns = (Array.isArray(config.to)
 				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
+				: [config.to]).map((it: RelationConfigValue) => {
+					if (isRelationsBuilderColumnBase(it)) {
+						this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+						this.targetColumnTableNames.push(it._.tableName);
+						return it._.column as Column;
+					}
+					return it; // It's a function, pass through
 				});
 		}
 
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : [])
+					.filter(isRelationsBuilderColumnBase)
+					.map((c) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : [])
+					.filter(isRelationsBuilderColumnBase)
+					.map((c) => c._.through!),
 			};
 		}
 		this.optional = (config?.optional ?? true) as TOptional;
@@ -378,29 +392,37 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
+			this.sourceColumns = (Array.isArray(config.from)
 				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
+				: [config.from]).map((it: RelationConfigValue) => {
+					if (isRelationsBuilderColumnBase(it)) {
+						this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+						this.sourceColumnTableNames.push(it._.tableName);
+						return it._.column as Column;
+					}
+					return it; // It's a function, pass through
 				});
 		}
 		if (config?.to) {
 			this.targetColumns = (Array.isArray(config.to)
 				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
+				: [config.to]).map((it: RelationConfigValue) => {
+					if (isRelationsBuilderColumnBase(it)) {
+						this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+						this.targetColumnTableNames.push(it._.tableName);
+						return it._.column as Column;
+					}
+					return it; // It's a function, pass through
 				});
 		}
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : [])
+					.filter(isRelationsBuilderColumnBase)
+					.map((c) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : [])
+					.filter(isRelationsBuilderColumnBase)
+					.map((c) => c._.through!),
 			};
 		}
 	}
@@ -1017,9 +1039,15 @@ export type AnyTableFilter = TableFilter<
 	FieldSelection
 >;
 
+export type RelationConfigValue = RelationsBuilderColumnBase | RelationColumnBuilder;
+
+function isRelationsBuilderColumnBase(value: RelationConfigValue): value is RelationsBuilderColumnBase {
+	return typeof value !== 'function' && '_' in value;
+}
+
 export interface OneConfig<TTargetTable extends SchemaEntry, TOptional extends boolean> {
-	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
-	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	from?: RelationConfigValue | [RelationConfigValue, ...RelationConfigValue[]];
+	to?: RelationConfigValue | [RelationConfigValue, ...RelationConfigValue[]];
 	where?: TableFilter<TTargetTable>;
 	optional?: TOptional;
 	alias?: string;
@@ -1031,8 +1059,8 @@ export type AnyOneConfig = OneConfig<
 >;
 
 export interface ManyConfig<TTargetTable extends SchemaEntry> {
-	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
-	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	from?: RelationConfigValue | [RelationConfigValue, ...RelationConfigValue[]];
+	to?: RelationConfigValue | [RelationConfigValue, ...RelationConfigValue[]];
 	where?: TableFilter<TTargetTable>;
 	alias?: string;
 }
@@ -1537,6 +1565,13 @@ export interface BuiltRelationFilters {
 	joinCondition?: SQL;
 }
 
+function buildColumnSQL(col: RelationColumnValue, table: SQL, casing: CasingCache): SQL {
+	if (typeof col === 'function') {
+		return col(table);
+	}
+	return sql`${table}.${sql.identifier(casing.getColumnCasing(col))}`;
+}
+
 export function relationToSQL(
 	casing: CasingCache,
 	relation: Relation,
@@ -1549,7 +1584,7 @@ export function relationToSQL(
 			const t = relation.through!.source[i]!;
 
 			return eq(
-				sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+				buildColumnSQL(s, sql`${sourceTable}`, casing),
 				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
 			);
 		});
@@ -1559,7 +1594,7 @@ export function relationToSQL(
 
 			return eq(
 				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
-				sql`${targetTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+				buildColumnSQL(s, sql`${targetTable}`, casing),
 			);
 		});
 
@@ -1578,8 +1613,8 @@ export function relationToSQL(
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
-			sql`${targetTable}.${sql.identifier(casing.getColumnCasing(t))}`,
+			buildColumnSQL(s, sql`${sourceTable}`, casing),
+			buildColumnSQL(t, sql`${targetTable}`, casing),
 		);
 	});
 

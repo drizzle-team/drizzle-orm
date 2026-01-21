@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, integer, jsonb, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -1106,6 +1106,133 @@ export function tests(test: Test) {
 				});
 
 				expect(res).toStrictEqual([{ id: 1, status: 1 }, { id: 2, status: 0 }]);
+			},
+		);
+
+		test.concurrent(
+			'RQB v2 relation with custom SQL builder function (type casting)',
+			async ({ push, createDB }) => {
+				const users = pgTable('rqb_users_sqlbuilder_1', {
+					id: bigint('id', { mode: 'bigint' }).primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				const posts = pgTable('rqb_posts_sqlbuilder_1', {
+					id: serial('id').primaryKey(),
+					authorId: text('author_id').notNull(),
+					content: text('content'),
+				});
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: (table) => sql`${table}.${sql.identifier('id')}::varchar`,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: (table) => sql`${table}.${sql.identifier('id')}::varchar`,
+						}),
+					},
+				}));
+
+				await db.insert(users).values([
+					{ id: 1n, name: 'Alice' },
+					{ id: 2n, name: 'Bob' },
+				]);
+
+				await db.insert(posts).values([
+					{ id: 1, authorId: '1', content: 'Post by Alice' },
+					{ id: 2, authorId: '1', content: 'Another post by Alice' },
+					{ id: 3, authorId: '2', content: 'Post by Bob' },
+				]);
+
+				const userWithPosts = await db.query.users.findFirst({
+					where: { id: 1n },
+					with: {
+						posts: {
+							orderBy: { id: 'asc' },
+						},
+					},
+				});
+
+				expect(userWithPosts).toStrictEqual({
+					id: 1n,
+					name: 'Alice',
+					posts: [
+						{ id: 1, authorId: '1', content: 'Post by Alice' },
+						{ id: 2, authorId: '1', content: 'Another post by Alice' },
+					],
+				});
+
+				const postWithAuthor = await db.query.posts.findFirst({
+					where: { id: 3 },
+					with: {
+						author: true,
+					},
+				});
+
+				expect(postWithAuthor).toStrictEqual({
+					id: 3,
+					authorId: '2',
+					content: 'Post by Bob',
+					author: { id: 2n, name: 'Bob' },
+				});
+			},
+		);
+
+		test.concurrent(
+			'RQB v2 relation with custom SQL builder for JSON extraction',
+			async ({ push, createDB }) => {
+				const products = pgTable('rqb_products_jsonb_1', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					metadata: jsonb('metadata').$type<{ categoryId: string }>(),
+				});
+
+				const categories = pgTable('rqb_categories_jsonb_1', {
+					id: text('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				await push({ products, categories });
+				const db = createDB({ products, categories }, (r) => ({
+					products: {
+						category: r.one.categories({
+							from: (table) => sql`${table}.${sql.identifier('metadata')}->>'categoryId'`,
+							to: r.categories.id,
+							optional: true,
+						}),
+					},
+				}));
+
+				await db.insert(categories).values([
+					{ id: 'cat1', name: 'Electronics' },
+					{ id: 'cat2', name: 'Books' },
+				]);
+
+				await db.insert(products).values([
+					{ id: 1, name: 'Phone', metadata: { categoryId: 'cat1' } },
+					{ id: 2, name: 'Laptop', metadata: { categoryId: 'cat1' } },
+					{ id: 3, name: 'Novel', metadata: { categoryId: 'cat2' } },
+				]);
+
+				const productWithCategory = await db.query.products.findFirst({
+					where: { id: 1 },
+					with: {
+						category: true,
+					},
+				});
+
+				expect(productWithCategory).toStrictEqual({
+					id: 1,
+					name: 'Phone',
+					metadata: { categoryId: 'cat1' },
+					category: { id: 'cat1', name: 'Electronics' },
+				});
 			},
 		);
 	});
