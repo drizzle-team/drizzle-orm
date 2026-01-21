@@ -98,6 +98,13 @@ test('migrator: migrations table has correct schema for SQLite', async () => {
 	expect(idColumn!.type.toLowerCase()).toBe('integer');
 	expect(idColumn!.pk).toBe(1);
 
+	// Verify migration hashes are computed (not empty)
+	const migrationRows = await db.all<{ hash: string }>(sql`SELECT hash FROM __drizzle_migrations`);
+	expect(migrationRows.length).toBeGreaterThan(0);
+	for (const row of migrationRows) {
+		expect(row.hash).toHaveLength(64); // SHA-256 hex = 64 chars
+	}
+
 	await db.run(sql`drop table another_users`);
 	await db.run(sql`drop table users12`);
 	await db.run(sql`drop table __drizzle_migrations`);

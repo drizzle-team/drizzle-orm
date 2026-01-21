@@ -1,5 +1,6 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import { sql } from '~/sql/index.ts';
+import { computeHash } from '~/utils/crypto.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -9,7 +10,7 @@ interface MigrationConfig {
 	migrations: Record<string, string>;
 }
 
-function readMigrationFiles({ journal, migrations }: MigrationConfig): MigrationMeta[] {
+async function readMigrationFiles({ journal, migrations }: MigrationConfig): Promise<MigrationMeta[]> {
 	const migrationQueries: MigrationMeta[] = [];
 
 	for (const journalEntry of journal.entries) {
@@ -28,7 +29,7 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 				sql: result,
 				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
-				hash: '',
+				hash: await computeHash(query),
 			});
 		} catch {
 			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
@@ -44,7 +45,7 @@ export async function migrate<
 	db: DrizzleSqliteDODatabase<TSchema>,
 	config: MigrationConfig,
 ): Promise<void> {
-	const migrations = readMigrationFiles(config);
+	const migrations = await readMigrationFiles(config);
 
 	db.transaction((tx) => {
 		try {

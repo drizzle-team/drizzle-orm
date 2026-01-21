@@ -247,6 +247,13 @@ export class MyDurableObject extends DurableObject {
 			expect(idColumn!.type.toLowerCase()).to.equal('integer');
 			expect(idColumn!.pk).to.equal(1);
 
+			// Verify migration hashes are computed (not empty)
+			const migrationRows = this.db.all<{ hash: string }>(sql`SELECT hash FROM __drizzle_migrations`);
+			expect(migrationRows.length).to.be.greaterThan(0);
+			for (const row of migrationRows) {
+				expect(row.hash).to.have.lengthOf(64); // SHA-256 hex = 64 chars
+			}
+
 			this.db.run(sql`drop table another_users`);
 			this.db.run(sql`drop table users12`);
 			this.db.run(sql`drop table __drizzle_migrations`);
