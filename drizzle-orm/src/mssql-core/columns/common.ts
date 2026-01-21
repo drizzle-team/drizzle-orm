@@ -51,7 +51,7 @@ export abstract class MsSqlColumnBuilder<
 	}
 
 	generatedAlwaysAs(
-		as: SQL | T['data'] | (() => SQL),
+		as: SQL | (() => SQL),
 		config?: MsSqlGeneratedColumnConfig,
 	): HasGenerated<this, {
 		type: 'always';
