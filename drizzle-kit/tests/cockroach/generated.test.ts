@@ -302,7 +302,7 @@ test.concurrent('generated as string: add column with generated constraint', asy
 			id2: int4('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};
@@ -338,7 +338,7 @@ test.concurrent('generated as string: add generated constraint to an exisiting c
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`\"users\".\"name\" || 'to add'`),
+				.generatedAlwaysAs(sql`\"users\".\"name\" || 'to add'`),
 		}),
 	};
 
@@ -365,7 +365,7 @@ test.concurrent('generated as string: drop generated constraint', async ({ db })
 			id2: int4('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'to delete'`,
+				sql`\"users\".\"name\" || 'to delete'`,
 			),
 		}),
 	};
@@ -411,7 +411,7 @@ test.concurrent('generated as string: change generated constraint', async ({ db 
 			id2: int4('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};

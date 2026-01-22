@@ -46,7 +46,7 @@ import { db } from './db.ts';
 export const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 
 export const identityColumnsTable = cockroachTable('identity_columns_table', {
-	generatedCol: int4('generated_col').generatedAlwaysAs(1),
+	generatedCol: int4('generated_col').generatedAlwaysAs(sql`1`),
 	alwaysAsIdentity: int4('always_as_identity').generatedAlwaysAsIdentity(),
 	byDefaultAsIdentity: int4('by_default_as_identity').generatedByDefaultAsIdentity(),
 	name: text('name'),

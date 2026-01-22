@@ -64,20 +64,20 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		return this.queryWithCache(
 			query.sql,
 			params,
-			client.unsafe(query.sql, params as any).values.pipe(Effect.andThen(
-				(rows) => {
-					if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
+			client.unsafe(query.sql, params as any).values,
+		).pipe(Effect.andThen(
+			(rows) => {
+				if (customResultMapper) return (customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 
-					return rows.map((row) =>
-						mapResultRow(
-							fields!,
-							row as unknown[],
-							joinsNotNullableMap,
-						)
-					);
-				},
-			)),
-		);
+				return rows.map((row) =>
+					mapResultRow(
+						fields!,
+						row as unknown[],
+						joinsNotNullableMap,
+					)
+				);
+			},
+		));
 	}
 
 	private executeRqbV2(

@@ -515,7 +515,7 @@ test('generated as string: add column with generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'hello'`,
+				sql`\`users\`.\`name\` || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -547,7 +547,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`\`users\`.\`name\` || 'to add'`, {
+				.generatedAlwaysAs(sql`\`users\`.\`name\` || 'to add'`, {
 					mode: 'stored',
 				}),
 		}),
@@ -579,7 +579,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`\`users\`.\`name\` || 'to add'`, {
+				.generatedAlwaysAs(sql`\`users\`.\`name\` || 'to add'`, {
 					mode: 'virtual',
 				}),
 		}),
@@ -603,7 +603,7 @@ test('generated as string: drop generated constraint as stored', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'to delete'`,
+				sql`\`users\`.\`name\` || 'to delete'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -634,7 +634,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'to delete'`,
+				sql`\`users\`.\`name\` || 'to delete'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -665,7 +665,7 @@ test('generated as string: change generated constraint type from virtual to stor
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`\`users\`.\`name\``, {
+			generatedName: text('gen_name').generatedAlwaysAs(sql`\`users\`.\`name\``, {
 				mode: 'virtual',
 			}),
 		}),
@@ -676,7 +676,7 @@ test('generated as string: change generated constraint type from virtual to stor
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'hello'`,
+				sql`\`users\`.\`name\` || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -699,7 +699,7 @@ test('generated as string: change generated constraint type from stored to virtu
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`\`users\`.\`name\``),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`\`users\`.\`name\``),
 		}),
 	};
 	const to = {
@@ -708,7 +708,7 @@ test('generated as string: change generated constraint type from stored to virtu
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'hello'`,
+				sql`\`users\`.\`name\` || 'hello'`,
 			),
 		}),
 	};
@@ -730,7 +730,7 @@ test('generated as string: change generated constraint', async () => {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`\`users\`.\`name\``),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`\`users\`.\`name\``),
 		}),
 	};
 	const to = {
@@ -739,7 +739,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\`users\`.\`name\` || 'hello'`,
+				sql`\`users\`.\`name\` || 'hello'`,
 			),
 		}),
 	};

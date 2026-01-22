@@ -375,12 +375,6 @@ export abstract class PgColumnBuilder<
 
 	generatedAlwaysAs(
 		as:
-			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
-					this[PgColumnBuilderBrand]['dimensions']
-				>
-				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
-				: this[PgColumnBuilderBrand]['data'])
 			| SQL
 			| (() => SQL),
 	): SetHasGenerated<this> {

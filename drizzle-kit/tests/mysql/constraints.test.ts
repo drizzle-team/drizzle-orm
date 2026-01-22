@@ -1213,3 +1213,29 @@ test('drop column with pk and add pk to another column #3', async () => {
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4704
+test('issue No4704. Composite index with sort outputs', async () => {
+	const schema1 = {
+		table: mysqlTable(
+			'table',
+			{ col1: int(), col2: int(), col3: int() },
+			(table) => [
+				index('table_composite_idx').on(
+					table.col1,
+					table.col2,
+					desc(table.col3), // Attempting to sort by col3 DESC
+				),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table` (\n\t`col1` int,\n\t`col2` int,\n\t`col3` int\n);\n',
+		'CREATE INDEX `table_composite_idx` ON `table` (`col1`,`col2`,`col3` desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});

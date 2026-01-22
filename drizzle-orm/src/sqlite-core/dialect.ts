@@ -30,9 +30,9 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import type { Name, Placeholder, SQLWrapper, View } from '~/sql/index.ts';
+import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, eq, isSQLWrapper } from '~/sql/index.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -181,16 +181,16 @@ export abstract class SQLiteDialect {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
-						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, Column)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
-									}
-									return c;
-								}),
-							),
+						const newSql = new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, Column)) {
+									return sql.identifier(this.casing.getColumnCasing(c));
+								}
+								return c;
+							}),
 						);
+
+						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
 					} else {
 						chunk.push(query);
 					}
@@ -320,6 +320,14 @@ export abstract class SQLiteDialect {
 			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
 				sql.identifier(table[Table.Symbol.OriginalName])
 			} ${sql.identifier(table[Table.Symbol.Name])}`;
+		}
+
+		if (is(table, View) && table[ViewBaseConfig].isAlias) {
+			let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
+			if (table[ViewBaseConfig].schema) {
+				fullName = sql`${sql.identifier(table[ViewBaseConfig].schema)}.${fullName}`;
+			}
+			return sql`${fullName} ${sql.identifier(table[ViewBaseConfig].name)}`;
 		}
 
 		return table;

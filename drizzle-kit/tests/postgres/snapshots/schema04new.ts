@@ -81,7 +81,7 @@ export const schemaTest = pgTable('schema_test', {
 export const allSmallIntsCustom = customSchema.table(
 	'schema_test2_custom',
 	{
-		column: smallint('column').notNull().array().generatedAlwaysAs([1]),
+		column: smallint('column').notNull().array().generatedAlwaysAs(sql`{1}`),
 		column1: smallint('column1').default(1),
 		column2: smallint('column2').notNull().array('[][]'),
 		column3: smallint('column3').notNull().array('[][]'),
@@ -101,7 +101,7 @@ export const allEnumsCustom = customSchema.table(
 	'all_enums_custom',
 	{
 		columnAll: enumname('column_all').default('three').notNull(),
-		column: enumname('columns').array().generatedAlwaysAs(['three']),
+		column: enumname('columns').array().generatedAlwaysAs(sql`{'three'}`),
 	},
 	(t: any) => [index('ds').on(t.column)],
 );
@@ -238,44 +238,44 @@ export const allNumericsCustom = customSchema.table('all_numerics_custom', {
 });
 
 export const allCidrCustom = customSchema.table('all_cidr_custom', {
-	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),
+	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(sql`{'0.0.0.0/0'}`),
 	column: cidr('column').default('0.0.0.0/0'),
 	columnPrimary: cidr('column_primary').primaryKey().notNull(),
 });
 
 export const allCustomCustom = customSchema.table('all_custom_custom', {
-	columnAll: citext('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),
+	columnAll: citext('column_all').notNull().array().generatedAlwaysAs(sql`{'0.0.0.0/0'}`),
 	column: citext('column').default('test{}\'://`"'),
 	columnPrimary: citext('column_primary').primaryKey().notNull(),
 });
 
 export const allInetCustom = customSchema.table('all_inet_custom', {
-	columnAll: inet('column_all').notNull().array().generatedAlwaysAs(['127.0.0.1']),
+	columnAll: inet('column_all').notNull().array().generatedAlwaysAs(sql`{'127.0.0.1'}`),
 	column: inet('column').default('127.0.0.1'),
 	columnPrimary: inet('column_primary').primaryKey().notNull(),
 });
 
 export const allLineCustom = customSchema.table('all_line_custom', {
-	columnAll: line('column_all').notNull().array().generatedAlwaysAs([[1, 1, 1]]),
+	columnAll: line('column_all').notNull().array().generatedAlwaysAs(sql`{{1, 1, 1}}`),
 	column: line('column').default([1, 1, 1]),
 	columnPrimary: line('column_primary').primaryKey().notNull(),
 });
 
 export const allMacaddrCustom = customSchema.table('all_macaddr_custom', {
-	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(['08:00:2b:01:02:03']),
+	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(sql`{'08:00:2b:01:02:03'}`),
 	column: macaddr('column').default('08:00:2b:01:02:03'),
 	columnPrimary: macaddr('column_primary').primaryKey().notNull(),
 });
 
 export const allMacaddr8Custom = customSchema.table('all_macaddr8_custom', {
-	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(['08:00:2b:01:02:03:04:05']),
+	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(sql`{'08:00:2b:01:02:03:04:05'}`),
 	column: macaddr('column').default('08:00:2b:01:02:03:04:05'),
 	columnPrimary: macaddr('column_primary').primaryKey().notNull(),
 });
 
 export const allPointCustom = customSchema.table('all_point_custom', {
-	columnAll: point('column_all', { mode: 'xy' }).notNull().array().generatedAlwaysAs([{ x: 1, y: 2 }]),
-	columnAll1: point('column_all1', { mode: 'tuple' }).notNull().array().generatedAlwaysAs([[1, 2]]),
+	columnAll: point('column_all', { mode: 'xy' }).notNull().array().generatedAlwaysAs(sql`{{1, 2}}`),
+	columnAll1: point('column_all1', { mode: 'tuple' }).notNull().array().generatedAlwaysAs(sql`{{1, 2}}`),
 	column: point('column', { mode: 'xy' }).default({ x: 1, y: 2 }),
 	column1: point('column1', { mode: 'tuple' }).default([1, 2]),
 	columnPrimary: point('column_primary').primaryKey().notNull(),
@@ -500,50 +500,50 @@ export const allNumerics = pgTable('all_numerics', {
 });
 
 export const allCidr = pgTable('all_cidr', {
-	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),
+	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(sql`{'0.0.0.0/0'}`),
 	column: cidr('column').default('0.0.0.0/0'),
 	columnPrimary: cidr('column_primary').primaryKey().notNull(),
 	column3: cidr('column3').array().notNull(),
 });
 
 export const allCustom = pgTable('all_custom', {
-	columnAll: citext('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),
+	columnAll: citext('column_all').notNull().array().generatedAlwaysAs(sql`{'0.0.0.0/0'}`),
 	column: citext('column').default('test{}\'://`"'),
 	columnPrimary: citext('column_primary').primaryKey().notNull(),
 	column3: citext('column3').array().notNull(),
 });
 
 export const allInet = pgTable('all_inet', {
-	columnAll: inet('column_all').notNull().array().generatedAlwaysAs(['127.0.0.1']),
+	columnAll: inet('column_all').notNull().array().generatedAlwaysAs(sql`{'127.0.0.1'}`),
 	column: inet('column').default('127.0.0.1'),
 	columnPrimary: inet('column_primary').primaryKey().notNull(),
 	column3: inet('column3').array().notNull(),
 });
 
 export const allLine = pgTable('all_line', {
-	columnAll: line('column_all').notNull().array().generatedAlwaysAs([[1, 1, 1]]),
+	columnAll: line('column_all').notNull().array().generatedAlwaysAs(sql`{{1, 1, 1}}`),
 	column: line('column').default([1, 1, 1]),
 	columnPrimary: line('column_primary').primaryKey().notNull(),
 	column3: line('column3').array().notNull(),
 });
 
 export const allMacaddr = pgTable('all_macaddr', {
-	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(['08:00:2b:01:02:03']),
+	columnAll: macaddr('column_all').notNull().array().generatedAlwaysAs(sql`{'08:00:2b:01:02:03'}`),
 	column: macaddr('column').default('08:00:2b:01:02:03'),
 	columnPrimary: macaddr('column_primary').primaryKey().notNull(),
 	column3: macaddr('column3').notNull().array(),
 });
 
 export const allMacaddr8 = pgTable('all_macaddr8', {
-	columnAll: macaddr8('column_all').notNull().array().generatedAlwaysAs(['08:00:2b:01:02:03:04:05']),
+	columnAll: macaddr8('column_all').notNull().array().generatedAlwaysAs(sql`{'08:00:2b:01:02:03:04:05'}`),
 	column: macaddr8('column').default('08:00:2b:01:02:03:04:05'),
 	columnPrimary: macaddr8('column_primary').primaryKey().notNull(),
 	column3: macaddr8('column3').notNull().array(),
 });
 
 export const allPoint = pgTable('all_point', {
-	columnAll: point('column_all', { mode: 'xy' }).notNull().array().generatedAlwaysAs([{ x: 1, y: 2 }]),
-	columnAll1: point('column_all1', { mode: 'tuple' }).notNull().array().generatedAlwaysAs([[1, 2]]),
+	columnAll: point('column_all', { mode: 'xy' }).notNull().array().generatedAlwaysAs(sql`{{1, 2}}`),
+	columnAll1: point('column_all1', { mode: 'tuple' }).notNull().array().generatedAlwaysAs(sql`{{1, 2}}`),
 	column: point('column', { mode: 'xy' }).default({ x: 1, y: 2 }),
 	column1: point('column1', { mode: 'tuple' }).default([1, 2]),
 	columnPrimary: point('column_primary').primaryKey().notNull(),

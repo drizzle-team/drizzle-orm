@@ -184,15 +184,18 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const row = this.stmt.values(...params)[0];
-
-		if (!row) {
-			return undefined;
-		}
 
 		const { fields, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
+			const row = this.stmt.get(...params);
+			if (!row) return undefined;
+
 			return row;
+		}
+
+		const row = this.stmt.values(...params)[0];
+		if (!row) {
+			return undefined;
 		}
 
 		if (customResultMapper) {

@@ -689,7 +689,7 @@ test('generated as string: add column with generated constraint', async () => {
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'hello'`,
+				sql`[users].[name] + 'hello'`,
 				{ mode: 'persisted' },
 			),
 		}),
@@ -730,7 +730,7 @@ test('generated as string: add generated constraint to an exisiting column as PE
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`[users].[name] + 'to add'`, {
+				.generatedAlwaysAs(sql`[users].[name] + 'to add'`, {
 					mode: 'persisted',
 				}),
 		}),
@@ -773,7 +773,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`[users].[name] + 'to add'`, {
+				.generatedAlwaysAs(sql`[users].[name] + 'to add'`, {
 					mode: 'virtual',
 				}),
 		}),
@@ -806,7 +806,7 @@ test('generated as string: drop generated constraint as PERSISTED', async () => 
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'to delete'`,
+				sql`[users].[name] + 'to delete'`,
 				{ mode: 'persisted' },
 			),
 		}),
@@ -847,7 +847,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'to delete'`,
+				sql`[users].[name] + 'to delete'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -887,7 +887,7 @@ test('generated as string: change generated constraint type from virtual to PERS
 			id: int('id'),
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
-			generatedName: text('gen_name').generatedAlwaysAs(`[users].[name]`, {
+			generatedName: text('gen_name').generatedAlwaysAs(sql`[users].[name]`, {
 				mode: 'virtual',
 			}),
 		}),
@@ -898,7 +898,7 @@ test('generated as string: change generated constraint type from virtual to PERS
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'hello'`,
+				sql`[users].[name] + 'hello'`,
 				{ mode: 'persisted' },
 			),
 		}),
@@ -932,7 +932,7 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 			id: int('id'),
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
-			generatedName: text('gen_name').generatedAlwaysAs(`[users].[name]`, { mode: 'persisted' }),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`[users].[name]`, { mode: 'persisted' }),
 		}),
 	};
 	const to = {
@@ -942,7 +942,7 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'hello'`,
+				sql`[users].[name] + 'hello'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -973,7 +973,7 @@ test('generated as string: change generated constraint', async () => {
 			id: int('id'),
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
-			generatedName: text('gen_name').generatedAlwaysAs(`[users].[name]`),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`[users].[name]`),
 		}),
 	};
 	const to = {
@@ -982,7 +982,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: varchar('name', { length: 255 }),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`[users].[name] + 'hello'`,
+				sql`[users].[name] + 'hello'`,
 			),
 		}),
 	};

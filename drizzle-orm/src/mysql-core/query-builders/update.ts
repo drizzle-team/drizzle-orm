@@ -40,6 +40,7 @@ export type MySqlUpdateSetSource<
 		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
+			| Placeholder
 			| undefined;
 	}
 	& {};

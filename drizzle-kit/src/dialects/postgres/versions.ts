@@ -52,8 +52,8 @@ export const upToV8 = (
 		const schema = table.schema || 'public';
 
 		const isRlsEnabled = table.isRLSEnabled
-			|| Object.keys(table.policies).length > 0
-			|| Object.values(json.policies).some(
+			|| Object.keys(table.policies ?? {}).length > 0
+			|| Object.values(json.policies ?? {}).some(
 				(it) => it.on === table.name && (it.schema ?? 'public') === schema,
 			);
 
@@ -147,7 +147,7 @@ export const upToV8 = (
 			}
 		}
 
-		for (const check of Object.values(table.checkConstraints)) {
+		for (const check of Object.values(table.checkConstraints ?? {})) {
 			ddl.checks.push({
 				schema,
 				table: table.name,
@@ -225,7 +225,7 @@ export const upToV8 = (
 			});
 		}
 
-		for (const policy of Object.values(table.policies)) {
+		for (const policy of Object.values(table.policies ?? {})) {
 			ddl.policies.push({
 				schema,
 				table: table.name,
@@ -243,7 +243,7 @@ export const upToV8 = (
 		ddl.enums.push({ schema: en.schema, name: en.name, values: en.values });
 	}
 
-	for (const role of Object.values(json.roles)) {
+	for (const role of Object.values(json.roles ?? {})) {
 		ddl.roles.push({
 			name: role.name,
 			createRole: role.createRole,
@@ -259,7 +259,7 @@ export const upToV8 = (
 		});
 	}
 
-	for (const policy of Object.values(json.policies)) {
+	for (const policy of Object.values(json.policies ?? {})) {
 		ddl.policies.push({
 			schema: policy.schema ?? 'public',
 			table: policy.on!,
@@ -272,7 +272,7 @@ export const upToV8 = (
 		});
 	}
 
-	for (const v of Object.values(json.views)) {
+	for (const v of Object.values(json.views ?? {})) {
 		if (v.isExisting) continue;
 
 		const opt = v.with;

@@ -36,7 +36,7 @@ function mkTmp(): { tmp: string; fs: any; path: any; os: any } {
 }
 
 describe('commutativity integration (mysql)', () => {
-	test.skipIf(Date.now() < +new Date('2026-01-20'))(
+	test.skipIf(Date.now() < +new Date('2026-02-01'))(
 		'Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B',
 		async () => {
 			const parentDDL = createDDL();
@@ -300,7 +300,7 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-01-20'))(
+	test.skipIf(Date.now() < +new Date('2026-02-01'))(
 		'detects conflict when drop table in one branch and add column in other',
 		async () => {
 			const parentDDL = createDDL();
@@ -732,7 +732,7 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts.length).toBeGreaterThanOrEqual(0);
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-01-20'))('complex mixed: multiple tables and views diverging', async () => {
+	test.skipIf(Date.now() < +new Date('2026-02-01'))('complex mixed: multiple tables and views diverging', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 

@@ -1,4 +1,5 @@
 import {
+	and,
 	asc,
 	avg,
 	avgDistinct,
@@ -6,6 +7,7 @@ import {
 	countDistinct,
 	desc,
 	eq,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -22,12 +24,14 @@ import {
 import {
 	alias,
 	bit,
+	date,
 	except,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
 	int,
 	intersect,
+	type MsSqlDialect,
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
@@ -1940,6 +1944,40 @@ test('update undefined', async ({ db }) => {
 	await db.execute(sql`drop table ${users}`);
 });
 
+test('update with placeholder', async ({ db }) => {
+	const users = mssqlTable('userstest_update_p', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: bit('verified').notNull().default(false),
+	});
+
+	await db.execute(sql`drop table if exists ${users};`);
+	await db.execute(sql`create table ${users} (
+				[id] int primary key,
+				[name] text not null,
+				[verified] bit not null default 0
+			);`);
+
+	await db.insert(users).values([
+		{ id: 1, name: 'Barry', verified: false },
+		{ id: 2, name: 'Alan', verified: false },
+		{ id: 3, name: 'Carl', verified: false },
+	]);
+
+	await db.update(users).set({ verified: sql.placeholder('verified') }).execute({
+		verified: true,
+	});
+
+	const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+		asc(users.id),
+	);
+	expect(result).toStrictEqual([
+		{ name: 'Barry', verified: true },
+		{ name: 'Alan', verified: true },
+		{ name: 'Carl', verified: true },
+	]);
+});
+
 // test('utc config for datetime', async ({ db }) => {
 //
 //
@@ -2752,9 +2790,9 @@ test('mySchema :: partial join with alias', async ({ db }) => {
 });
 
 test('mySchema :: full join with alias', async ({ db }) => {
-	const mysqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
+	const mssqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mssqlTable('users', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -2785,9 +2823,9 @@ test('mySchema :: full join with alias', async ({ db }) => {
 });
 
 test('mySchema :: select from alias', async ({ db }) => {
-	const mysqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
+	const mssqlTable = mssqlTableCreator((name) => `prefixed_${name}`);
 
-	const users = mysqlTable('users', {
+	const users = mssqlTable('users', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
 	});
@@ -2937,7 +2975,7 @@ test('mySchema :: select from tables with same name from different schema using 
 	}]);
 });
 
-test('mySchema :: Mysql enum test case #1', async ({ db }) => {
+test('mySchema :: Mssql enum test case #1', async ({ db }) => {
 	await db.execute(sql`
 		create table ${tableWithEnums} (
 			[id] int primary key,
@@ -3954,7 +3992,7 @@ test('column.as', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4878
-test.concurrent('.where with isNull in it', async ({ db }) => {
+test('.where with isNull in it', async ({ db }) => {
 	const table = mssqlTable('table_where_is_null', {
 		col1: bit(),
 		col2: text(),
@@ -3970,4 +4008,80 @@ test.concurrent('.where with isNull in it', async ({ db }) => {
 	});
 	const res = await query;
 	expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4875
+test('select aliased view', async ({ db }) => {
+	const productionJobTable = mssqlTable('production_job', {
+		id: text('id').primaryKey(),
+		name: text('name'),
+	});
+
+	const rfidTagTable = mssqlTable(
+		'rfid_tag',
+		{
+			createdAt: date('created_at')
+				.notNull()
+				.default(sql`now()`),
+			epc: text('epc').notNull(),
+			locationId: text('location_id')
+				.notNull(),
+			id: text('id').notNull().unique().$default(() => 'abc'),
+		},
+	);
+
+	const productionJobWithLocationView = mssqlView(
+		'production_job_with_location',
+	).as((qb) => {
+		const productionColumns = getColumns(productionJobTable);
+		const sub = qb
+			.selectDistinct()
+			.from(rfidTagTable)
+			.as('r');
+		return qb
+			.select({
+				...productionColumns,
+				locationId: sub.locationId,
+				tagId: sub.id.as('tag_id'),
+				tagCreatedAt: sub.createdAt.as('tag_created_at'),
+			})
+			.from(productionJobTable)
+			.leftJoin(
+				sub,
+				and(
+					eq(productionJobTable.id, sql`LTRIM(${sub.epc}, '0')`),
+					sql`${sub.epc} ~ '^0?[0-9]+'`,
+				),
+			);
+	});
+
+	const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
+
+	const query = db.select().from(sub);
+	expect(query.toSQL().sql).toStrictEqual(
+		(<{ dialect: MsSqlDialect }> <any> db).dialect.sqlToQuery(
+			sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
+				sql.identifier('tag_id')
+			}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
+				sql.identifier('p')
+			}`,
+		).sql,
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4612
+test('select with inline params in sql', async ({ db }) => {
+	const users = mssqlTable('users_115', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const query = db
+		.select({ sum: sql`sum(${3})`.inlineParams() })
+		.from(users);
+
+	expect(query.toSQL()).toStrictEqual({
+		sql: 'select sum(3) from [users_115]',
+		params: [],
+	});
 });

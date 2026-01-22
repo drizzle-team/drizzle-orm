@@ -22,7 +22,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import {
@@ -57,7 +57,9 @@ export type GelUpdateSetSource<
 		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
-			| GelColumn;
+			| Placeholder
+			| GelColumn
+			| undefined;
 	}
 	& {};
 

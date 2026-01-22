@@ -5,7 +5,7 @@ import { blob, customType, integer, numeric, real, sqliteTable, text, uniqueInde
 export const allIntsNumbers = sqliteTable(
 	'all_ints_number',
 	{
-		column: integer('column', { mode: 'number' }).notNull().generatedAlwaysAs(1),
+		column: integer('column', { mode: 'number' }).notNull().generatedAlwaysAs(sql`1`),
 		column1: integer('column1', { mode: 'number' }).default(1),
 		column2: integer('column2', { mode: 'number' }).notNull(),
 	},

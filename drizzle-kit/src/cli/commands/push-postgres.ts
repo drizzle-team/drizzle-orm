@@ -76,8 +76,8 @@ export const handle = async (
 		migrations,
 	);
 
-	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
-	const { ddl: ddl2 } = interimToDDL(schemaTo);
+	const { ddl: ddl1 } = interimToDDL(schemaFrom);
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {

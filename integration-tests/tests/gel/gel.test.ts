@@ -897,6 +897,24 @@ describe('some', async () => {
 		]);
 	});
 
+	test('update with placeholder returning all fields', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+		const usersResult = await db
+			.update(usersTable)
+			.set({ name: sql.placeholder('name') })
+			.where(eq(usersTable.name, 'John'))
+			.returning({
+				id: usersTable.id1,
+				name: usersTable.name,
+			}).execute({ name: 'Jane' });
+
+		expect(usersResult).toEqual([
+			{ id: 1, name: 'Jane' },
+		]);
+	});
+
 	test('update with returning partial', async (ctx) => {
 		const { db } = ctx.gel;
 

@@ -70,7 +70,7 @@ export abstract class GelColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
+	generatedAlwaysAs(as: SQL | (() => SQL)): HasGenerated<this, {
 		type: 'always';
 	}> {
 		this.config.generated = {

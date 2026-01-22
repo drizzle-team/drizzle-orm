@@ -1,4 +1,4 @@
-import { mysqlSchemaError as schemaError } from 'src/cli/views';
+import { mysqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
 import type { MysqlDDL, SchemaError } from './ddl';
@@ -51,9 +51,8 @@ export const prepareSnapshot = async (
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
-	// TODO: handle errors
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => schemaError(it)).join('\n'));
+		console.log(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

@@ -1,4 +1,5 @@
 // oxlint-disable no-unused-expressions
+import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { cockroachTable, int4, text } from 'drizzle-orm/cockroach-core';
 import { type Equal, Expect } from './utils.ts';
@@ -8,7 +9,7 @@ export const test = cockroachTable(
 	{
 		id: text('id')
 			.primaryKey()
-			.generatedAlwaysAs('genstr'),
+			.generatedAlwaysAs(sql`'genstr'`),
 		intId: int4('int_id')
 			.primaryKey()
 			.generatedAlwaysAsIdentity(),

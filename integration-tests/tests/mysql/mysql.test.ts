@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/mysql-core';
+import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
+import { alias, int, mysqlTable, time } from 'drizzle-orm/mysql-core';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
@@ -12746,6 +12746,65 @@ test('[Find Many .through] Through with uneven relation column count - reverse',
 			],
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4539
+test('[Find many] time column parsing', async () => {
+	const studios = mysqlTable('studios', {
+		id: int().primaryKey(),
+		openTime: time(),
+	});
+
+	const notices = mysqlTable('notices', {
+		studioId: int().references(() => studios.id),
+	});
+	const relations = defineRelations({ studios, notices }, (r) => ({
+		studio: {
+			notices: r.many.notices({
+				from: r.studios.id,
+				to: r.notices.studioId,
+			}),
+		},
+		notices: {
+			studio: r.one.studios({
+				from: r.notices.studioId,
+				to: r.studios.id,
+			}),
+		},
+	}));
+	const db = drizzle({ client, relations, casing: 'snake_case' });
+	await db.execute(sql`DROP TABLE IF EXISTS \`notices\`;`);
+	await db.execute(sql`DROP TABLE IF EXISTS \`studios\`;`);
+	await db.execute(sql`
+	CREATE TABLE \`notices\` (
+        \`studio_id\` int
+		);
+	`);
+	await db.execute(sql`
+	CREATE TABLE \`studios\` (
+        \`id\` int PRIMARY KEY,
+        \`open_time\` time
+		);
+	`);
+	await db.execute(
+		sql`ALTER TABLE \`notices\` ADD CONSTRAINT \`notices_studios_id_studio_id_fkey\` FOREIGN KEY (\`studio_id\`) REFERENCES \`studios\`(\`id\`);`,
+	);
+
+	await db.insert(studios).values({ id: 1, openTime: '18:48:26' });
+	await db.insert(notices).values({ studioId: 1 });
+
+	const result1 = await db.query.notices.findMany({
+		with: {
+			studio: true,
+		},
+	});
+	expect(result1[0]?.studio?.openTime).toEqual('18:48:26');
+
+	const result2 = await db
+		.select()
+		.from(notices)
+		.leftJoin(studios, eq(notices.studioId, studios.id));
+	expect(result2[0]?.studios?.openTime).toEqual('18:48:26');
 });
 
 test('alltypes', async () => {

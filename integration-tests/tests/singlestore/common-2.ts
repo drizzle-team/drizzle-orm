@@ -1153,6 +1153,40 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table ${users}`);
 		});
 
+		test.concurrent('update with placeholder', async ({ db }) => {
+			const users = singlestoreTable('userstest_update_p', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`drop table if exists ${users};`);
+			await db.execute(sql`create table ${users} (
+				\`id\` serial primary key,
+				\`name\` text not null,
+				\`verified\` boolean not null default false
+			);`);
+
+			await db.insert(users).values([
+				{ name: 'Barry', verified: false },
+				{ name: 'Alan', verified: false },
+				{ name: 'Carl', verified: false },
+			]);
+
+			await db.update(users).set({ verified: sql.placeholder('verified') }).execute({
+				verified: true,
+			});
+
+			const result = await db.select({ name: users.name, verified: users.verified }).from(users).orderBy(
+				asc(users.name),
+			);
+			expect(result).toStrictEqual([
+				{ name: 'Alan', verified: true },
+				{ name: 'Barry', verified: true },
+				{ name: 'Carl', verified: true },
+			]);
+		});
+
 		test.concurrent('utc config for datetime', async ({ db }) => {
 			await db.execute(sql`drop table if exists \`datestable\``);
 			await db.execute(
@@ -2899,6 +2933,23 @@ export function tests(test: Test) {
 			expect(res.find((it) => it.col1 === false && it.col2 === 'qwerty')).toStrictEqual({
 				col1: false,
 				col2: 'qwerty',
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4612
+		test.concurrent('select with inline params in sql', async ({ db }) => {
+			const users = singlestoreTable('users_115', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const query = db
+				.select({ sum: sql`sum(${3})`.inlineParams() })
+				.from(users);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql: 'select sum(3) from `users_115`',
+				params: [],
 			});
 		});
 	});

@@ -6,7 +6,7 @@ import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type V
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain } from '../views';
+import { explain, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -141,7 +141,13 @@ export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
-	const { ddl } = interimToDDL(schema);
+	const { ddl, errors } = interimToDDL(schema);
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };

@@ -123,7 +123,7 @@ jobs:
           - shard: kit:other
             dbs: [mysql]
           - shard: kit:postgres
-            dbs: [postgres, postgres-postgis]
+            dbs: [postgres, postgres-postgis, postgres18]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
@@ -154,6 +154,7 @@ jobs:
               postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
+              postgres18)          compose_files+=("-f" "compose/postgres18.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
               singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
               singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
@@ -202,6 +203,7 @@ jobs:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          PG18_URL: postgres://postgres:postgres@localhost:54323/drizzle
           POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}

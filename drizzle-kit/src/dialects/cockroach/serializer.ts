@@ -1,5 +1,5 @@
 import type { CasingType } from '../../cli/validations/common';
-import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import { cockroachSchemaError, cockroachSchemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
 import type { CockroachDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
@@ -38,18 +38,18 @@ export const prepareSnapshot = async (
 	const { schema, errors, warnings } = fromDrizzleSchema(res, casing, () => true);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		console.log(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

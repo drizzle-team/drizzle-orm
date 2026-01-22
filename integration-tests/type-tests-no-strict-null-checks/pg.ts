@@ -1,4 +1,5 @@
 // oxlint-disable no-unused-expressions
+import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { type Equal, Expect } from './utils.ts';
@@ -8,7 +9,7 @@ export const test = pgTable(
 	{
 		id: text('id')
 			.primaryKey()
-			.generatedAlwaysAs('genstr'),
+			.generatedAlwaysAs(sql`'genstr'`),
 		intId: integer('int_id')
 			.primaryKey()
 			.generatedAlwaysAsIdentity(),

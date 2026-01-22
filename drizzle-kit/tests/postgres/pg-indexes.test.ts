@@ -661,3 +661,45 @@ test('index #8', async () => {
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
+
+test('index #9', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			email: text().notNull(),
+		}, (table) => [
+			uniqueIndex('email_unique_idx').on(sql`lower(${table.email})`),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"email" text NOT NULL\n);\n',
+		`CREATE UNIQUE INDEX "email_unique_idx" ON "table1" (lower("email"));`,
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			email: text().notNull(),
+		}, (table) => [
+			uniqueIndex('email_unique_idx').on(table.email),
+		]),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		`DROP INDEX "email_unique_idx";`,
+		`CREATE UNIQUE INDEX "email_unique_idx" ON "table1" ("email");`,
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual([]); // diffs for columns on push are ignored
+
+	const { sqlStatements: st3 } = await diff(n2, schema2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: schema2 });
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+});

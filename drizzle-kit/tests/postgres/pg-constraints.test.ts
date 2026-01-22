@@ -1,4 +1,4 @@
-import { and, isNull, SQL, sql } from 'drizzle-orm';
+import { and, desc, isNull, SQL, sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
 	bigint,
@@ -20,7 +20,7 @@ import {
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabase } from 'src/ext/studio-postgres';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, drizzleToDDL, preparePg18TestDatabase, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -2518,6 +2518,7 @@ test('drop column with pk and add pk to another column #1', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4645
 // https://github.com/drizzle-team/drizzle-orm/issues/3280
 test('fk name is too long', async () => {
 	const table1 = pgTable(
@@ -2616,4 +2617,62 @@ test('composite pk multistep #3', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5156
+test('not null', async () => {
+	const { db, clear, close } = await preparePg18TestDatabase();
+	try {
+		const table1 = pgTable('table1', {
+			col1: integer().primaryKey(),
+			col2: integer().notNull(),
+			col3: integer(),
+		}, (table) => [
+			// this works too
+			// check('table1_col3_not_null', sql`col3 IS NOT NULL`),
+			check('table1_col3_not_null', sql`${table.col3} IS NOT NULL`),
+		]);
+
+		const schema = { table1 };
+		const { next: n1 } = await diff({}, schema, []);
+		const { sqlStatements: st1 } = await push({ db, to: schema });
+		console.log(st1);
+
+		const { sqlStatements: st2 } = await diff(n1, schema, []);
+		const { sqlStatements: pst2 } = await push({ db, to: schema });
+		expect(st2).toStrictEqual([]);
+		expect(pst2).toStrictEqual([]);
+	} catch (error) {
+		await clear();
+		await close();
+		throw error;
+	}
+	await clear();
+	await close();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4704
+test('issue No4704. Composite index with sort outputs', async () => {
+	const schema1 = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [
+				index('table_composite_idx').on(
+					table.col1,
+					table.col2,
+					desc(table.col3), // Attempting to sort by col3 DESC
+				),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE "table" (\n\t"col1" integer,\n\t"col2" integer,\n\t"col3" integer\n);\n',
+		'CREATE INDEX "table_composite_idx" ON "table" ("col1","col2","col3" desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

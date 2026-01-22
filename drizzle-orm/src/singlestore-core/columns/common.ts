@@ -38,7 +38,7 @@ export abstract class SingleStoreColumnBuilder<
 
 	// TODO: Implement generated columns for SingleStore (https://docs.singlestore.com/cloud/create-a-database/using-persistent-computed-columns/)
 	generatedAlwaysAs(
-		as: SQL | (() => SQL) | this['_']['data'],
+		as: SQL | (() => SQL),
 		config?: SingleStoreGeneratedColumnConfig,
 	): HasGenerated<this, { type: 'always' }> {
 		this.config.generated = {
