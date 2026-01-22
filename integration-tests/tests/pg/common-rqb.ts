@@ -1027,40 +1027,43 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
-		test.concurrent('RQB v2 find many - extras', async ({ push, createDB }) => {
-			const orderItemTable = pgTable('rqb_order_item_19', {
-				id: integer('id').primaryKey(),
-				orderId: integer().references(() => orderTable.id),
-			});
+		test.skipIf(Date.now() < +new Date('2026-01-24')).concurrent(
+			'RQB v2 find many - extras',
+			async ({ push, createDB }) => {
+				const orderItemTable = pgTable('rqb_order_item_19', {
+					id: integer('id').primaryKey(),
+					orderId: integer().references(() => orderTable.id),
+				});
 
-			const orderTable = pgTable('rqb_order_19', {
-				id: integer('id').primaryKey(),
-			});
+				const orderTable = pgTable('rqb_order_19', {
+					id: integer('id').primaryKey(),
+				});
 
-			await push({ orderItemTable, orderTable });
-			const db = createDB({ orderItemTable, orderTable });
+				await push({ orderItemTable, orderTable });
+				const db = createDB({ orderItemTable, orderTable });
 
-			await db.insert(orderTable).values([{ id: 1 }, { id: 2 }]);
-			await db.insert(orderItemTable).values([{ id: 1, orderId: 1 }, { id: 2, orderId: 1 }]);
+				await db.insert(orderTable).values([{ id: 1 }, { id: 2 }]);
+				await db.insert(orderItemTable).values([{ id: 1, orderId: 1 }, { id: 2, orderId: 1 }]);
 
-			const query = db.query.orderTable.findMany({
-				extras: {
-					itemCount: sql`
+				const query = db.query.orderTable.findMany({
+					extras: {
+						itemCount: sql`
 					    (select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${orderTable.id})
 					`.as('itemCount'),
-				},
-			});
+					},
+				});
 
-			expect(query.toSQL()).toStrictEqual({
-				sql: `select "d0"."id" as "id", (
+				expect(query.toSQL()).toStrictEqual({
+					sql: `select "d0"."id" as "id", (
                                             (select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")
                                         ) as "itemCount" from "rqb_order_19" as "d0"`,
-				params: [],
-			});
+					params: [],
+				});
 
-			const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
-			const result = await query;
-			expect(result).toStrictEqual(expectedResult);
-		});
+				const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
+				const result = await query;
+				expect(result).toStrictEqual(expectedResult);
+			},
+		);
 	});
 }

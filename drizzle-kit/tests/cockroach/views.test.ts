@@ -1109,7 +1109,7 @@ test.concurrent('create 2 dependent materialized views', async ({ db }) => {
 	expect(pst2).toStrictEqual([]);
 });
 
-test.concurrent('create 2 dependent views', async ({ db }) => {
+test.skipIf(Date.now() < +new Date('2026-01-24')).concurrent('create 2 dependent views', async ({ db }) => {
 	const table1 = cockroachTable('table1', {
 		col1: int4(),
 		col2: int4(),

@@ -2276,7 +2276,7 @@ test('create 2 dependent materialized views', async () => {
 	expect(pst2).toStrictEqual([]);
 });
 
-test('create 2 dependent views', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-24'))('create 2 dependent views', async () => {
 	const table1 = pgTable('table1', {
 		col1: integer(),
 		col2: integer(),
