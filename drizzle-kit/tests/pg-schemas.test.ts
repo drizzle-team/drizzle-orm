@@ -103,3 +103,35 @@ test('rename schema #2', async () => {
 		to: 'dev2',
 	});
 });
+
+test('add schema with numeric prefix', async () => {
+	const to = {
+		numericSchema: pgSchema('2HrzP19rneClkDSN'),
+	};
+
+	const { statements } = await diffTestSchemas({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_schema',
+		name: '2HrzP19rneClkDSN',
+	});
+});
+
+test('add schema with numeric prefix alongside regular schema', async () => {
+	const from = {
+		regularSchema: pgSchema('public_schema'),
+	};
+	const to = {
+		regularSchema: pgSchema('public_schema'),
+		numericSchema: pgSchema('2HrzP19rneClkDSN'),
+	};
+
+	const { statements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_schema',
+		name: '2HrzP19rneClkDSN',
+	});
+});

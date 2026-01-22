@@ -88,17 +88,24 @@ const mapArraysDiff = (source, diff) => {
 };
 
 export function diffSchemasOrTables(left, right) {
-	left = JSON.parse(JSON.stringify(left));
-	right = JSON.parse(JSON.stringify(right));
+	// Direct key comparison avoids JSON.parse issues with numeric-prefixed keys
+	const leftKeys = new Set(Object.keys(left));
+	const rightKeys = new Set(Object.keys(right));
 
-	const result = Object.entries(diff(left, right) ?? {});
+	const added = [];
+	const deleted = [];
 
-	const added = result
-		.filter((it) => it[0].endsWith('__added'))
-		.map((it) => it[1]);
-	const deleted = result
-		.filter((it) => it[0].endsWith('__deleted'))
-		.map((it) => it[1]);
+	for (const key of rightKeys) {
+		if (!leftKeys.has(key)) {
+			added.push(right[key]);
+		}
+	}
+
+	for (const key of leftKeys) {
+		if (!rightKeys.has(key)) {
+			deleted.push(left[key]);
+		}
+	}
 
 	return { added, deleted };
 }
