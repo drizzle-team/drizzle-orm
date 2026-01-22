@@ -193,15 +193,19 @@ export class PgDialect {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
-						for (let i = 0; i < query.queryChunks.length; i++) {
-							const chunk = query.queryChunks[i];
-							if (is(chunk, PgColumn)) {
-								query.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
-							}
-						}
-					}
+						const newSql = new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, PgColumn)) {
+									return sql.identifier(this.casing.getColumnCasing(c));
+								}
+								return c;
+							}),
+						);
 
-					chunk.push(query);
+						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+					} else {
+						chunk.push(query);
+					}
 
 					if (is(field, SQL.Aliased)) {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);

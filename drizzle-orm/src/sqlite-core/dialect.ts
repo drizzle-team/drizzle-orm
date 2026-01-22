@@ -181,16 +181,16 @@ export abstract class SQLiteDialect {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 
 					if (isSingleTable) {
-						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, Column)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
-									}
-									return c;
-								}),
-							),
+						const newSql = new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, Column)) {
+									return sql.identifier(this.casing.getColumnCasing(c));
+								}
+								return c;
+							}),
 						);
+
+						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
 					} else {
 						chunk.push(query);
 					}

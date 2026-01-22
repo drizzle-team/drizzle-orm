@@ -6553,7 +6553,7 @@ export function tests() {
 
 			const genColumns = cockroachTable('gen_columns', {
 				id: int4(),
-				gen1: int4().generatedAlwaysAs(1),
+				gen1: int4().generatedAlwaysAs(sql`1`),
 			});
 
 			expect(db.insert(genColumns).values({ id: 1 })).resolves;
