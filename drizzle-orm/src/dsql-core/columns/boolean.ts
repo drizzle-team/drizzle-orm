@@ -15,7 +15,7 @@ export class DSQLBooleanBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLBoolean {
-		throw new Error('Method not implemented.');
+		return new DSQLBoolean(table, this.config as any);
 	}
 }
 

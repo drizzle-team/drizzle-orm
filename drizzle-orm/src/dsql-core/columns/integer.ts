@@ -15,7 +15,7 @@ export class DSQLIntegerBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLInteger {
-		throw new Error('Method not implemented.');
+		return new DSQLInteger(table, this.config as any);
 	}
 }
 
@@ -27,7 +27,10 @@ export class DSQLInteger extends DSQLColumn<'number int32'> {
 	}
 
 	override mapFromDriverValue(value: number | string): number {
-		throw new Error('Method not implemented.');
+		if (typeof value === 'string') {
+			return parseInt(value, 10);
+		}
+		return value;
 	}
 }
 

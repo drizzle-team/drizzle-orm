@@ -47,11 +47,16 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		throw new Error('Method not implemented.');
+		const params = fillPlaceholders(this.params, placeholderValues);
+		this.logger.logQuery(this.queryString, params);
+		const result = await (this.client as any).query(this.queryString, params);
+		return result;
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		throw new Error('Method not implemented.');
+		const params = fillPlaceholders(this.params, placeholderValues);
+		this.logger.logQuery(this.queryString, params);
+		return (this.client as any).query(this.queryString, params).then((result: any) => result.rows);
 	}
 
 	/** @internal */
@@ -145,12 +150,12 @@ export class DSQLDriverSession<
 		);
 	}
 
-	override execute(query: any): unknown {
-		throw new Error('Method not implemented.');
+	override execute<T>(query: Query): Promise<T> {
+		return (this.client as any).query(query.sql, query.params);
 	}
 
-	override all(query: any): unknown {
-		throw new Error('Method not implemented.');
+	override all<T extends any[] = unknown[]>(query: Query): Promise<T> {
+		return (this.client as any).query(query.sql, query.params).then((result: any) => result.rows);
 	}
 
 	async transaction<T>(

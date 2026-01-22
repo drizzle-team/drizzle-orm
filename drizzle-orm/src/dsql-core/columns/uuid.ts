@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
+import { sql } from '~/sql/sql.ts';
 import type { DSQLTable } from '../table.ts';
-import { DSQLColumn, DSQLColumnBuilder } from './common.ts';
+import { DSQLColumn, DSQLColumnBuilder, type SetHasDefault } from './common.ts';
 
 export class DSQLUUIDBuilder extends DSQLColumnBuilder<{
 	dataType: 'string uuid';
@@ -13,9 +14,16 @@ export class DSQLUUIDBuilder extends DSQLColumnBuilder<{
 		super(name, 'string uuid', 'DSQLUUID');
 	}
 
+	/**
+	 * Adds `default gen_random_uuid()` to the column definition.
+	 */
+	defaultRandom(): SetHasDefault<this> {
+		return this.default(sql`gen_random_uuid()`) as SetHasDefault<this>;
+	}
+
 	/** @internal */
 	override build(table: DSQLTable): DSQLUUID {
-		throw new Error('Method not implemented.');
+		return new DSQLUUID(table, this.config as any);
 	}
 }
 

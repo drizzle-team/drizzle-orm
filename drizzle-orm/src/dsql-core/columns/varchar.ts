@@ -6,20 +6,24 @@ export interface DSQLVarcharConfig {
 	length?: number;
 }
 
-export class DSQLVarcharBuilder extends DSQLColumnBuilder<{
-	dataType: 'string';
-	data: string;
-	driverParam: string;
-}> {
+export class DSQLVarcharBuilder extends DSQLColumnBuilder<
+	{
+		dataType: 'string';
+		data: string;
+		driverParam: string;
+	},
+	{ length: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'DSQLVarcharBuilder';
 
-	constructor(name: string, private config: DSQLVarcharConfig = {}) {
+	constructor(name: string, varcharConfig: DSQLVarcharConfig = {}) {
 		super(name, 'string', 'DSQLVarchar');
+		this.config.length = varcharConfig.length;
 	}
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLVarchar {
-		throw new Error('Method not implemented.');
+		return new DSQLVarchar(table, this.config as any);
 	}
 }
 

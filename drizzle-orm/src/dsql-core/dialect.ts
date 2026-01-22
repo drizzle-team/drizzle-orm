@@ -1,6 +1,7 @@
+import { CasingCache } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import type { QueryWithTypings, SQL } from '~/sql/sql.ts';
+import { type QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { Casing } from '~/utils.ts';
 import type { DSQLDeleteConfig } from './query-builders/delete.ts';
 import type { DSQLInsertConfig } from './query-builders/insert.ts';
@@ -15,8 +16,11 @@ export interface DSQLDialectConfig {
 export class DSQLDialect {
 	static readonly [entityKind]: string = 'DSQLDialect';
 
+	/** @internal */
+	readonly casing: CasingCache;
+
 	constructor(config?: DSQLDialectConfig) {
-		throw new Error('Method not implemented.');
+		this.casing = new CasingCache(config?.casing);
 	}
 
 	async migrate(
@@ -33,8 +37,8 @@ export class DSQLDialect {
 	}
 
 	escapeParam(num: number): string {
-		// PostgreSQL-style positional parameter
-		return `$${num}`;
+		// PostgreSQL-style positional parameter (1-indexed)
+		return `$${num + 1}`;
 	}
 
 	escapeString(str: string): string {
@@ -66,7 +70,13 @@ export class DSQLDialect {
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
-		throw new Error('Method not implemented.');
+		return sql.toQuery({
+			casing: this.casing,
+			escapeName: this.escapeName,
+			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
+			invokeSource,
+		});
 	}
 
 	buildRelationalQuery(config: {

@@ -4,6 +4,7 @@ export * from './boolean.ts';
 export * from './bytea.ts';
 export * from './char.ts';
 export * from './common.ts';
+export * from './date.common.ts';
 export * from './date.ts';
 export * from './doublePrecision.ts';
 export * from './integer.ts';

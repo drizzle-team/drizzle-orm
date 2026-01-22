@@ -2,6 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
+import { type DSQLColumnsBuilders, getDSQLColumnBuilders } from './columns/all.ts';
 import type {
 	AnyDSQLColumnBuilder,
 	DSQLBuildColumns,
@@ -51,14 +52,6 @@ export type DSQLTableWithColumns<T extends TableConfig> =
 		readonly $inferInsert: InferModelFromColumns<T['columns'], 'insert'>;
 	};
 
-export interface DSQLColumnsBuilders {
-	// Column builder types will be added here as they are implemented
-}
-
-export function getDSQLColumnBuilders(): DSQLColumnsBuilders {
-	throw new Error('Method not implemented.');
-}
-
 /** @internal */
 export function dsqlTableWithSchema<
 	TTableName extends string,
@@ -78,7 +71,43 @@ export function dsqlTableWithSchema<
 	columns: DSQLBuildColumns<TTableName, TColumnsMap>;
 	dialect: 'dsql';
 }> {
-	throw new Error('Method not implemented.');
+	const rawTable = new DSQLTable<{
+		name: TTableName;
+		schema: TSchemaName;
+		columns: DSQLBuildColumns<TTableName, TColumnsMap>;
+		dialect: 'dsql';
+	}>(name, schema, baseName);
+
+	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getDSQLColumnBuilders()) : columns;
+
+	const builtColumns = Object.fromEntries(
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as DSQLColumnBuilder;
+			colBuilder.setName(name);
+			const column = colBuilder.build(rawTable);
+			return [name, column];
+		}),
+	) as unknown as DSQLBuildColumns<TTableName, TColumnsMap>;
+
+	const builtColumnsForExtraConfig = Object.fromEntries(
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as DSQLColumnBuilder;
+			colBuilder.setName(name);
+			const column = colBuilder.buildExtraConfigColumn(rawTable);
+			return [name, column];
+		}),
+	) as unknown as DSQLBuildExtraConfigColumns<TColumnsMap>;
+
+	const table = Object.assign(rawTable, builtColumns);
+
+	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
+
+	if (extraConfig) {
+		table[DSQLTable.Symbol.ExtraConfigBuilder] = extraConfig as any;
+	}
+
+	return table as any;
 }
 
 export interface DSQLTableFn<TSchema extends string | undefined = undefined> {

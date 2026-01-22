@@ -1,8 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import type { DSQLTable } from '../table.ts';
-import { DSQLColumn, DSQLColumnBuilder } from './common.ts';
+import { DSQLColumn } from './common.ts';
+import { DSQLDateColumnBuilder } from './date.common.ts';
 
-export class DSQLDateBuilder extends DSQLColumnBuilder<{
+export class DSQLDateBuilder extends DSQLDateColumnBuilder<{
 	dataType: 'date';
 	data: Date;
 	driverParam: string;
@@ -15,7 +16,7 @@ export class DSQLDateBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLDate {
-		throw new Error('Method not implemented.');
+		return new DSQLDate(table, this.config as any);
 	}
 }
 
@@ -27,11 +28,11 @@ export class DSQLDate extends DSQLColumn<'date'> {
 	}
 
 	override mapFromDriverValue(value: string): Date {
-		throw new Error('Method not implemented.');
+		return new Date(value + 'T00:00:00.000Z');
 	}
 
 	override mapToDriverValue(value: Date): string {
-		throw new Error('Method not implemented.');
+		return value.toISOString().split('T')[0]!;
 	}
 }
 

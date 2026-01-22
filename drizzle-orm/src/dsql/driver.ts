@@ -1,3 +1,4 @@
+import type { QueryResult } from 'pg';
 import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { DSQLDialect } from '~/dsql-core/dialect.ts';
@@ -5,8 +6,9 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import type { DSQLClient, DSQLQueryResultHKTImpl } from './session.ts';
+import type { DSQLClient } from './session.ts';
 import { DSQLDriverSession } from './session.ts';
 
 export interface DSQLDriverOptions {
@@ -44,8 +46,12 @@ export class DSQLDatabase<
 		throw new Error('Method not implemented.');
 	}
 
-	execute(query: unknown): unknown {
-		throw new Error('Method not implemented.');
+	execute<T extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper,
+	): Promise<QueryResult<T>> {
+		const sql = query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sql);
+		return this.session.execute(builtQuery);
 	}
 
 	transaction<T>(
@@ -58,6 +64,7 @@ export class DSQLDatabase<
 
 export interface DSQLConnectionConfig {
 	endpoint: string;
+	user?: string;
 	region?: string;
 	// AWS credentials would typically come from environment/IAM
 }
@@ -166,8 +173,13 @@ export function drizzle<
 }
 
 function createDSQLClient(config: DSQLConnectionConfig): DSQLClient {
-	// This would create the actual DSQL client (AWS SDK or pg-compatible)
-	throw new Error('Method not implemented.');
+	// Dynamic import to avoid bundling issues when the package isn't installed
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const { AuroraDSQLPool } = require('@aws/aurora-dsql-node-postgres-connector');
+	return new AuroraDSQLPool({
+		host: config.endpoint,
+		user: config.user ?? 'admin',
+	});
 }
 
 export namespace drizzle {

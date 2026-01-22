@@ -15,7 +15,7 @@ export class DSQLTextBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLText {
-		throw new Error('Method not implemented.');
+		return new DSQLText(table, this.config as any);
 	}
 }
 

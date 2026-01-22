@@ -154,47 +154,103 @@ export abstract class DSQLColumnBuilder<
 		} as DSQLColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 	}
 
+	/**
+	 * Changes the data type of the column. Commonly used with `json` columns. Also, useful for branded types.
+	 */
 	$type<TType>(): Set$Type<this, TType> {
-		throw new Error('Method not implemented.');
+		return this as Set$Type<this, TType>;
 	}
 
+	/**
+	 * Adds a `not null` clause to the column definition.
+	 *
+	 * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
+	 */
 	notNull(): SetNotNull<this> {
-		throw new Error('Method not implemented.');
+		this.config.notNull = true;
+		return this as SetNotNull<this>;
 	}
 
+	/**
+	 * Adds a `default <value>` clause to the column definition.
+	 *
+	 * Affects the `insert` model of the table - columns *with* `default` are optional on insert.
+	 *
+	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
+	 */
 	default(value: T['data'] | SQL): SetHasDefault<this> {
-		throw new Error('Method not implemented.');
+		this.config.default = value;
+		this.config.hasDefault = true;
+		return this as SetHasDefault<this>;
 	}
 
+	/**
+	 * Adds a dynamic default value to the column.
+	 * The function will be called when the row is inserted, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
 	$defaultFn(fn: () => T['data'] | SQL): SetHasRuntimeDefault<this> {
-		throw new Error('Method not implemented.');
+		this.config.defaultFn = fn;
+		this.config.hasDefault = true;
+		return this as SetHasRuntimeDefault<this>;
 	}
 
+	/**
+	 * Alias for {@link $defaultFn}.
+	 */
 	$default = this.$defaultFn;
 
+	/**
+	 * Adds a dynamic update value to the column.
+	 * The function will be called when the row is updated, and the returned value will be used as the column value if none is provided.
+	 * If no `default` (or `$defaultFn`) value is provided, the function will be called when the row is inserted as well, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
 	$onUpdateFn(fn: () => T['data'] | SQL): SetHasDefault<this> {
-		throw new Error('Method not implemented.');
+		this.config.onUpdateFn = fn;
+		this.config.hasDefault = true;
+		return this as SetHasDefault<this>;
 	}
 
+	/**
+	 * Alias for {@link $onUpdateFn}.
+	 */
 	$onUpdate = this.$onUpdateFn;
 
+	/**
+	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
+	 */
 	primaryKey(): SetIsPrimaryKey<this> {
-		throw new Error('Method not implemented.');
+		this.config.primaryKey = true;
+		this.config.notNull = true;
+		return this as SetIsPrimaryKey<this>;
 	}
 
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
 	setName(name: string): void {
-		throw new Error('Method not implemented.');
+		if (this.config.name !== '') return;
+		this.config.name = name;
 	}
 
 	unique(
 		name?: string,
 		config?: { nulls: 'distinct' | 'not distinct' },
 	): this {
-		throw new Error('Method not implemented.');
+		this.config.isUnique = true;
+		this.config.uniqueName = name;
+		this.config.uniqueType = config?.nulls;
+		return this;
 	}
 
 	generatedAlwaysAs(as: SQL | (() => SQL)): SetHasGenerated<this> {
-		throw new Error('Method not implemented.');
+		this.config.generated = {
+			as,
+			type: 'always',
+			mode: 'stored',
+		};
+		return this as SetHasGenerated<this>;
 	}
 
 	/** @internal */
@@ -204,7 +260,7 @@ export abstract class DSQLColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyDSQLTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		throw new Error('Method not implemented.');
+		return new ExtraConfigColumn(table as DSQLTable, this.config as any);
 	}
 }
 
@@ -235,7 +291,7 @@ export class ExtraConfigColumn<
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	override getSQLType(): string {
-		throw new Error('Method not implemented.');
+		return this.getSQLType();
 	}
 
 	indexConfig: IndexedExtraConfigType = {
@@ -251,23 +307,28 @@ export class ExtraConfigColumn<
 	};
 
 	asc(): Omit<this, 'asc' | 'desc'> {
-		throw new Error('Method not implemented.');
+		this.indexConfig.order = 'asc';
+		return this;
 	}
 
 	desc(): Omit<this, 'asc' | 'desc'> {
-		throw new Error('Method not implemented.');
+		this.indexConfig.order = 'desc';
+		return this;
 	}
 
 	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		throw new Error('Method not implemented.');
+		this.indexConfig.nulls = 'first';
+		return this;
 	}
 
 	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		throw new Error('Method not implemented.');
+		this.indexConfig.nulls = 'last';
+		return this;
 	}
 
 	op(opClass: string): Omit<this, 'op'> {
-		throw new Error('Method not implemented.');
+		this.indexConfig.opClass = opClass;
+		return this;
 	}
 }
 

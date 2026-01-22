@@ -31,7 +31,7 @@ const citiesTable = dsqlTable('cities', {
 const users2Table = dsqlTable('users2', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	name: text('name').notNull(),
-	cityId: uuid('city_id').references(() => citiesTable.id),
+	cityId: uuid('city_id'),
 });
 
 const orders = dsqlTable('orders', {
@@ -98,7 +98,7 @@ export function tests() {
 					create table users2 (
 						id uuid primary key default gen_random_uuid(),
 						name text not null,
-						city_id uuid references cities(id)
+						city_id uuid
 					)
 				`,
 			);
