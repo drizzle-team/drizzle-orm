@@ -20,6 +20,7 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4574
 test('create table with check', async (t) => {
 	const to = {
 		users: sqliteTable('users', {

@@ -672,6 +672,7 @@ test('pk #1_0. drop table with pk', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4549
 // https://github.com/drizzle-team/drizzle-orm/issues/3801
 test('pk #1_1. add column with pk', async () => {
 	const from = {
@@ -1906,6 +1907,7 @@ test('fk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4574
 // https://github.com/drizzle-team/drizzle-orm/issues/3255
 test('index #1', async () => {
 	const table1 = sqliteTable('table1', {

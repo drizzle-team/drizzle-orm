@@ -1063,3 +1063,92 @@ test.concurrent('push materialized view with same name', async ({ db }) => {
 	]);
 	expect(pst).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4520
+test.concurrent('create 2 dependent materialized views', async ({ db }) => {
+	const table1 = cockroachTable('table1', {
+		col1: int4(),
+		col2: int4(),
+		col3: int4(),
+	});
+	const accountBalancesPMMV = cockroachMaterializedView('accountBalancesPM').as(
+		(qb) => {
+			return qb
+				.select({
+					col1: table1.col1,
+					col2: table1.col2,
+					col3: table1.col3,
+				})
+				.from(table1);
+		},
+	);
+
+	const accountBalancesMV = cockroachMaterializedView('accountBalances').as(
+		(qb) =>
+			qb
+				.select({
+					accountId: accountBalancesPMMV.col1,
+				})
+				.from(accountBalancesPMMV),
+	);
+
+	const schema = { table1, accountBalancesMV, accountBalancesPMMV };
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4,\n\t"col2" int4,\n\t"col3" int4\n);\n',
+		'CREATE MATERIALIZED VIEW "accountBalancesPM" AS (select "col1", "col2", "col3" from "table1");',
+		'CREATE MATERIALIZED VIEW "accountBalances" AS (select "col1" from "accountBalancesPM");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test.concurrent('create 2 dependent views', async ({ db }) => {
+	const table1 = cockroachTable('table1', {
+		col1: int4(),
+		col2: int4(),
+		col3: int4(),
+	});
+	const accountBalancesPMMV = cockroachView('accountBalancesPM').as(
+		(qb) => {
+			return qb
+				.select({
+					col1: table1.col1,
+					col2: table1.col2,
+					col3: table1.col3,
+				})
+				.from(table1);
+		},
+	);
+
+	const accountBalancesMV = cockroachView('accountBalances').as(
+		(qb) =>
+			qb
+				.select({
+					accountId: accountBalancesPMMV.col1,
+				})
+				.from(accountBalancesPMMV),
+	);
+
+	const schema = { table1, accountBalancesMV, accountBalancesPMMV };
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"col1" int4,\n\t"col2" int4,\n\t"col3" int4\n);\n',
+		'CREATE VIEW "accountBalancesPM" AS (select "col1", "col2", "col3" from "table1");',
+		'CREATE VIEW "accountBalances" AS (select "col1" from "accountBalancesPM");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
