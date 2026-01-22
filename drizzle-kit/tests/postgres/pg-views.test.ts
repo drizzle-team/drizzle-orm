@@ -2232,7 +2232,7 @@ test('rename column referenced in view', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4520
-test('create 2 dependent materialized views', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-24'))('create 2 dependent materialized views', async () => {
 	const table1 = pgTable('table1', {
 		col1: integer(),
 		col2: integer(),

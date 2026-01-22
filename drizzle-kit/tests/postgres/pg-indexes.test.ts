@@ -696,7 +696,7 @@ test('index #9', async () => {
 		`CREATE UNIQUE INDEX "email_unique_idx" ON "table1" ("email");`,
 	];
 	expect(st2).toStrictEqual(expectedSt2);
-	expect(pst2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual([]); // diffs for columns on push are ignored
 
 	const { sqlStatements: st3 } = await diff(n2, schema2, []);
 	const { sqlStatements: pst3 } = await push({ db, to: schema2 });

@@ -6571,10 +6571,10 @@ export function tests() {
 				.select({ sum: sql`sum(${3})`.inlineParams() })
 				.from(users);
 
-			expect(query.toSQL()).toStrictEqual([{
+			expect(query.toSQL()).toStrictEqual({
 				sql: 'select sum(3) from "users_115"',
 				params: [],
-			}]);
+			});
 		});
 	});
 }
