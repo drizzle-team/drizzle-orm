@@ -239,7 +239,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 						multipleStatements: true,
 					});
 					await client.connect();
-					await client.query('drop database drizzle; create database drizzle; use drizzle;');
+					await client.query('drop database if exists drizzle; create database drizzle; use drizzle;');
 
 					const query = async (sql: string, params: any[] = []) => {
 						const res = await client.query(sql, params);

@@ -1,7 +1,7 @@
 // test cases
 
 import { SQL, sql } from 'drizzle-orm';
-import { integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -323,7 +323,7 @@ test('generated as string: add column with generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};
@@ -359,7 +359,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`\"users\".\"name\" || 'to add'`),
+				.generatedAlwaysAs(sql`\"users\".\"name\" || 'to add'`),
 		}),
 	};
 
@@ -386,7 +386,7 @@ test('generated as string: drop generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'to delete'`,
+				sql`\"users\".\"name\" || 'to delete'`,
 			),
 		}),
 	};
@@ -431,7 +431,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};
@@ -450,6 +450,29 @@ test('generated as string: change generated constraint', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4622
+test('generated as string: enum column', async () => {
+	const roleEnum = pgEnum('role-enum', ['admin', 'manager']);
+	const to = {
+		roleEnum,
+		users: pgTable('users', {
+			role: roleEnum('gen_name').generatedAlwaysAs(sql`'admin'`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TYPE "role-enum" AS ENUM('admin', 'manager');`,
+		'CREATE TABLE "users" (\n'
+		+ `\t"gen_name" "role-enum" GENERATED ALWAYS AS ('admin') STORED\n`
+		+ ');\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter generated constraint', async () => {

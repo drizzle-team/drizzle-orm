@@ -601,7 +601,7 @@ test('alter sequence to identity', async () => {
 	await push({ db, to: from });
 	await db.query(`insert into users (id) values (default),(default),(default);`);
 
-	const res = await push({ db, to, log: 'statements' });
+	const res = await push({ db, to });
 
 	expect(res.sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT;',

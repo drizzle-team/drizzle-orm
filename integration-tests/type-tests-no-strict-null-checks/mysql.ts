@@ -1,4 +1,5 @@
 // oxlint-disable no-unused-expressions
+import { sql } from 'drizzle-orm';
 import { mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { type Equal, Expect } from './utils.ts';
@@ -8,7 +9,7 @@ export const test = mysqlTable(
 	{
 		id: text('id')
 			.primaryKey()
-			.generatedAlwaysAs('genstr'),
+			.generatedAlwaysAs(sql`'genstr'`),
 		name: text('name').$defaultFn(() => '' as string),
 		title: text('title').notNull(),
 		description: text('description'),

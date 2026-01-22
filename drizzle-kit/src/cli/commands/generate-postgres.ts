@@ -20,7 +20,7 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { resolver } from '../prompts';
-import { explain } from '../views';
+import { explain, postgresSchemaError, postgresSchemaWarning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -82,8 +82,23 @@ export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema } = fromDrizzleSchema(res, config.casing, () => true);
-	const { ddl } = interimToDDL(schema);
+	const { schema, errors, warnings } = fromDrizzleSchema(res, config.casing, () => true);
+	if (warnings.length > 0) {
+		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+	}
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	const { ddl, errors: errors2 } = interimToDDL(schema);
+
+	if (errors2.length > 0) {
+		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };

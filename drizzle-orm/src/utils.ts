@@ -256,11 +256,11 @@ export interface DrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelationConfigs extends AnyRelations = EmptyRelations,
 > {
-	logger?: boolean | Logger;
-	schema?: TSchema;
-	casing?: Casing;
-	relations?: TRelationConfigs;
-	cache?: Cache;
+	logger?: boolean | Logger | undefined;
+	schema?: TSchema | undefined;
+	casing?: Casing | undefined;
+	relations?: TRelationConfigs | undefined;
+	cache?: Cache | undefined;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -297,10 +297,10 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 type ExpectedConfigShape = {
 	logger?: boolean | {
 		logQuery(query: string, params: unknown[]): void;
-	};
-	schema?: Record<string, never>;
-	relations?: AnyRelations;
-	casing?: 'snake_case' | 'camelCase';
+	} | undefined;
+	schema?: Record<string, never> | undefined;
+	relations?: AnyRelations | undefined;
+	casing?: 'snake_case' | 'camelCase' | undefined;
 };
 
 // If this errors, you must update config shape checker function with new config specs
