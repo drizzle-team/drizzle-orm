@@ -574,7 +574,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`'users\\\\hello'`,
+				sql`'users\\\\hello'`,
 			),
 		}),
 	};

@@ -80,7 +80,7 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	}
 
 	if (error.type === 'conflict_column') {
-		return `'${error.column}' column name is a duplicate`;
+		return `'${error.column}' column name is a duplicate across '${error.table}' table`;
 	}
 
 	if (error.type === 'conflict_fk') {

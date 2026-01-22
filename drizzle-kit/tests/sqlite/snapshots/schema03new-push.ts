@@ -740,7 +740,7 @@ export const couponsInBilling = sqliteTable(
 		code: text().notNull(),
 		description: text(),
 		discountPercent: integer('discount_percent'),
-		maxRedemptions: integer('max_redemptions').generatedAlwaysAs(5),
+		maxRedemptions: integer('max_redemptions').generatedAlwaysAs(sql`5`),
 		metadata: text({ mode: 'json' }),
 	},
 	(table) => [

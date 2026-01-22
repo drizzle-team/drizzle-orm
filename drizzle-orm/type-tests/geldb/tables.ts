@@ -37,7 +37,7 @@ import { db } from './db.ts';
 // export const myEnum = gelEnum('my_enum', ['a', 'b', 'c']);
 
 export const identityColumnsTable = gelTable('identity_columns_table', {
-	generatedCol: integer('generated_col').generatedAlwaysAs(1),
+	generatedCol: integer('generated_col').generatedAlwaysAs(sql`1`),
 	alwaysAsIdentity: integer('always_as_identity').generatedAlwaysAsIdentity(),
 	byDefaultAsIdentity: integer('by_default_as_identity').generatedByDefaultAsIdentity(),
 	name: text('name'),

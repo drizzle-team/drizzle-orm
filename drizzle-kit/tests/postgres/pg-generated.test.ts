@@ -323,7 +323,7 @@ test('generated as string: add column with generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};
@@ -359,7 +359,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`\"users\".\"name\" || 'to add'`),
+				.generatedAlwaysAs(sql`\"users\".\"name\" || 'to add'`),
 		}),
 	};
 
@@ -386,7 +386,7 @@ test('generated as string: drop generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'to delete'`,
+				sql`\"users\".\"name\" || 'to delete'`,
 			),
 		}),
 	};
@@ -431,7 +431,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: integer('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`\"users\".\"name\" || 'hello'`,
+				sql`\"users\".\"name\" || 'hello'`,
 			),
 		}),
 	};
@@ -458,7 +458,7 @@ test('generated as string: enum column', async () => {
 	const to = {
 		roleEnum,
 		users: pgTable('users', {
-			role: roleEnum('gen_name').generatedAlwaysAs('admin'),
+			role: roleEnum('gen_name').generatedAlwaysAs(sql`'admin'`),
 		}),
 	};
 
