@@ -246,6 +246,54 @@ test('alter text type to jsonb type', async () => {
 	expect(res[0].column1).toStrictEqual({ b: 2 });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4485
+test('alter json type to text[] type', async () => {
+	const schema1 = {
+		table1: pgTable('table1', {
+			col1: json(),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await db.query(`insert into table1 values ('["b","a"]');`);
+
+	const schema2 = {
+		table1: pgTable('table1', {
+			col1: text().array(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to: schema2,
+	});
+
+	// not sure how it should be handled.
+	// either like this:
+	// ALTER TABLE table1 ADD COLUMN col1_new text[];
+
+	// UPDATE table1
+	// SET col1_new = ARRAY(
+	//   SELECT json_array_elements_text(col1)
+	// );
+
+	// ALTER TABLE table1 DROP COLUMN col1;
+	// ALTER TABLE table1 RENAME COLUMN col1_new TO col1;
+
+	// or with recreation of whole table like in sqlite
+	const expectedSt2 = [
+		'',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+
+	// to be sure that table1 wasn't truncated
+	const res = await db.query(`select * from table1;`);
+	expect(res[0].column1).toStrictEqual(['b', 'a']);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/2856
 test('alter text type to timestamp type', async () => {
 	const schema1 = {

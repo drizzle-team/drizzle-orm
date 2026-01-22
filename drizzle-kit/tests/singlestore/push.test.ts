@@ -13,6 +13,7 @@ import {
 	primaryKey,
 	singlestoreEnum,
 	singlestoreTable,
+	singlestoreTableCreator,
 	smallint,
 	text,
 	time,
@@ -702,6 +703,28 @@ test('change data type. db has indexes. table does not have values', async (t) =
 		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 		`CREATE INDEX \`index\` ON \`users\` (\`name\`);`,
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4474
+test('no second creation of index', async (t) => {
+	const createTable = singlestoreTableCreator((name) => `drive_tutorial_${name}`);
+
+	const files_table = createTable('files_table', {
+		id: bigint('id', { mode: 'bigint' }).primaryKey().autoincrement(),
+		parent: bigint('parent', { mode: 'bigint' }).notNull(),
+	}, (t) => {
+		return [
+			index('parent_folder_index').on(t.parent),
+		];
+	});
+
+	const schema1 = { files_table };
+	const { sqlStatements } = await diffPush({
+		db,
+		init: schema1,
+		destination: schema1,
+	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('change data type. db has indexes. table has values', async (t) => {
