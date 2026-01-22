@@ -250,7 +250,21 @@ export const fromDrizzleSchema = (
 		}
 	}
 
-	for (const view of views) {
+	for (
+		// see in "./dialects/postgres/drizzle.ts" for more
+		const view of views.sort((a, b) => {
+			const aConfig = getViewConfig(a);
+			const bConfig = getViewConfig(b);
+
+			// If a's fields include b, a depends on b → b comes first
+			if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+			// If b's fields include a, b depends on a → a comes first
+			if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+			return 0;
+		})
+	) {
 		const cfg = getViewConfig(view);
 		const {
 			isExisting,

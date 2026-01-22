@@ -576,7 +576,19 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
+		// see in "./dialects/postgres/drizzle.ts" for more
+		const aConfig = is(a, CockroachView) ? getViewConfig(a) : getMaterializedViewConfig(a);
+		const bConfig = is(b, CockroachView) ? getViewConfig(b) : getMaterializedViewConfig(b);
+
+		// If a's fields include b, a depends on b → b comes first
+		if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+		// If b's fields include a, b depends on a → a comes first
+		if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+		return 0;
+	}).map((it) => {
 		if (is(it, CockroachView)) {
 			return {
 				...getViewConfig(it),
