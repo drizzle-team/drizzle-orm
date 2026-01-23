@@ -6,11 +6,12 @@ import { test as base } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
-// Counter for unique table names
+// Counter for unique table names - use random to avoid concurrent test conflicts
 let tableCounter = 0;
+const testRunId = Math.random().toString(36).substring(2, 8);
 
 export function uniqueTableName(base: string): string {
-	return `${base}_${++tableCounter}_${Date.now()}`;
+	return `${base}_${testRunId}_${++tableCounter}`;
 }
 
 // Push function to create tables from SQL statements
@@ -72,14 +73,14 @@ export type DSQLTestContext = {
 
 export const dsqlTest = base.extend<DSQLTestContext>({
 	db: [
-		async (_ctx, use) => {
+		async ({}, use) => {
 			const db = await getSharedDb();
 			await use(db);
 		},
 		{ scope: 'test' },
 	],
 	uniqueName: [
-		async (_ctx, use) => {
+		async ({}, use) => {
 			await use(uniqueTableName);
 		},
 		{ scope: 'test' },

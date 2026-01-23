@@ -66,11 +66,27 @@ export class ManualViewBuilder<
 	}
 
 	existing(): DSQLViewWithSelection<TName, true, DSQLBuildColumns<TName, TColumns>> {
-		throw new Error('Method not implemented.');
+		return new DSQLView({
+			dsqlConfig: this.config.with ? { with: this.config.with } : undefined,
+			config: {
+				name: this.name,
+				schema: this.schema,
+				selectedFields: this.columns,
+				query: undefined,
+			},
+		}) as DSQLViewWithSelection<TName, true, DSQLBuildColumns<TName, TColumns>>;
 	}
 
-	as(_query: SQL): DSQLViewWithSelection<TName, false, DSQLBuildColumns<TName, TColumns>> {
-		throw new Error('Method not implemented.');
+	as(query: SQL): DSQLViewWithSelection<TName, false, DSQLBuildColumns<TName, TColumns>> {
+		return new DSQLView({
+			dsqlConfig: this.config.with ? { with: this.config.with } : undefined,
+			config: {
+				name: this.name,
+				schema: this.schema,
+				selectedFields: this.columns,
+				query,
+			},
+		}) as DSQLViewWithSelection<TName, false, DSQLBuildColumns<TName, TColumns>>;
 	}
 }
 

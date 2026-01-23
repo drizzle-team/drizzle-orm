@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
@@ -10,6 +11,7 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
+import type { SubqueryWithSelection } from '../subquery.ts';
 import type { DSQLTable } from '../table.ts';
 import { DSQLViewBase } from '../view-base.ts';
 import type { DSQLSelectConfig, DSQLSelectJoinConfig } from './select.types.ts';
@@ -83,12 +85,17 @@ export class DSQLSelectBuilder<TSelection extends SelectedFields | undefined = u
 }
 
 export abstract class DSQLSelectQueryBuilderBase<
-	_THKT extends any,
+	_THKT,
 	_TTableName extends string | undefined,
-	_TSelection,
+	TSelection,
 	_TSelectMode extends 'partial' | 'single' | 'multiple',
-> {
-	static readonly [entityKind]: string = 'DSQLSelectQueryBuilder';
+> extends TypedQueryBuilder<TSelection, any[]> {
+	static override readonly [entityKind]: string = 'DSQLSelectQueryBuilder';
+
+	declare readonly _: {
+		readonly selectedFields: TSelection;
+		readonly result: any[];
+	};
 
 	protected config: DSQLSelectConfig;
 	protected dialect: DSQLDialect;
@@ -106,6 +113,7 @@ export abstract class DSQLSelectQueryBuilderBase<
 		withList?: Subquery[];
 		distinct?: boolean | { on: (DSQLColumn | SQLWrapper)[] };
 	}) {
+		super();
 		this.config = {
 			withList: config.withList,
 			table: config.table,
@@ -302,11 +310,11 @@ export abstract class DSQLSelectQueryBuilderBase<
 	 */
 	as<TAlias extends string>(
 		alias: TAlias,
-	): Subquery<TAlias, ColumnsSelection> {
+	): SubqueryWithSelection<TSelection & ColumnsSelection, TAlias> {
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields as ColumnsSelection, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-		) as Subquery<TAlias, ColumnsSelection>;
+		) as SubqueryWithSelection<TSelection & ColumnsSelection, TAlias>;
 	}
 
 	/** @internal */
@@ -320,8 +328,8 @@ export abstract class DSQLSelectQueryBuilderBase<
 	}
 
 	/** @internal */
-	getSelectedFields(): Record<string, unknown> {
-		return this.config.fields;
+	override getSelectedFields(): TSelection {
+		return this.config.fields as TSelection;
 	}
 
 	$dynamic(): this {

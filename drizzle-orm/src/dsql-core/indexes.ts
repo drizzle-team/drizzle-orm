@@ -1,64 +1,153 @@
-import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
-import type { AnyDSQLColumn, ExtraConfigColumn, IndexedColumn } from './columns/common.ts';
+import { entityKind, is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
+import type { AnyDSQLColumn } from './columns/common.ts';
+import { ExtraConfigColumn, IndexedColumn } from './columns/common.ts';
 import type { DSQLTable } from './table.ts';
 
 export type IndexType = 'btree' | 'hash';
 
 export interface IndexConfig {
-	name: string;
-	columns: IndexedColumn[];
+	name?: string;
+	columns: (IndexedColumn | SQL)[];
 	unique: boolean;
 	where?: SQL;
 	concurrently?: boolean;
-	using?: IndexType;
+	method?: IndexType;
 }
 
-export class IndexBuilder {
+export class IndexBuilderOn {
+	static readonly [entityKind]: string = 'DSQLIndexBuilderOn';
+
+	constructor(private unique: boolean, private name?: string) {}
+
+	on(
+		...columns: [AnyDSQLColumn | ExtraConfigColumn | SQL, ...(AnyDSQLColumn | ExtraConfigColumn | SQL)[]]
+	): IndexBuilder {
+		return new IndexBuilder(
+			columns.map((it) => {
+				if (is(it, SQL)) {
+					return it;
+				}
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as AnyDSQLColumn;
+
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType,
+					{},
+				);
+			}),
+			this.unique,
+			this.name,
+		);
+	}
+
+	using(
+		method: IndexType,
+		...columns: [AnyDSQLColumn | ExtraConfigColumn | SQL, ...(AnyDSQLColumn | ExtraConfigColumn | SQL)[]]
+	): IndexBuilder {
+		return new IndexBuilder(
+			columns.map((it) => {
+				if (is(it, SQL)) {
+					return it;
+				}
+
+				if (is(it, ExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as AnyDSQLColumn;
+
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType,
+					{},
+				);
+			}),
+			this.unique,
+			this.name,
+			method,
+		);
+	}
+}
+
+export interface AnyIndexBuilder {
+	build(table: DSQLTable): Index;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface IndexBuilder extends AnyIndexBuilder {}
+
+export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'DSQLIndexBuilder';
 
-	constructor(_name: string) {
-		throw new Error('Method not implemented.');
-	}
+	/** @internal */
+	config: IndexConfig;
 
-	on(..._columns: (AnyDSQLColumn | ExtraConfigColumn | SQL)[]): this {
-		throw new Error('Method not implemented.');
-	}
-
-	using(_method: IndexType): this {
-		throw new Error('Method not implemented.');
-	}
-
-	where(_condition: SQL): this {
-		throw new Error('Method not implemented.');
+	constructor(
+		columns: (IndexedColumn | SQL)[],
+		unique: boolean,
+		name?: string,
+		method: IndexType = 'btree',
+	) {
+		this.config = {
+			name,
+			columns,
+			unique,
+			method,
+		};
 	}
 
 	concurrently(): this {
-		throw new Error('Method not implemented.');
+		this.config.concurrently = true;
+		return this;
+	}
+
+	where(condition: SQL): this {
+		this.config.where = condition;
+		return this;
 	}
 
 	/** @internal */
-	build(_table: DSQLTable): Index {
-		throw new Error('Method not implemented.');
+	build(table: DSQLTable): Index {
+		return new Index(this.config, table);
 	}
 }
 
 export class Index {
 	static readonly [entityKind]: string = 'DSQLIndex';
 
-	readonly config: IndexConfig;
+	readonly config: IndexConfig & { table: DSQLTable };
 
-	constructor(_config: IndexConfig, _table: DSQLTable) {
-		throw new Error('Method not implemented.');
+	constructor(config: IndexConfig, table: DSQLTable) {
+		this.config = { ...config, table };
 	}
 }
 
-export type AnyIndexBuilder = IndexBuilder;
-
-export function index(name: string): IndexBuilder {
-	return new IndexBuilder(name);
+export function index(name?: string): IndexBuilderOn {
+	return new IndexBuilderOn(false, name);
 }
 
-export function uniqueIndex(_name: string): IndexBuilder {
-	throw new Error('Method not implemented.');
+export function uniqueIndex(name?: string): IndexBuilderOn {
+	return new IndexBuilderOn(true, name);
 }

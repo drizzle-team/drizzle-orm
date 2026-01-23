@@ -2,7 +2,11 @@ import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { DSQLDialect } from '~/dsql-core/dialect.ts';
+import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
+import { DSQLInsertBuilder } from '~/dsql-core/query-builders/insert.ts';
+import { DSQLSelectBuilder, type SelectedFields } from '~/dsql-core/query-builders/select.ts';
 import type { SelectedFieldsOrdered } from '~/dsql-core/query-builders/select.types.ts';
+import { DSQLUpdateBuilder } from '~/dsql-core/query-builders/update.ts';
 import {
 	DSQLBasePreparedQuery,
 	type DSQLQueryResultHKT,
@@ -10,10 +14,12 @@ import {
 	type DSQLTransactionConfig,
 	type PreparedQueryConfig,
 } from '~/dsql-core/session.ts';
-import { entityKind } from '~/entity.ts';
+import type { DSQLTable } from '~/dsql-core/table.ts';
+import { entityKind, is } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQLWrapper } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 // DSQL client type - could be AWS SDK client or pg-compatible client
@@ -224,10 +230,44 @@ export class DSQLDriverSession<
 	}
 
 	async transaction<T>(
-		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-		_config?: DSQLTransactionConfig | undefined,
+		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		config?: DSQLTransactionConfig | undefined,
 	): Promise<T> {
-		throw new Error('Method not implemented.');
+		const session = this;
+		const tx = new DSQLTransaction(
+			this.dialect,
+			session,
+			this.relations,
+			this.schema,
+			0,
+		);
+
+		await session.execute({ sql: 'BEGIN', params: [] });
+
+		if (config) {
+			const chunks: string[] = [];
+			if (config.isolationLevel) {
+				chunks.push(`isolation level ${config.isolationLevel}`);
+			}
+			if (config.accessMode) {
+				chunks.push(config.accessMode);
+			}
+			if (chunks.length) {
+				await session.execute({ sql: `SET TRANSACTION ${chunks.join(' ')}`, params: [] });
+			}
+		}
+
+		try {
+			const result = await transaction(tx);
+			await session.execute({ sql: 'COMMIT', params: [] });
+			return result;
+		} catch (error) {
+			await session.execute({ sql: 'ROLLBACK', params: [] });
+			if (is(error, TransactionRollbackError)) {
+				// Transaction was intentionally rolled back
+			}
+			throw error;
+		}
 	}
 }
 
@@ -246,14 +286,62 @@ export class DSQLTransaction<
 		protected nestedIndex: number = 0,
 	) {}
 
+	select(): DSQLSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;
+	select(fields?: SelectedFields): DSQLSelectBuilder<SelectedFields | undefined> {
+		return new DSQLSelectBuilder({
+			fields: fields as SelectedFields,
+			session: this.session,
+			dialect: this.dialect,
+		});
+	}
+
+	insert<TTable extends DSQLTable>(table: TTable): DSQLInsertBuilder<TTable> {
+		return new DSQLInsertBuilder(table, this.session, this.dialect);
+	}
+
+	update<TTable extends DSQLTable>(table: TTable): DSQLUpdateBuilder<TTable> {
+		return new DSQLUpdateBuilder(table, this.session, this.dialect);
+	}
+
+	delete<TTable extends DSQLTable>(table: TTable): DSQLDeleteBase<TTable, any, undefined> {
+		return new DSQLDeleteBase(table, this.session, this.dialect);
+	}
+
+	execute<T extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper,
+	): Promise<T> {
+		const querySQL = query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(querySQL);
+		return this.session.execute(builtQuery);
+	}
+
 	rollback(): never {
-		throw new Error('Method not implemented.');
+		throw new TransactionRollbackError();
 	}
 
 	async transaction<T>(
-		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		throw new Error('Method not implemented.');
+		const savepointName = `sp_${this.nestedIndex + 1}`;
+		await this.session.execute({ sql: `SAVEPOINT ${savepointName}`, params: [] });
+
+		const tx = new DSQLTransaction(
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
+
+		try {
+			const result = await transaction(tx);
+			await this.session.execute({ sql: `RELEASE SAVEPOINT ${savepointName}`, params: [] });
+			return result;
+		} catch (error) {
+			await this.session.execute({ sql: `ROLLBACK TO SAVEPOINT ${savepointName}`, params: [] });
+			throw error;
+		}
 	}
 }
 

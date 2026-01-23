@@ -6,6 +6,7 @@ import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
 import { DSQLInsertBuilder } from '~/dsql-core/query-builders/insert.ts';
 import { DSQLSelectBuilder, type SelectedFields } from '~/dsql-core/query-builders/select.ts';
 import { DSQLUpdateBuilder } from '~/dsql-core/query-builders/update.ts';
+import type { WithSubqueryWithSelection } from '~/dsql-core/subquery.ts';
 import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -16,7 +17,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import type { DSQLClient } from './session.ts';
+import type { DSQLClient, DSQLTransaction } from './session.ts';
 import { DSQLDriverSession } from './session.ts';
 
 export interface DSQLDriverOptions {
@@ -46,7 +47,7 @@ export class DSQLDatabase<
 				| TypedQueryBuilder<TSelection>
 				| SQL
 				| ((qb: DSQLDatabase<TSchema, TRelations>) => TypedQueryBuilder<TSelection> | SQL),
-		) => WithSubquery<TAlias, TSelection>;
+		) => WithSubqueryWithSelection<TSelection, TAlias>;
 	} {
 		const self = this;
 		return {
@@ -55,7 +56,7 @@ export class DSQLDatabase<
 					| TypedQueryBuilder<TSelection>
 					| SQL
 					| ((qb: DSQLDatabase<TSchema, TRelations>) => TypedQueryBuilder<TSelection> | SQL),
-			): WithSubquery<TAlias, TSelection> {
+			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
 					qb = qb(self);
 				}
@@ -67,7 +68,7 @@ export class DSQLDatabase<
 				return new Proxy(
 					new WithSubquery(qb.getSQL(), selectedFields, alias, true),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubquery<TAlias, TSelection>;
+				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
 	}
@@ -125,10 +126,10 @@ export class DSQLDatabase<
 	}
 
 	transaction<T>(
-		_transaction: (tx: unknown) => Promise<T>,
-		_config?: { isolationLevel?: 'repeatable read'; accessMode?: 'read only' | 'read write' },
+		transaction: (tx: DSQLTransaction<TSchema, TRelations, any>) => Promise<T>,
+		config?: { isolationLevel?: 'repeatable read'; accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
-		throw new Error('Method not implemented.');
+		return this.session.transaction(transaction, config);
 	}
 }
 
