@@ -813,6 +813,9 @@ importers:
       get-port:
         specifier: ^7.0.0
         version: 7.1.0
+      json-rules-engine:
+        specifier: ^7.3.1
+        version: 7.3.1
       mssql:
         specifier: ^11.0.1
         version: 11.0.1
