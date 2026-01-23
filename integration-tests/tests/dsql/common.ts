@@ -1794,160 +1794,93 @@ export function tests(test: Test) {
 			}
 		});
 
-		// RQB tests - skipped until db.query is implemented
-		test.concurrent('rqb: findFirst', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-			});
+		// RQB (Relational Query Builder) tests using proper schema and relations setup
+		test.concurrent('rqb: findFirst', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
+			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+			const result = await rqbDb.query.usersTable.findFirst();
+			expect(result).toBeDefined();
+			expect(result?.name).toBeDefined();
 
-			try {
-				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findFirst();
-				expect(result).toBeDefined();
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
-		test.concurrent('rqb: findMany', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-			});
+		test.concurrent('rqb: findMany', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
+			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+			const result = await rqbDb.query.usersTable.findMany();
+			expect(result).toHaveLength(2);
 
-			try {
-				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findMany();
-				expect(result).toHaveLength(2);
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
-		test.concurrent('rqb: findFirst with where', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
+		test.concurrent('rqb: findFirst with where', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
+
+			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+			const result = await rqbDb.query.usersTable.findFirst({
+				where: eq(usersTable.name, 'Jane'),
 			});
+			expect(result?.name).toBe('Jane');
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
-
-			try {
-				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findFirst({
-					where: eq(users.name, 'Jane'),
-				});
-				expect(result?.name).toBe('Jane');
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
-		test.concurrent('rqb: findMany with orderBy', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
+		test.concurrent('rqb: findMany with orderBy', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
+
+			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+			const result = await rqbDb.query.usersTable.findMany({
+				orderBy: asc(usersTable.name),
 			});
+			expect(result[0]?.name).toBe('Alice');
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
-
-			try {
-				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findMany({
-					orderBy: asc(users.name),
-				});
-				expect(result?.[0]?.name).toBe('Alice');
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
-		test.concurrent('rqb: findMany with limit', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
+		test.concurrent('rqb: findMany with limit', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
+
+			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+			const result = await rqbDb.query.usersTable.findMany({
+				limit: 2,
 			});
+			expect(result).toHaveLength(2);
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
-
-			try {
-				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findMany({
-					limit: 2,
-				});
-				expect(result).toHaveLength(2);
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
-		test.concurrent('rqb: findFirst with columns selection', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-				email: text('email'),
+		test.concurrent('rqb: findFirst with columns selection', async ({ rqbDb }) => {
+			const { usersTable } = await import('./dsql.schema');
+			// Clean up before test
+			await rqbDb.delete(usersTable);
+
+			await rqbDb.insert(usersTable).values({ name: 'John', email: 'john@example.com' });
+			const result = await rqbDb.query.usersTable.findFirst({
+				columns: { name: true },
 			});
+			expect(result).toHaveProperty('name');
+			expect(result).not.toHaveProperty('email');
 
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null,
-					email text
-				)
-			`);
-
-			try {
-				await db.insert(users).values({ name: 'John', email: 'john@example.com' });
-				// @ts-expect-error db.query not implemented yet
-				const result = await db.query[tableName as keyof typeof db.query]?.findFirst({
-					columns: { name: true },
-				});
-				expect(result).toHaveProperty('name');
-				expect(result).not.toHaveProperty('email');
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
+			// Clean up after test
+			await rqbDb.delete(usersTable);
 		});
 
 		// Migration tests

@@ -1,7 +1,24 @@
+import { aliasedTable } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import {
+	type AnyOne,
+	type BuildRelationalQueryResult,
+	type DBQueryConfig,
+	getTableAsAliasSQL,
+	One,
+	type Relation,
+	relationExtrasToSQL,
+	relationsFilterToSQL,
+	relationsOrderToSQL,
+	relationToSQL,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
+	type WithContainer,
+} from '~/relations.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -482,14 +499,186 @@ export class DSQLDialect {
 		});
 	}
 
-	buildRelationalQuery(_config: {
-		schema: any;
-		table: any;
-		tableConfig: any;
-		queryConfig?: any;
+	private buildColumns(
+		table: DSQLTable | DSQLViewBase,
+		selection: BuildRelationalQueryResult['selection'],
+		params: DBQueryConfig<'many'> | undefined,
+	): SQL | undefined {
+		const tableConfig = table[Table.Symbol.Columns] ?? table[ViewBaseConfig]?.selectedFields;
+		if (!tableConfig) return undefined;
+
+		let columns: Record<string, Column> | undefined;
+		if (params?.columns) {
+			let isIncludeMode = false;
+			let selectedColumns: string[] = [];
+
+			for (const [field, value] of Object.entries(params.columns)) {
+				if (value === undefined) continue;
+				if (field in tableConfig) {
+					if (!isIncludeMode && value === true) {
+						isIncludeMode = true;
+					}
+					selectedColumns.push(field);
+				}
+			}
+
+			if (selectedColumns.length > 0) {
+				selectedColumns = isIncludeMode
+					? selectedColumns.filter((c) => params.columns?.[c] === true)
+					: Object.keys(tableConfig).filter((key) => !selectedColumns.includes(key));
+
+				columns = Object.fromEntries(
+					selectedColumns.map((key) => [key, tableConfig[key]!]),
+				) as Record<string, Column>;
+			}
+		}
+
+		if (!columns) {
+			columns = tableConfig as Record<string, Column>;
+		}
+
+		const columnEntries = Object.entries(columns);
+		if (columnEntries.length === 0) return undefined;
+
+		for (const [key, column] of columnEntries) {
+			selection.push({
+				key,
+				field: column,
+			});
+		}
+
+		return sql.join(
+			columnEntries.map(([key, column]) => sql`${column} as ${sql.identifier(key)}`),
+			sql`, `,
+		);
+	}
+
+	buildRelationalQuery({
+		schema,
+		table,
+		tableConfig,
+		queryConfig: config,
+		relationWhere,
+		mode,
+		errorPath,
+		depth,
+		throughJoin,
+	}: {
+		schema: TablesRelationalConfig;
+		table: DSQLTable | DSQLViewBase;
+		tableConfig: TableRelationalConfig;
+		queryConfig?: DBQueryConfig<'many'> | true;
 		relationWhere?: SQL;
 		mode: 'first' | 'many';
-	}): { sql: SQL; selection: any[] } {
-		throw new Error('Method not implemented.');
+		errorPath?: string;
+		depth?: number;
+		throughJoin?: SQL;
+	}): BuildRelationalQueryResult {
+		const selection: BuildRelationalQueryResult['selection'] = [];
+		const isSingle = mode === 'first';
+		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
+		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`) as DSQLTable | DSQLViewBase;
+
+		const limit = isSingle ? 1 : params?.limit;
+		const offset = params?.offset;
+
+		const where: SQL | undefined = (params?.where && relationWhere)
+			? sql`${
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
+			} and ${relationWhere}`
+			: params?.where
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
+			: relationWhere;
+
+		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
+		const columns = this.buildColumns(table, selection, params);
+		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
+		if (extras) selection.push(...extras.selection);
+
+		const selectionArr: SQL[] = columns ? [columns] : [];
+
+		const joins = params
+			? (() => {
+				const { with: joins } = params as WithContainer;
+				if (!joins) return;
+
+				const withEntries = Object.entries(joins).filter(([_, v]) => v);
+				if (!withEntries.length) return;
+
+				return sql.join(
+					withEntries.map(([k, join]) => {
+						const relation = tableConfig.relations[k]! as Relation;
+						const isSingle = is(relation, One);
+						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`) as DSQLTable | DSQLViewBase;
+						const throughTable = relation.throughTable
+							? aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View
+							: undefined;
+						const { filter, joinCondition } = relationToSQL(
+							this.casing,
+							relation,
+							table,
+							targetTable,
+							throughTable,
+						);
+
+						selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
+
+						const innerThroughJoin = throughTable
+							? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
+							: undefined;
+
+						const innerQuery = this.buildRelationalQuery({
+							table: targetTable,
+							mode: isSingle ? 'first' : 'many',
+							schema,
+							queryConfig: join as DBQueryConfig,
+							tableConfig: schema[relation.targetTableName]!,
+							relationWhere: filter,
+							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+							depth: currentDepth + 1,
+							throughJoin: innerThroughJoin,
+						});
+
+						selection.push({
+							field: targetTable,
+							key: k,
+							selection: innerQuery.selection,
+							isArray: !isSingle,
+							isOptional: ((relation as AnyOne).optional ?? false)
+								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
+						});
+
+						const joinQuery = sql`left join lateral(select ${
+							isSingle
+								? sql`row_to_json(${sql.identifier('t')}.*) ${sql.identifier('r')}`
+								: sql`coalesce(json_agg(row_to_json(${sql.identifier('t')}.*)), '[]') as ${sql.identifier('r')}`
+						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
+
+						return joinQuery;
+					}),
+					sql` `,
+				);
+			})()
+			: undefined;
+
+		if (extras?.sql) selectionArr.push(extras.sql);
+		if (!selectionArr.length) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
+			});
+		}
+		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
+		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+			sql` ${joins}`.if(joins)
+		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
+			sql` limit ${limit}`.if(limit !== undefined)
+		}${sql` offset ${offset}`.if(offset !== undefined)}`;
+
+		return {
+			sql: query,
+			selection,
+		};
 	}
 }

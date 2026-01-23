@@ -17,6 +17,8 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleConfig } from '~/utils.ts';
+import type { DSQLRelationalQueryBuilder } from './query-builder.ts';
+import type { DSQLRelationalQueryHKT } from './query.ts';
 import type { DSQLClient, DSQLTransaction } from './session.ts';
 import { DSQLDriverSession } from './session.ts';
 
@@ -31,12 +33,32 @@ export class DSQLDatabase<
 > {
 	static readonly [entityKind]: string = 'DSQLDatabase';
 
+	query: {
+		[K in keyof TRelations]: DSQLRelationalQueryBuilder<
+			TRelations,
+			TRelations[K],
+			DSQLRelationalQueryHKT
+		>;
+	};
+
 	constructor(
 		readonly dialect: DSQLDialect,
 		readonly session: DSQLDriverSession<TSchema, TRelations, any>,
 		readonly relations: TRelations,
 		readonly schema: V1.RelationalSchemaConfig<any> | undefined,
-	) {}
+	) {
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as DSQLDatabase<TSchema, AnyRelations>['query'])[tableName] = new DSQLRelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as DSQLTable,
+				relation,
+				dialect,
+				session,
+				false,
+			);
+		}
+	}
 
 	/**
 	 * Creates a CTE (Common Table Expression) that can be used in queries.

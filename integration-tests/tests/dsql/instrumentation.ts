@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm';
 import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import { drizzle } from 'drizzle-orm/dsql';
 import { test as base } from 'vitest';
+import relations from './dsql.relations';
+import * as schema from './dsql.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -30,6 +32,8 @@ export const _push = async (
 
 // Create a single shared database connection (pool handles concurrency)
 let sharedDb: DSQLDatabase<any> | null = null;
+let rqbDb: DSQLDatabase<typeof schema, typeof relations> | null = null;
+let rqbTablesCreated = false;
 
 async function getSharedDb(): Promise<DSQLDatabase<any>> {
 	if (sharedDb) return sharedDb;
@@ -75,8 +79,92 @@ async function getSharedDb(): Promise<DSQLDatabase<any>> {
 	return sharedDb;
 }
 
+async function getRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
+	if (rqbDb) return rqbDb;
+
+	const clusterId = process.env['DSQL_CLUSTER_ID'];
+	if (!clusterId) {
+		throw new Error('DSQL_CLUSTER_ID environment variable is required');
+	}
+
+	rqbDb = await retry(
+		async () => {
+			const database = drizzle({
+				connection: {
+					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
+					region: 'us-west-2',
+				},
+				relations,
+				logger: ENABLE_LOGGING,
+			});
+			// Test connection
+			await database.execute(sql`SELECT 1`);
+			return database;
+		},
+		{
+			retries: 20,
+			factor: 1,
+			minTimeout: 250,
+			maxTimeout: 250,
+			randomize: false,
+		},
+	);
+
+	// Create RQB tables if not already created
+	if (!rqbTablesCreated) {
+		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_users_to_groups CASCADE`);
+		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_comments CASCADE`);
+		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_posts CASCADE`);
+		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_groups CASCADE`);
+		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_users CASCADE`);
+
+		await rqbDb.execute(sql`
+			CREATE TABLE rqb_users (
+				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+				name text NOT NULL,
+				email text,
+				invited_by uuid
+			)
+		`);
+		await rqbDb.execute(sql`
+			CREATE TABLE rqb_posts (
+				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+				content text NOT NULL,
+				owner_id uuid NOT NULL
+			)
+		`);
+		await rqbDb.execute(sql`
+			CREATE TABLE rqb_comments (
+				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+				text text NOT NULL,
+				post_id uuid NOT NULL,
+				author_id uuid NOT NULL
+			)
+		`);
+		await rqbDb.execute(sql`
+			CREATE TABLE rqb_groups (
+				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+				name text NOT NULL
+			)
+		`);
+		await rqbDb.execute(sql`
+			CREATE TABLE rqb_users_to_groups (
+				user_id uuid NOT NULL,
+				group_id uuid NOT NULL,
+				PRIMARY KEY (user_id, group_id)
+			)
+		`);
+		rqbTablesCreated = true;
+	}
+
+	return rqbDb;
+}
+
+export { relations, schema };
+
 export type DSQLTestContext = {
 	db: DSQLDatabase<any>;
+	rqbDb: DSQLDatabase<typeof schema, typeof relations>;
 	uniqueName: (base: string) => string;
 	createTable: (tableName: string, ddl: string) => Promise<void>;
 	dropTable: (tableName: string) => Promise<void>;
@@ -87,6 +175,14 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 		// eslint-disable-next-line no-empty-pattern
 		async ({}, use) => {
 			const db = await getSharedDb();
+			await use(db);
+		},
+		{ scope: 'test' },
+	],
+	rqbDb: [
+		// eslint-disable-next-line no-empty-pattern
+		async ({}, use) => {
+			const db = await getRqbDb();
 			await use(db);
 		},
 		{ scope: 'test' },
