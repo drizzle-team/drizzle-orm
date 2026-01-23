@@ -1,4 +1,4 @@
-import type { ColumnType, GeneratedColumnConfig } from '~/column-builder.ts';
+import type { ColumnType, GeneratedColumnConfig, GeneratedIdentityConfig } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
 import type { AnyDSQLTable, DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
@@ -40,6 +40,7 @@ export interface DSQLColumnBuilderRuntimeConfig<TData> {
 	dataType: string;
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity: GeneratedIdentityConfig | undefined;
 }
 
 export interface DSQLColumnBaseConfig<out TDataType extends ColumnType = ColumnType> {
@@ -55,6 +56,7 @@ export interface DSQLColumnBaseConfig<out TDataType extends ColumnType = ColumnT
 	driverParam: unknown;
 	enumValues: string[] | undefined;
 	generated: unknown;
+	identity: undefined | 'always' | 'byDefault';
 }
 
 export type SetNotNull<T> = T & { readonly [DSQLColumnBuilderBrand]: { notNull: true } };
@@ -87,6 +89,7 @@ export type ResolveDSQLColumnConfig<
 	hasRuntimeDefault: false;
 	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
 	generated: T['generated'] extends true ? true : undefined;
+	identity: undefined;
 } & {};
 
 export interface AnyDSQLColumnBuilder {
@@ -149,6 +152,7 @@ export abstract class DSQLColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
+			generatedIdentity: undefined,
 			defaultFn: undefined,
 			onUpdateFn: undefined,
 		} as DSQLColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;

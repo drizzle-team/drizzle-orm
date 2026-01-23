@@ -3,14 +3,14 @@ import type { DSQLTable } from '../table.ts';
 import { DSQLColumn, DSQLColumnBuilder } from './common.ts';
 
 export class DSQLByteaBuilder extends DSQLColumnBuilder<{
-	dataType: 'buffer';
+	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;
 }> {
 	static override readonly [entityKind]: string = 'DSQLByteaBuilder';
 
 	constructor(name: string) {
-		super(name, 'buffer', 'DSQLBytea');
+		super(name, 'object buffer', 'DSQLBytea');
 	}
 
 	/** @internal */
@@ -19,7 +19,7 @@ export class DSQLByteaBuilder extends DSQLColumnBuilder<{
 	}
 }
 
-export class DSQLBytea extends DSQLColumn<'buffer'> {
+export class DSQLBytea extends DSQLColumn<'object buffer'> {
 	static override readonly [entityKind]: string = 'DSQLBytea';
 
 	getSQLType(): string {

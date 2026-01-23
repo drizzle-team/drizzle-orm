@@ -14,7 +14,7 @@ export class DSQLNumericBuilder extends DSQLColumnBuilder<{
 }> {
 	static override readonly [entityKind]: string = 'DSQLNumericBuilder';
 
-	constructor(name: string, private config: DSQLNumericConfig = {}) {
+	constructor(name: string, private numericConfig: DSQLNumericConfig = {}) {
 		super(name, 'string', 'DSQLNumeric');
 	}
 
@@ -36,7 +36,7 @@ export class DSQLNumeric extends DSQLColumn<'string'> {
 		this.scale = config.scale;
 	}
 
-	getSQLType(): string {
+	override getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `numeric(${this.precision},${this.scale})`;
 		}

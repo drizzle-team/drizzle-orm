@@ -20,7 +20,9 @@ export interface DSQLDeleteConfig<TTable extends DSQLTable = DSQLTable> {
 export type SelectedFieldsFlat = Record<string, unknown>;
 
 export interface DSQLDeleteBase<
-	_TTable extends DSQLTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TTable extends DSQLTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	_TQueryResult,
 	TReturning = undefined,
 > extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper {}
@@ -85,7 +87,7 @@ export class DSQLDeleteBase<
 		return this._prepare().execute();
 	}
 
-	then<TResult1 = any, TResult2 = never>(
+	override then<TResult1 = any, TResult2 = never>(
 		onfulfilled?: ((value: any) => TResult1 | PromiseLike<TResult1>) | null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
 	): Promise<TResult1 | TResult2> {

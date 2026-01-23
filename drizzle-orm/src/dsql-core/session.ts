@@ -1,7 +1,7 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
-import type { Query, SQL } from '~/sql/index.ts';
+import type { Query } from '~/sql/index.ts';
 import type { DSQLDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
@@ -77,9 +77,9 @@ export abstract class DSQLSession {
 		) => T['execute'],
 	): DSQLBasePreparedQuery;
 
-	abstract execute(query: SQL): unknown;
+	abstract execute(query: Query): unknown;
 
-	abstract all(query: SQL): unknown;
+	abstract all(query: Query): unknown;
 }
 
 export interface DSQLQueryResultHKT {

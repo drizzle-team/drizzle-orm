@@ -4,14 +4,14 @@ import { DSQLColumn } from './common.ts';
 import { DSQLDateColumnBuilder } from './date.common.ts';
 
 export class DSQLDateBuilder extends DSQLDateColumnBuilder<{
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string;
 }> {
 	static override readonly [entityKind]: string = 'DSQLDateBuilder';
 
 	constructor(name: string) {
-		super(name, 'date', 'DSQLDate');
+		super(name, 'object date', 'DSQLDate');
 	}
 
 	/** @internal */
@@ -20,7 +20,7 @@ export class DSQLDateBuilder extends DSQLDateColumnBuilder<{
 	}
 }
 
-export class DSQLDate extends DSQLColumn<'date'> {
+export class DSQLDate extends DSQLColumn<'object date'> {
 	static override readonly [entityKind]: string = 'DSQLDate';
 
 	getSQLType(): string {

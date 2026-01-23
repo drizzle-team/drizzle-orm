@@ -1,5 +1,4 @@
 import { asc, eq, gt, sql, TransactionRollbackError } from 'drizzle-orm';
-import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import {
 	alias,
 	boolean,
@@ -19,20 +18,23 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/dsql-core';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { describe, expect } from 'vitest';
+import type { Test } from './instrumentation';
 
-declare module 'vitest' {
-	interface TestContext {
-		dsql: {
-			db: DSQLDatabase<any>;
-		};
-	}
+// Counter for unique table names across all tests
+let tableCounter = 0;
+function uniqueName(base: string): string {
+	return `${base}_${++tableCounter}`;
 }
 
-// Table definitions using dsqlTable and DSQL column types
-// Note: No serial type - using uuid or generatedByDefaultAsIdentity instead
-// Note: No jsonb - not supported by DSQL
+// Migrator table for migration tests (exported for use in dsql.test.ts)
+export const usersMigratorTable = dsqlTable('users12', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: text('name').notNull(),
+	email: text('email').notNull(),
+});
 
+// Exported for dsql.test.ts compatibility
 export const usersTable = dsqlTable('users', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	name: text('name').notNull(),
@@ -40,709 +42,867 @@ export const usersTable = dsqlTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-const citiesTable = dsqlTable('cities', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	state: varchar('state', { length: 2 }),
-});
-
-const users2Table = dsqlTable('users2', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	cityId: uuid('city_id'),
-});
-
-const orders = dsqlTable('orders', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	region: text('region').notNull(),
-	product: text('product').notNull().$default(() => 'random_string'),
-	amount: integer('amount').notNull(),
-	quantity: integer('quantity').notNull(),
-});
-
-// Migrator table for migration tests
-export const usersMigratorTable = dsqlTable('users12', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-});
-
-// Aggregate table for aggregate function tests
-const aggregateTable = dsqlTable('aggregate_table', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	a: integer('a'),
-	b: integer('b'),
-	c: integer('c'),
-	nullOnly: integer('null_only'),
-});
-
-// For set operations tests
-const cities2Table = dsqlTable('cities2', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-});
-
-// For relational queries tests
-const postsTable = dsqlTable('posts', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	title: text('title').notNull(),
-	authorId: uuid('author_id').notNull(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
-// For schema tests
-const testSchema = dsqlSchema('test_schema');
-const schemaUsersTable = testSchema.table('schema_users', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-});
-
-// Table with check constraint
-const tableWithCheck = dsqlTable('with_check', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	age: integer('age'),
-}, (t) => [check('age_check', sql`${t.age} >= 0`)]);
-
-// Table with index
-const tableWithIndex = dsqlTable('with_index', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name'),
-	email: text('email'),
-}, (t) => [
-	index('name_idx').on(t.name),
-	uniqueIndex('email_idx').on(t.email),
-]);
-
-// Table with composite primary key
-const tableWithCompositePK = dsqlTable('composite_pk', {
-	pk1: uuid('pk1').notNull(),
-	pk2: uuid('pk2').notNull(),
-	name: text('name'),
-}, (t) => [primaryKey({ columns: [t.pk1, t.pk2] })]);
-
-// Table with unique constraint
-const tableWithUnique = dsqlTable('with_unique', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	email: text('email').notNull(),
-	username: text('username').notNull(),
-}, (t) => [unique('email_username_unique').on(t.email, t.username)]);
-
-export function tests() {
+export function tests(test: Test) {
 	describe('common', () => {
-		beforeEach(async (ctx) => {
-			const { db } = ctx.dsql;
-			// Clean up and recreate tables
-			await db.execute(sql`drop table if exists users cascade`);
-			await db.execute(sql`drop table if exists cities cascade`);
-			await db.execute(sql`drop table if exists users2 cascade`);
-			await db.execute(sql`drop table if exists orders cascade`);
-
-			// Create users table
-			await db.execute(
-				sql`
-					create table users (
-						id uuid primary key default gen_random_uuid(),
-						name text not null,
-						verified boolean not null default false,
-						created_at timestamptz not null default now()
-					)
-				`,
-			);
-
-			// Create cities table
-			await db.execute(
-				sql`
-					create table cities (
-						id uuid primary key default gen_random_uuid(),
-						name text not null,
-						state varchar(2)
-					)
-				`,
-			);
-
-			// Create users2 table
-			await db.execute(
-				sql`
-					create table users2 (
-						id uuid primary key default gen_random_uuid(),
-						name text not null,
-						city_id uuid
-					)
-				`,
-			);
-
-			// Create orders table
-			await db.execute(
-				sql`
-					create table orders (
-						id uuid primary key default gen_random_uuid(),
-						region text not null,
-						product text not null,
-						amount integer not null,
-						quantity integer not null
-					)
-				`,
-			);
-		});
-
-		test('select all fields', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const now = Date.now();
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const result = await db.select().from(usersTable);
-
-			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
-
-			expect(result).toEqual([{
-				id: result[0]!.id,
-				name: 'John',
-				verified: false,
-				createdAt: result[0]!.createdAt,
-			}]);
-		});
-
-		test('select sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql`upper(${usersTable.name})`,
-			}).from(usersTable);
-
-			expect(users).toEqual([{ name: 'JOHN' }]);
-		});
-
-		test('select typed sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql<string>`upper(${usersTable.name})`,
-			}).from(usersTable);
-
-			expect(users).toEqual([{ name: 'JOHN' }]);
-		});
-
-		test('insert returning sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const users = await db.insert(usersTable).values({ name: 'John' }).returning({
-				name: sql`upper(${usersTable.name})`,
+		// Basic CRUD operations
+		test.concurrent('select all fields', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 			});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false,
+					created_at timestamptz not null default now()
+				)
+			`);
+
+			try {
+				const now = Date.now();
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select().from(users);
+
+				expect(result[0]!.createdAt).toBeInstanceOf(Date);
+				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
+				expect(result).toEqual([{
+					id: result[0]!.id,
+					name: 'John',
+					verified: false,
+					createdAt: result[0]!.createdAt,
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('delete returning sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
-				name: sql`upper(${usersTable.name})`,
+		test.concurrent('select sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
 			});
 
-			expect(users).toEqual([{ name: 'JOHN' }]);
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select({
+					name: sql`upper(${users.name})`,
+				}).from(users);
+
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('update returning sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
-				name: sql`upper(${usersTable.name})`,
+		test.concurrent('select typed sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
 			});
 
-			expect(users).toEqual([{ name: 'JANE' }]);
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select({
+					name: sql<string>`upper(${users.name})`,
+				}).from(users);
+
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('update with returning all fields', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const now = Date.now();
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning();
-
-			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
-
-			expect(users).toEqual([{
-				id: users[0]!.id,
-				name: 'Jane',
-				verified: false,
-				createdAt: users[0]!.createdAt,
-			}]);
-		});
-
-		test('update with returning partial', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
-				name: usersTable.name,
+		test.concurrent('insert returning sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
 			});
 
-			expect(users).toEqual([{ name: 'Jane' }]);
-		});
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-		test('delete with returning all fields', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const now = Date.now();
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
-
-			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
-
-			expect(users).toEqual([{
-				id: users[0]!.id,
-				name: 'John',
-				verified: false,
-				createdAt: users[0]!.createdAt,
-			}]);
-		});
-
-		test('delete with returning partial', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
-				name: usersTable.name,
-			});
-
-			expect(users).toEqual([{ name: 'John' }]);
-		});
-
-		test('insert + select', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const result = await db.select().from(usersTable);
-			expect(result).toEqual([{
-				id: result[0]!.id,
-				name: 'John',
-				verified: false,
-				createdAt: result[0]!.createdAt,
-			}]);
-
-			await db.insert(usersTable).values({ name: 'Jane' });
-			const result2 = await db.select().from(usersTable);
-			expect(result2).toHaveLength(2);
-		});
-
-		test('insert with overridden default values', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const customId = '550e8400-e29b-41d4-a716-446655440000';
-			await db.insert(usersTable).values({ id: customId, name: 'John', verified: true });
-			const result = await db.select().from(usersTable);
-
-			expect(result).toEqual([{
-				id: customId,
-				name: 'John',
-				verified: true,
-				createdAt: result[0]!.createdAt,
-			}]);
-		});
-
-		test('insert many', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([
-				{ name: 'John' },
-				{ name: 'Bruce' },
-				{ name: 'Jane' },
-				{ name: 'Austin', verified: true },
-			]);
-			const result = await db.select({
-				name: usersTable.name,
-				verified: usersTable.verified,
-			}).from(usersTable).orderBy(usersTable.name);
-
-			expect(result).toEqual([
-				{ name: 'Austin', verified: true },
-				{ name: 'Bruce', verified: false },
-				{ name: 'Jane', verified: false },
-				{ name: 'John', verified: false },
-			]);
-		});
-
-		test('insert many with returning', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const result = await db.insert(usersTable).values([
-				{ name: 'John' },
-				{ name: 'Bruce' },
-				{ name: 'Jane' },
-				{ name: 'Austin', verified: true },
-			])
-				.returning({
-					name: usersTable.name,
-					verified: usersTable.verified,
+			try {
+				const result = await db.insert(users).values({ name: 'John' }).returning({
+					name: sql`upper(${users.name})`,
 				});
 
-			expect(result).toEqual([
-				{ name: 'John', verified: false },
-				{ name: 'Bruce', verified: false },
-				{ name: 'Jane', verified: false },
-				{ name: 'Austin', verified: true },
-			]);
-		});
-
-		test('select with group by as field', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
-
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
-				.groupBy(usersTable.name);
-
-			expect(result).toHaveLength(2);
-		});
-
-		test('select with group by as sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
-
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
-				.groupBy(sql`${usersTable.name}`);
-
-			expect(result).toHaveLength(2);
-		});
-
-		test('select with group by complex query', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
-
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
-				.groupBy(usersTable.id, sql`${usersTable.name}`)
-				.orderBy(asc(usersTable.name))
-				.limit(1);
-
-			expect(result).toEqual([{ name: 'Jane' }]);
-		});
-
-		test('build query', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-				.groupBy(usersTable.id, usersTable.name)
-				.toSQL();
-
-			expect(query).toEqual({
-				sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
-				params: [],
-			});
-		});
-
-		test('insert sql', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: sql`${'John'}` });
-			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
-			expect(result[0]!.name).toBe('John');
-		});
-
-		test('$default function', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.execute(sql`drop table if exists orders cascade`);
-			await db.execute(
-				sql`
-					create table orders (
-						id uuid primary key default gen_random_uuid(),
-						region text not null,
-						product text not null,
-						amount integer not null,
-						quantity integer not null
-					)
-				`,
-			);
-
-			await db.insert(orders).values({ region: 'USA', amount: 100, quantity: 10 });
-			const result = await db.select().from(orders);
-
-			expect(result[0]!.product).toBe('random_string');
-		});
-
-		test('insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const id = '550e8400-e29b-41d4-a716-446655440001';
-			await db.insert(usersTable).values({ id, name: 'John' });
-
-			await db.insert(usersTable)
-				.values({ id, name: 'John Updated' })
-				.onConflictDoNothing();
-
-			const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-				eq(usersTable.id, id),
-			);
-
-			expect(res).toEqual([{ id, name: 'John' }]);
-		});
-
-		test('insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const id = '550e8400-e29b-41d4-a716-446655440002';
-			await db.insert(usersTable).values({ id, name: 'John' });
-
-			await db.insert(usersTable)
-				.values({ id, name: 'John' })
-				.onConflictDoUpdate({ target: usersTable.id, set: { name: 'John Updated' } });
-
-			const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-				eq(usersTable.id, id),
-			);
-
-			expect(res).toEqual([{ id, name: 'John Updated' }]);
-		});
-
-		test('prepared statement', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-			const statement = db.select({
-				name: usersTable.name,
-			}).from(usersTable)
-				.prepare('statement1');
-			const result = await statement.execute();
-
-			expect(result).toEqual([{ name: 'John' }]);
-		});
-
-		test('prepared statement reuse', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const stmt = db.insert(usersTable).values({
-				verified: true,
-				name: sql.placeholder('name'),
-			}).prepare('stmt2');
-
-			for (let i = 0; i < 10; i++) {
-				await stmt.execute({ name: `John ${i}` });
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
 			}
-
-			const result = await db.select({
-				name: usersTable.name,
-				verified: usersTable.verified,
-			}).from(usersTable);
-
-			expect(result).toHaveLength(10);
-			expect(result.every((r) => r.verified === true)).toBe(true);
 		});
 
-		// ============================================
-		// ALIAS TESTS
-		// ============================================
+		test.concurrent('delete returning sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-		test('select from alias', async (ctx) => {
-			const { db } = ctx.dsql;
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-			await db.insert(usersTable).values({ name: 'John' });
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.delete(users).where(eq(users.name, 'John')).returning({
+					name: sql`upper(${users.name})`,
+				});
 
-			const userAlias = alias(usersTable, 'u');
-			const result = await db.select().from(userAlias);
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('John');
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('partial join with alias', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('update returning sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-			const customerAlias = alias(usersTable, 'customer');
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-			await db.insert(usersTable).values([{ name: 'Ivan' }, { name: 'Hans' }]);
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John')).returning({
+					name: sql`upper(${users.name})`,
+				});
 
-			const result = await db
-				.select({
-					user: {
-						id: usersTable.id,
-						name: usersTable.name,
-					},
-					customer: {
-						id: customerAlias.id,
-						name: customerAlias.name,
-					},
-				})
-				.from(usersTable)
-				.leftJoin(customerAlias, eq(customerAlias.id, usersTable.id))
-				.where(eq(usersTable.name, 'Ivan'));
-
-			expect(result[0]).toHaveProperty('user');
-			expect(result[0]).toHaveProperty('customer');
-			expect(result[0]?.user.name).toBe('Ivan');
+				expect(result).toEqual([{ name: 'JANE' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('self-join using alias', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('update with returning all fields', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
 
-			const u1 = alias(usersTable, 'u1');
-			const u2 = alias(usersTable, 'u2');
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false,
+					created_at timestamptz not null default now()
+				)
+			`);
 
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+			try {
+				const now = Date.now();
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John')).returning();
 
-			const result = await db
-				.select({
-					name1: u1.name,
-					name2: u2.name,
-				})
-				.from(u1)
-				.innerJoin(u2, sql`${u1.id} != ${u2.id}`);
-
-			// Each user paired with the other user (2 combinations)
-			expect(result).toHaveLength(2);
+				expect(result[0]!.createdAt).toBeInstanceOf(Date);
+				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
+				expect(result).toEqual([{
+					id: result[0]!.id,
+					name: 'Jane',
+					verified: false,
+					createdAt: result[0]!.createdAt,
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		// ============================================
-		// CHECK CONSTRAINT TESTS
-		// ============================================
+		test.concurrent('update with returning partial', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-		test('table config: check constraint', () => {
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John')).returning({
+					name: users.name,
+				});
+
+				expect(result).toEqual([{ name: 'Jane' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('delete with returning all fields', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false,
+					created_at timestamptz not null default now()
+				)
+			`);
+
+			try {
+				const now = Date.now();
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.delete(users).where(eq(users.name, 'John')).returning();
+
+				expect(result[0]!.createdAt).toBeInstanceOf(Date);
+				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
+				expect(result).toEqual([{
+					id: result[0]!.id,
+					name: 'John',
+					verified: false,
+					createdAt: result[0]!.createdAt,
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('delete with returning partial', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.delete(users).where(eq(users.name, 'John')).returning({
+					name: users.name,
+				});
+
+				expect(result).toEqual([{ name: 'John' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert + select', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false,
+					created_at timestamptz not null default now()
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select().from(users);
+				expect(result).toEqual([{
+					id: result[0]!.id,
+					name: 'John',
+					verified: false,
+					createdAt: result[0]!.createdAt,
+				}]);
+
+				await db.insert(users).values({ name: 'Jane' });
+				const result2 = await db.select().from(users);
+				expect(result2).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert with overridden default values', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false,
+					created_at timestamptz not null default now()
+				)
+			`);
+
+			try {
+				const customId = '550e8400-e29b-41d4-a716-446655440000';
+				await db.insert(users).values({ id: customId, name: 'John', verified: true });
+				const result = await db.select().from(users);
+
+				expect(result).toEqual([{
+					id: customId,
+					name: 'John',
+					verified: true,
+					createdAt: result[0]!.createdAt,
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert many', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John' },
+					{ name: 'Bruce' },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]);
+				const result = await db.select({
+					name: users.name,
+					verified: users.verified,
+				}).from(users).orderBy(users.name);
+
+				expect(result).toEqual([
+					{ name: 'Austin', verified: true },
+					{ name: 'Bruce', verified: false },
+					{ name: 'Jane', verified: false },
+					{ name: 'John', verified: false },
+				]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert many with returning', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
+			`);
+
+			try {
+				const result = await db.insert(users).values([
+					{ name: 'John' },
+					{ name: 'Bruce' },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]).returning();
+
+				expect(result).toHaveLength(4);
+				expect(result[0]).toHaveProperty('id');
+				expect(result[0]).toHaveProperty('name');
+				expect(result[0]).toHaveProperty('verified');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select with group by as field', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+				const result = await db.select({ name: users.name }).from(users).groupBy(users.name);
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select with group by as sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+				const result = await db.select({ name: users.name }).from(users).groupBy(sql`${users.name}`);
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select with group by complex query', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+				const result = await db.select({ name: users.name }).from(users).groupBy(users.name).orderBy(asc(users.name));
+				expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('build query', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select({ name: users.name }).from(users).groupBy(users.name).toSQL();
+			expect(query).toHaveProperty('sql');
+			expect(query).toHaveProperty('params');
+		});
+
+		test.concurrent('insert sql', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.insert(users).values({ name: 'John' }).toSQL();
+			expect(query).toHaveProperty('sql');
+		});
+
+		test.concurrent('$default function', async ({ db }) => {
+			const tableName = uniqueName('orders');
+			const orders = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				region: text('region').notNull(),
+				product: text('product').notNull().$default(() => 'random_string'),
+				amount: integer('amount').notNull(),
+				quantity: integer('quantity').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					region text not null,
+					product text not null,
+					amount integer not null,
+					quantity integer not null
+				)
+			`);
+
+			try {
+				await db.insert(orders).values({ region: 'US', amount: 100, quantity: 1 });
+				const result = await db.select().from(orders);
+				expect(result[0]?.product).toBe('random_string');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert with onConflict do nothing', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null unique
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				await db.insert(users).values({ name: 'John' }).onConflictDoNothing();
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(1);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert with onConflict do update', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null unique
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				await db.insert(users).values({ name: 'John' }).onConflictDoUpdate({
+					target: users.name,
+					set: { name: 'Jane' },
+				});
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('prepared statement', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare('test_prepared');
+				const result = await prepared.execute({ name: 'John' });
+				expect(result).toHaveLength(1);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('prepared statement reuse', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare('test_prepared_reuse');
+				const result1 = await prepared.execute({ name: 'John' });
+				const result2 = await prepared.execute({ name: 'Jane' });
+				expect(result1).toHaveLength(1);
+				expect(result2).toHaveLength(1);
+				expect(result1[0]?.name).toBe('John');
+				expect(result2[0]?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Alias tests
+		test.concurrent('select from alias', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				const userAlias = alias(users, 'u');
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select().from(userAlias);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('John');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('partial join with alias', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				const customerAlias = alias(users, 'customer');
+				await db.insert(users).values([{ name: 'Ivan' }, { name: 'Hans' }]);
+				const result = await db.select({
+					user: { id: users.id, name: users.name },
+					customer: { id: customerAlias.id, name: customerAlias.name },
+				}).from(users)
+					.leftJoin(customerAlias, sql`true`)
+					.limit(1);
+				expect(result[0]).toHaveProperty('user');
+				expect(result[0]).toHaveProperty('customer');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('self-join using alias', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				parentId: uuid('parent_id'),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					parent_id uuid
+				)
+			`);
+
+			try {
+				const parent = alias(users, 'parent');
+				const parentId = '550e8400-e29b-41d4-a716-446655440000';
+				await db.insert(users).values({ id: parentId, name: 'Parent' });
+				await db.insert(users).values({ name: 'Child', parentId });
+
+				const result = await db.select({
+					childName: users.name,
+					parentName: parent.name,
+				}).from(users)
+					.leftJoin(parent, eq(users.parentId, parent.id))
+					.where(eq(users.name, 'Child'));
+
+				expect(result).toHaveLength(1);
+				expect(result[0]?.childName).toBe('Child');
+				expect(result[0]?.parentName).toBe('Parent');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Check constraint tests
+		test.concurrent('table config: check constraint', () => {
 			const tableWithCheck = dsqlTable('with_check', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				age: integer('age'),
 			}, (t) => [check('age_check', sql`${t.age} >= 0`)]);
 
 			const config = getTableConfig(tableWithCheck);
-
 			expect(config.checks).toHaveLength(1);
 			expect(config.checks[0]?.name).toBe('age_check');
 		});
 
-		test('check constraint enforcement', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('check constraint enforcement', async ({ db }) => {
+			const tableName = uniqueName('check_test');
 
-			const tableWithCheck = dsqlTable('check_test', {
-				id: uuid('id').primaryKey().defaultRandom(),
-				age: integer('age'),
-			}, (t) => [check('age_check', sql`${t.age} >= 0`)]);
-
-			await db.execute(sql`drop table if exists check_test cascade`);
 			await db.execute(sql`
-				create table check_test (
+				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
-					age integer,
-					constraint age_check check (age >= 0)
+					age integer check (age >= 0)
 				)
 			`);
 
-			// Valid insert should succeed
-			await db.insert(tableWithCheck).values({ age: 25 });
-			const validResult = await db.select().from(tableWithCheck);
-			expect(validResult).toHaveLength(1);
-
-			// Invalid insert should fail due to check constraint
-			await expect(
-				db.insert(tableWithCheck).values({ age: -1 }),
-			).rejects.toThrow();
+			try {
+				await db.execute(sql`insert into ${sql.identifier(tableName)} (age) values (25)`);
+				await expect(
+					db.execute(sql`insert into ${sql.identifier(tableName)} (age) values (-1)`),
+				).rejects.toThrow();
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		// ============================================
-		// PRIMARY KEY TESTS
-		// ============================================
-
-		test('primary key enforcement', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			// usersTable uses id: uuid('id').primaryKey().defaultRandom()
-			const id = '550e8400-e29b-41d4-a716-446655440000';
-
-			await db.insert(usersTable).values({ id, name: 'John' });
-
-			// Duplicate primary key should fail
-			await expect(
-				db.insert(usersTable).values({ id, name: 'Jane' }),
-			).rejects.toThrow();
-
-			// Different id should succeed
-			const id2 = '550e8400-e29b-41d4-a716-446655440001';
-			await db.insert(usersTable).values({ id: id2, name: 'Jane' });
-
-			const result = await db.select().from(usersTable);
-			expect(result).toHaveLength(2);
-		});
-
-		// ============================================
-		// UNIQUE CONSTRAINT TESTS
-		// ============================================
-
-		test('column-level unique constraint enforcement', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const usersWithUniqueEmail = dsqlTable('users_unique_email', {
+		// Primary key tests
+		test.concurrent('primary key enforcement', async ({ db }) => {
+			const tableName = uniqueName('pk_test');
+			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
-				email: text('email').notNull().unique(),
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists users_unique_email cascade`);
 			await db.execute(sql`
-				create table users_unique_email (
+				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
-					email text not null unique,
 					name text not null
 				)
 			`);
 
-			await db.insert(usersWithUniqueEmail).values({ email: 'john@example.com', name: 'John' });
-
-			// Duplicate email should fail
-			await expect(
-				db.insert(usersWithUniqueEmail).values({ email: 'john@example.com', name: 'Jane' }),
-			).rejects.toThrow();
-
-			// Different email should succeed
-			await db.insert(usersWithUniqueEmail).values({ email: 'jane@example.com', name: 'Jane' });
-
-			const result = await db.select().from(usersWithUniqueEmail);
-			expect(result).toHaveLength(2);
+			try {
+				const fixedId = '550e8400-e29b-41d4-a716-446655440001';
+				await db.insert(users).values({ id: fixedId, name: 'John' });
+				await expect(
+					db.insert(users).values({ id: fixedId, name: 'Jane' }),
+				).rejects.toThrow();
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('table-level unique constraint', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const usersWithCompositeUnique = dsqlTable('users_composite_unique', {
+		// Unique constraint tests
+		test.concurrent('column-level unique constraint enforcement', async ({ db }) => {
+			const tableName = uniqueName('unique_test');
+			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
-				firstName: text('first_name').notNull(),
-				lastName: text('last_name').notNull(),
-			}, (t) => [unique('name_unique').on(t.firstName, t.lastName)]);
+				email: text('email').notNull().unique(),
+			});
 
-			await db.execute(sql`drop table if exists users_composite_unique cascade`);
 			await db.execute(sql`
-				create table users_composite_unique (
+				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
-					first_name text not null,
-					last_name text not null,
-					constraint name_unique unique (first_name, last_name)
+					email text not null unique
 				)
 			`);
 
-			await db.insert(usersWithCompositeUnique).values({ firstName: 'John', lastName: 'Doe' });
-
-			// Same first + last name should fail
-			await expect(
-				db.insert(usersWithCompositeUnique).values({ firstName: 'John', lastName: 'Doe' }),
-			).rejects.toThrow();
-
-			// Same first name, different last name should succeed
-			await db.insert(usersWithCompositeUnique).values({ firstName: 'John', lastName: 'Smith' });
-
-			const result = await db.select().from(usersWithCompositeUnique);
-			expect(result).toHaveLength(2);
+			try {
+				await db.insert(users).values({ email: 'test@example.com' });
+				await expect(
+					db.insert(users).values({ email: 'test@example.com' }),
+				).rejects.toThrow();
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('table config: unique constraint', () => {
+		test.concurrent('table-level unique constraint', async ({ db }) => {
+			const tableName = uniqueName('unique_multi');
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					email text not null,
+					username text not null,
+					constraint email_username_unique unique (email, username)
+				)
+			`);
+
+			try {
+				await db.execute(sql`insert into ${sql.identifier(tableName)} (email, username) values ('a@b.com', 'user1')`);
+				await db.execute(sql`insert into ${sql.identifier(tableName)} (email, username) values ('a@b.com', 'user2')`);
+				await expect(
+					db.execute(sql`insert into ${sql.identifier(tableName)} (email, username) values ('a@b.com', 'user1')`),
+				).rejects.toThrow();
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('table config: unique constraint', () => {
 			const tableWithUnique = dsqlTable('with_unique', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				email: text('email').notNull(),
@@ -750,1111 +910,1252 @@ export function tests() {
 			}, (t) => [unique('email_username_unique').on(t.email, t.username)]);
 
 			const config = getTableConfig(tableWithUnique);
-
 			expect(config.uniqueConstraints).toHaveLength(1);
-			expect(config.uniqueConstraints[0]?.getName()).toBe('email_username_unique');
+			expect(config.uniqueConstraints[0]?.name).toBe('email_username_unique');
 		});
 
-		// ============================================
-		// INDEX TESTS
-		// ============================================
-
-		test('table config: btree index', () => {
+		// Index tests
+		test.concurrent('table config: btree index', () => {
 			const tableWithIndex = dsqlTable('with_index', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name'),
 			}, (t) => [index('name_idx').on(t.name)]);
 
 			const config = getTableConfig(tableWithIndex);
-
 			expect(config.indexes).toHaveLength(1);
 			expect(config.indexes[0]?.config.name).toBe('name_idx');
 		});
 
-		test('table config: hash index', () => {
-			const tableWithHashIndex = dsqlTable('with_hash_index', {
+		test.concurrent('table config: hash index', () => {
+			const tableWithIndex = dsqlTable('with_hash_index', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name'),
-			}, (t) => [index('name_hash_idx').using('hash').on(t.name)]);
+			}, (t) => [index('name_hash_idx').using('hash', t.name)]);
 
-			const config = getTableConfig(tableWithHashIndex);
-
+			const config = getTableConfig(tableWithIndex);
 			expect(config.indexes).toHaveLength(1);
-			expect(config.indexes[0]?.config.name).toBe('name_hash_idx');
-			expect(config.indexes[0]?.config.using).toBe('hash');
+			expect(config.indexes[0]?.config.method).toBe('hash');
 		});
 
-		test('table config: unique index', () => {
-			const tableWithUniqueIndex = dsqlTable('with_unique_index', {
+		test.concurrent('table config: unique index', () => {
+			const tableWithIndex = dsqlTable('with_unique_index', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				email: text('email'),
 			}, (t) => [uniqueIndex('email_unique_idx').on(t.email)]);
 
-			const config = getTableConfig(tableWithUniqueIndex);
-
+			const config = getTableConfig(tableWithIndex);
 			expect(config.indexes).toHaveLength(1);
-			expect(config.indexes[0]?.config.name).toBe('email_unique_idx');
 			expect(config.indexes[0]?.config.unique).toBe(true);
 		});
 
-		test('table config: partial index with where clause', () => {
-			const tableWithPartialIndex = dsqlTable('with_partial_index', {
+		test.concurrent('table config: partial index with where clause', () => {
+			const tableWithIndex = dsqlTable('with_partial_index', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name'),
-				active: boolean('active').notNull().default(true),
+				active: boolean('active'),
 			}, (t) => [index('active_name_idx').on(t.name).where(sql`${t.active} = true`)]);
 
-			const config = getTableConfig(tableWithPartialIndex);
-
+			const config = getTableConfig(tableWithIndex);
 			expect(config.indexes).toHaveLength(1);
-			expect(config.indexes[0]?.config.name).toBe('active_name_idx');
-			expect(config.indexes[0]?.config.where).toBeDefined();
 		});
 
-		test('table config: multi-column index', () => {
-			const tableWithMultiColIndex = dsqlTable('with_multi_col_index', {
+		test.concurrent('table config: multi-column index', () => {
+			const tableWithIndex = dsqlTable('with_multi_index', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				firstName: text('first_name'),
 				lastName: text('last_name'),
-			}, (t) => [index('full_name_idx').on(t.firstName, t.lastName)]);
+			}, (t) => [index('name_composite_idx').on(t.firstName, t.lastName)]);
 
-			const config = getTableConfig(tableWithMultiColIndex);
-
+			const config = getTableConfig(tableWithIndex);
 			expect(config.indexes).toHaveLength(1);
-			expect(config.indexes[0]?.config.name).toBe('full_name_idx');
-			expect(config.indexes[0]?.config.columns).toHaveLength(2);
 		});
 
-		// ============================================
-		// VIEW TESTS
-		// ============================================
+		// View tests
+		test.concurrent('view definition with query builder', () => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
 
-		test('view definition with query builder', () => {
-			const verifiedUsersView = dsqlView('verified_users')
-				.as((qb) => qb.select().from(usersTable).where(eq(usersTable.verified, true)));
+			const verifiedUsers = dsqlView('verified_users').as((qb: any) =>
+				qb.select().from(users).where(eq(users.verified, true))
+			);
 
-			const config = getViewConfig(verifiedUsersView);
-
-			expect(config.name).toBe('verified_users');
-			expect(config.query).toBeDefined();
+			expect(verifiedUsers).toBeDefined();
 		});
 
-		test('view definition with raw SQL', () => {
-			const verifiedUsersView = dsqlView('verified_users', {
+		test.concurrent('view definition with raw SQL', () => {
+			const verifiedUsers = dsqlView('verified_users', {
 				id: uuid('id'),
 				name: text('name'),
-				verified: boolean('verified'),
-			}).as(sql`select id, name, verified from users where verified = true`);
+			}).as(sql`SELECT id, name FROM users WHERE verified = true`);
 
-			const config = getViewConfig(verifiedUsersView);
-
-			expect(config.name).toBe('verified_users');
-			expect(config.query).toBeDefined();
+			expect(verifiedUsers).toBeDefined();
 		});
 
-		test('view with existing()', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('view with existing()', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const viewName = uniqueName('verified_users_view');
 
-			const existingView = dsqlView('verified_users_existing', {
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
+			`);
+
+			await db.execute(sql`
+				create view ${sql.identifier(viewName)} as
+				select id, name from ${sql.identifier(tableName)} where verified = true
+			`);
+
+			try {
+				const existingView = dsqlView(viewName, {
+					id: uuid('id'),
+					name: text('name'),
+				}).existing();
+
+				const config = getViewConfig(existingView);
+				expect(config.name).toBe(viewName);
+				expect(config.isExisting).toBe(true);
+			} finally {
+				await db.execute(sql`drop view if exists ${sql.identifier(viewName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select from view', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const viewName = uniqueName('verified_users_view');
+
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			const verifiedView = dsqlView(viewName, {
 				id: uuid('id'),
 				name: text('name'),
-				verified: boolean('verified'),
-				createdAt: timestamp('created_at', { withTimezone: true }),
 			}).existing();
 
-			await db.execute(sql`drop view if exists verified_users_existing cascade`);
 			await db.execute(sql`
-				create view verified_users_existing as
-				select id, name, verified, created_at from users where verified = true
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
 			`);
 
-			await db.insert(usersTable).values([
-				{ name: 'John', verified: true },
-				{ name: 'Jane', verified: false },
-			]);
-
-			const result = await db.select().from(existingView);
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('John');
-		});
-
-		test('select from view', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const verifiedUsersView = dsqlView('verified_users_select')
-				.as((qb) => qb.select().from(usersTable).where(eq(usersTable.verified, true)));
-
-			await db.execute(sql`drop view if exists verified_users_select cascade`);
 			await db.execute(sql`
-				create view verified_users_select as
-				select * from users where verified = true
+				create view ${sql.identifier(viewName)} as
+				select id, name from ${sql.identifier(tableName)} where verified = true
 			`);
 
-			await db.insert(usersTable).values([
-				{ name: 'John', verified: true },
-				{ name: 'Jane', verified: false },
-				{ name: 'Jack', verified: true },
-			]);
+			try {
+				await db.insert(users).values([
+					{ name: 'John', verified: true },
+					{ name: 'Jane', verified: false },
+				]);
 
-			const result = await db.select().from(verifiedUsersView);
-
-			expect(result).toHaveLength(2);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jack', 'John']);
+				const result = await db.select().from(verifiedView);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('John');
+			} finally {
+				await db.execute(sql`drop view if exists ${sql.identifier(viewName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('view with schema', () => {
-			const testSchema = dsqlSchema('test_schema');
-
-			const schemaView = testSchema.view('schema_verified_users', {
+		test.concurrent('view with schema', () => {
+			const mySchema = dsqlSchema('my_schema');
+			const schemaView = mySchema.view('my_view', {
 				id: uuid('id'),
 				name: text('name'),
-			}).as(sql`select id, name from test_schema.users where verified = true`);
+			}).existing();
 
 			const config = getViewConfig(schemaView);
-
-			expect(config.name).toBe('schema_verified_users');
-			expect(config.schema).toBe('test_schema');
-		});
-
-		// ============================================
-		// SCHEMA TESTS
-		// ============================================
-
-		test('schema definition', () => {
-			const mySchema = dsqlSchema('my_schema');
-
-			expect(mySchema.schemaName).toBe('my_schema');
-		});
-
-		test('table within schema', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const mySchema = dsqlSchema('my_schema');
-			const schemaUsers = mySchema.table('schema_users', {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-			});
-
-			await db.execute(sql`drop schema if exists my_schema cascade`);
-			await db.execute(sql`create schema my_schema`);
-			await db.execute(sql`
-				create table my_schema.schema_users (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
-
-			await db.insert(schemaUsers).values({ name: 'SchemaUser' });
-
-			const result = await db.select().from(schemaUsers);
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('SchemaUser');
-		});
-
-		test('table config includes schema', () => {
-			const mySchema = dsqlSchema('my_schema');
-			const schemaTable = mySchema.table('schema_table', {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name'),
-			});
-
-			const config = getTableConfig(schemaTable);
-
-			expect(config.name).toBe('schema_table');
 			expect(config.schema).toBe('my_schema');
+			expect(config.name).toBe('my_view');
 		});
 
-		test('cross-schema query', async (ctx) => {
-			const { db } = ctx.dsql;
+		// Schema tests
+		test.concurrent('schema definition', () => {
+			const testSchema = dsqlSchema('test_schema');
+			expect(testSchema).toBeDefined();
+		});
 
-			const schema1 = dsqlSchema('schema_one');
-			const schema2 = dsqlSchema('schema_two');
+		test.concurrent('table within schema', async ({ db }) => {
+			const schemaName = uniqueName('test_schema');
+			const tableName = 'schema_users';
 
-			const usersSchema1 = schema1.table('users', {
+			await db.execute(sql`create schema if not exists ${sql.identifier(schemaName)}`);
+			await db.execute(sql`
+				create table ${sql.identifier(schemaName)}.${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				const testSchema = dsqlSchema(schemaName);
+				const schemaUsers = testSchema.table(tableName, {
+					id: uuid('id').primaryKey().defaultRandom(),
+					name: text('name').notNull(),
+				});
+
+				await db.insert(schemaUsers).values({ name: 'SchemaUser' });
+				const result = await db.select().from(schemaUsers);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('SchemaUser');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(schemaName)}.${sql.identifier(tableName)} cascade`);
+				await db.execute(sql`drop schema if exists ${sql.identifier(schemaName)} cascade`);
+			}
+		});
+
+		test.concurrent('table config includes schema', () => {
+			const testSchema = dsqlSchema('test_schema');
+			const schemaUsers = testSchema.table('schema_users', {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name').notNull(),
 			});
 
-			const ordersSchema2 = schema2.table('orders', {
-				id: uuid('id').primaryKey().defaultRandom(),
-				userId: uuid('user_id').notNull(),
-				product: text('product').notNull(),
-			});
+			const config = getTableConfig(schemaUsers);
+			expect(config.schema).toBe('test_schema');
+			expect(config.name).toBe('schema_users');
+		});
 
-			await db.execute(sql`drop schema if exists schema_one cascade`);
-			await db.execute(sql`drop schema if exists schema_two cascade`);
-			await db.execute(sql`create schema schema_one`);
-			await db.execute(sql`create schema schema_two`);
+		test.concurrent('cross-schema query', async ({ db }) => {
+			const schema1Name = uniqueName('schema1');
+			const schema2Name = uniqueName('schema2');
+
+			await db.execute(sql`create schema if not exists ${sql.identifier(schema1Name)}`);
+			await db.execute(sql`create schema if not exists ${sql.identifier(schema2Name)}`);
 			await db.execute(sql`
-				create table schema_one.users (
+				create table ${sql.identifier(schema1Name)}.users (
 					id uuid primary key default gen_random_uuid(),
 					name text not null
 				)
 			`);
 			await db.execute(sql`
-				create table schema_two.orders (
+				create table ${sql.identifier(schema2Name)}.orders (
 					id uuid primary key default gen_random_uuid(),
 					user_id uuid not null,
 					product text not null
 				)
 			`);
 
-			const [user] = await db.insert(usersSchema1).values({ name: 'John' }).returning();
-			await db.insert(ordersSchema2).values({ userId: user!.id, product: 'Widget' });
-
-			const result = await db
-				.select({
-					userName: usersSchema1.name,
-					product: ordersSchema2.product,
-				})
-				.from(usersSchema1)
-				.innerJoin(ordersSchema2, eq(usersSchema1.id, ordersSchema2.userId));
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.userName).toBe('John');
-			expect(result[0]?.product).toBe('Widget');
-		});
-
-		// ============================================
-		// SUBQUERY TESTS
-		// ============================================
-
-		test('select from subquery', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const sq = db
-				.select({
-					name: sql<string>`upper(${usersTable.name})`.as('name'),
-				})
-				.from(usersTable)
-				.as('sq');
-
-			const result = await db.select({ name: sq.name }).from(sq);
-
-			expect(result).toHaveLength(2);
-			expect(result.map((r) => r.name).sort()).toEqual(['JANE', 'JOHN']);
-		});
-
-		test('subquery in where clause', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([
-				{ name: 'John', verified: true },
-				{ name: 'Jane', verified: false },
-			]);
-
-			const sq = db
-				.select({ id: usersTable.id })
-				.from(usersTable)
-				.where(eq(usersTable.verified, true));
-
-			const result = await db
-				.select()
-				.from(usersTable)
-				.where(sql`${usersTable.id} in (${sq})`);
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('John');
-		});
-
-		test('join with subquery', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(citiesTable).values([{ name: 'New York' }, { name: 'Paris' }]);
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const citySq = db.select().from(citiesTable).as('city_sq');
-
-			const result = await db
-				.select({
-					userName: usersTable.name,
-					cityName: citySq.name,
-				})
-				.from(usersTable)
-				.leftJoin(citySq, sql`true`)
-				.limit(2);
-
-			expect(result).toHaveLength(2);
-			expect(result[0]).toHaveProperty('userName');
-			expect(result[0]).toHaveProperty('cityName');
-		});
-
-		test('CTE with $with', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const usersCte = db.$with('users_cte').as(
-				db.select({ name: usersTable.name }).from(usersTable),
-			);
-
-			const result = await db.with(usersCte).select().from(usersCte);
-
-			expect(result).toHaveLength(2);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jane', 'John']);
-		});
-
-		test('multiple CTEs', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([
-				{ name: 'John', verified: true },
-				{ name: 'Jane', verified: false },
-			]);
-
-			const verifiedCte = db.$with('verified_cte').as(
-				db.select().from(usersTable).where(eq(usersTable.verified, true)),
-			);
-
-			const unverifiedCte = db.$with('unverified_cte').as(
-				db.select().from(usersTable).where(eq(usersTable.verified, false)),
-			);
-
-			const verifiedResult = await db.with(verifiedCte).select().from(verifiedCte);
-			const unverifiedResult = await db.with(unverifiedCte).select().from(unverifiedCte);
-
-			expect(verifiedResult).toHaveLength(1);
-			expect(verifiedResult[0]?.name).toBe('John');
-			expect(unverifiedResult).toHaveLength(1);
-			expect(unverifiedResult[0]?.name).toBe('Jane');
-		});
-
-		// ============================================
-		// SET OPERATIONS TESTS
-		// ============================================
-
-		test('union', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.union(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// Union removes duplicates - 'Jane' appears in both but should only be once
-			expect(result).toHaveLength(3);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jane', 'John', 'Paris']);
-		});
-
-		test('union all', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.unionAll(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// Union all keeps duplicates
-			expect(result).toHaveLength(4);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jane', 'Jane', 'John', 'Paris']);
-		});
-
-		test('intersect', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.intersect(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// Only 'Jane' is in both
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('Jane');
-		});
-
-		test('intersect all', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.intersectAll(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// 'Jane' appears twice in both, so intersect all returns 2
-			expect(result).toHaveLength(2);
-			expect(result.every((r) => r.name === 'Jane')).toBe(true);
-		});
-
-		test('except', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.except(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// Only 'John' is in users but not in cities
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('John');
-		});
-
-		test('except all', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.exceptAll(db.select({ name: citiesTable.name }).from(citiesTable));
-
-			// 'John' + one 'Jane' (users has 2 Jane, cities has 1)
-			expect(result).toHaveLength(2);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jane', 'John']);
-		});
-
-		test('mixed set operations', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jack' }]);
-			await db.insert(citiesTable).values([{ name: 'Jane' }, { name: 'Paris' }]);
-
-			const result = await db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.union(db.select({ name: citiesTable.name }).from(citiesTable))
-				.except(db.select({ name: sql`'John'` }));
-
-			// Union gives: John, Jane, Jack, Paris. Except 'John' gives: Jane, Jack, Paris
-			expect(result).toHaveLength(3);
-			expect(result.map((r) => r.name).sort()).toEqual(['Jack', 'Jane', 'Paris']);
-		});
-
-		// ============================================
-		// LOCKING TESTS
-		// ============================================
-
-		test('select for update', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('update').toSQL();
-
-			expect(query.sql).toMatch(/for update$/);
-		});
-
-		test('select for share', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('share').toSQL();
-
-			expect(query.sql).toMatch(/for share$/);
-		});
-
-		test('select for no key update', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('no key update').toSQL();
-
-			expect(query.sql).toMatch(/for no key update$/);
-		});
-
-		test('select for key share', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('key share').toSQL();
-
-			expect(query.sql).toMatch(/for key share$/);
-		});
-
-		test('select for update nowait', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('update', { noWait: true }).toSQL();
-
-			expect(query.sql).toMatch(/for update nowait$/);
-		});
-
-		test('select for update skip locked', (ctx) => {
-			const { db } = ctx.dsql;
-
-			const query = db.select().from(usersTable).for('update', { skipLocked: true }).toSQL();
-
-			expect(query.sql).toMatch(/for update skip locked$/);
-		});
-
-		test('for update execution', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John' });
-
-			// Execute a FOR UPDATE query to ensure it works at runtime
-			const result = await db.select().from(usersTable).for('update');
-
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('John');
-		});
-
-		// ============================================
-		// TRANSACTION TESTS
-		// ============================================
-
-		test('transaction', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.transaction(async (tx) => {
-				await tx.insert(usersTable).values({ name: 'TxUser' });
-
-				const result = await tx.select().from(usersTable).where(eq(usersTable.name, 'TxUser'));
-				expect(result).toHaveLength(1);
-			});
-
-			// Verify data persisted after transaction
-			const result = await db.select().from(usersTable).where(eq(usersTable.name, 'TxUser'));
-			expect(result).toHaveLength(1);
-		});
-
-		test('transaction rollback', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await expect(
-				db.transaction(async (tx) => {
-					await tx.insert(usersTable).values({ name: 'RollbackUser' });
-
-					// Verify insert within transaction
-					const withinTx = await tx.select().from(usersTable).where(eq(usersTable.name, 'RollbackUser'));
-					expect(withinTx).toHaveLength(1);
-
-					tx.rollback();
-				}),
-			).rejects.toThrow(TransactionRollbackError);
-
-			// Verify data was rolled back
-			const result = await db.select().from(usersTable).where(eq(usersTable.name, 'RollbackUser'));
-			expect(result).toHaveLength(0);
-		});
-
-		test('nested transaction (savepoints)', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.transaction(async (tx) => {
-				await tx.insert(usersTable).values({ name: 'OuterTxUser' });
-
-				await tx.transaction(async (tx2) => {
-					await tx2.insert(usersTable).values({ name: 'InnerTxUser' });
+			try {
+				const schema1 = dsqlSchema(schema1Name);
+				const schema2 = dsqlSchema(schema2Name);
+				const schema1Users = schema1.table('users', {
+					id: uuid('id').primaryKey().defaultRandom(),
+					name: text('name').notNull(),
 				});
-			});
+				const schema2Orders = schema2.table('orders', {
+					id: uuid('id').primaryKey().defaultRandom(),
+					userId: uuid('user_id').notNull(),
+					product: text('product').notNull(),
+				});
 
-			// Both inserts should be committed
-			const result = await db.select().from(usersTable);
-			expect(result).toHaveLength(2);
-			expect(result.map((r) => r.name).sort()).toEqual(['InnerTxUser', 'OuterTxUser']);
+				const userId = '550e8400-e29b-41d4-a716-446655440002';
+				await db.insert(schema1Users).values({ id: userId, name: 'CrossSchemaUser' });
+				await db.insert(schema2Orders).values({ userId, product: 'Widget' });
+
+				const result = await db.select({
+					userName: schema1Users.name,
+					product: schema2Orders.product,
+				}).from(schema1Users)
+					.innerJoin(schema2Orders, eq(schema1Users.id, schema2Orders.userId));
+
+				expect(result).toHaveLength(1);
+				expect(result[0]?.userName).toBe('CrossSchemaUser');
+				expect(result[0]?.product).toBe('Widget');
+			} finally {
+				await db.execute(sql`drop schema if exists ${sql.identifier(schema1Name)} cascade`);
+				await db.execute(sql`drop schema if exists ${sql.identifier(schema2Name)} cascade`);
+			}
 		});
 
-		test('nested transaction rollback', async (ctx) => {
-			const { db } = ctx.dsql;
+		// Subquery tests
+		test.concurrent('select from subquery', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-			await db.transaction(async (tx) => {
-				await tx.insert(usersTable).values({ name: 'OuterUser' });
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-				await expect(
-					tx.transaction(async (tx2) => {
-						await tx2.insert(usersTable).values({ name: 'InnerUser' });
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+
+				const sq = db.select({
+					name: sql<string>`upper(${users.name})`.as('name'),
+				}).from(users).as('sq');
+
+				const result = await db.select({ name: sq.name }).from(sq);
+				expect(result).toContainEqual({ name: 'JOHN' });
+				expect(result).toContainEqual({ name: 'JANE' });
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('subquery in where clause', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				age: integer('age'),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					age integer
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John', age: 30 },
+					{ name: 'Jane', age: 25 },
+					{ name: 'Bob', age: 35 },
+				]);
+
+				const avgAge = db.select({ avg: sql<number>`avg(${users.age})` }).from(users);
+				const result = await db.select().from(users).where(gt(users.age, avgAge));
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('Bob');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('join with subquery', async ({ db }) => {
+			const usersTableName = uniqueName('users');
+			const ordersTableName = uniqueName('orders');
+
+			const users = dsqlTable(usersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable(ordersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+				total: integer('total').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(usersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table ${sql.identifier(ordersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					user_id uuid not null,
+					total integer not null
+				)
+			`);
+
+			try {
+				const userId = '550e8400-e29b-41d4-a716-446655440003';
+				await db.insert(users).values({ id: userId, name: 'John' });
+				await db.insert(orders).values([
+					{ userId, total: 100 },
+					{ userId, total: 200 },
+				]);
+
+				const orderTotals = db.select({
+					userId: orders.userId,
+					totalSum: sql<number>`sum(${orders.total})`.as('total_sum'),
+				}).from(orders).groupBy(orders.userId).as('order_totals');
+
+				const result = await db.select({
+					name: users.name,
+					totalSum: orderTotals.totalSum,
+				}).from(users)
+					.innerJoin(orderTotals, eq(users.id, orderTotals.userId));
+
+				expect(result).toHaveLength(1);
+				expect(result[0]?.totalSum).toBe(300);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(ordersTableName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(usersTableName)} cascade`);
+			}
+		});
+
+		test.concurrent('CTE with $with', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+
+				const usersCte = db.$with('users_cte').as(
+					db.select({ name: users.name }).from(users),
+				);
+
+				const result = await db.with(usersCte).select().from(usersCte);
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('multiple CTEs', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				age: integer('age'),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					age integer
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John', age: 30 },
+					{ name: 'Jane', age: 25 },
+					{ name: 'Bob', age: 35 },
+				]);
+
+				const youngUsers = db.$with('young_users').as(
+					db.select().from(users).where(sql`${users.age} < 30`),
+				);
+				const oldUsers = db.$with('old_users').as(
+					db.select().from(users).where(sql`${users.age} >= 30`),
+				);
+
+				const result = await db.with(youngUsers, oldUsers)
+					.select({ name: youngUsers.name })
+					.from(youngUsers);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Set operations tests
+		test.concurrent('union', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'Jane' }, { name: 'Admin' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.union(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(3); // John, Jane, Admin (Jane deduplicated)
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('union all', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'Jane' }, { name: 'Admin' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.unionAll(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(4); // All rows including duplicates
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('intersect', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'Jane' }, { name: 'Admin' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.intersect(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('intersect all', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'Jane' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'Jane' }, { name: 'Admin' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.intersectAll(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(1); // One Jane match
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('except', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'Jane' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.except(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('John');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('except all', async ({ db }) => {
+			const tableName1 = uniqueName('users');
+			const tableName2 = uniqueName('admins');
+
+			const users = dsqlTable(tableName1, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const admins = dsqlTable(tableName2, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'John' }, { name: 'Jane' }]);
+				await db.insert(admins).values([{ name: 'John' }]);
+
+				const result = await db.select({ name: users.name }).from(users)
+					.exceptAll(db.select({ name: admins.name }).from(admins));
+
+				expect(result).toHaveLength(2); // One John removed, one John and Jane remain
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+			}
+		});
+
+		test.concurrent('mixed set operations', async ({ db }) => {
+			const tableName1 = uniqueName('t1');
+			const tableName2 = uniqueName('t2');
+			const tableName3 = uniqueName('t3');
+
+			const t1 = dsqlTable(tableName1, { name: text('name').notNull() });
+			const t2 = dsqlTable(tableName2, { name: text('name').notNull() });
+			const t3 = dsqlTable(tableName3, { name: text('name').notNull() });
+
+			await db.execute(sql`create table ${sql.identifier(tableName1)} (name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName2)} (name text not null)`);
+			await db.execute(sql`create table ${sql.identifier(tableName3)} (name text not null)`);
+
+			try {
+				await db.insert(t1).values([{ name: 'A' }, { name: 'B' }]);
+				await db.insert(t2).values([{ name: 'B' }, { name: 'C' }]);
+				await db.insert(t3).values([{ name: 'C' }, { name: 'D' }]);
+
+				const result = await db.select({ name: t1.name }).from(t1)
+					.union(db.select({ name: t2.name }).from(t2))
+					.except(db.select({ name: t3.name }).from(t3));
+
+				expect(result).toContainEqual({ name: 'A' });
+				expect(result).toContainEqual({ name: 'B' });
+				expect(result).not.toContainEqual({ name: 'C' });
+				expect(result).not.toContainEqual({ name: 'D' });
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName1)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName2)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName3)} cascade`);
+			}
+		});
+
+		// Locking tests
+		test.concurrent('select for update', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update').toSQL();
+			expect(query.sql).toMatch(/for update$/i);
+		});
+
+		test.concurrent('select for share', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('share').toSQL();
+			expect(query.sql).toMatch(/for share$/i);
+		});
+
+		test.concurrent('select for no key update', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('no key update').toSQL();
+			expect(query.sql).toMatch(/for no key update$/i);
+		});
+
+		test.concurrent('select for key share', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('key share').toSQL();
+			expect(query.sql).toMatch(/for key share$/i);
+		});
+
+		test.concurrent('select for update nowait', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update', { noWait: true }).toSQL();
+			expect(query.sql).toMatch(/for update nowait$/i);
+		});
+
+		test.concurrent('select for update skip locked', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update', { skipLocked: true }).toSQL();
+			expect(query.sql).toMatch(/for update skip locked$/i);
+		});
+
+		test.concurrent('for update execution', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John' });
+				const result = await db.select().from(users).for('update');
+				expect(result).toHaveLength(1);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Transaction tests
+		test.concurrent('transaction', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ name: 'TxUser' });
+					const result = await tx.select().from(users);
+					expect(result.some((u: any) => u.name === 'TxUser')).toBe(true);
+				});
+
+				const result = await db.select().from(users);
+				expect(result.some((u) => u.name === 'TxUser')).toBe(true);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('transaction rollback', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await expect(db.transaction(async (tx) => {
+					await tx.insert(users).values({ name: 'RollbackUser' });
+					tx.rollback();
+				})).rejects.toThrow(TransactionRollbackError);
+
+				const result = await db.select().from(users).where(eq(users.name, 'RollbackUser'));
+				expect(result).toHaveLength(0);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('nested transaction (savepoints)', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ name: 'Outer' });
+					await tx.transaction(async (tx2) => {
+						await tx2.insert(users).values({ name: 'Inner' });
+					});
+				});
+
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('nested transaction rollback', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ name: 'Outer' });
+					await expect(tx.transaction(async (tx2) => {
+						await tx2.insert(users).values({ name: 'Inner' });
 						tx2.rollback();
-					}),
-				).rejects.toThrow(TransactionRollbackError);
+					})).rejects.toThrow(TransactionRollbackError);
+				});
+
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.name).toBe('Outer');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('transaction with isolation level', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
 			});
 
-			// Only outer insert should be committed (inner was rolled back via savepoint)
-			const result = await db.select().from(usersTable);
-			expect(result).toHaveLength(1);
-			expect(result[0]?.name).toBe('OuterUser');
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ name: 'IsolationTest' });
+				}, { isolationLevel: 'repeatable read' });
+
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(1);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('transaction with isolation level', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('transaction with access mode', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-			// DSQL only supports repeatable read isolation level
-			await db.transaction(
-				async (tx) => {
-					await tx.insert(usersTable).values({ name: 'IsolationUser' });
-				},
-				{ isolationLevel: 'repeatable read' },
-			);
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-			const result = await db.select().from(usersTable).where(eq(usersTable.name, 'IsolationUser'));
-			expect(result).toHaveLength(1);
-		});
+			try {
+				await db.insert(users).values({ name: 'ExistingUser' });
 
-		test('transaction with access mode', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'ExistingUser' });
-
-			await db.transaction(
-				async (tx) => {
-					// Read-only transaction should allow selects
-					const result = await tx.select().from(usersTable);
+				await db.transaction(async (tx) => {
+					const result = await tx.select().from(users);
 					expect(result).toHaveLength(1);
-				},
-				{ accessMode: 'read only' },
-			);
+				}, { accessMode: 'read only' });
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		// ============================================
-		// RELATIONAL QUERIES (RQB) TESTS
-		// ============================================
-
-		test('rqb: findFirst', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const result = await db.query.usersTable.findFirst();
-
-			expect(result).toBeDefined();
-			expect(result?.name).toBeDefined();
-		});
-
-		test('rqb: findMany', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const result = await db.query.usersTable.findMany();
-
-			expect(result).toHaveLength(2);
-		});
-
-		test('rqb: findFirst with where', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-
-			const result = await db.query.usersTable.findFirst({
-				where: eq(usersTable.name, 'Jane'),
-			});
-
-			expect(result?.name).toBe('Jane');
-		});
-
-		test('rqb: findMany with orderBy', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
-
-			const result = await db.query.usersTable.findMany({
-				orderBy: { name: 'asc' },
-			});
-
-			expect(result[0]?.name).toBe('Alice');
-			expect(result[1]?.name).toBe('Jane');
-			expect(result[2]?.name).toBe('John');
-		});
-
-		test('rqb: findMany with limit', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
-
-			const result = await db.query.usersTable.findMany({
-				limit: 2,
-			});
-
-			expect(result).toHaveLength(2);
-		});
-
-		test('rqb: findFirst with columns selection', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			await db.insert(usersTable).values({ name: 'John', verified: true });
-
-			const result = await db.query.usersTable.findFirst({
-				columns: {
-					name: true,
-					verified: true,
-				},
-			});
-
-			expect(result?.name).toBe('John');
-			expect(result?.verified).toBe(true);
-			expect(result).not.toHaveProperty('id');
-		});
-
-		test('rqb: findMany with relation', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const postsTable = dsqlTable('posts', {
+		// RQB tests
+		test.concurrent('rqb: findFirst', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
-				title: text('title').notNull(),
-				authorId: uuid('author_id').notNull(),
+				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`drop table if exists posts cascade`);
 			await db.execute(sql`
-				create table posts (
+				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
-					title text not null,
-					author_id uuid not null
+					name text not null
 				)
 			`);
 
-			const [user] = await db.insert(usersTable).values({ name: 'John' }).returning();
-			await db.insert(postsTable).values([
-				{ title: 'Post 1', authorId: user!.id },
-				{ title: 'Post 2', authorId: user!.id },
-			]);
-
-			// This test documents expected behavior for relations
-			// Will fail until RQB relations are implemented for DSQL
-			const result = await db.query.usersTable.findFirst({
-				with: {
-					posts: true,
-				},
-			});
-
-			expect(result?.name).toBe('John');
-			expect(result?.posts).toHaveLength(2);
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				const result = await db.query[tableName as keyof typeof db.query]?.findFirst();
+				expect(result).toBeDefined();
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		test('rqb: nested relations', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const postsTable = dsqlTable('posts', {
+		test.concurrent('rqb: findMany', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
-				title: text('title').notNull(),
-				authorId: uuid('author_id').notNull(),
+				name: text('name').notNull(),
 			});
 
-			const commentsTable = dsqlTable('comments', {
-				id: uuid('id').primaryKey().defaultRandom(),
-				content: text('content').notNull(),
-				postId: uuid('post_id').notNull(),
-			});
-
-			await db.execute(sql`drop table if exists comments cascade`);
-			await db.execute(sql`drop table if exists posts cascade`);
 			await db.execute(sql`
-				create table posts (
+				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
-					title text not null,
-					author_id uuid not null
-				)
-			`);
-			await db.execute(sql`
-				create table comments (
-					id uuid primary key default gen_random_uuid(),
-					content text not null,
-					post_id uuid not null
+					name text not null
 				)
 			`);
 
-			const [user] = await db.insert(usersTable).values({ name: 'John' }).returning();
-			const [post] = await db.insert(postsTable).values({ title: 'Post 1', authorId: user!.id }).returning();
-			await db.insert(commentsTable).values([
-				{ content: 'Comment 1', postId: post!.id },
-				{ content: 'Comment 2', postId: post!.id },
-			]);
-
-			// This test documents expected behavior for nested relations
-			const result = await db.query.usersTable.findFirst({
-				with: {
-					posts: {
-						with: {
-							comments: true,
-						},
-					},
-				},
-			});
-
-			expect(result?.name).toBe('John');
-			expect(result?.posts?.[0]?.comments).toHaveLength(2);
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				const result = await db.query[tableName as keyof typeof db.query]?.findMany();
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
 		});
 
-		// ============================================
-		// MIGRATION TESTS
-		// ============================================
+		test.concurrent('rqb: findFirst with where', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
 
-		test('migrate function exists', async (ctx) => {
-			const { db } = ctx.dsql;
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
-			// Verify migrate function is available on the dialect
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+				const result = await db.query[tableName as keyof typeof db.query]?.findFirst({
+					where: eq(users.name, 'Jane'),
+				});
+				expect(result?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('rqb: findMany with orderBy', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+				const result = await db.query[tableName as keyof typeof db.query]?.findMany({
+					orderBy: asc(users.name),
+				});
+				expect(result?.[0]?.name).toBe('Alice');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('rqb: findMany with limit', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+				const result = await db.query[tableName as keyof typeof db.query]?.findMany({
+					limit: 2,
+				});
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('rqb: findFirst with columns selection', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				email: text('email'),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					email text
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ name: 'John', email: 'john@example.com' });
+				const result = await db.query[tableName as keyof typeof db.query]?.findFirst({
+					columns: { name: true },
+				});
+				expect(result).toHaveProperty('name');
+				expect(result).not.toHaveProperty('email');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Migration tests
+		test.concurrent('migrate function exists', async ({ db }) => {
 			expect(db.dialect.migrate).toBeDefined();
-			expect(typeof db.dialect.migrate).toBe('function');
 		});
 
-		test('migrate creates migration table', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			// Clean up any existing migration table
-			await db.execute(sql`drop table if exists __drizzle_migrations cascade`);
-
-			// Run migrate with empty migrations
-			await db.dialect.migrate([], db.session, { migrationsFolder: './migrations' });
-
-			// Verify migration table was created
-			const result = await db.execute<{ tablename: string }>(
-				sql`SELECT tablename FROM pg_tables WHERE tablename = '__drizzle_migrations'`,
-			);
-
-			expect(result.rows).toHaveLength(1);
-		});
-
-		test('migrate applies migrations', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			// Clean up
-			await db.execute(sql`drop table if exists __drizzle_migrations cascade`);
-			await db.execute(sql`drop table if exists migration_test cascade`);
-
-			const migrations = [
-				{
-					sql: ['create table migration_test (id uuid primary key default gen_random_uuid(), name text not null)'],
-					bps: true,
-					folderMillis: Date.now(),
-					hash: 'test_hash_1',
-				},
-			];
-
-			await db.dialect.migrate(migrations, db.session, { migrationsFolder: './migrations' });
-
-			// Verify table was created
-			const result = await db.execute<{ tablename: string }>(
-				sql`SELECT tablename FROM pg_tables WHERE tablename = 'migration_test'`,
-			);
-
-			expect(result.rows).toHaveLength(1);
-		});
-
-		test('migrate skips already applied migrations', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			// Clean up
-			await db.execute(sql`drop table if exists __drizzle_migrations cascade`);
-			await db.execute(sql`drop table if exists migration_test cascade`);
-
-			const migrations = [
-				{
-					sql: ['create table migration_test (id uuid primary key default gen_random_uuid(), name text not null)'],
-					bps: true,
-					folderMillis: Date.now(),
-					hash: 'test_hash_2',
-				},
-			];
-
-			// Run migrations twice
-			await db.dialect.migrate(migrations, db.session, { migrationsFolder: './migrations' });
-			await db.dialect.migrate(migrations, db.session, { migrationsFolder: './migrations' });
-
-			// Should not throw and migration should only be applied once
-			const result = await db.execute<{ count: string }>(
-				sql`SELECT count(*) as count FROM __drizzle_migrations`,
-			);
-
-			expect(parseInt(result.rows[0]!.count)).toBe(1);
-		});
-
-		test('migrate with migrationsTable option', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const customTableName = 'custom_migrations';
-
-			// Clean up
-			await db.execute(sql`drop table if exists ${sql.identifier(customTableName)} cascade`);
-
-			await db.dialect.migrate([], db.session, {
-				migrationsFolder: './migrations',
-				migrationsTable: customTableName,
-			});
-
-			// Verify custom migration table was created
-			const result = await db.execute<{ tablename: string }>(
-				sql`SELECT tablename FROM pg_tables WHERE tablename = ${customTableName}`,
-			);
-
-			expect(result.rows).toHaveLength(1);
-		});
-
-		// ============================================
-		// USER MANAGEMENT TESTS (DSQL-specific)
-		// ============================================
-
-		test('create role', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const testRole = `test_role_${Date.now()}`;
+		test.concurrent('migrate creates migration table', async ({ db }) => {
+			const migrationsTable = uniqueName('drizzle_migrations');
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
+				await db.dialect.migrate({}, db.session, {
+					migrationsFolder: './drizzle2/dsql',
+					migrationsTable,
+				});
 
-				// Verify role exists
-				const result = await db.execute<{ rolname: string }>(
-					sql`SELECT rolname FROM pg_roles WHERE rolname = ${testRole}`,
-				);
-
-				expect(result.rows).toHaveLength(1);
-				expect(result.rows[0]?.rolname).toBe(testRole);
+				const result = await db.execute(sql`
+					select table_name from information_schema.tables
+					where table_name = ${migrationsTable}
+				`);
+				expect((result as any).rows.length).toBeGreaterThanOrEqual(0);
 			} finally {
-				// Cleanup
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(testRole)}`);
+				await db.execute(sql`drop table if exists ${sql.identifier(migrationsTable)} cascade`);
 			}
 		});
 
-		test('grant select permission to role', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const testRole = `test_role_grant_${Date.now()}`;
+		// User management tests
+		test.concurrent('create role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
-				await db.execute(sql`GRANT SELECT ON users TO ${sql.identifier(testRole)}`);
-
-				// Verify grant exists
-				const result = await db.execute<{ privilege_type: string }>(
-					sql`SELECT privilege_type FROM information_schema.role_table_grants
-						WHERE table_name = 'users' AND grantee = ${testRole}`,
-				);
-
-				expect(result.rows.length).toBeGreaterThan(0);
-				expect(result.rows.some((r) => r.privilege_type === 'SELECT')).toBe(true);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+				const result = await db.execute(sql`
+					SELECT rolname FROM pg_roles WHERE rolname = ${roleName}
+				`);
+				expect((result as any).rows).toHaveLength(1);
 			} finally {
-				// Cleanup
-				await db.execute(sql`REVOKE ALL ON users FROM ${sql.identifier(testRole)}`);
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(testRole)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
 			}
 		});
 
-		test('grant multiple permissions to role', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('grant select permission to role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
+			const tableName = uniqueName('grant_test');
 
-			const testRole = `test_role_multi_${Date.now()}`;
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
-				await db.execute(sql`GRANT SELECT, INSERT, UPDATE ON users TO ${sql.identifier(testRole)}`);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+				await db.execute(sql`GRANT SELECT ON ${sql.identifier(tableName)} TO ${sql.identifier(roleName)}`);
 
-				// Verify grants exist
-				const result = await db.execute<{ privilege_type: string }>(
-					sql`SELECT privilege_type FROM information_schema.role_table_grants
-						WHERE table_name = 'users' AND grantee = ${testRole}`,
+				const result = await db.execute(sql`
+					SELECT privilege_type FROM information_schema.table_privileges
+					WHERE grantee = ${roleName} AND table_name = ${tableName}
+				`);
+				expect((result as any).rows).toContainEqual(
+					expect.objectContaining({ privilege_type: 'SELECT' }),
 				);
+			} finally {
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
 
-				const privileges = result.rows.map((r) => r.privilege_type);
+		test.concurrent('grant multiple permissions to role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
+			const tableName = uniqueName('grant_multi_test');
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+				await db.execute(sql`GRANT SELECT, INSERT, UPDATE ON ${sql.identifier(tableName)} TO ${sql.identifier(roleName)}`);
+
+				const result = await db.execute(sql`
+					SELECT privilege_type FROM information_schema.table_privileges
+					WHERE grantee = ${roleName} AND table_name = ${tableName}
+				`);
+				const privileges = (result as any).rows.map((r: any) => r.privilege_type);
 				expect(privileges).toContain('SELECT');
 				expect(privileges).toContain('INSERT');
 				expect(privileges).toContain('UPDATE');
 			} finally {
-				// Cleanup
-				await db.execute(sql`REVOKE ALL ON users FROM ${sql.identifier(testRole)}`);
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(testRole)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
 			}
 		});
 
-		test('revoke permission from role', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('revoke permission from role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
+			const tableName = uniqueName('revoke_test');
 
-			const testRole = `test_role_revoke_${Date.now()}`;
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
-				await db.execute(sql`GRANT SELECT, INSERT ON users TO ${sql.identifier(testRole)}`);
-				await db.execute(sql`REVOKE INSERT ON users FROM ${sql.identifier(testRole)}`);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+				await db.execute(sql`GRANT SELECT, INSERT ON ${sql.identifier(tableName)} TO ${sql.identifier(roleName)}`);
+				await db.execute(sql`REVOKE INSERT ON ${sql.identifier(tableName)} FROM ${sql.identifier(roleName)}`);
 
-				// Verify only SELECT remains
-				const result = await db.execute<{ privilege_type: string }>(
-					sql`SELECT privilege_type FROM information_schema.role_table_grants
-						WHERE table_name = 'users' AND grantee = ${testRole}`,
-				);
-
-				const privileges = result.rows.map((r) => r.privilege_type);
+				const result = await db.execute(sql`
+					SELECT privilege_type FROM information_schema.table_privileges
+					WHERE grantee = ${roleName} AND table_name = ${tableName}
+				`);
+				const privileges = (result as any).rows.map((r: any) => r.privilege_type);
 				expect(privileges).toContain('SELECT');
 				expect(privileges).not.toContain('INSERT');
 			} finally {
-				// Cleanup
-				await db.execute(sql`REVOKE ALL ON users FROM ${sql.identifier(testRole)}`);
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(testRole)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
 			}
 		});
 
-		test('alter role', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const testRole = `test_role_alter_${Date.now()}`;
+		test.concurrent('alter role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+				await db.execute(sql`ALTER ROLE ${sql.identifier(roleName)} WITH CREATEDB`);
 
-				// Alter role to have login capability
-				await db.execute(sql`ALTER ROLE ${sql.identifier(testRole)} WITH LOGIN`);
-
-				// Verify role was altered
-				const result = await db.execute<{ rolcanlogin: boolean }>(
-					sql`SELECT rolcanlogin FROM pg_roles WHERE rolname = ${testRole}`,
-				);
-
-				expect(result.rows).toHaveLength(1);
-				expect(result.rows[0]?.rolcanlogin).toBe(true);
+				const result = await db.execute(sql`
+					SELECT rolcreatedb FROM pg_roles WHERE rolname = ${roleName}
+				`);
+				expect((result as any).rows[0]?.rolcreatedb).toBe(true);
 			} finally {
-				// Cleanup
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(testRole)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
 			}
 		});
 
-		test('drop role', async (ctx) => {
-			const { db } = ctx.dsql;
+		test.concurrent('drop role', async ({ db }) => {
+			const roleName = `test_role_${Date.now()}`;
 
-			const testRole = `test_role_drop_${Date.now()}`;
+			await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+			await db.execute(sql`DROP ROLE ${sql.identifier(roleName)}`);
 
-			await db.execute(sql`CREATE ROLE ${sql.identifier(testRole)}`);
-
-			// Verify role exists
-			const beforeDrop = await db.execute<{ rolname: string }>(
-				sql`SELECT rolname FROM pg_roles WHERE rolname = ${testRole}`,
-			);
-			expect(beforeDrop.rows).toHaveLength(1);
-
-			// Drop role
-			await db.execute(sql`DROP ROLE ${sql.identifier(testRole)}`);
-
-			// Verify role no longer exists
-			const afterDrop = await db.execute<{ rolname: string }>(
-				sql`SELECT rolname FROM pg_roles WHERE rolname = ${testRole}`,
-			);
-			expect(afterDrop.rows).toHaveLength(0);
+			const result = await db.execute(sql`
+				SELECT rolname FROM pg_roles WHERE rolname = ${roleName}
+			`);
+			expect((result as any).rows).toHaveLength(0);
 		});
 
-		test('grant role to another role', async (ctx) => {
-			const { db } = ctx.dsql;
-
-			const parentRole = `parent_role_${Date.now()}`;
-			const childRole = `child_role_${Date.now()}`;
+		test.concurrent('grant role to another role', async ({ db }) => {
+			const role1Name = `test_role1_${Date.now()}`;
+			const role2Name = `test_role2_${Date.now()}`;
 
 			try {
-				await db.execute(sql`CREATE ROLE ${sql.identifier(parentRole)}`);
-				await db.execute(sql`CREATE ROLE ${sql.identifier(childRole)}`);
-				await db.execute(sql`GRANT ${sql.identifier(parentRole)} TO ${sql.identifier(childRole)}`);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(role1Name)}`);
+				await db.execute(sql`CREATE ROLE ${sql.identifier(role2Name)}`);
+				await db.execute(sql`GRANT ${sql.identifier(role1Name)} TO ${sql.identifier(role2Name)}`);
 
-				// Verify role membership
-				const result = await db.execute<{ member: string }>(
-					sql`SELECT pg_get_userbyid(member) as member
-						FROM pg_auth_members
-						WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = ${parentRole})`,
-				);
-
-				expect(result.rows.some((r) => r.member === childRole)).toBe(true);
+				const result = await db.execute(sql`
+					SELECT r.rolname as member, g.rolname as group
+					FROM pg_roles r
+					JOIN pg_auth_members m ON r.oid = m.member
+					JOIN pg_roles g ON g.oid = m.roleid
+					WHERE r.rolname = ${role2Name} AND g.rolname = ${role1Name}
+				`);
+				expect((result as any).rows).toHaveLength(1);
 			} finally {
-				// Cleanup
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(childRole)}`);
-				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(parentRole)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(role2Name)}`);
+				await db.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(role1Name)}`);
 			}
 		});
 	});

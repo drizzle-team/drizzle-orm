@@ -14,7 +14,7 @@ export class DSQLTimeBuilder extends DSQLColumnBuilder<{
 }> {
 	static override readonly [entityKind]: string = 'DSQLTimeBuilder';
 
-	constructor(name: string, private config: DSQLTimeConfig = {}) {
+	constructor(name: string, private timeConfig: DSQLTimeConfig = {}) {
 		super(name, 'string', 'DSQLTime');
 	}
 
@@ -36,7 +36,7 @@ export class DSQLTime extends DSQLColumn<'string'> {
 		this.withTimezone = config.withTimezone ?? false;
 	}
 
-	getSQLType(): string {
+	override getSQLType(): string {
 		const precision = this.precision !== undefined ? `(${this.precision})` : '';
 		return this.withTimezone ? `time${precision} with time zone` : `time${precision}`;
 	}

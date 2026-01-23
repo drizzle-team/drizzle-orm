@@ -37,7 +37,7 @@ export class DSQLVarchar extends DSQLColumn<'string'> {
 		this.length = config.length;
 	}
 
-	getSQLType(): string {
+	override getSQLType(): string {
 		return this.length !== undefined ? `varchar(${this.length})` : 'varchar';
 	}
 }

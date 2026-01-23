@@ -13,7 +13,7 @@ export class DSQLCharBuilder extends DSQLColumnBuilder<{
 }> {
 	static override readonly [entityKind]: string = 'DSQLCharBuilder';
 
-	constructor(name: string, private config: DSQLCharConfig = {}) {
+	constructor(name: string, private charConfig: DSQLCharConfig = {}) {
 		super(name, 'string', 'DSQLChar');
 	}
 
@@ -33,7 +33,7 @@ export class DSQLChar extends DSQLColumn<'string'> {
 		this.length = config.length;
 	}
 
-	getSQLType(): string {
+	override getSQLType(): string {
 		return this.length !== undefined ? `char(${this.length})` : 'char(1)';
 	}
 }

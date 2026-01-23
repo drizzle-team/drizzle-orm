@@ -10,8 +10,11 @@ import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { DSQLClient } from './session.ts';
 import { DSQLDriverSession } from './session.ts';
@@ -33,6 +36,63 @@ export class DSQLDatabase<
 		readonly relations: TRelations,
 		readonly schema: V1.RelationalSchemaConfig<any> | undefined,
 	) {}
+
+	/**
+	 * Creates a CTE (Common Table Expression) that can be used in queries.
+	 */
+	$with<TAlias extends string>(alias: TAlias): {
+		as: <TSelection extends ColumnsSelection>(
+			qb:
+				| TypedQueryBuilder<TSelection>
+				| SQL
+				| ((qb: DSQLDatabase<TSchema, TRelations>) => TypedQueryBuilder<TSelection> | SQL),
+		) => WithSubquery<TAlias, TSelection>;
+	} {
+		const self = this;
+		return {
+			as<TSelection extends ColumnsSelection>(
+				qb:
+					| TypedQueryBuilder<TSelection>
+					| SQL
+					| ((qb: DSQLDatabase<TSchema, TRelations>) => TypedQueryBuilder<TSelection> | SQL),
+			): WithSubquery<TAlias, TSelection> {
+				if (typeof qb === 'function') {
+					qb = qb(self);
+				}
+
+				const selectedFields = 'getSelectedFields' in qb
+					? (qb.getSelectedFields() ?? {}) as TSelection
+					: {} as TSelection;
+
+				return new Proxy(
+					new WithSubquery(qb.getSQL(), selectedFields, alias, true),
+					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+				) as WithSubquery<TAlias, TSelection>;
+			},
+		};
+	}
+
+	/**
+	 * Incorporates a previously defined CTE (using `$with`) into the main query.
+	 */
+	with(...queries: WithSubquery[]) {
+		const self = this;
+
+		function select(): DSQLSelectBuilder<undefined>;
+		function select<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;
+		function select<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): DSQLSelectBuilder<TSelection | undefined> {
+			return new DSQLSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+			}) as any;
+		}
+
+		return { select };
+	}
 
 	select(): DSQLSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;

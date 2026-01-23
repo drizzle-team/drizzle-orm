@@ -3,14 +3,14 @@ import type { DSQLTable } from '../table.ts';
 import { DSQLColumn, DSQLColumnBuilder } from './common.ts';
 
 export class DSQLDoublePrecisionBuilder extends DSQLColumnBuilder<{
-	dataType: 'number float64';
+	dataType: 'number double';
 	data: number;
 	driverParam: string | number;
 }> {
 	static override readonly [entityKind]: string = 'DSQLDoublePrecisionBuilder';
 
 	constructor(name: string) {
-		super(name, 'number float64', 'DSQLDoublePrecision');
+		super(name, 'number double', 'DSQLDoublePrecision');
 	}
 
 	/** @internal */
@@ -19,7 +19,7 @@ export class DSQLDoublePrecisionBuilder extends DSQLColumnBuilder<{
 	}
 }
 
-export class DSQLDoublePrecision extends DSQLColumn<'number float64'> {
+export class DSQLDoublePrecision extends DSQLColumn<'number double'> {
 	static override readonly [entityKind]: string = 'DSQLDoublePrecision';
 
 	getSQLType(): string {

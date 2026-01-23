@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
-import type { DSQLTable, DSQLTableWithColumns, TableConfig } from './table.ts';
+import { TableAliasProxyHandler } from '~/alias.ts';
+import type { DSQLTable, DSQLTableWithColumns } from './table.ts';
 
 export class Alias<TTable extends DSQLTable, TAlias extends string> {
 	static readonly [entityKind]: string = 'DSQLAlias';
@@ -10,9 +11,12 @@ export class Alias<TTable extends DSQLTable, TAlias extends string> {
 	) {}
 }
 
-export function alias<TTable extends DSQLTableWithColumns<TableConfig>, TAlias extends string>(
-	_table: TTable,
-	_alias: TAlias,
+export function alias<
+	TTable extends DSQLTable,
+	TAlias extends string,
+>(
+	table: TTable,
+	aliasName: TAlias,
 ): DSQLTableWithColumns<any> {
-	throw new Error('Method not implemented.');
+	return new Proxy(table, new TableAliasProxyHandler(aliasName, false)) as any;
 }

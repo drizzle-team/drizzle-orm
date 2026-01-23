@@ -10,7 +10,7 @@ export interface DSQLTimestampConfig {
 
 export class DSQLTimestampBuilder extends DSQLDateColumnBuilder<
 	{
-		dataType: 'date';
+		dataType: 'object date';
 		data: Date;
 		driverParam: string;
 	},
@@ -19,7 +19,7 @@ export class DSQLTimestampBuilder extends DSQLDateColumnBuilder<
 	static override readonly [entityKind]: string = 'DSQLTimestampBuilder';
 
 	constructor(name: string, withTimezone: boolean, precision: number | undefined) {
-		super(name, 'date', 'DSQLTimestamp');
+		super(name, 'object date', 'DSQLTimestamp');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -30,7 +30,7 @@ export class DSQLTimestampBuilder extends DSQLDateColumnBuilder<
 	}
 }
 
-export class DSQLTimestamp extends DSQLColumn<'date'> {
+export class DSQLTimestamp extends DSQLColumn<'object date'> {
 	static override readonly [entityKind]: string = 'DSQLTimestamp';
 
 	readonly precision: number | undefined;

@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields } from '~/utils.ts';
@@ -10,11 +11,14 @@ import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
 import { DSQLViewBase } from '../view-base.ts';
-import type { DSQLSelectConfig } from './select.types.ts';
+import type { DSQLSelectConfig, DSQLSelectJoinConfig } from './select.types.ts';
 
 export interface SelectedFields {
 	[key: string]: unknown;
 }
+
+type JoinType = 'left' | 'right' | 'inner' | 'full' | 'cross';
+type SetOperator = 'union' | 'intersect' | 'except';
 
 export class DSQLSelectBuilder<TSelection extends SelectedFields | undefined = undefined> {
 	static readonly [entityKind]: string = 'DSQLSelectBuilder';
@@ -115,6 +119,145 @@ export abstract class DSQLSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
+	// Join methods
+	private createJoin(joinType: JoinType) {
+		return (
+			table: DSQLTable | Subquery | DSQLViewBase | SQL,
+			on?: SQL | undefined,
+		): this => {
+			const tableName = getTableLikeName(table);
+
+			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
+				throw new Error(`Alias "${tableName}" is already used in this query`);
+			}
+
+			if (!this.isPartialSelect) {
+				const baseTableName = this.tableName;
+				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
+					this.config.fields = {
+						[baseTableName]: this.config.fields,
+					};
+				}
+				if (typeof tableName === 'string' && !is(table, SQL)) {
+					const selection = is(table, Subquery)
+						? table._.selectedFields
+						: is(table, DSQLViewBase)
+						? table[ViewBaseConfig].selectedFields
+						: (table as DSQLTable)[Table.Symbol.Columns];
+					this.config.fields[tableName] = selection;
+				}
+			}
+
+			if (!this.config.joins) {
+				this.config.joins = [];
+			}
+
+			this.config.joins.push({
+				on,
+				table: table as DSQLTable | SQL,
+				joinType: joinType === 'cross' ? 'inner' : joinType,
+				alias: tableName,
+			} as DSQLSelectJoinConfig);
+
+			if (typeof tableName === 'string') {
+				switch (joinType) {
+					case 'left': {
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+					}
+					case 'right': {
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					}
+					case 'cross':
+					case 'inner': {
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					}
+					case 'full': {
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+					}
+				}
+			}
+
+			return this;
+		};
+	}
+
+	/**
+	 * Executes a `left join` operation by adding another table to the current query.
+	 */
+	leftJoin = this.createJoin('left');
+
+	/**
+	 * Executes a `right join` operation by adding another table to the current query.
+	 */
+	rightJoin = this.createJoin('right');
+
+	/**
+	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
+	 */
+	innerJoin = this.createJoin('inner');
+
+	/**
+	 * Executes a `full join` operation by combining rows from two tables into a new table.
+	 */
+	fullJoin = this.createJoin('full');
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 */
+	crossJoin = this.createJoin('cross');
+
+	// Set operation methods
+	private createSetOperator(type: SetOperator, isAll: boolean) {
+		return (rightSelect: SQLWrapper): this => {
+			this.config.setOperators.push({
+				type,
+				isAll,
+				rightSelect: rightSelect.getSQL(),
+			});
+			return this;
+		};
+	}
+
+	/**
+	 * Adds `union` set operator to the query.
+	 */
+	union = this.createSetOperator('union', false);
+
+	/**
+	 * Adds `union all` set operator to the query.
+	 */
+	unionAll = this.createSetOperator('union', true);
+
+	/**
+	 * Adds `intersect` set operator to the query.
+	 */
+	intersect = this.createSetOperator('intersect', false);
+
+	/**
+	 * Adds `intersect all` set operator to the query.
+	 */
+	intersectAll = this.createSetOperator('intersect', true);
+
+	/**
+	 * Adds `except` set operator to the query.
+	 */
+	except = this.createSetOperator('except', false);
+
+	/**
+	 * Adds `except all` set operator to the query.
+	 */
+	exceptAll = this.createSetOperator('except', true);
+
 	where(where: SQL | undefined): this {
 		this.config.where = where;
 		return this;
@@ -153,6 +296,18 @@ export abstract class DSQLSelectQueryBuilderBase<
 		return this;
 	}
 
+	/**
+	 * Creates a subquery that can be used in other queries.
+	 */
+	as<TAlias extends string>(
+		alias: TAlias,
+	): Subquery<TAlias, ColumnsSelection> {
+		return new Proxy(
+			new Subquery(this.getSQL(), this.config.fields as ColumnsSelection, alias),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+		) as Subquery<TAlias, ColumnsSelection>;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
@@ -176,10 +331,10 @@ export abstract class DSQLSelectQueryBuilderBase<
 // Interface for declaration merging - allows DSQLSelectBase to "extend" both
 // DSQLSelectQueryBuilderBase and QueryPromise (TypeScript only allows single class inheritance)
 export interface DSQLSelectBase<
-	_THKT extends any,
-	_TTableName extends string | undefined,
-	_TSelection,
-	_TSelectMode extends 'partial' | 'single' | 'multiple',
+	THKT extends any,
+	TTableName extends string | undefined,
+	TSelection,
+	TSelectMode extends 'partial' | 'single' | 'multiple',
 > extends
 	DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>,
 	QueryPromise<any[]>,
@@ -187,10 +342,10 @@ export interface DSQLSelectBase<
 {}
 
 export class DSQLSelectBase<
-	_THKT extends any,
-	_TTableName extends string | undefined,
-	_TSelection,
-	_TSelectMode extends 'partial' | 'single' | 'multiple',
+	THKT extends any,
+	TTableName extends string | undefined,
+	TSelection,
+	TSelectMode extends 'partial' | 'single' | 'multiple',
 > extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>
 	implements SQLWrapper
 {

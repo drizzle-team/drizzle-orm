@@ -2,7 +2,9 @@ import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import { drizzle } from 'drizzle-orm/dsql';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { boolean, dsqlTable, text, timestamp, uuid } from 'drizzle-orm/dsql-core';
+import { afterAll, beforeAll, describe, expect } from 'vitest';
+import { dsqlTest } from './instrumentation';
 import { tests, usersTable } from './common';
 
 const ENABLE_LOGGING = false;
@@ -44,71 +46,89 @@ afterAll(async () => {
 	// Cleanup if needed
 });
 
-beforeEach((ctx) => {
-	ctx.dsql = {
-		db,
-	};
-});
+// Run common tests with the dsqlTest fixture
+tests(dsqlTest);
 
-// Run common tests
-tests();
+// DSQL-specific tests
+describe('dsql-specific', () => {
+	let tableCounter = 0;
+	const uniqueName = (base: string) => `${base}_dsql_${++tableCounter}_${Date.now()}`;
 
-// DSQL-specific tests can be added here
-test('insert via db.execute + select via db.execute', async () => {
-	await db.execute(sql`drop table if exists users cascade`);
-	await db.execute(
-		sql`
-			create table users (
+	dsqlTest.concurrent('insert via db.execute + select via db.execute', async ({ db }) => {
+		const tableName = uniqueName('users');
+		const users = dsqlTable(tableName, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		});
+
+		await db.execute(sql`
+			create table ${sql.identifier(tableName)} (
 				id uuid primary key default gen_random_uuid(),
 				name text not null,
 				verified boolean not null default false,
 				created_at timestamptz not null default now()
 			)
-		`,
-	);
+		`);
 
-	await db.execute(sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`);
+		try {
+			await db.execute(sql`insert into ${sql.identifier(tableName)} (${sql.identifier('name')}) values (${'John'})`);
 
-	const result = await db.execute<{ id: string; name: string }>(sql`select id, name from "users"`);
-	expect(result.rows[0]?.name).toBe('John');
-});
+			const result = await db.execute<{ id: string; name: string }>(sql`select id, name from ${sql.identifier(tableName)}`);
+			expect(result.rows[0]?.name).toBe('John');
+		} finally {
+			await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+		}
+	});
 
-test('insert via db.execute + returning', async () => {
-	await db.execute(sql`drop table if exists users cascade`);
-	await db.execute(
-		sql`
-			create table users (
+	dsqlTest.concurrent('insert via db.execute + returning', async ({ db }) => {
+		const tableName = uniqueName('users');
+
+		await db.execute(sql`
+			create table ${sql.identifier(tableName)} (
 				id uuid primary key default gen_random_uuid(),
 				name text not null,
 				verified boolean not null default false,
 				created_at timestamptz not null default now()
 			)
-		`,
-	);
+		`);
 
-	const inserted = await db.execute<{ id: string; name: string }>(
-		sql`insert into ${usersTable} (${
-			sql.identifier(usersTable.name.name)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
-	);
-	expect(inserted.rows[0]?.name).toBe('John');
-});
+		try {
+			const inserted = await db.execute<{ id: string; name: string }>(
+				sql`insert into ${sql.identifier(tableName)} (name) values (${'John'}) returning id, name`,
+			);
+			expect(inserted.rows[0]?.name).toBe('John');
+		} finally {
+			await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+		}
+	});
 
-test('insert via db.execute w/ query builder', async () => {
-	await db.execute(sql`drop table if exists users cascade`);
-	await db.execute(
-		sql`
-			create table users (
+	dsqlTest.concurrent('insert via db.execute w/ query builder', async ({ db }) => {
+		const tableName = uniqueName('users');
+		const users = dsqlTable(tableName, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		});
+
+		await db.execute(sql`
+			create table ${sql.identifier(tableName)} (
 				id uuid primary key default gen_random_uuid(),
 				name text not null,
 				verified boolean not null default false,
 				created_at timestamptz not null default now()
 			)
-		`,
-	);
+		`);
 
-	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
-		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
-	);
-	expect(inserted.rows[0]?.name).toBe('John');
+		try {
+			const inserted = await db.execute<Pick<typeof users.$inferSelect, 'id' | 'name'>>(
+				db.insert(users).values({ name: 'John' }).returning({ id: users.id, name: users.name }),
+			);
+			expect(inserted.rows[0]?.name).toBe('John');
+		} finally {
+			await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+		}
+	});
 });

@@ -3,14 +3,14 @@ import type { DSQLTable } from '../table.ts';
 import { DSQLColumn, DSQLColumnBuilder } from './common.ts';
 
 export class DSQLRealBuilder extends DSQLColumnBuilder<{
-	dataType: 'number float32';
+	dataType: 'number float';
 	data: number;
 	driverParam: string | number;
 }> {
 	static override readonly [entityKind]: string = 'DSQLRealBuilder';
 
 	constructor(name: string) {
-		super(name, 'number float32', 'DSQLReal');
+		super(name, 'number float', 'DSQLReal');
 	}
 
 	/** @internal */
@@ -19,7 +19,7 @@ export class DSQLRealBuilder extends DSQLColumnBuilder<{
 	}
 }
 
-export class DSQLReal extends DSQLColumn<'number float32'> {
+export class DSQLReal extends DSQLColumn<'number float'> {
 	static override readonly [entityKind]: string = 'DSQLReal';
 
 	getSQLType(): string {
