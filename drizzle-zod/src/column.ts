@@ -195,12 +195,10 @@ function numberColumnToSchema(
 	return schema;
 }
 
-/** @internal */
 export const bigintStringModeSchema = zod.string().regex(/^-?\d+$/).transform(BigInt).pipe(
 	zod.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 ).transform(String);
 
-/** @internal */
 export const unsignedBigintStringModeSchema = zod.string().regex(/^\d+$/).transform(BigInt).pipe(
 	zod.bigint().gte(0n).lte(CONSTANTS.INT64_MAX),
 ).transform(String);

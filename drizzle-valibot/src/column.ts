@@ -184,7 +184,6 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 	return v.pipe(v.number(), ...actions);
 }
 
-/** @internal */
 export const bigintStringModeSchema = v.pipe(
 	v.string(),
 	v.regex(/^-?\d+$/),
@@ -195,7 +194,6 @@ export const bigintStringModeSchema = v.pipe(
 	v.transform((v) => v.toString()),
 );
 
-/** @internal */
 export const unsignedBigintStringModeSchema = v.pipe(
 	v.string(),
 	v.regex(/^\d+$/),

@@ -46,7 +46,7 @@ type GetBaseEffectSchemaType<
 	: TType['type'] extends 'object' ? TType['constraint'] extends 'date' ? typeof s.Date
 		: TType['constraint'] extends 'buffer' ? typeof bufferSchema
 		: TType['constraint'] extends 'point' | 'geometry' ? Struct<{ x: typeof s.Number; y: typeof s.Number }>
-		: TType['constraint'] extends 'line' ? Struct<{ x: typeof s.Number; y: typeof s.Number; z: typeof s.Number }>
+		: TType['constraint'] extends 'line' ? Struct<{ a: typeof s.Number; b: typeof s.Number; c: typeof s.Number }>
 		: TType['constraint'] extends 'json' ? typeof jsonSchema
 		: typeof s.Object
 	: TType['type'] extends 'custom' ? typeof s.Any

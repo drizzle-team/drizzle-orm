@@ -296,7 +296,6 @@ export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string
 export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
-/** @internal */
 export const bigintStringModeSchema = type.string.narrow((v, ctx) => {
 	if (typeof v !== 'string') {
 		return ctx.mustBe('a string');
@@ -316,7 +315,6 @@ export const bigintStringModeSchema = type.string.narrow((v, ctx) => {
 	return true;
 });
 
-/** @internal */
 export const unsignedBigintStringModeSchema = type.string.narrow((v, ctx) => {
 	if (typeof v !== 'string') {
 		return ctx.mustBe('a string');

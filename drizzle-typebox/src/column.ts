@@ -211,13 +211,11 @@ TypeRegistry.Set('UnsignedBigIntStringMode', (_, value) => {
 
 	return true;
 });
-/** @internal */
 export const bigintStringModeSchema: BigIntStringModeSchema = {
 	[Kind]: 'BigIntStringMode',
 	type: 'string',
 } as any;
 
-/** @internal */
 export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
 	[Kind]: 'UnsignedBigIntStringMode',
 	type: 'string',
