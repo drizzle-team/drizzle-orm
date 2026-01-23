@@ -311,13 +311,6 @@ export class DSQLTransaction<
 	rollback(): never {
 		throw new TransactionRollbackError();
 	}
-
-	transaction<T>(
-		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T> {
-		// DSQL does not support savepoints, so nested transactions are not possible
-		throw new Error('Nested transactions are not supported in DSQL. DSQL does not support savepoints.');
-	}
 }
 
 export interface DSQLQueryResultHKTImpl extends DSQLQueryResultHKT {
