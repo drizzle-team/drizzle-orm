@@ -1511,7 +1511,7 @@ test('alter column drop generated', async (t) => {
 	const from = {
 		users: sqliteTable('table', {
 			id: int('id').primaryKey().notNull(),
-			name: text('name').generatedAlwaysAs("'drizzle is the best'").notNull(),
+			name: text('name').generatedAlwaysAs(sql`'drizzle is the best'`).notNull(),
 		}),
 	};
 

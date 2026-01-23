@@ -27,7 +27,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
-import { cockraochSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
+import { cockroachSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -59,7 +59,7 @@ export const handle = async (
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => cockraochSchemaError(it)).join('\n'));
+		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -72,11 +72,12 @@ export const handle = async (
 		migrations,
 	);
 
-	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
-	const { ddl: ddl2 } = interimToDDL(schemaTo);
+	const { ddl: ddl1 } = interimToDDL(schemaFrom);
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
+	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => cockraochSchemaError(it)).join('\n'));
+		console.log(errors1.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

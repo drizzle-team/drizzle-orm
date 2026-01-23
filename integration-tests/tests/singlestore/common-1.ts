@@ -659,12 +659,41 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('insert with onDuplicate', async ({ db }) => {
+			const users = singlestoreTable('userstest_update_p', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`drop table if exists ${users};`);
+			await db.execute(sql`create table ${users} (
+						\`id\` serial primary key,
+						\`name\` text not null,
+						\`verified\` boolean not null default false
+					);`);
+
+			await db.insert(users)
+				.values({ id: 1, name: 'John' });
+
+			await db.insert(users)
+				.values({ id: 1, name: 'John' })
+				.onDuplicateKeyUpdate({ set: { name: 'John1' } });
+
+			const res = await db.select({ id: users.id, name: users.name }).from(users).where(
+				eq(users.id, 1),
+			);
+
+			expect(res).toEqual([{ id: 1, name: 'John1' }]);
+		});
+
+		test.concurrent('insert with onDuplicate placeholder', async ({ db }) => {
 			await db.insert(usersTable)
 				.values({ id: 1, name: 'John' });
 
 			await db.insert(usersTable)
 				.values({ id: 1, name: 'John' })
-				.onDuplicateKeyUpdate({ set: { name: 'John1' } });
+				.onDuplicateKeyUpdate({ set: { name: sql.placeholder('name') } })
+				.execute({ name: 'John1' });
 
 			const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
 				eq(usersTable.id, 1),

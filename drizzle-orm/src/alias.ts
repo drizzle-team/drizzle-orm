@@ -3,8 +3,9 @@ import { OriginalColumn } from './column-common.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import type { View } from './sql/sql.ts';
-import { SQL, sql } from './sql/sql.ts';
+import { View } from './sql/sql.ts';
+import { isSQLWrapper, SQL, sql } from './sql/sql.ts';
+import { Subquery } from './subquery.ts';
 import { Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
@@ -23,6 +24,26 @@ export class ColumnTableAliasProxyHandler<TColumn extends Column> implements Pro
 		}
 
 		return columnObj[prop as keyof TColumn];
+	}
+}
+
+export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, unknown>>
+	implements ProxyHandler<TSelection>
+{
+	static readonly [entityKind]: string = 'ViewSelectionAliasProxyHandler';
+
+	constructor(protected view: View, protected selection: TSelection, private ignoreColumnAlias?: boolean) {}
+
+	get(selection: TSelection, prop: string | symbol): any {
+		const value = selection[prop as keyof TSelection];
+
+		if (is(value, Column)) return new Proxy(value, new ColumnTableAliasProxyHandler(this.view, this.ignoreColumnAlias));
+		if (
+			is(value, Subquery) || is(value, SQL) || is(value, SQL.Aliased) || isSQLWrapper(value)
+			|| (typeof value !== 'object' || value === null)
+		) return value;
+
+		return new Proxy(value as Record<string, unknown>, this);
 	}
 }
 
@@ -49,6 +70,14 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 				...target[ViewBaseConfig as keyof typeof target],
 				name: this.alias,
 				isAlias: true,
+				selectedFields: new Proxy(
+					(<View> target)[ViewBaseConfig].selectedFields,
+					new ViewSelectionAliasProxyHandler(
+						new Proxy(target, this) as View,
+						(<View> target)[ViewBaseConfig].selectedFields,
+						this.ignoreColumnAlias,
+					),
+				),
 			};
 		}
 
@@ -56,6 +85,17 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 			const columns = (target as Table)[Table.Symbol.Columns];
 			if (!columns) {
 				return columns;
+			}
+
+			if (is(target, View)) {
+				return new Proxy(
+					(<View> target)[Table.Symbol.Columns],
+					new ViewSelectionAliasProxyHandler(
+						new Proxy(target, this) as View,
+						(<View> target)[Table.Symbol.Columns],
+						this.ignoreColumnAlias,
+					),
+				);
 			}
 
 			const proxiedColumns: { [key: string]: any } = {};

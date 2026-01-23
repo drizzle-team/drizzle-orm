@@ -8,6 +8,7 @@ import {
 	char,
 	check,
 	customType,
+	datetime,
 	decimal,
 	double,
 	float,
@@ -27,11 +28,13 @@ import {
 	serial,
 	smallint,
 	text,
+	timestamp,
 	tinyblob,
 	tinyint,
 	tinytext,
 	unique,
 	uniqueIndex,
+	varbinary,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -446,6 +449,7 @@ test('introspect table with self reference', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4885
 // https://github.com/drizzle-team/drizzle-orm/issues/4110
 test('introspect table with boolean(tinyint(1))', async () => {
 	const schema = {
@@ -570,7 +574,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`'users\\\\hello'`,
+				sql`'users\\\\hello'`,
 			),
 		}),
 	};
@@ -739,4 +743,121 @@ test('pull after migrate with custom migrations table #2', async () => {
 			table: 'users',
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5212
+test('datetime', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: datetime().notNull().default(sql`CURRENT_TIMESTAMP`),
+		// col2: datetime().notNull().default(sql`CURRENT_TIMESTAMP`).onUpdateNow(), // can't add onUpdateNow(), but it is part of the issue
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'datetime',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect varbinary', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: varbinary({ length: 16 }),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'varbinary',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('timestamp def CURRENT_TIMESTAMP with precision', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: timestamp({ fsp: 3 }).notNull().default(sql`CURRENT_TIMESTAMP(3)`),
+	});
+
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'timestamp-def-current-timestamp-with-precision',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('fks with same names but in diff databases', async () => {
+	await db.query('DROP DATABASE if exists `fk_test`;');
+	await db.query('DROP DATABASE if exists `fk_test_2`;');
+	await db.query('CREATE DATABASE `fk_test`;');
+	await db.query('CREATE DATABASE `fk_test_2`;');
+
+	await db.query(`USE fk_test;`);
+	await db.query(`
+		CREATE TABLE parent (
+			id INT PRIMARY KEY
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			id INT PRIMARY KEY,
+			parent_id INT,
+			CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent(id)
+		);
+	`);
+
+	await db.query(`USE fk_test_2;`);
+	await db.query(`
+		CREATE TABLE parent (
+			id INT PRIMARY KEY
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			id INT PRIMARY KEY,
+			parent_id INT,
+			CONSTRAINT fk_parent FOREIGN KEY (parent_id) REFERENCES parent(id)
+		);
+	`);
+
+	const { fks } = await fromDatabaseForDrizzle(db, 'fk_test', () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(fks).toStrictEqual([{
+		columns: [
+			'parent_id',
+		],
+		columnsTo: [
+			'id',
+		],
+		entityType: 'fks',
+		name: 'fk_parent',
+		nameExplicit: true,
+		onDelete: 'NO ACTION',
+		onUpdate: 'NO ACTION',
+		table: 'child',
+		tableTo: 'parent',
+	}]);
+});
+
+test('introspect cyclic foreign key', async () => {
+	const inviteCode = mysqlTable('InviteCode', {
+		id: int().primaryKey(),
+		inviterUserId: int().references((): AnyMySqlColumn => users.id),
+	});
+
+	const users = mysqlTable('Users', {
+		id: int().primaryKey(),
+		inviteId: int().references((): AnyMySqlColumn => inviteCode.id),
+	});
+
+	const { statements, sqlStatements } = await diffIntrospect(db, { inviteCode, users }, 'cyclic-foreign-key');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });

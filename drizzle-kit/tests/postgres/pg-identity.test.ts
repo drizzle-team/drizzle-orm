@@ -1,4 +1,4 @@
-import { bigint, integer, pgSequence, pgTable, serial, smallint, text } from 'drizzle-orm/pg-core';
+import { bigint, integer, pgSchema, pgSequence, pgTable, serial, smallint, text } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -601,7 +601,7 @@ test('alter sequence to identity', async () => {
 	await push({ db, to: from });
 	await db.query(`insert into users (id) values (default),(default),(default);`);
 
-	const res = await push({ db, to, log: 'statements' });
+	const res = await push({ db, to });
 
 	expect(res.sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT;',
@@ -610,4 +610,26 @@ test('alter sequence to identity', async () => {
 		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
 		'SELECT setval(\'users_id_seq\'::regclass, (SELECT COALESCE(MAX(id), 1) FROM "users"), false);',
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4969
+test('mySchema; identity column', async () => {
+	const schema = pgSchema('my-schema');
+	const to = {
+		schema,
+		todo: schema.table('todo', {
+			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+			title: text('title').notNull(),
+			description: text('description'),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, to, []);
+	await push({ db, to, schemas: ['public', 'my-schema'] });
+
+	const { sqlStatements: st2 } = await diff(n1, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to, schemas: ['public', 'my-schema'] });
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });

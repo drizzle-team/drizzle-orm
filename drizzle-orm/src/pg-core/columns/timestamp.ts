@@ -1,9 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgDateColumnBuilder } from './date.common.ts';
 
-export class PgTimestampBuilder extends PgColumnBuilder<
+export class PgTimestampBuilder extends PgDateColumnBuilder<
 	{
 		dataType: 'object date';
 		data: Date;
@@ -58,7 +59,7 @@ export class PgTimestamp extends PgColumn<'object date'> {
 	}
 }
 
-export class PgTimestampStringBuilder extends PgColumnBuilder<
+export class PgTimestampStringBuilder extends PgDateColumnBuilder<
 	{
 		dataType: 'string timestamp';
 		data: string;
@@ -109,9 +110,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 
 		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
 		if (this.withTimezone) {
-			const offset = value.getTimezoneOffset();
-			const sign = offset <= 0 ? '+' : '-';
-			return `${shortened}${sign}${Math.floor(Math.abs(offset) / 60).toString().padStart(2, '0')}`;
+			return `${shortened}+00`;
 		}
 
 		return shortened;

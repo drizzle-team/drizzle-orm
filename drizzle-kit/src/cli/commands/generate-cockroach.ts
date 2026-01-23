@@ -17,6 +17,7 @@ import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
 import { resolver } from '../prompts';
+import { cockroachSchemaError, cockroachSchemaWarning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -73,8 +74,24 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we wanna respect entity filter while exporting to sql?
 	// cc: @AleksandrSherman
-	const { schema } = fromDrizzleSchema(res, config.casing, () => true);
-	const { ddl } = interimToDDL(schema);
+	const { schema, errors, warnings } = fromDrizzleSchema(res, config.casing, () => true);
+
+	if (warnings.length > 0) {
+		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
+	}
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	const { ddl, errors: errors2 } = interimToDDL(schema);
+
+	if (errors2.length > 0) {
+		console.log(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };

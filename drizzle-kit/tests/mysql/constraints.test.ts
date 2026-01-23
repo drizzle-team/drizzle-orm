@@ -574,6 +574,35 @@ test('index #1', async () => {
 	expect(pst1).toStrictEqual(expectedSt1);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4962
+test('functional index #1', async () => {
+	const table1 = mysqlTable('table1', {
+		id: varchar('id', { length: 21 }).primaryKey().notNull(),
+		otherId: varchar('other_id', { length: 21 }),
+		url: varchar('url', { length: 2048 }),
+	}, (table) => [
+		uniqueIndex('uniqueUrl').on(
+			table.otherId,
+			sql`${table.url}(747)`,
+		),
+	]);
+	const schema1 = { table1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n'
+		+ '\t`id` varchar(21) PRIMARY KEY,\n'
+		+ '\t`other_id` varchar(21),\n'
+		+ '\t`url` varchar(2048),\n'
+		+ '\tCONSTRAINT `uniqueUrl` UNIQUE INDEX(`other_id`,`url`(747))\n'
+		+ ');\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/4221
 test('fk on char column', async () => {
 	function column1() {
@@ -680,6 +709,38 @@ test('fk multistep #1', async () => {
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('cyclic fk with custom names', async () => {
+	await db.query(`CREATE TABLE \`Users\` (
+	\`id\` int primary key,
+	\`inviteId\` int
+);`);
+	await db.query(`CREATE TABLE \`InviteCode\` (
+	\`id\` int primary key,
+	\`inviterUserId\` int
+);`);
+	await db.query(
+		'ALTER TABLE `Users` ADD CONSTRAINT `usersToInviteCode` FOREIGN KEY (`inviteId`) REFERENCES `InviteCode` (`id`);',
+	);
+	await db.query(
+		'ALTER TABLE `InviteCode` ADD CONSTRAINT `InviteCodeToUsers` FOREIGN KEY (`inviterUserId`) REFERENCES `Users` (`id`);',
+	);
+
+	const inviteCode = mysqlTable('InviteCode', {
+		id: int().primaryKey(),
+		inviterUserId: int().references((): AnyMySqlColumn => users.id),
+	});
+
+	const users = mysqlTable('Users', {
+		id: int().primaryKey(),
+		inviteId: int().references((): AnyMySqlColumn => inviteCode.id),
+	});
+
+	const schema1 = { inviteCode, users };
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	expect(pst1).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/265
@@ -1151,4 +1212,30 @@ test('drop column with pk and add pk to another column #3', async () => {
 
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4704
+test('issue No4704. Composite index with sort outputs', async () => {
+	const schema1 = {
+		table: mysqlTable(
+			'table',
+			{ col1: int(), col2: int(), col3: int() },
+			(table) => [
+				index('table_composite_idx').on(
+					table.col1,
+					table.col2,
+					desc(table.col3), // Attempting to sort by col3 DESC
+				),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table` (\n\t`col1` int,\n\t`col2` int,\n\t`col3` int\n);\n',
+		'CREATE INDEX `table_composite_idx` ON `table` (`col1`,`col2`,`col3` desc);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

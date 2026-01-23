@@ -1,9 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { PgColumn, PgColumnBuilder } from './common.ts';
+import { PgColumn } from './common.ts';
+import { PgIntColumnBuilder } from './int.common.ts';
 
-export class PgBigInt53Builder extends PgColumnBuilder<{
+export class PgBigInt53Builder extends PgIntColumnBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number | string;
@@ -35,7 +36,7 @@ export class PgBigInt53 extends PgColumn<'number int53'> {
 	}
 }
 
-export class PgBigInt64Builder extends PgColumnBuilder<{
+export class PgBigInt64Builder extends PgIntColumnBuilder<{
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
@@ -65,7 +66,7 @@ export class PgBigInt64 extends PgColumn<'bigint int64'> {
 	}
 }
 
-export class PgBigIntStringBuilder extends PgColumnBuilder<{
+export class PgBigIntStringBuilder extends PgIntColumnBuilder<{
 	dataType: 'string int64';
 	data: string;
 	driverParam: string;
