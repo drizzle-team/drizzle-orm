@@ -13,7 +13,7 @@ import {
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
 // DSQL client type - could be AWS SDK client or pg-compatible client
@@ -66,9 +66,9 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 	/** @internal */
 	protected queryWithCache(
-		queryString: string,
-		params: any[],
-		query: unknown,
+		_queryString: string,
+		_params: any[],
+		_query: unknown,
 	): unknown {
 		throw new Error('Method not implemented.');
 	}
@@ -159,8 +159,8 @@ export class DSQLDriverSession<
 	}
 
 	async transaction<T>(
-		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-		config?: DSQLTransactionConfig | undefined,
+		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_config?: DSQLTransactionConfig | undefined,
 	): Promise<T> {
 		throw new Error('Method not implemented.');
 	}
@@ -186,7 +186,7 @@ export class DSQLTransaction<
 	}
 
 	async transaction<T>(
-		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('Method not implemented.');
 	}

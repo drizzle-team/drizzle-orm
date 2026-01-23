@@ -1,5 +1,4 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
 import { Subquery as BaseSubquery } from '~/subquery.ts';
 
 export class DSQLSubquery<TAlias extends string = string, TSelectedFields = unknown> extends BaseSubquery<

@@ -1,7 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
@@ -43,7 +42,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 	static override readonly [entityKind]: string = 'DSQLViewBuilder';
 
 	as<TSelectedFields extends ColumnsSelection>(
-		qb: TypedQueryBuilder<TSelectedFields> | ((qb: any) => TypedQueryBuilder<TSelectedFields>),
+		_qb: TypedQueryBuilder<TSelectedFields> | ((_qb: any) => TypedQueryBuilder<TSelectedFields>),
 	): DSQLViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>> {
 		throw new Error('Method not implemented.');
 	}
@@ -70,7 +69,7 @@ export class ManualViewBuilder<
 		throw new Error('Method not implemented.');
 	}
 
-	as(query: SQL): DSQLViewWithSelection<TName, false, DSQLBuildColumns<TName, TColumns>> {
+	as(_query: SQL): DSQLViewWithSelection<TName, false, DSQLBuildColumns<TName, TColumns>> {
 		throw new Error('Method not implemented.');
 	}
 }

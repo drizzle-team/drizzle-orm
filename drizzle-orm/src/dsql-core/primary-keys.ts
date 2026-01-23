@@ -5,12 +5,12 @@ import type { DSQLTable } from './table.ts';
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'DSQLPrimaryKeyBuilder';
 
-	constructor(columns: AnyDSQLColumn[], name?: string) {
+	constructor(_columns: AnyDSQLColumn[], _name?: string) {
 		throw new Error('Method not implemented.');
 	}
 
 	/** @internal */
-	build(table: DSQLTable): PrimaryKey {
+	build(_table: DSQLTable): PrimaryKey {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -21,7 +21,7 @@ export class PrimaryKey {
 	readonly columns: AnyDSQLColumn[];
 	readonly name?: string;
 
-	constructor(table: DSQLTable, columns: AnyDSQLColumn[], name?: string) {
+	constructor(_table: DSQLTable, _columns: AnyDSQLColumn[], _name?: string) {
 		throw new Error('Method not implemented.');
 	}
 

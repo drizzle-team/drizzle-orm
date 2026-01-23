@@ -1,75 +1,123 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Param, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import { applyMixins, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
-export interface DSQLUpdateConfig {
-	table: DSQLTable;
-	set: Record<string, unknown>;
+export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
+	table: TTable;
+	set: Record<string, Param | SQL>;
 	where?: SQL;
 	returning?: SelectedFieldsOrdered;
+	withList?: Subquery[];
 }
+
+export type SelectedFieldsFlat = Record<string, unknown>;
 
 export class DSQLUpdateBuilder<TTable extends DSQLTable> {
 	static readonly [entityKind]: string = 'DSQLUpdateBuilder';
 
 	constructor(
-		table: TTable,
-		session: DSQLSession | undefined,
-		dialect: DSQLDialect,
-	) {
-		throw new Error('Method not implemented.');
-	}
+		private table: TTable,
+		private session: DSQLSession | undefined,
+		private dialect: DSQLDialect,
+		private withList?: Subquery[],
+	) { }
 
 	set(values: Record<string, unknown>): DSQLUpdateBase<TTable, any, any> {
-		throw new Error('Method not implemented.');
+		return new DSQLUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 
+export interface DSQLUpdateBase<
+	_TTable extends DSQLTable,
+	_TQueryResult,
+	TReturning = undefined,
+> extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper { }
+
 export class DSQLUpdateBase<
 	TTable extends DSQLTable,
-	TQueryResult,
+	_TQueryResult,
 	TReturning = undefined,
-> {
+> extends QueryPromise<TReturning extends undefined ? any : TReturning[]> implements SQLWrapper {
 	static readonly [entityKind]: string = 'DSQLUpdate';
 
-	protected config: DSQLUpdateConfig;
+	protected config: DSQLUpdateConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		set: Record<string, unknown>,
-		session: DSQLSession | undefined,
-		dialect: DSQLDialect,
+		set: Record<string, Param | SQL>,
+		private session: DSQLSession | undefined,
+		private dialect: DSQLDialect,
+		withList?: Subquery[],
 	) {
-		throw new Error('Method not implemented.');
+		super();
+		this.config = { table, set, withList };
 	}
 
 	where(where: SQL | undefined): this {
-		throw new Error('Method not implemented.');
+		this.config.where = where;
+		return this;
 	}
 
-	returning(): DSQLUpdateBase<TTable, any, any> {
-		throw new Error('Method not implemented.');
+	returning(fields?: SelectedFieldsFlat): DSQLUpdateBase<TTable, any, any> {
+		const returningFields = fields ?? this.config.table[Table.Symbol.Columns];
+		this.config.returning = orderSelectedFields<DSQLColumn>(returningFields);
+		return this as any;
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
 	toSQL(): { sql: string; params: unknown[] } {
-		throw new Error('Method not implemented.');
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
-	getSQL(): SQL {
-		throw new Error('Method not implemented.');
+	private _prepare(name?: string) {
+		if (!this.session) {
+			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+		}
+		return this.session.prepareQuery<any>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+			name,
+			true,
+		);
 	}
 
-	execute(): Promise<any> {
-		throw new Error('Method not implemented.');
+	prepare(name: string) {
+		return this._prepare(name);
+	}
+
+	override execute(): Promise<any> {
+		return this._prepare().execute();
 	}
 
 	then<TResult1 = any, TResult2 = never>(
 		onfulfilled?: ((value: any) => TResult1 | PromiseLike<TResult1>) | null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
 	): Promise<TResult1 | TResult2> {
-		throw new Error('Method not implemented.');
+		return this.execute().then(onfulfilled, onrejected);
+	}
+
+	$dynamic(): this {
+		return this;
 	}
 }
+
+applyMixins(DSQLUpdateBase, [QueryPromise]);

@@ -5,7 +5,7 @@ import type { DSQLTable } from './table.ts';
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'DSQLUniqueConstraintBuilder';
 
-	constructor(columns: AnyDSQLColumn[], name?: string) {
+	constructor(_columns: AnyDSQLColumn[], _name?: string) {
 		throw new Error('Method not implemented.');
 	}
 
@@ -14,7 +14,7 @@ export class UniqueConstraintBuilder {
 	}
 
 	/** @internal */
-	build(table: DSQLTable): UniqueConstraint {
+	build(_table: DSQLTable): UniqueConstraint {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -23,10 +23,10 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'DSQLUniqueConstraint';
 
 	readonly columns: AnyDSQLColumn[];
-	readonly name?: string;
-	readonly nullsNotDistinct: boolean;
+	readonly _name?: string;
+	readonly _nullsNotDistinct: boolean;
 
-	constructor(table: DSQLTable, columns: AnyDSQLColumn[], nullsNotDistinct: boolean, name?: string) {
+	constructor(_table: DSQLTable, _columns: AnyDSQLColumn[], __nullsNotDistinct: boolean, __name?: string) {
 		throw new Error('Method not implemented.');
 	}
 
@@ -35,7 +35,7 @@ export class UniqueConstraint {
 	}
 }
 
-export function unique(name?: string): {
+export function unique(_name?: string): {
 	on: (...columns: AnyDSQLColumn[]) => UniqueConstraintBuilder;
 } {
 	throw new Error('Method not implemented.');

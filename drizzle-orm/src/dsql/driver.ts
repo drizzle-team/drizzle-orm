@@ -2,6 +2,11 @@ import type { QueryResult } from 'pg';
 import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { DSQLDialect } from '~/dsql-core/dialect.ts';
+import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
+import { DSQLInsertBuilder } from '~/dsql-core/query-builders/insert.ts';
+import { DSQLSelectBuilder, type SelectedFields } from '~/dsql-core/query-builders/select.ts';
+import { DSQLUpdateBuilder } from '~/dsql-core/query-builders/update.ts';
+import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -29,21 +34,26 @@ export class DSQLDatabase<
 		readonly schema: V1.RelationalSchemaConfig<any> | undefined,
 	) {}
 
-	// Query builder methods would be added here
-	select(): unknown {
-		throw new Error('Method not implemented.');
+	select(): DSQLSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;
+	select(fields?: SelectedFields): DSQLSelectBuilder<SelectedFields | undefined> {
+		return new DSQLSelectBuilder({
+			fields: fields as SelectedFields,
+			session: this.session,
+			dialect: this.dialect,
+		});
 	}
 
-	insert(table: unknown): unknown {
-		throw new Error('Method not implemented.');
+	insert<TTable extends DSQLTable>(table: TTable): DSQLInsertBuilder<TTable> {
+		return new DSQLInsertBuilder(table, this.session, this.dialect);
 	}
 
-	update(table: unknown): unknown {
-		throw new Error('Method not implemented.');
+	update<TTable extends DSQLTable>(table: TTable): DSQLUpdateBuilder<TTable> {
+		return new DSQLUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	delete(table: unknown): unknown {
-		throw new Error('Method not implemented.');
+	delete<TTable extends DSQLTable>(table: TTable): DSQLDeleteBase<TTable, any, undefined> {
+		return new DSQLDeleteBase(table, this.session, this.dialect);
 	}
 
 	execute<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -55,8 +65,8 @@ export class DSQLDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: unknown) => Promise<T>,
-		config?: { isolationLevel?: 'repeatable read'; accessMode?: 'read only' | 'read write' },
+		_transaction: (tx: unknown) => Promise<T>,
+		_config?: { isolationLevel?: 'repeatable read'; accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
 		throw new Error('Method not implemented.');
 	}

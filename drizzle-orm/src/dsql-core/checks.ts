@@ -14,7 +14,7 @@ export class CheckBuilder {
 	}
 
 	/** @internal */
-	build(table: DSQLTable): Check {
+	build(_table: DSQLTable): Check {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -25,7 +25,7 @@ export class Check {
 	readonly name: string;
 	readonly value: SQL;
 
-	constructor(table: DSQLTable, builder: CheckBuilder) {
+	constructor(_table: DSQLTable, _builder: CheckBuilder) {
 		throw new Error('Method not implemented.');
 	}
 }

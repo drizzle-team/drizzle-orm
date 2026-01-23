@@ -17,19 +17,19 @@ export interface IndexConfig {
 export class IndexBuilder {
 	static readonly [entityKind]: string = 'DSQLIndexBuilder';
 
-	constructor(name: string) {
+	constructor(_name: string) {
 		throw new Error('Method not implemented.');
 	}
 
-	on(...columns: (AnyDSQLColumn | ExtraConfigColumn | SQL)[]): this {
+	on(..._columns: (AnyDSQLColumn | ExtraConfigColumn | SQL)[]): this {
 		throw new Error('Method not implemented.');
 	}
 
-	using(method: IndexType): this {
+	using(_method: IndexType): this {
 		throw new Error('Method not implemented.');
 	}
 
-	where(condition: SQL): this {
+	where(_condition: SQL): this {
 		throw new Error('Method not implemented.');
 	}
 
@@ -38,7 +38,7 @@ export class IndexBuilder {
 	}
 
 	/** @internal */
-	build(table: DSQLTable): Index {
+	build(_table: DSQLTable): Index {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -48,7 +48,7 @@ export class Index {
 
 	readonly config: IndexConfig;
 
-	constructor(config: IndexConfig, table: DSQLTable) {
+	constructor(_config: IndexConfig, _table: DSQLTable) {
 		throw new Error('Method not implemented.');
 	}
 }
@@ -59,6 +59,6 @@ export function index(name: string): IndexBuilder {
 	return new IndexBuilder(name);
 }
 
-export function uniqueIndex(name: string): IndexBuilder {
+export function uniqueIndex(_name: string): IndexBuilder {
 	throw new Error('Method not implemented.');
 }

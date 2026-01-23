@@ -1,109 +1,231 @@
-import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import { entityKind, is } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
+import { Table } from '~/table.ts';
+import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
-import type { DSQLSelectConfig, SelectedFieldsOrdered } from './select.types.ts';
+import { DSQLViewBase } from '../view-base.ts';
+import type { DSQLSelectConfig } from './select.types.ts';
 
-export class DSQLSelectBuilder<TSelection = undefined> {
+export interface SelectedFields {
+	[key: string]: unknown;
+}
+
+export class DSQLSelectBuilder<TSelection extends SelectedFields | undefined = undefined> {
 	static readonly [entityKind]: string = 'DSQLSelectBuilder';
+
+	private fields: TSelection;
+	private session: DSQLSession | undefined;
+	private dialect: DSQLDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | { on: (DSQLColumn | SQLWrapper)[] } | undefined;
 
 	constructor(
 		config: {
-			fields: Record<string, unknown>;
+			fields: TSelection;
 			session: DSQLSession | undefined;
 			dialect: DSQLDialect;
-			withList?: any[];
-			distinct?: boolean | { on: (DSQLColumn | SQL)[] };
+			withList?: Subquery[];
+			distinct?: boolean | { on: (DSQLColumn | SQLWrapper)[] };
 		},
 	) {
-		throw new Error('Method not implemented.');
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
 	}
 
-	from(source: DSQLTable | SQL): DSQLSelectBase<any, any, any, any> {
-		throw new Error('Method not implemented.');
+	from<TFrom extends DSQLTable | Subquery | DSQLViewBase | SQL>(
+		source: TFrom,
+	): DSQLSelectBase<any, any, any, any> {
+		const isPartialSelect = !!this.fields;
+
+		let fields: SelectedFields;
+		if (this.fields) {
+			fields = this.fields as SelectedFields;
+		} else if (is(source, Subquery)) {
+			fields = Object.fromEntries(
+				Object.keys(source._.selectedFields).map((
+					key,
+				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
+			);
+		} else if (is(source, DSQLViewBase)) {
+			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(source, Table)) {
+			fields = getTableColumns<DSQLTable>(source as DSQLTable);
+		} else {
+			fields = {};
+		}
+
+		return new DSQLSelectBase({
+			table: source,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+		});
 	}
 }
 
 export abstract class DSQLSelectQueryBuilderBase<
-	THKT extends any,
-	TTableName extends string | undefined,
-	TSelection,
-	TSelectMode extends 'partial' | 'single' | 'multiple',
+	_THKT extends any,
+	_TTableName extends string | undefined,
+	_TSelection,
+	_TSelectMode extends 'partial' | 'single' | 'multiple',
 > {
 	static readonly [entityKind]: string = 'DSQLSelectQueryBuilder';
 
 	protected config: DSQLSelectConfig;
 	protected dialect: DSQLDialect;
 	protected session: DSQLSession | undefined;
+	private tableName: string | undefined;
+	private isPartialSelect: boolean;
+	protected joinsNotNullableMap: Record<string, boolean>;
 
 	constructor(config: {
-		table: DSQLTable | SQL;
-		fields: Record<string, unknown>;
-		fieldsFlat?: SelectedFieldsOrdered;
+		table: DSQLSelectConfig['table'];
+		fields: DSQLSelectConfig['fields'];
+		isPartialSelect: boolean;
 		session: DSQLSession | undefined;
 		dialect: DSQLDialect;
+		withList?: Subquery[];
+		distinct?: boolean | { on: (DSQLColumn | SQLWrapper)[] };
 	}) {
-		throw new Error('Method not implemented.');
+		this.config = {
+			withList: config.withList,
+			table: config.table,
+			fields: { ...config.fields },
+			distinct: config.distinct,
+			setOperators: [],
+		};
+		this.isPartialSelect = config.isPartialSelect;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		this.tableName = getTableLikeName(config.table);
+		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
 	where(where: SQL | undefined): this {
-		throw new Error('Method not implemented.');
+		this.config.where = where;
+		return this;
 	}
 
 	having(having: SQL | undefined): this {
-		throw new Error('Method not implemented.');
+		this.config.having = having;
+		return this;
 	}
 
 	groupBy(...columns: (DSQLColumn | SQL)[]): this {
-		throw new Error('Method not implemented.');
+		this.config.groupBy = columns as (DSQLColumn | SQL | SQL.Aliased)[];
+		return this;
 	}
 
 	orderBy(...columns: (DSQLColumn | SQL)[]): this {
-		throw new Error('Method not implemented.');
+		this.config.orderBy = columns as (DSQLColumn | SQL | SQL.Aliased)[];
+		return this;
 	}
 
 	limit(limit: number): this {
-		throw new Error('Method not implemented.');
+		this.config.limit = limit;
+		return this;
 	}
 
 	offset(offset: number): this {
-		throw new Error('Method not implemented.');
+		this.config.offset = offset;
+		return this;
 	}
 
 	for(
 		strength: 'update' | 'no key update' | 'share' | 'key share',
-		config?: { noWait?: boolean; skipLocked?: boolean },
+		config: { noWait?: boolean; skipLocked?: boolean } = {},
 	): this {
-		throw new Error('Method not implemented.');
+		this.config.lockingClause = { strength, config };
+		return this;
+	}
+
+	/** @internal */
+	getSQL(): SQL {
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	toSQL(): { sql: string; params: unknown[] } {
-		throw new Error('Method not implemented.');
+		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		return rest;
 	}
 
-	getSQL(): SQL {
-		throw new Error('Method not implemented.');
+	/** @internal */
+	getSelectedFields(): Record<string, unknown> {
+		return this.config.fields;
+	}
+
+	$dynamic(): this {
+		return this;
 	}
 }
 
+// Interface for declaration merging - allows DSQLSelectBase to "extend" both
+// DSQLSelectQueryBuilderBase and QueryPromise (TypeScript only allows single class inheritance)
+export interface DSQLSelectBase<
+	_THKT extends any,
+	_TTableName extends string | undefined,
+	_TSelection,
+	_TSelectMode extends 'partial' | 'single' | 'multiple',
+> extends
+	DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>,
+	QueryPromise<any[]>,
+	SQLWrapper
+{}
+
 export class DSQLSelectBase<
-	THKT extends any,
-	TTableName extends string | undefined,
-	TSelection,
-	TSelectMode extends 'partial' | 'single' | 'multiple',
-> extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode> {
+	_THKT extends any,
+	_TTableName extends string | undefined,
+	_TSelection,
+	_TSelectMode extends 'partial' | 'single' | 'multiple',
+> extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>
+	implements SQLWrapper
+{
 	static override readonly [entityKind]: string = 'DSQLSelect';
 
+	private _prepare(name?: string) {
+		const { session, config, dialect, joinsNotNullableMap } = this;
+		if (!session) {
+			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+		}
+		const fieldsList = orderSelectedFields<DSQLColumn>(config.fields);
+		const query = session.prepareQuery<any>(
+			dialect.sqlToQuery(this.getSQL()),
+			fieldsList,
+			name,
+			true,
+		);
+		query.joinsNotNullableMap = joinsNotNullableMap;
+		return query;
+	}
+
+	prepare(name: string) {
+		return this._prepare(name);
+	}
+
 	execute(): Promise<any[]> {
-		throw new Error('Method not implemented.');
+		return this._prepare().execute();
 	}
 
 	then<TResult1 = any[], TResult2 = never>(
 		onfulfilled?: ((value: any[]) => TResult1 | PromiseLike<TResult1>) | null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
 	): Promise<TResult1 | TResult2> {
-		throw new Error('Method not implemented.');
+		return this.execute().then(onfulfilled, onrejected);
 	}
 }
+
+applyMixins(DSQLSelectBase, [QueryPromise]);
