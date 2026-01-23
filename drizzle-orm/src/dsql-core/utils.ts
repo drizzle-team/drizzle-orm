@@ -5,8 +5,8 @@ import type { Index } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import type { DSQLTable } from './table.ts';
 import type { UniqueConstraint } from './unique-constraint.ts';
-import type { DSQLView } from './view.ts';
 import { DSQLViewConfig } from './view-common.ts';
+import type { DSQLView } from './view.ts';
 
 export function getTableConfig(_table: DSQLTable): {
 	columns: AnyDSQLColumn[];

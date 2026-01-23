@@ -28,7 +28,7 @@ export class DSQLUpdateBuilder<TTable extends DSQLTable> {
 		private session: DSQLSession | undefined,
 		private dialect: DSQLDialect,
 		private withList?: Subquery[],
-	) { }
+	) {}
 
 	set(values: Record<string, unknown>): DSQLUpdateBase<TTable, any, any> {
 		return new DSQLUpdateBase(
@@ -47,7 +47,7 @@ export interface DSQLUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	_TQueryResult,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper { }
+> extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper {}
 
 export class DSQLUpdateBase<
 	TTable extends DSQLTable,

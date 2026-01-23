@@ -1,5 +1,5 @@
-import { entityKind } from '~/entity.ts';
 import { TableAliasProxyHandler } from '~/alias.ts';
+import { entityKind } from '~/entity.ts';
 import type { DSQLTable, DSQLTableWithColumns } from './table.ts';
 
 export class Alias<TTable extends DSQLTable, TAlias extends string> {

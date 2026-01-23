@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
@@ -344,20 +344,14 @@ export interface DSQLSelectBase<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends 'partial' | 'single' | 'multiple',
-> extends
-	DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>,
-	QueryPromise<any[]>,
-	SQLWrapper
-{}
+> extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>, QueryPromise<any[]>, SQLWrapper {}
 
 export class DSQLSelectBase<
 	THKT,
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends 'partial' | 'single' | 'multiple',
-> extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode>
-	implements SQLWrapper
-{
+> extends DSQLSelectQueryBuilderBase<THKT, TTableName, TSelection, TSelectMode> implements SQLWrapper {
 	static override readonly [entityKind]: string = 'DSQLSelect';
 
 	private _prepare(name?: string) {

@@ -233,41 +233,45 @@ export class DSQLDriverSession<
 		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: DSQLTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this;
-		const tx = new DSQLTransaction(
-			this.dialect,
-			session,
-			this.relations,
-			this.schema,
-			0,
-		);
+		// Wrap entire transaction in retry logic for OCC errors
+		return withRetry(async () => {
+			const session = this;
+			const tx = new DSQLTransaction(
+				this.dialect,
+				session,
+				this.relations,
+				this.schema,
+				0,
+			);
 
-		await session.execute({ sql: 'BEGIN', params: [] });
+			await session.execute({ sql: 'BEGIN', params: [] });
 
-		if (config) {
-			const chunks: string[] = [];
-			if (config.isolationLevel) {
-				chunks.push(`isolation level ${config.isolationLevel}`);
+			if (config) {
+				const chunks: string[] = [];
+				if (config.isolationLevel) {
+					chunks.push(`isolation level ${config.isolationLevel}`);
+				}
+				if (config.accessMode) {
+					chunks.push(config.accessMode);
+				}
+				if (chunks.length) {
+					await session.execute({ sql: `SET TRANSACTION ${chunks.join(' ')}`, params: [] });
+				}
 			}
-			if (config.accessMode) {
-				chunks.push(config.accessMode);
-			}
-			if (chunks.length) {
-				await session.execute({ sql: `SET TRANSACTION ${chunks.join(' ')}`, params: [] });
-			}
-		}
 
-		try {
-			const result = await transaction(tx);
-			await session.execute({ sql: 'COMMIT', params: [] });
-			return result;
-		} catch (error) {
-			await session.execute({ sql: 'ROLLBACK', params: [] });
-			if (is(error, TransactionRollbackError)) {
-				// Transaction was intentionally rolled back
+			try {
+				const result = await transaction(tx);
+				await session.execute({ sql: 'COMMIT', params: [] });
+				return result;
+			} catch (error) {
+				await session.execute({ sql: 'ROLLBACK', params: [] });
+				if (is(error, TransactionRollbackError)) {
+					// Transaction was intentionally rolled back - don't retry
+					throw error;
+				}
+				throw error;
 			}
-			throw error;
-		}
+		});
 	}
 }
 
@@ -323,25 +327,28 @@ export class DSQLTransaction<
 	async transaction<T>(
 		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		const savepointName = `sp_${this.nestedIndex + 1}`;
-		await this.session.execute({ sql: `SAVEPOINT ${savepointName}`, params: [] });
+		// Nested transactions use savepoints - wrap in retry for OCC errors
+		return withRetry(async () => {
+			const savepointName = `sp_${this.nestedIndex + 1}`;
+			await this.session.execute({ sql: `SAVEPOINT ${savepointName}`, params: [] });
 
-		const tx = new DSQLTransaction(
-			this.dialect,
-			this.session,
-			this.relations,
-			this.schema,
-			this.nestedIndex + 1,
-		);
+			const tx = new DSQLTransaction(
+				this.dialect,
+				this.session,
+				this.relations,
+				this.schema,
+				this.nestedIndex + 1,
+			);
 
-		try {
-			const result = await transaction(tx);
-			await this.session.execute({ sql: `RELEASE SAVEPOINT ${savepointName}`, params: [] });
-			return result;
-		} catch (error) {
-			await this.session.execute({ sql: `ROLLBACK TO SAVEPOINT ${savepointName}`, params: [] });
-			throw error;
-		}
+			try {
+				const result = await transaction(tx);
+				await this.session.execute({ sql: `RELEASE SAVEPOINT ${savepointName}`, params: [] });
+				return result;
+			} catch (error) {
+				await this.session.execute({ sql: `ROLLBACK TO SAVEPOINT ${savepointName}`, params: [] });
+				throw error;
+			}
+		});
 	}
 }
 

@@ -20,12 +20,7 @@ import {
 } from 'drizzle-orm/dsql-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
-
-// Counter for unique table names across all tests
-let tableCounter = 0;
-function uniqueName(base: string): string {
-	return `${base}_${++tableCounter}`;
-}
+import { uniqueTableName as uniqueName } from './instrumentation';
 
 // Migrator table for migration tests (exported for use in dsql.test.ts)
 export const usersMigratorTable = dsqlTable('users12', {
@@ -667,7 +662,9 @@ export function tests(test: Test) {
 
 			try {
 				await db.insert(users).values({ name: 'John' });
-				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare('test_prepared');
+				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare(
+					'test_prepared',
+				);
 				const result = await prepared.execute({ name: 'John' });
 				expect(result).toHaveLength(1);
 			} finally {
@@ -691,7 +688,9 @@ export function tests(test: Test) {
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
-				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare('test_prepared_reuse');
+				const prepared = db.select().from(users).where(eq(users.name, sql.placeholder('name'))).prepare(
+					'test_prepared_reuse',
+				);
 				const result1 = await prepared.execute({ name: 'John' }) as { id: string; name: string }[];
 				const result2 = await prepared.execute({ name: 'Jane' }) as { id: string; name: string }[];
 				expect(result1).toHaveLength(1);
@@ -1379,8 +1378,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
@@ -1409,8 +1416,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
@@ -1439,8 +1454,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
@@ -1470,8 +1493,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'Jane' }, { name: 'Jane' }]);
@@ -1500,8 +1531,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
@@ -1531,8 +1570,16 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			await db.execute(sql`create table ${sql.identifier(tableName1)} (id uuid primary key default gen_random_uuid(), name text not null)`);
-			await db.execute(sql`create table ${sql.identifier(tableName2)} (id uuid primary key default gen_random_uuid(), name text not null)`);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName1)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
+			await db.execute(
+				sql`create table ${
+					sql.identifier(tableName2)
+				} (id uuid primary key default gen_random_uuid(), name text not null)`,
+			);
 
 			try {
 				await db.insert(users).values([{ name: 'John' }, { name: 'John' }, { name: 'Jane' }]);
@@ -2015,7 +2062,7 @@ export function tests(test: Test) {
 
 		// User management tests
 		test.concurrent('create role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 			try {
 				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
@@ -2029,7 +2076,7 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('grant select permission to role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 			const tableName = uniqueName('grant_test');
 
 			await db.execute(sql`
@@ -2057,7 +2104,7 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('grant multiple permissions to role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 			const tableName = uniqueName('grant_multi_test');
 
 			await db.execute(sql`
@@ -2069,7 +2116,9 @@ export function tests(test: Test) {
 
 			try {
 				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
-				await db.execute(sql`GRANT SELECT, INSERT, UPDATE ON ${sql.identifier(tableName)} TO ${sql.identifier(roleName)}`);
+				await db.execute(
+					sql`GRANT SELECT, INSERT, UPDATE ON ${sql.identifier(tableName)} TO ${sql.identifier(roleName)}`,
+				);
 
 				const result = await db.execute(sql`
 					SELECT privilege_type FROM information_schema.table_privileges
@@ -2086,7 +2135,7 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('revoke permission from role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 			const tableName = uniqueName('revoke_test');
 
 			await db.execute(sql`
@@ -2115,7 +2164,7 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('alter role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 			try {
 				await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
@@ -2131,7 +2180,7 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('drop role', async ({ db }) => {
-			const roleName = `test_role_${Date.now()}`;
+			const roleName = `test_role_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 			await db.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
 			await db.execute(sql`DROP ROLE ${sql.identifier(roleName)}`);
@@ -2143,8 +2192,8 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('grant role to another role', async ({ db }) => {
-			const role1Name = `test_role1_${Date.now()}`;
-			const role2Name = `test_role2_${Date.now()}`;
+			const role1Name = `test_role1_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+			const role2Name = `test_role2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 			try {
 				await db.execute(sql`CREATE ROLE ${sql.identifier(role1Name)}`);

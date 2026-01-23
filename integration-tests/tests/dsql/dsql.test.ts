@@ -4,8 +4,8 @@ import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import { drizzle } from 'drizzle-orm/dsql';
 import { boolean, dsqlTable, text, timestamp, uuid } from 'drizzle-orm/dsql-core';
 import { afterAll, beforeAll, describe, expect } from 'vitest';
-import { dsqlTest } from './instrumentation';
 import { tests, usersTable } from './common';
+import { dsqlTest } from './instrumentation';
 
 const ENABLE_LOGGING = false;
 
@@ -75,7 +75,9 @@ describe('dsql-specific', () => {
 		try {
 			await db.execute(sql`insert into ${sql.identifier(tableName)} (${sql.identifier('name')}) values (${'John'})`);
 
-			const result = await db.execute<{ id: string; name: string }>(sql`select id, name from ${sql.identifier(tableName)}`);
+			const result = await db.execute<{ id: string; name: string }>(
+				sql`select id, name from ${sql.identifier(tableName)}`,
+			);
 			expect(result.rows[0]?.name).toBe('John');
 		} finally {
 			await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);

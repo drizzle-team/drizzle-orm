@@ -3,11 +3,11 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import type { Casing, UpdateSet } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
-import { View } from '~/sql/sql.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { DSQLColumn } from './columns/common.ts';
 import type { DSQLDeleteConfig } from './query-builders/delete.ts';
@@ -413,9 +413,7 @@ export class DSQLDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, DSQLColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, DSQLColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
-		);
+		const colEntries: [string, DSQLColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(
 			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),

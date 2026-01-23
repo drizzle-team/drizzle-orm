@@ -1,7 +1,7 @@
+import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
 import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import { drizzle } from 'drizzle-orm/dsql';
-import retry from 'async-retry';
 import { test as base } from 'vitest';
 
 const ENABLE_LOGGING = false;
@@ -73,14 +73,14 @@ export type DSQLTestContext = {
 
 export const dsqlTest = base.extend<DSQLTestContext>({
 	db: [
-		async ({}, use) => {
+		async (_, use) => {
 			const db = await getSharedDb();
 			await use(db);
 		},
 		{ scope: 'test' },
 	],
 	uniqueName: [
-		async ({}, use) => {
+		async (_, use) => {
 			await use(uniqueTableName);
 		},
 		{ scope: 'test' },
