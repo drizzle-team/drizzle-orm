@@ -294,13 +294,13 @@ export function tests() {
 			const result = await db.select({
 				name: usersTable.name,
 				verified: usersTable.verified,
-			}).from(usersTable);
+			}).from(usersTable).orderBy(usersTable.name);
 
 			expect(result).toEqual([
-				{ name: 'John', verified: false },
+				{ name: 'Austin', verified: true },
 				{ name: 'Bruce', verified: false },
 				{ name: 'Jane', verified: false },
-				{ name: 'Austin', verified: true },
+				{ name: 'John', verified: false },
 			]);
 		});
 
