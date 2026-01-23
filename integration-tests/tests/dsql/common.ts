@@ -878,13 +878,14 @@ export function tests(test: Test) {
 
 		test.concurrent('table-level unique constraint', async ({ db }) => {
 			const tableName = uniqueName('unique_multi');
+			const constraintName = `${tableName}_email_username_unique`;
 
 			await db.execute(sql`
 				create table ${sql.identifier(tableName)} (
 					id uuid primary key default gen_random_uuid(),
 					email text not null,
 					username text not null,
-					constraint email_username_unique unique (email, username)
+					constraint ${sql.identifier(constraintName)} unique (email, username)
 				)
 			`);
 
@@ -1794,7 +1795,7 @@ export function tests(test: Test) {
 		});
 
 		// RQB tests - skipped until db.query is implemented
-		test.skip('rqb: findFirst', async ({ db }) => {
+		test.concurrent('rqb: findFirst', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
@@ -1818,7 +1819,7 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.skip('rqb: findMany', async ({ db }) => {
+		test.concurrent('rqb: findMany', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
@@ -1842,7 +1843,7 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.skip('rqb: findFirst with where', async ({ db }) => {
+		test.concurrent('rqb: findFirst with where', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
@@ -1868,7 +1869,7 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.skip('rqb: findMany with orderBy', async ({ db }) => {
+		test.concurrent('rqb: findMany with orderBy', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
@@ -1894,7 +1895,7 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.skip('rqb: findMany with limit', async ({ db }) => {
+		test.concurrent('rqb: findMany with limit', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
@@ -1920,7 +1921,7 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.skip('rqb: findFirst with columns selection', async ({ db }) => {
+		test.concurrent('rqb: findFirst with columns selection', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),

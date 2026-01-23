@@ -1,17 +1,24 @@
 import { entityKind } from '~/entity.ts';
+import { TableName } from '~/table.utils.ts';
 import type { AnyDSQLColumn } from './columns/common.ts';
 import type { DSQLTable } from './table.ts';
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'DSQLPrimaryKeyBuilder';
 
-	constructor(_columns: AnyDSQLColumn[], _name?: string) {
-		throw new Error('Method not implemented.');
+	/** @internal */
+	columns: AnyDSQLColumn[];
+	/** @internal */
+	_name?: string;
+
+	constructor(columns: AnyDSQLColumn[], name?: string) {
+		this.columns = columns;
+		this._name = name;
 	}
 
 	/** @internal */
-	build(_table: DSQLTable): PrimaryKey {
-		throw new Error('Method not implemented.');
+	build(table: DSQLTable): PrimaryKey {
+		return new PrimaryKey(table, this.columns, this._name);
 	}
 }
 
@@ -21,12 +28,13 @@ export class PrimaryKey {
 	readonly columns: AnyDSQLColumn[];
 	readonly name?: string;
 
-	constructor(_table: DSQLTable, _columns: AnyDSQLColumn[], _name?: string) {
-		throw new Error('Method not implemented.');
+	constructor(table: DSQLTable, columns: AnyDSQLColumn[], name?: string) {
+		this.columns = columns;
+		this.name = name ?? `${table[TableName]}_${columns.map((c) => c.name).join('_')}_pk`;
 	}
 
 	getName(): string {
-		throw new Error('Method not implemented.');
+		return this.name!;
 	}
 }
 
