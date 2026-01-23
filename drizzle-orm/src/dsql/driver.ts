@@ -127,7 +127,7 @@ export class DSQLDatabase<
 
 	transaction<T>(
 		transaction: (tx: DSQLTransaction<TSchema, TRelations, any>) => Promise<T>,
-		config?: { isolationLevel?: 'repeatable read'; accessMode?: 'read only' | 'read write' },
+		config?: { accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
 	}

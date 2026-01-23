@@ -44,8 +44,6 @@ export abstract class DSQLBasePreparedQuery implements PreparedQuery {
 }
 
 export interface DSQLTransactionConfig {
-	// DSQL only supports repeatable read isolation level
-	isolationLevel?: 'repeatable read';
 	accessMode?: 'read only' | 'read write';
 }
 

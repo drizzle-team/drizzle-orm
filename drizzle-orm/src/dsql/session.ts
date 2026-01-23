@@ -11,7 +11,6 @@ import {
 	DSQLBasePreparedQuery,
 	type DSQLQueryResultHKT,
 	DSQLSession,
-	type DSQLTransactionConfig,
 	type PreparedQueryConfig,
 } from '~/dsql-core/session.ts';
 import type { DSQLTable } from '~/dsql-core/table.ts';
@@ -27,7 +26,7 @@ export type DSQLClient = unknown;
 
 // DSQL optimistic concurrency error codes
 const DSQL_RETRYABLE_ERRORS = ['OC000', 'OC001', '40001'];
-const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_MAX_RETRIES = 10;
 const BASE_DELAY_MS = 50;
 
 function isDSQLRetryableError(error: unknown): boolean {
@@ -231,7 +230,7 @@ export class DSQLDriverSession<
 
 	async transaction<T>(
 		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-		config?: DSQLTransactionConfig | undefined,
+		config?: { accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
 		// Wrap entire transaction in retry logic for OCC errors
 		return withRetry(async () => {
@@ -241,23 +240,13 @@ export class DSQLDriverSession<
 				session,
 				this.relations,
 				this.schema,
-				0,
 			);
 
-			await session.execute({ sql: 'BEGIN', params: [] });
-
-			if (config) {
-				const chunks: string[] = [];
-				if (config.isolationLevel) {
-					chunks.push(`isolation level ${config.isolationLevel}`);
-				}
-				if (config.accessMode) {
-					chunks.push(config.accessMode);
-				}
-				if (chunks.length) {
-					await session.execute({ sql: `SET TRANSACTION ${chunks.join(' ')}`, params: [] });
-				}
-			}
+			// Use START TRANSACTION with access mode (DSQL doesn't support SET TRANSACTION)
+			const startSql = config?.accessMode
+				? `START TRANSACTION ${config.accessMode.toUpperCase()}`
+				: 'BEGIN';
+			await session.execute({ sql: startSql, params: [] });
 
 			try {
 				const result = await transaction(tx);
@@ -287,7 +276,6 @@ export class DSQLTransaction<
 		protected session: DSQLDriverSession<TFullSchema, TRelations, TSchema>,
 		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		protected nestedIndex: number = 0,
 	) {}
 
 	select(): DSQLSelectBuilder<undefined>;
@@ -324,31 +312,11 @@ export class DSQLTransaction<
 		throw new TransactionRollbackError();
 	}
 
-	async transaction<T>(
-		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+	transaction<T>(
+		_transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		// Nested transactions use savepoints - wrap in retry for OCC errors
-		return withRetry(async () => {
-			const savepointName = `sp_${this.nestedIndex + 1}`;
-			await this.session.execute({ sql: `SAVEPOINT ${savepointName}`, params: [] });
-
-			const tx = new DSQLTransaction(
-				this.dialect,
-				this.session,
-				this.relations,
-				this.schema,
-				this.nestedIndex + 1,
-			);
-
-			try {
-				const result = await transaction(tx);
-				await this.session.execute({ sql: `RELEASE SAVEPOINT ${savepointName}`, params: [] });
-				return result;
-			} catch (error) {
-				await this.session.execute({ sql: `ROLLBACK TO SAVEPOINT ${savepointName}`, params: [] });
-				throw error;
-			}
-		});
+		// DSQL does not support savepoints, so nested transactions are not possible
+		throw new Error('Nested transactions are not supported in DSQL. DSQL does not support savepoints.');
 	}
 }
 

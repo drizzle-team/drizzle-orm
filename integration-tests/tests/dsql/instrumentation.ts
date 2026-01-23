@@ -73,14 +73,16 @@ export type DSQLTestContext = {
 
 export const dsqlTest = base.extend<DSQLTestContext>({
 	db: [
-		async (_, use) => {
+		// eslint-disable-next-line no-empty-pattern
+		async ({}, use) => {
 			const db = await getSharedDb();
 			await use(db);
 		},
 		{ scope: 'test' },
 	],
 	uniqueName: [
-		async (_, use) => {
+		// eslint-disable-next-line no-empty-pattern
+		async ({}, use) => {
 			await use(uniqueTableName);
 		},
 		{ scope: 'test' },

@@ -1828,32 +1828,6 @@ export function tests(test: Test) {
 			}
 		});
 
-		test.concurrent('transaction with isolation level', async ({ db }) => {
-			const tableName = uniqueName('users');
-			const users = dsqlTable(tableName, {
-				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-			});
-
-			await db.execute(sql`
-				create table ${sql.identifier(tableName)} (
-					id uuid primary key default gen_random_uuid(),
-					name text not null
-				)
-			`);
-
-			try {
-				await db.transaction(async (tx) => {
-					await tx.insert(users).values({ name: 'IsolationTest' });
-				}, { isolationLevel: 'repeatable read' });
-
-				const result = await db.select().from(users);
-				expect(result).toHaveLength(1);
-			} finally {
-				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
-			}
-		});
-
 		test.concurrent('transaction with access mode', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
