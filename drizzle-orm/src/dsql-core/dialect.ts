@@ -377,7 +377,7 @@ export class DSQLDialect {
 
 			for (const singleOrderBy of orderBy) {
 				if (is(singleOrderBy, DSQLColumn)) {
-					orderByValues.push(sql.identifier(singleOrderBy.name));
+					orderByValues.push(sql`${sql.identifier(singleOrderBy.name)}`);
 				} else if (is(singleOrderBy, SQL)) {
 					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
 						const chunk = singleOrderBy.queryChunks[i];

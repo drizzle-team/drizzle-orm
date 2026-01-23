@@ -26,7 +26,7 @@ export class DSQLCharBuilder extends DSQLColumnBuilder<{
 export class DSQLChar extends DSQLColumn<'string'> {
 	static override readonly [entityKind]: string = 'DSQLChar';
 
-	readonly length: number | undefined;
+	override readonly length: number | undefined;
 
 	constructor(table: DSQLTable, config: any) {
 		super(table, config);

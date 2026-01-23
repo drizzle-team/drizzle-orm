@@ -220,7 +220,7 @@ export function drizzle<
 	$client: TClient;
 } {
 	// Handle different overload patterns
-	if (typeof params[0] === 'object' && 'connection' in params[0]) {
+	if (typeof params[0] === 'object' && params[0] !== null && 'connection' in params[0]) {
 		const { connection, ...drizzleConfig } = params[0] as (
 			& { connection: DSQLConnectionConfig }
 			& DrizzleConfig<TSchema, TRelations>
@@ -230,7 +230,7 @@ export function drizzle<
 		return construct(client as TClient, drizzleConfig);
 	}
 
-	if (typeof params[0] === 'object' && 'client' in params[0]) {
+	if (typeof params[0] === 'object' && params[0] !== null && 'client' in params[0]) {
 		const { client, ...drizzleConfig } = params[0] as (
 			& { client: TClient }
 			& DrizzleConfig<TSchema, TRelations>

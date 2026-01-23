@@ -30,7 +30,7 @@ export class DSQLVarcharBuilder extends DSQLColumnBuilder<
 export class DSQLVarchar extends DSQLColumn<'string'> {
 	static override readonly [entityKind]: string = 'DSQLVarchar';
 
-	readonly length: number | undefined;
+	override readonly length: number | undefined;
 
 	constructor(table: DSQLTable, config: any) {
 		super(table, config);

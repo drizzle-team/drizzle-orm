@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Param, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { applyMixins, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
@@ -12,7 +12,7 @@ import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
-	set: Record<string, Param | SQL>;
+	set: UpdateSet;
 	where?: SQL;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
@@ -54,13 +54,13 @@ export class DSQLUpdateBase<
 	_TQueryResult,
 	TReturning = undefined,
 > extends QueryPromise<TReturning extends undefined ? any : TReturning[]> implements SQLWrapper {
-	static readonly [entityKind]: string = 'DSQLUpdate';
+	static override readonly [entityKind]: string = 'DSQLUpdate';
 
 	protected config: DSQLUpdateConfig<TTable>;
 
 	constructor(
 		table: TTable,
-		set: Record<string, Param | SQL>,
+		set: UpdateSet,
 		private session: DSQLSession | undefined,
 		private dialect: DSQLDialect,
 		withList?: Subquery[],
@@ -107,7 +107,7 @@ export class DSQLUpdateBase<
 	}
 
 	override execute(): Promise<any> {
-		return this._prepare().execute();
+		return this._prepare().execute() as Promise<any>;
 	}
 
 	override then<TResult1 = any, TResult2 = never>(

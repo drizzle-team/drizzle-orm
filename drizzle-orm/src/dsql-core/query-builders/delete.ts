@@ -32,7 +32,7 @@ export class DSQLDeleteBase<
 	_TQueryResult,
 	TReturning = undefined,
 > extends QueryPromise<TReturning extends undefined ? any : TReturning[]> implements SQLWrapper {
-	static readonly [entityKind]: string = 'DSQLDelete';
+	static override readonly [entityKind]: string = 'DSQLDelete';
 
 	protected config: DSQLDeleteConfig<TTable>;
 
@@ -84,7 +84,7 @@ export class DSQLDeleteBase<
 	}
 
 	override execute(): Promise<any> {
-		return this._prepare().execute();
+		return this._prepare().execute() as Promise<any>;
 	}
 
 	override then<TResult1 = any, TResult2 = never>(

@@ -97,22 +97,25 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 		// For RQB v2 queries, use object mode with retry
 		if (isRqbV2Query) {
-			const result = await withRetry(() => (this.client as any).query(this.queryString, params));
+			const result = await withRetry<{ rows: Record<string, unknown>[] }>(
+				() => (this.client as any).query(this.queryString, params),
+			);
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 		}
 
 		// Use array mode for select queries with fields, with retry
-		const result = await withRetry(() =>
-			(this.client as any).query({
-				text: this.queryString,
-				values: params,
-				rowMode: 'array',
-			})
+		const result = await withRetry<{ rows: unknown[][] }>(
+			() =>
+				(this.client as any).query({
+					text: this.queryString,
+					values: params,
+					rowMode: 'array',
+				}),
 		);
 
 		return customResultMapper
 			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
-			: result.rows.map((row: unknown[]) => mapResultRow<T['execute']>(fields!, row, this.joinsNotNullableMap));
+			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, this.joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

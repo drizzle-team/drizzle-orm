@@ -1,7 +1,8 @@
 import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, getTableColumns, getTableLikeName, orderSelectedFields } from '~/utils.ts';
@@ -331,7 +332,7 @@ export abstract class DSQLSelectQueryBuilderBase<
 // Interface for declaration merging - allows DSQLSelectBase to "extend" both
 // DSQLSelectQueryBuilderBase and QueryPromise (TypeScript only allows single class inheritance)
 export interface DSQLSelectBase<
-	THKT extends any,
+	THKT,
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends 'partial' | 'single' | 'multiple',
@@ -342,7 +343,7 @@ export interface DSQLSelectBase<
 {}
 
 export class DSQLSelectBase<
-	THKT extends any,
+	THKT,
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends 'partial' | 'single' | 'multiple',
@@ -372,7 +373,7 @@ export class DSQLSelectBase<
 	}
 
 	execute(): Promise<any[]> {
-		return this._prepare().execute();
+		return this._prepare().execute() as Promise<any[]>;
 	}
 
 	then<TResult1 = any[], TResult2 = never>(

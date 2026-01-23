@@ -1,5 +1,5 @@
 export * from './delete.ts';
-export * from './insert.ts';
+export { DSQLInsertBuilder, DSQLInsertBase, type DSQLInsertConfig } from './insert.ts';
 export * from './select.ts';
 export * from './select.types.ts';
-export * from './update.ts';
+export { DSQLUpdateBuilder, DSQLUpdateBase, type DSQLUpdateConfig } from './update.ts';

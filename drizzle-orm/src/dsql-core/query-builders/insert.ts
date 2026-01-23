@@ -13,7 +13,7 @@ import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLInsertConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, Param | SQL>[] | SQL;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
@@ -70,7 +70,7 @@ export class DSQLInsertBase<
 	_TQueryResult,
 	TReturning = undefined,
 > extends QueryPromise<TReturning extends undefined ? any : TReturning[]> implements SQLWrapper {
-	static readonly [entityKind]: string = 'DSQLInsert';
+	static override readonly [entityKind]: string = 'DSQLInsert';
 
 	protected config: DSQLInsertConfig<TTable>;
 
@@ -143,7 +143,7 @@ export class DSQLInsertBase<
 	}
 
 	override execute(): Promise<any> {
-		return this._prepare().execute();
+		return this._prepare().execute() as Promise<any>;
 	}
 
 	override then<TResult1 = any, TResult2 = never>(
