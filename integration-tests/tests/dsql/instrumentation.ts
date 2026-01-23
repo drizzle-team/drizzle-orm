@@ -61,6 +61,17 @@ async function getSharedDb(): Promise<DSQLDatabase<any>> {
 		},
 	);
 
+	// Clean up old test schemas (DSQL has a limit of 10 schemas)
+	const schemas = await sharedDb.execute(sql`
+		SELECT schema_name FROM information_schema.schemata
+		WHERE schema_name LIKE 'test_schema_%'
+		   OR schema_name LIKE 'schema1_%'
+		   OR schema_name LIKE 'schema2_%'
+	`);
+	for (const row of (schemas as any).rows || []) {
+		await sharedDb.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(row.schema_name)} CASCADE`);
+	}
+
 	return sharedDb;
 }
 

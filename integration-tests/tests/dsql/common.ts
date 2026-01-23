@@ -10,13 +10,11 @@ import {
 	getViewConfig,
 	index,
 	integer,
-	primaryKey,
 	text,
 	timestamp,
 	unique,
 	uniqueIndex,
 	uuid,
-	varchar,
 } from 'drizzle-orm/dsql-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
@@ -1704,8 +1702,9 @@ export function tests(test: Test) {
 			`);
 
 			try {
-				await db.insert(users).values({ name: 'John' });
-				const result = await db.select().from(users).for('update');
+				// DSQL requires equality predicates on the key for FOR UPDATE
+				const [inserted] = await db.insert(users).values({ name: 'John' }).returning();
+				const result = await db.select().from(users).where(eq(users.id, inserted!.id)).for('update');
 				expect(result).toHaveLength(1);
 			} finally {
 				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
