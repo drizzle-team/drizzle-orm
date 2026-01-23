@@ -6,6 +6,7 @@ export * from './expressions.ts';
 export * from './indexes.ts';
 export * from './primary-keys.ts';
 export * from './query-builders/index.ts';
+export * from './roles.ts';
 export * from './schema.ts';
 export * from './session.ts';
 export * from './subquery.ts';
