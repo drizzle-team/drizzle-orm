@@ -1160,7 +1160,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
+				id INTEGER PRIMARY KEY,
 				hash text NOT NULL,
 				created_at numeric
 			)

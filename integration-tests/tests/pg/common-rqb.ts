@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
-import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
+import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -1065,5 +1065,40 @@ export function tests(test: Test) {
 				expect(result).toStrictEqual(expectedResult);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4494
+		test.concurrent('RQB v2 find first 100 columns in table', async ({ push, createDB }) => {
+			const columns: Record<string, PgColumnBuilder<any>> = {};
+			const columnCount = 101;
+			for (let i = 0; i < columnCount; i++) {
+				columns[`col${i}`] = numeric({ precision: 20, scale: 2 });
+			}
+
+			const prices = pgTable('prices', {
+				id: integer().primaryKey(),
+				...columns,
+			});
+
+			const entity = pgTable('entity', {
+				id: serial('id').primaryKey(),
+				priceId: integer('price_id').references(() => prices.id),
+			});
+
+			await push({ prices, entity });
+			const db = createDB({ prices, entity }, (r) => ({
+				entity: {
+					price: r.one.prices({
+						from: [r.entity.priceId],
+						to: [r.prices.id],
+					}),
+				},
+			}));
+
+			const result = await db.query.entity.findFirst({
+				with: {
+					price: {},
+				},
+			});
+		});
 	});
 }
