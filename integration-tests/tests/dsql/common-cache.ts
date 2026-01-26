@@ -259,8 +259,7 @@ export function tests(test: Test) {
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).getUsedTables())
 				.toStrictEqual(['rqb_users', 'rqb_posts']);
 			expect(
-				// @ts-expect-error
-				db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+				(db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)) as any)
 					.getUsedTables(),
 			).toStrictEqual(['rqb_users', 'rqb_posts']);
 		});

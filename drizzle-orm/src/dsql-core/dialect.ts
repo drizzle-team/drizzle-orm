@@ -37,6 +37,14 @@ export interface DSQLDialectConfig {
 	casing?: Casing;
 }
 
+/**
+ * Dialect for Amazon Aurora DSQL.
+ *
+ * Note: Migrations are not supported for DSQL. DSQL only allows one DDL statement
+ * per transaction and does not support DDL and DML in the same transaction. This
+ * makes it impossible to safely apply multi-statement migrations with rollback
+ * capability.
+ */
 export class DSQLDialect {
 	static readonly [entityKind]: string = 'DSQLDialect';
 

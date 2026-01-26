@@ -16,17 +16,9 @@ import {
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/dsql-core';
-import { migrate } from 'drizzle-orm/dsql/migrator';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
 import { uniqueTableName as uniqueName } from './instrumentation';
-
-// Migrator table for migration tests (exported for use in dsql.test.ts)
-export const usersMigratorTable = dsqlTable('users12', {
-	id: uuid('id').primaryKey().defaultRandom(),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-});
 
 // Exported for dsql.test.ts compatibility
 export const usersTable = dsqlTable('users', {
@@ -2131,31 +2123,6 @@ export function tests(test: Test) {
 			// Clean up
 			for (const row of inserted) {
 				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
-			}
-		});
-
-		// Migration tests
-		test.concurrent('migrate function exists', async () => {
-			expect(migrate).toBeDefined();
-		});
-
-		test.concurrent('migrate creates migration table', async ({ db }) => {
-			const migrationsSchema = uniqueName('drizzle');
-
-			try {
-				await migrate(db, {
-					migrationsFolder: './drizzle2/dsql',
-					migrationsSchema,
-				});
-
-				await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-
-				const result = await db.select().from(usersMigratorTable);
-				expect(result.length).toBe(1);
-				expect(result[0]!.name).toBe('John');
-			} finally {
-				await db.execute(sql`drop table if exists users12 cascade`);
-				await db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade`);
 			}
 		});
 	});
