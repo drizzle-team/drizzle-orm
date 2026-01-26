@@ -31,21 +31,19 @@ export const _push = async (
 };
 
 // Create a single shared database connection (pool handles concurrency)
-let sharedDb: DSQLDatabase<any> | null = null;
-let rqbDb: DSQLDatabase<typeof schema, typeof relations> | null = null;
-let rqbTablesCreated = false;
+// Use promise-based singletons to avoid race conditions with concurrent tests
+let sharedDbPromise: Promise<DSQLDatabase<any>> | null = null;
+let rqbDbPromise: Promise<DSQLDatabase<typeof schema, typeof relations>> | null = null;
 
-async function getSharedDb(): Promise<DSQLDatabase<any>> {
-	if (sharedDb) return sharedDb;
-
+async function createSharedDb(): Promise<DSQLDatabase<any>> {
 	const clusterId = process.env['DSQL_CLUSTER_ID'];
 	if (!clusterId) {
 		throw new Error('DSQL_CLUSTER_ID environment variable is required');
 	}
 
-	sharedDb = await retry(
+	const database = await retry(
 		async () => {
-			const database = drizzle({
+			const db = drizzle({
 				connection: {
 					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
 					region: 'us-west-2',
@@ -53,8 +51,8 @@ async function getSharedDb(): Promise<DSQLDatabase<any>> {
 				logger: ENABLE_LOGGING,
 			});
 			// Test connection
-			await database.execute(sql`SELECT 1`);
-			return database;
+			await db.execute(sql`SELECT 1`);
+			return db;
 		},
 		{
 			retries: 20,
@@ -66,30 +64,35 @@ async function getSharedDb(): Promise<DSQLDatabase<any>> {
 	);
 
 	// Clean up old test schemas (DSQL has a limit of 10 schemas)
-	const schemas = await sharedDb.execute(sql`
+	const schemas = await database.execute(sql`
 		SELECT schema_name FROM information_schema.schemata
 		WHERE schema_name LIKE 'test_schema_%'
 		   OR schema_name LIKE 'schema1_%'
 		   OR schema_name LIKE 'schema2_%'
 	`);
 	for (const row of (schemas as any).rows || []) {
-		await sharedDb.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(row.schema_name)} CASCADE`);
+		await database.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(row.schema_name)} CASCADE`);
 	}
 
-	return sharedDb;
+	return database;
 }
 
-async function getRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
-	if (rqbDb) return rqbDb;
+function getSharedDb(): Promise<DSQLDatabase<any>> {
+	if (!sharedDbPromise) {
+		sharedDbPromise = createSharedDb();
+	}
+	return sharedDbPromise;
+}
 
+async function createRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
 	const clusterId = process.env['DSQL_CLUSTER_ID'];
 	if (!clusterId) {
 		throw new Error('DSQL_CLUSTER_ID environment variable is required');
 	}
 
-	rqbDb = await retry(
+	const database = await retry(
 		async () => {
-			const database = drizzle({
+			const db = drizzle({
 				connection: {
 					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
 					region: 'us-west-2',
@@ -98,8 +101,8 @@ async function getRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>
 				logger: ENABLE_LOGGING,
 			});
 			// Test connection
-			await database.execute(sql`SELECT 1`);
-			return database;
+			await db.execute(sql`SELECT 1`);
+			return db;
 		},
 		{
 			retries: 20,
@@ -110,54 +113,58 @@ async function getRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>
 		},
 	);
 
-	// Create RQB tables if not already created
-	if (!rqbTablesCreated) {
-		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_users_to_groups CASCADE`);
-		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_comments CASCADE`);
-		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_posts CASCADE`);
-		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_groups CASCADE`);
-		await rqbDb.execute(sql`DROP TABLE IF EXISTS rqb_users CASCADE`);
+	// Create RQB tables
+	await database.execute(sql`DROP TABLE IF EXISTS rqb_users_to_groups CASCADE`);
+	await database.execute(sql`DROP TABLE IF EXISTS rqb_comments CASCADE`);
+	await database.execute(sql`DROP TABLE IF EXISTS rqb_posts CASCADE`);
+	await database.execute(sql`DROP TABLE IF EXISTS rqb_groups CASCADE`);
+	await database.execute(sql`DROP TABLE IF EXISTS rqb_users CASCADE`);
 
-		await rqbDb.execute(sql`
-			CREATE TABLE rqb_users (
-				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-				name text NOT NULL,
-				email text,
-				invited_by uuid
-			)
-		`);
-		await rqbDb.execute(sql`
-			CREATE TABLE rqb_posts (
-				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-				content text NOT NULL,
-				owner_id uuid NOT NULL
-			)
-		`);
-		await rqbDb.execute(sql`
-			CREATE TABLE rqb_comments (
-				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-				text text NOT NULL,
-				post_id uuid NOT NULL,
-				author_id uuid NOT NULL
-			)
-		`);
-		await rqbDb.execute(sql`
-			CREATE TABLE rqb_groups (
-				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-				name text NOT NULL
-			)
-		`);
-		await rqbDb.execute(sql`
-			CREATE TABLE rqb_users_to_groups (
-				user_id uuid NOT NULL,
-				group_id uuid NOT NULL,
-				PRIMARY KEY (user_id, group_id)
-			)
-		`);
-		rqbTablesCreated = true;
+	await database.execute(sql`
+		CREATE TABLE rqb_users (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			name text NOT NULL,
+			email text,
+			invited_by uuid
+		)
+	`);
+	await database.execute(sql`
+		CREATE TABLE rqb_posts (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			content text NOT NULL,
+			owner_id uuid NOT NULL
+		)
+	`);
+	await database.execute(sql`
+		CREATE TABLE rqb_comments (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			text text NOT NULL,
+			post_id uuid NOT NULL,
+			author_id uuid NOT NULL
+		)
+	`);
+	await database.execute(sql`
+		CREATE TABLE rqb_groups (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			name text NOT NULL
+		)
+	`);
+	await database.execute(sql`
+		CREATE TABLE rqb_users_to_groups (
+			user_id uuid NOT NULL,
+			group_id uuid NOT NULL,
+			PRIMARY KEY (user_id, group_id)
+		)
+	`);
+
+	return database;
+}
+
+function getRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
+	if (!rqbDbPromise) {
+		rqbDbPromise = createRqbDb();
 	}
-
-	return rqbDb;
+	return rqbDbPromise;
 }
 
 export { relations, schema };

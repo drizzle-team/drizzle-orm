@@ -232,9 +232,26 @@ export class DSQLDriverSession<
 		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: { accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
+		// Check if client is a pool by looking for connect method
+		const isPool = this.client && typeof (this.client as any).connect === 'function';
+
+		// For pools, get a dedicated client for the transaction
+		const dedicatedClient = isPool ? await (this.client as any).connect() : null;
+		const transactionClient = dedicatedClient || this.client;
+
+		// Create a session with the dedicated client for the transaction
+		const session = dedicatedClient
+			? new DSQLDriverSession(
+				transactionClient,
+				this.dialect,
+				this.relations,
+				this.schema,
+				this.options,
+			)
+			: this;
+
 		// Wrap entire transaction in retry logic for OCC errors
 		return withRetry(async () => {
-			const session = this;
 			const tx = new DSQLTransaction(
 				this.dialect,
 				session,
@@ -259,6 +276,11 @@ export class DSQLDriverSession<
 					throw error;
 				}
 				throw error;
+			}
+		}).finally(() => {
+			// Release the dedicated client back to the pool
+			if (dedicatedClient && typeof dedicatedClient.release === 'function') {
+				dedicatedClient.release();
 			}
 		});
 	}

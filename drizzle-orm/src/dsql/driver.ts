@@ -17,7 +17,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import type { DSQLRelationalQueryBuilder } from './query-builder.ts';
+import { DSQLRelationalQueryBuilder } from './query-builder.ts';
 import type { DSQLRelationalQueryHKT } from './query.ts';
 import type { DSQLClient, DSQLTransaction } from './session.ts';
 import { DSQLDriverSession } from './session.ts';

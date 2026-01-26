@@ -1278,7 +1278,7 @@ export function tests(test: Test) {
 
 				const orderTotals = db.select({
 					userId: orders.userId,
-					totalSum: sql<number>`sum(${orders.total})`.as('total_sum'),
+					totalSum: sql<number>`sum(${orders.total})::integer`.as('total_sum'),
 				}).from(orders).groupBy(orders.userId).as('order_totals');
 
 				const result = await db.select({
@@ -1795,92 +1795,132 @@ export function tests(test: Test) {
 		});
 
 		// RQB (Relational Query Builder) tests using proper schema and relations setup
-		test.concurrent('rqb: findFirst', async ({ rqbDb }) => {
+		// Each test uses uniqueName to create unique data prefixes to avoid conflicts
+		test.concurrent('rqb: findFirst', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			const result = await rqbDb.query.usersTable.findFirst();
+			const inserted = await rqbDb.insert(usersTable).values([
+				{ name: `${prefix}_John` },
+				{ name: `${prefix}_Jane` },
+			]).returning();
+
+			const result = await rqbDb.query.usersTable.findFirst({
+				where: { name: { like: `${prefix}_%` } },
+			});
 			expect(result).toBeDefined();
-			expect(result?.name).toBeDefined();
+			expect(result?.name).toContain(prefix);
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
-		test.concurrent('rqb: findMany', async ({ rqbDb }) => {
+		test.concurrent('rqb: findMany', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
-			const result = await rqbDb.query.usersTable.findMany();
+			const inserted = await rqbDb.insert(usersTable).values([
+				{ name: `${prefix}_John` },
+				{ name: `${prefix}_Jane` },
+			]).returning();
+
+			const result = await rqbDb.query.usersTable.findMany({
+				where: { name: { like: `${prefix}_%` } },
+			});
 			expect(result).toHaveLength(2);
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
-		test.concurrent('rqb: findFirst with where', async ({ rqbDb }) => {
+		test.concurrent('rqb: findFirst with where', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
+			const inserted = await rqbDb.insert(usersTable).values([
+				{ name: `${prefix}_John` },
+				{ name: `${prefix}_Jane` },
+			]).returning();
+
 			const result = await rqbDb.query.usersTable.findFirst({
-				where: eq(usersTable.name, 'Jane'),
+				where: { name: `${prefix}_Jane` },
 			});
-			expect(result?.name).toBe('Jane');
+			expect(result?.name).toBe(`${prefix}_Jane`);
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
-		test.concurrent('rqb: findMany with orderBy', async ({ rqbDb }) => {
+		test.concurrent('rqb: findMany with orderBy', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+			const inserted = await rqbDb.insert(usersTable).values([
+				{ name: `${prefix}_C_John` },
+				{ name: `${prefix}_B_Jane` },
+				{ name: `${prefix}_A_Alice` },
+			]).returning();
+
 			const result = await rqbDb.query.usersTable.findMany({
-				orderBy: asc(usersTable.name),
+				where: { name: { like: `${prefix}_%` } },
+				orderBy: { name: 'asc' },
 			});
-			expect(result[0]?.name).toBe('Alice');
+			expect(result[0]?.name).toBe(`${prefix}_A_Alice`);
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
-		test.concurrent('rqb: findMany with limit', async ({ rqbDb }) => {
+		test.concurrent('rqb: findMany with limit', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Alice' }]);
+			const inserted = await rqbDb.insert(usersTable).values([
+				{ name: `${prefix}_John` },
+				{ name: `${prefix}_Jane` },
+				{ name: `${prefix}_Alice` },
+			]).returning();
+
 			const result = await rqbDb.query.usersTable.findMany({
+				where: { name: { like: `${prefix}_%` } },
 				limit: 2,
 			});
 			expect(result).toHaveLength(2);
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
-		test.concurrent('rqb: findFirst with columns selection', async ({ rqbDb }) => {
+		test.concurrent('rqb: findFirst with columns selection', async ({ rqbDb, uniqueName }) => {
 			const { usersTable } = await import('./dsql.schema');
-			// Clean up before test
-			await rqbDb.delete(usersTable);
+			const prefix = uniqueName('rqb');
 
-			await rqbDb.insert(usersTable).values({ name: 'John', email: 'john@example.com' });
+			const inserted = await rqbDb.insert(usersTable).values({
+				name: `${prefix}_John`,
+				email: `${prefix}@example.com`,
+			}).returning();
+
 			const result = await rqbDb.query.usersTable.findFirst({
+				where: { name: `${prefix}_John` },
 				columns: { name: true },
 			});
 			expect(result).toHaveProperty('name');
 			expect(result).not.toHaveProperty('email');
 
-			// Clean up after test
-			await rqbDb.delete(usersTable);
+			// Clean up
+			for (const row of inserted) {
+				await rqbDb.delete(usersTable).where(eq(usersTable.id, row.id));
+			}
 		});
 
 		// Migration tests
