@@ -19,7 +19,7 @@ export class DSQLCharBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLChar {
-		throw new Error('Method not implemented.');
+		return new DSQLChar(table, { ...this.config, length: this.charConfig.length } as any);
 	}
 }
 

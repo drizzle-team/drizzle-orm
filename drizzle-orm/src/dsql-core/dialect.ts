@@ -3,7 +3,6 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type AnyOne,
 	type BuildRelationalQueryResult,
@@ -31,7 +30,6 @@ import type { DSQLDeleteConfig } from './query-builders/delete.ts';
 import type { DSQLInsertConfig } from './query-builders/insert.ts';
 import type { DSQLSelectConfig, DSQLSelectJoinConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
 import type { DSQLUpdateConfig } from './query-builders/update.ts';
-import type { DSQLSession } from './session.ts';
 import { DSQLTable } from './table.ts';
 import { DSQLViewBase } from './view-base.ts';
 
@@ -47,14 +45,6 @@ export class DSQLDialect {
 
 	constructor(config?: DSQLDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
-	}
-
-	async migrate(
-		_migrations: MigrationMeta[],
-		_session: DSQLSession,
-		_config: Omit<MigrationConfig, 'migrationsSchema'>,
-	): Promise<void> {
-		throw new Error('Method not implemented.');
 	}
 
 	escapeName(name: string): string {

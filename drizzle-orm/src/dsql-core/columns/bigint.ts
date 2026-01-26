@@ -15,7 +15,7 @@ export class DSQLBigIntBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLBigInt {
-		throw new Error('Method not implemented.');
+		return new DSQLBigInt(table, this.config as any);
 	}
 }
 
@@ -26,8 +26,9 @@ export class DSQLBigInt extends DSQLColumn<'bigint'> {
 		return 'bigint';
 	}
 
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
 	override mapFromDriverValue(value: string): bigint {
-		throw new Error('Method not implemented.');
+		return BigInt(value);
 	}
 }
 

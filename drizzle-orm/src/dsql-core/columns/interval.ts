@@ -15,7 +15,7 @@ export class DSQLIntervalBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLInterval {
-		throw new Error('Method not implemented.');
+		return new DSQLInterval(table, this.config as any);
 	}
 }
 

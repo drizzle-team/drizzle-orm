@@ -15,7 +15,7 @@ export class DSQLByteaBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLBytea {
-		throw new Error('Method not implemented.');
+		return new DSQLBytea(table, this.config as any);
 	}
 }
 

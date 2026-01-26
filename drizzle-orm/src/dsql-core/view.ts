@@ -1,10 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
 import type { AnyDSQLColumnBuilder, DSQLBuildColumns, DSQLColumn } from './columns/common.ts';
+import { QueryBuilder } from './query-builders/query-builder.ts';
 import { dsqlTable } from './table.ts';
 import { DSQLViewBase } from './view-base.ts';
 import { DSQLViewConfig } from './view-common.ts';
@@ -42,9 +44,30 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 	static override readonly [entityKind]: string = 'DSQLViewBuilder';
 
 	as<TSelectedFields extends ColumnsSelection>(
-		_qb: TypedQueryBuilder<TSelectedFields> | ((_qb: any) => TypedQueryBuilder<TSelectedFields>),
+		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): DSQLViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>> {
-		throw new Error('Method not implemented.');
+		if (typeof qb === 'function') {
+			qb = qb(new QueryBuilder());
+		}
+		const selectionProxy = new SelectionProxyHandler<TSelectedFields>({
+			alias: this.name,
+			sqlBehavior: 'error',
+			sqlAliasedBehavior: 'alias',
+			replaceOriginalName: true,
+		});
+		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
+		return new Proxy(
+			new DSQLView({
+				dsqlConfig: this.config,
+				config: {
+					name: this.name,
+					schema: this.schema,
+					selectedFields: aliasedSelection,
+					query: qb.getSQL().inlineParams(),
+				},
+			}),
+			selectionProxy as any,
+		) as DSQLViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>>;
 	}
 }
 

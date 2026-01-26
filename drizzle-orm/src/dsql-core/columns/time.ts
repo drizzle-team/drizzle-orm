@@ -20,7 +20,10 @@ export class DSQLTimeBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLTime {
-		throw new Error('Method not implemented.');
+		return new DSQLTime(
+			table,
+			{ ...this.config, precision: this.timeConfig.precision, withTimezone: this.timeConfig.withTimezone } as any,
+		);
 	}
 }
 

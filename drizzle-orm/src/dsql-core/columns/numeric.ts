@@ -20,7 +20,10 @@ export class DSQLNumericBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLNumeric {
-		throw new Error('Method not implemented.');
+		return new DSQLNumeric(
+			table,
+			{ ...this.config, precision: this.numericConfig.precision, scale: this.numericConfig.scale } as any,
+		);
 	}
 }
 

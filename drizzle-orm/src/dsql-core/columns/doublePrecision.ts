@@ -15,7 +15,7 @@ export class DSQLDoublePrecisionBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLDoublePrecision {
-		throw new Error('Method not implemented.');
+		return new DSQLDoublePrecision(table, this.config as any);
 	}
 }
 
@@ -27,7 +27,10 @@ export class DSQLDoublePrecision extends DSQLColumn<'number double'> {
 	}
 
 	override mapFromDriverValue(value: string | number): number {
-		throw new Error('Method not implemented.');
+		if (typeof value === 'string') {
+			return Number.parseFloat(value);
+		}
+		return value;
 	}
 }
 

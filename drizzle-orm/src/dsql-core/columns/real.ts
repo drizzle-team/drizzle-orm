@@ -15,7 +15,7 @@ export class DSQLRealBuilder extends DSQLColumnBuilder<{
 
 	/** @internal */
 	override build(table: DSQLTable): DSQLReal {
-		throw new Error('Method not implemented.');
+		return new DSQLReal(table, this.config as any);
 	}
 }
 
@@ -27,7 +27,10 @@ export class DSQLReal extends DSQLColumn<'number float'> {
 	}
 
 	override mapFromDriverValue(value: string | number): number {
-		throw new Error('Method not implemented.');
+		if (typeof value === 'string') {
+			return Number.parseFloat(value);
+		}
+		return value;
 	}
 }
 
