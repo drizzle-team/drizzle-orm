@@ -42,6 +42,9 @@ export class DSQLDatabase<
 		>;
 	};
 
+	/** Cache instance for invalidation operations */
+	$cache: { invalidate: Cache['onMutate'] };
+
 	constructor(
 		readonly dialect: DSQLDialect,
 		readonly session: DSQLDriverSession<TSchema, TRelations, any>,
@@ -59,6 +62,8 @@ export class DSQLDatabase<
 				false,
 			);
 		}
+		// Initialize cache with a no-op invalidate function
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**

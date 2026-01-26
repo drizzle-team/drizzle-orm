@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/dsql';
 import { boolean, dsqlTable, text, timestamp, uuid } from 'drizzle-orm/dsql-core';
 import { afterAll, beforeAll, describe, expect } from 'vitest';
 import { tests, usersTable } from './common';
+import { tests as cacheTests } from './common-cache';
 import { dsqlTest } from './instrumentation';
 
 const ENABLE_LOGGING = false;
@@ -48,6 +49,9 @@ afterAll(async () => {
 
 // Run common tests with the dsqlTest fixture
 tests(dsqlTest);
+
+// Run cache tests
+cacheTests(dsqlTest);
 
 // DSQL-specific tests
 describe('dsql-specific', () => {

@@ -1,3 +1,5 @@
+import type { CacheConfig } from '~/cache/core/types.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
@@ -15,6 +17,43 @@ import type { SubqueryWithSelection } from '../subquery.ts';
 import type { DSQLTable } from '../table.ts';
 import { DSQLViewBase } from '../view-base.ts';
 import type { DSQLSelectConfig, DSQLSelectJoinConfig } from './select.types.ts';
+
+// Helper function to extract table names from a table-like source
+function extractUsedTable(table: DSQLTable | Subquery | DSQLViewBase | SQL): string[] {
+	if (is(table, Table)) {
+		// Use OriginalName for aliased tables to get the actual table name
+		const tableName = table[Table.Symbol.IsAlias]
+			? table[Table.Symbol.OriginalName]
+			: table[Table.Symbol.Name];
+		return [tableName];
+	}
+
+	if (is(table, Subquery)) {
+		return table._.usedTables ?? [];
+	}
+
+	if (is(table, DSQLViewBase)) {
+		return [table[ViewBaseConfig].name];
+	}
+
+	if (is(table, SQL)) {
+		return table.queryChunks.reduce<string[]>((acc, chunk) => {
+			if (typeof chunk === 'object' && chunk !== null && 'usedTables' in chunk) {
+				acc.push(...(chunk.usedTables as string[]));
+			}
+			if (is(chunk, Table)) {
+				// Use OriginalName for aliased tables
+				const tableName = chunk[Table.Symbol.IsAlias]
+					? chunk[Table.Symbol.OriginalName]
+					: chunk[Table.Symbol.Name];
+				acc.push(tableName);
+			}
+			return acc;
+		}, []);
+	}
+
+	return [];
+}
 
 export interface SelectedFields {
 	[key: string]: unknown;
@@ -103,6 +142,8 @@ export abstract class DSQLSelectQueryBuilderBase<
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
 	protected joinsNotNullableMap: Record<string, boolean>;
+	protected cacheConfig?: WithCacheConfig;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(config: {
 		table: DSQLSelectConfig['table'];
@@ -126,6 +167,10 @@ export abstract class DSQLSelectQueryBuilderBase<
 		this.dialect = config.dialect;
 		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		// Track used tables for cache invalidation
+		for (const table of extractUsedTable(config.table)) {
+			this.usedTables.add(table);
+		}
 	}
 
 	// Join methods
@@ -167,6 +212,11 @@ export abstract class DSQLSelectQueryBuilderBase<
 				joinType: joinType === 'cross' ? 'inner' : joinType,
 				alias: tableName,
 			} as DSQLSelectJoinConfig);
+
+			// Track joined tables for cache invalidation
+			for (const usedTable of extractUsedTable(table)) {
+				this.usedTables.add(usedTable);
+			}
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -312,7 +362,7 @@ export abstract class DSQLSelectQueryBuilderBase<
 		alias: TAlias,
 	): SubqueryWithSelection<TSelection & ColumnsSelection, TAlias> {
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields as ColumnsSelection, alias),
+			new Subquery(this.getSQL(), this.config.fields as ColumnsSelection, alias, false, this.getUsedTables()),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<TSelection & ColumnsSelection, TAlias>;
 	}
@@ -335,6 +385,24 @@ export abstract class DSQLSelectQueryBuilderBase<
 	$dynamic(): this {
 		return this;
 	}
+
+	/**
+	 * Enables caching for this query with optional configuration.
+	 * @param config - Cache configuration options, or `false` to disable caching
+	 */
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false): this {
+		this.cacheConfig = config === undefined
+			? { config: {}, enabled: true, autoInvalidate: true }
+			: config === false
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
+		return this;
+	}
+
+	/** @internal */
+	getUsedTables(): string[] {
+		return [...this.usedTables];
+	}
 }
 
 // Interface for declaration merging - allows DSQLSelectBase to "extend" both
@@ -355,7 +423,7 @@ export class DSQLSelectBase<
 	static override readonly [entityKind]: string = 'DSQLSelect';
 
 	private _prepare(name?: string) {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -365,6 +433,12 @@ export class DSQLSelectBase<
 			fieldsList,
 			name,
 			true,
+			undefined,
+			{
+				type: 'select',
+				tables: [...usedTables],
+			},
+			cacheConfig,
 		);
 		query.joinsNotNullableMap = joinsNotNullableMap;
 		return query;

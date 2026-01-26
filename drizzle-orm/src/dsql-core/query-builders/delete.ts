@@ -76,6 +76,11 @@ export class DSQLDeleteBase<
 			this.config.returning,
 			name,
 			true,
+			undefined,
+			{
+				type: 'delete',
+				tables: [this.config.table[Table.Symbol.Name]],
+			},
 		);
 	}
 

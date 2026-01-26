@@ -135,6 +135,11 @@ export class DSQLInsertBase<
 			this.config.returning,
 			name,
 			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: [this.config.table[Table.Symbol.Name]],
+			},
 		);
 	}
 

@@ -1,5 +1,5 @@
 import type * as V1 from '~/_relations.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { DSQLDialect } from '~/dsql-core/dialect.ts';
 import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
@@ -15,11 +15,12 @@ import {
 } from '~/dsql-core/session.ts';
 import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQLWrapper } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { assertUnreachable, type Assume, mapResultRow } from '~/utils.ts';
 
 // DSQL client type - could be AWS SDK client or pg-compatible client
 export type DSQLClient = unknown;
@@ -67,6 +68,13 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 {
 	static override readonly [entityKind]: string = 'DSQLPreparedQuery';
 
+	private cache: Cache | undefined;
+	private queryMetadata: {
+		type: 'select' | 'update' | 'delete' | 'insert';
+		tables: string[];
+	} | undefined;
+	private cacheConfig: WithCacheConfig | undefined;
+
 	constructor(
 		private client: DSQLClient,
 		private queryString: string,
@@ -87,6 +95,18 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super({ sql: queryString, params });
+		this.cache = cache;
+		this.queryMetadata = queryMetadata;
+		// Enable caching by default when cache strategy is 'all'
+		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
+			this.cacheConfig = { enabled: true, autoInvalidate: true };
+		} else {
+			this.cacheConfig = cacheConfig;
+		}
+		// Disable caching if explicitly disabled
+		if (!this.cacheConfig?.enabled) {
+			this.cacheConfig = undefined;
+		}
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -95,12 +115,16 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 		const { fields, customResultMapper, isRqbV2Query } = this;
 
-		// If no fields and no custom mapper, return raw result with retry
+		// If no fields and no custom mapper, return raw result with retry and caching
 		if (!fields && !customResultMapper) {
-			return withRetry(() => (this.client as any).query(this.queryString, params));
+			return this.queryWithCache(
+				this.queryString,
+				params,
+				() => withRetry(() => (this.client as any).query(this.queryString, params)),
+			);
 		}
 
-		// For RQB v2 queries, use object mode with retry
+		// For RQB v2 queries, use object mode with retry (no caching for relational queries)
 		if (isRqbV2Query) {
 			const result = await withRetry<{ rows: Record<string, unknown>[] }>(
 				() => (this.client as any).query(this.queryString, params),
@@ -108,15 +132,16 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 		}
 
-		// Use array mode for select queries with fields, with retry
-		const result = await withRetry<{ rows: unknown[][] }>(
-			() =>
-				(this.client as any).query({
-					text: this.queryString,
-					values: params,
-					rowMode: 'array',
-				}),
-		);
+		// Use array mode for select queries with fields, with retry and caching
+		const result = await this.queryWithCache(this.queryString, params, () =>
+			withRetry<{ rows: unknown[][] }>(
+				() =>
+					(this.client as any).query({
+						text: this.queryString,
+						values: params,
+						rowMode: 'array',
+					}),
+			));
 
 		return customResultMapper
 			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
@@ -126,7 +151,11 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.queryString, params);
-		return withRetry(() => (this.client as any).query(this.queryString, params)).then((result: any) => result.rows);
+		return this.queryWithCache(
+			this.queryString,
+			params,
+			() => withRetry(() => (this.client as any).query(this.queryString, params)),
+		).then((result: any) => result.rows);
 	}
 
 	/** @internal */
@@ -135,12 +164,63 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	}
 
 	/** @internal */
-	protected queryWithCache(
-		_queryString: string,
-		_params: any[],
-		_query: unknown,
-	): unknown {
-		throw new Error('Method not implemented.');
+	protected async queryWithCache<TResult>(
+		queryString: string,
+		params: any[],
+		query: () => Promise<TResult>,
+	): Promise<TResult> {
+		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
+			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
+			: { type: 'skip' as const };
+
+		if (cacheStrat.type === 'skip') {
+			return query().catch((e) => {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			});
+		}
+
+		const cache = this.cache!;
+
+		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
+		if (cacheStrat.type === 'invalidate') {
+			return Promise.all([
+				query(),
+				cache.onMutate({ tables: cacheStrat.tables }),
+			]).then((res) => res[0]).catch((e) => {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			});
+		}
+
+		if (cacheStrat.type === 'try') {
+			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+			const fromCache = await cache.get(
+				key,
+				tables,
+				isTag,
+				autoInvalidate,
+			);
+
+			if (fromCache === undefined) {
+				const result = await query().catch((e) => {
+					throw new DrizzleQueryError(queryString, params, e as Error);
+				});
+				// put actual key
+				await cache.put(
+					key,
+					result,
+					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
+					autoInvalidate ? tables : [],
+					isTag,
+					config,
+				);
+				// put flag if we should invalidate or not
+				return result;
+			}
+
+			return fromCache as unknown as TResult;
+		}
+
+		assertUnreachable(cacheStrat);
 	}
 }
 

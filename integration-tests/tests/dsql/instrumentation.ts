@@ -1,12 +1,80 @@
 import retry from 'async-retry';
-import { sql } from 'drizzle-orm';
+import { getTableName, is, sql, Table } from 'drizzle-orm';
+import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
+import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import { drizzle } from 'drizzle-orm/dsql';
+import Keyv from 'keyv';
 import { test as base } from 'vitest';
 import relations from './dsql.relations';
 import * as schema from './dsql.schema';
 
 const ENABLE_LOGGING = false;
+
+// Test cache implementation for cache behavior tests
+// oxlint-disable-next-line drizzle-internal/require-entity-kind
+export class TestCache extends Cache {
+	private globalTtl: number = 1000;
+	private usedTablesPerKey: Record<string, string[]> = {};
+
+	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
+		super();
+	}
+
+	override strategy() {
+		return this.strat;
+	}
+
+	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
+		const res = await this.kv.get(key) ?? undefined;
+		return res;
+	}
+
+	override async put(
+		key: string,
+		response: any,
+		tables: string[],
+		isTag: boolean,
+		config?: CacheConfig,
+	): Promise<void> {
+		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
+		for (const table of tables) {
+			const keys = this.usedTablesPerKey[table];
+			if (keys === undefined) {
+				this.usedTablesPerKey[table] = [key];
+			} else {
+				keys.push(key);
+			}
+		}
+	}
+
+	override async onMutate(params: MutationOption): Promise<void> {
+		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
+		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
+
+		const keysToDelete = new Set<string>();
+
+		for (const table of tablesArray) {
+			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const keys = this.usedTablesPerKey[tableName] ?? [];
+			for (const key of keys) keysToDelete.add(key);
+		}
+
+		if (keysToDelete.size > 0 || tagsArray.length > 0) {
+			for (const tag of tagsArray) {
+				await this.kv.delete(tag);
+			}
+
+			for (const key of keysToDelete) {
+				await this.kv.delete(key);
+				for (const table of tablesArray) {
+					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					this.usedTablesPerKey[tableName] = [];
+				}
+			}
+		}
+	}
+}
 
 // Counter for unique table names - use random to avoid concurrent test conflicts
 let tableCounter = 0;
@@ -175,6 +243,10 @@ export type DSQLTestContext = {
 	uniqueName: (base: string) => string;
 	createTable: (tableName: string, ddl: string) => Promise<void>;
 	dropTable: (tableName: string) => Promise<void>;
+	caches: {
+		all: DSQLDatabase<any>;
+		explicit: DSQLDatabase<any>;
+	};
 };
 
 export const dsqlTest = base.extend<DSQLTestContext>({
@@ -217,6 +289,49 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 				await db.execute(sql.raw(`drop table if exists "${tableName}" cascade`));
 			};
 			await use(dropTable);
+		},
+		{ scope: 'test' },
+	],
+	caches: [
+		// eslint-disable-next-line no-empty-pattern
+		async ({}, use) => {
+			const clusterId = process.env['DSQL_CLUSTER_ID'];
+			if (!clusterId) {
+				throw new Error('DSQL_CLUSTER_ID environment variable is required');
+			}
+
+			const connectionConfig = {
+				endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
+				region: 'us-west-2',
+			};
+
+			const allDb = await retry(
+				async () => {
+					const db = drizzle({
+						connection: connectionConfig,
+						logger: ENABLE_LOGGING,
+						cache: new TestCache('all'),
+					});
+					await db.execute(sql`SELECT 1`);
+					return db;
+				},
+				{ retries: 20, factor: 1, minTimeout: 250, maxTimeout: 250, randomize: false },
+			);
+
+			const explicitDb = await retry(
+				async () => {
+					const db = drizzle({
+						connection: connectionConfig,
+						logger: ENABLE_LOGGING,
+						cache: new TestCache('explicit'),
+					});
+					await db.execute(sql`SELECT 1`);
+					return db;
+				},
+				{ retries: 20, factor: 1, minTimeout: 250, maxTimeout: 250, randomize: false },
+			);
+
+			await use({ all: allDb, explicit: explicitDb });
 		},
 		{ scope: 'test' },
 	],

@@ -99,6 +99,11 @@ export class DSQLUpdateBase<
 			this.config.returning,
 			name,
 			true,
+			undefined,
+			{
+				type: 'update',
+				tables: [this.config.table[Table.Symbol.Name]],
+			},
 		);
 	}
 
