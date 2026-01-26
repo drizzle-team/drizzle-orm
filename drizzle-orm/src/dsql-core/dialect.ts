@@ -494,7 +494,9 @@ export class DSQLDialect {
 		selection: BuildRelationalQueryResult['selection'],
 		params: DBQueryConfig<'many'> | undefined,
 	): SQL | undefined {
-		const tableConfig = table[Table.Symbol.Columns] ?? table[ViewBaseConfig]?.selectedFields;
+		const tableConfig = is(table, DSQLTable)
+			? table[Table.Symbol.Columns]
+			: table[ViewBaseConfig]?.selectedFields;
 		if (!tableConfig) return undefined;
 
 		let columns: Record<string, Column> | undefined;

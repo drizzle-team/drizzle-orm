@@ -1364,6 +1364,216 @@ export function tests(test: Test) {
 			}
 		});
 
+		// Select distinct tests
+		test.concurrent('select distinct', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John' },
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+				const result = await db.selectDistinct({ name: users.name }).from(users).orderBy(users.name);
+				expect(result).toHaveLength(2);
+				expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select distinct on', async ({ db }) => {
+			const tableName = uniqueName('products');
+			const products = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				category: text('category').notNull(),
+				name: text('name').notNull(),
+				price: integer('price').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					category text not null,
+					name text not null,
+					price integer not null
+				)
+			`);
+
+			try {
+				await db.insert(products).values([
+					{ category: 'Electronics', name: 'Phone', price: 500 },
+					{ category: 'Electronics', name: 'Laptop', price: 1000 },
+					{ category: 'Clothing', name: 'Shirt', price: 50 },
+					{ category: 'Clothing', name: 'Pants', price: 75 },
+				]);
+
+				// Get the first product in each category (ordered by price ascending)
+				const result = await db
+					.selectDistinctOn([products.category], {
+						category: products.category,
+						name: products.name,
+						price: products.price,
+					})
+					.from(products)
+					.orderBy(products.category, products.price);
+
+				expect(result).toHaveLength(2);
+				// Should get the cheapest item from each category
+				expect(result).toContainEqual({ category: 'Clothing', name: 'Shirt', price: 50 });
+				expect(result).toContainEqual({ category: 'Electronics', name: 'Phone', price: 500 });
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select distinct on without fields', async ({ db }) => {
+			const tableName = uniqueName('products');
+			const products = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				category: text('category').notNull(),
+				name: text('name').notNull(),
+				price: integer('price').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					category text not null,
+					name text not null,
+					price integer not null
+				)
+			`);
+
+			try {
+				await db.insert(products).values([
+					{ category: 'Electronics', name: 'Phone', price: 500 },
+					{ category: 'Electronics', name: 'Laptop', price: 1000 },
+					{ category: 'Clothing', name: 'Shirt', price: 50 },
+				]);
+
+				// Select all columns but distinct on category
+				const result = await db
+					.selectDistinctOn([products.category])
+					.from(products)
+					.orderBy(products.category, products.price);
+
+				expect(result).toHaveLength(2);
+				expect(result.every((r) => r.id !== undefined)).toBe(true);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select distinct sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.selectDistinct().from(users).toSQL();
+			expect(query.sql).toMatch(/select distinct/i);
+		});
+
+		test.concurrent('select distinct on sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.selectDistinctOn([users.name]).from(users).toSQL();
+			expect(query.sql).toMatch(/select distinct on/i);
+		});
+
+		test.concurrent('select distinct with CTE', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John' },
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+				const usersCte = db.$with('users_cte').as(
+					db.select({ name: users.name }).from(users),
+				);
+
+				const result = await db.with(usersCte).selectDistinct().from(usersCte).orderBy(usersCte['name']);
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('select distinct on with CTE', async ({ db }) => {
+			const tableName = uniqueName('products');
+			const products = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				category: text('category').notNull(),
+				name: text('name').notNull(),
+				price: integer('price').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					category text not null,
+					name text not null,
+					price integer not null
+				)
+			`);
+
+			try {
+				await db.insert(products).values([
+					{ category: 'Electronics', name: 'Phone', price: 500 },
+					{ category: 'Electronics', name: 'Laptop', price: 1000 },
+					{ category: 'Clothing', name: 'Shirt', price: 50 },
+				]);
+
+				const productsCte = db.$with('products_cte').as(
+					db.select({
+						category: products.category,
+						name: products.name,
+						price: products.price,
+					}).from(products),
+				);
+
+				const result = await db
+					.with(productsCte)
+					.selectDistinctOn([productsCte['category']])
+					.from(productsCte)
+					.orderBy(productsCte['category'], productsCte['price']);
+
+				expect(result).toHaveLength(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
 		// Set operations tests
 		test.concurrent('union', async ({ db }) => {
 			const tableName1 = uniqueName('users');

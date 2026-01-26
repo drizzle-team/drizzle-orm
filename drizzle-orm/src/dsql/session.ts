@@ -202,7 +202,10 @@ export class DSQLDriverSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper?: (
+			rows: Record<string, unknown>[],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => T['execute'],
 	): DSQLBasePreparedQuery {
 		return new DSQLPreparedQuery(
 			this.client,

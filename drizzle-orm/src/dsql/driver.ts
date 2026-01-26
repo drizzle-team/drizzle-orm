@@ -1,6 +1,7 @@
 import type { QueryResult } from 'pg';
 import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
+import type { DSQLColumn } from '~/dsql-core/columns/common.ts';
 import { DSQLDialect } from '~/dsql-core/dialect.ts';
 import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
 import { DSQLInsertBuilder } from '~/dsql-core/query-builders/insert.ts';
@@ -114,7 +115,39 @@ export class DSQLDatabase<
 			}) as any;
 		}
 
-		return { select };
+		function selectDistinct(): DSQLSelectBuilder<undefined>;
+		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): DSQLSelectBuilder<TSelection | undefined> {
+			return new DSQLSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: true,
+			}) as any;
+		}
+
+		function selectDistinctOn(on: (DSQLColumn | SQLWrapper)[]): DSQLSelectBuilder<undefined>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (DSQLColumn | SQLWrapper)[],
+			fields: TSelection,
+		): DSQLSelectBuilder<TSelection>;
+		function selectDistinctOn<TSelection extends SelectedFields>(
+			on: (DSQLColumn | SQLWrapper)[],
+			fields?: TSelection,
+		): DSQLSelectBuilder<TSelection | undefined> {
+			return new DSQLSelectBuilder({
+				fields: fields ?? undefined,
+				session: self.session,
+				dialect: self.dialect,
+				withList: queries,
+				distinct: { on },
+			}) as any;
+		}
+
+		return { select, selectDistinct, selectDistinctOn };
 	}
 
 	select(): DSQLSelectBuilder<undefined>;
@@ -124,6 +157,82 @@ export class DSQLDatabase<
 			fields: fields as SelectedFields,
 			session: this.session,
 			dialect: this.dialect,
+		});
+	}
+
+	/**
+	 * Adds `distinct` expression to the select query.
+	 *
+	 * Calling this method will return only unique values. When multiple columns are selected,
+	 * it returns rows with unique combinations of values in these columns.
+	 *
+	 * Use `.from()` method to specify which table to select from.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+	 *
+	 * @example
+	 * ```ts
+	 * // Select all unique rows from the 'cars' table
+	 * await db.selectDistinct()
+	 *   .from(cars)
+	 *   .orderBy(cars.id, cars.brand, cars.color);
+	 *
+	 * // Select all unique brands from the 'cars' table
+	 * await db.selectDistinct({ brand: cars.brand })
+	 *   .from(cars)
+	 *   .orderBy(cars.brand);
+	 * ```
+	 */
+	selectDistinct(): DSQLSelectBuilder<undefined>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): DSQLSelectBuilder<TSelection>;
+	selectDistinct(fields?: SelectedFields): DSQLSelectBuilder<SelectedFields | undefined> {
+		return new DSQLSelectBuilder({
+			fields: fields as SelectedFields,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: true,
+		});
+	}
+
+	/**
+	 * Adds `distinct on` expression to the select query.
+	 *
+	 * Calling this method will specify how the unique rows are determined.
+	 *
+	 * Use `.from()` method to specify which table to select from.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
+	 *
+	 * @param on The expression defining uniqueness.
+	 * @param fields The selection object.
+	 *
+	 * @example
+	 * ```ts
+	 * // Select the first row for each unique brand from the 'cars' table
+	 * await db.selectDistinctOn([cars.brand])
+	 *   .from(cars)
+	 *   .orderBy(cars.brand);
+	 *
+	 * // Selects the first occurrence of each unique car brand along with its color
+	 * await db.selectDistinctOn([cars.brand], { brand: cars.brand, color: cars.color })
+	 *   .from(cars)
+	 *   .orderBy(cars.brand, cars.color);
+	 * ```
+	 */
+	selectDistinctOn(on: (DSQLColumn | SQLWrapper)[]): DSQLSelectBuilder<undefined>;
+	selectDistinctOn<TSelection extends SelectedFields>(
+		on: (DSQLColumn | SQLWrapper)[],
+		fields: TSelection,
+	): DSQLSelectBuilder<TSelection>;
+	selectDistinctOn(
+		on: (DSQLColumn | SQLWrapper)[],
+		fields?: SelectedFields,
+	): DSQLSelectBuilder<SelectedFields | undefined> {
+		return new DSQLSelectBuilder({
+			fields: fields as SelectedFields,
+			session: this.session,
+			dialect: this.dialect,
+			distinct: { on },
 		});
 	}
 

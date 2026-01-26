@@ -3,9 +3,15 @@ import type { DSQLBasePreparedQuery, PreparedQueryConfig } from '~/dsql-core/ses
 import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { mapRelationalRow, type TableRelationalConfig, type TablesRelationalConfig } from '~/relations.ts';
+import {
+	type BuildRelationalQueryResult,
+	type DBQueryConfig,
+	mapRelationalRow,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
+} from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { BuildRelationalQueryResult, DBQueryConfig, Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins } from '~/utils.ts';
 import type { DSQLDriverSession } from './session.ts';

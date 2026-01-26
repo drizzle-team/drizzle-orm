@@ -32,7 +32,6 @@ export class DsqlRole implements DsqlRoleConfig {
 	}
 }
 
-/** @stubbed - Role management for DSQL is not yet implemented */
 export function dsqlRole(name: string, config?: DsqlRoleConfig): DsqlRole {
 	return new DsqlRole(name, config);
 }

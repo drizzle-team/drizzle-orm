@@ -6,8 +6,7 @@ import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect, DSQLDialectConfig } from '../dialect.ts';
 import { DSQLDialect as DSQLDialectClass } from '../dialect.ts';
 import type { WithBuilder } from '../subquery.ts';
-import { DSQLSelectBuilder } from './select.ts';
-import type { SelectedFields } from './select.types.ts';
+import { DSQLSelectBuilder, type SelectedFields } from './select.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'DSQLQueryBuilder';
