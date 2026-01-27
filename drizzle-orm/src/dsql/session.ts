@@ -50,7 +50,26 @@ export interface DSQLClient {
 // DSQL optimistic concurrency error codes
 const DSQL_RETRYABLE_ERRORS = ['OC000', 'OC001', '40001'];
 const DEFAULT_MAX_RETRIES = 10;
-const BASE_DELAY_MS = 50;
+const DEFAULT_BASE_DELAY_MS = 50;
+const DEFAULT_MAX_DELAY_MS = 5000;
+
+/**
+ * Configuration for DSQL retry behavior on optimistic concurrency conflicts.
+ */
+export interface DSQLRetryConfig {
+	/** Maximum number of retry attempts (default: 10) */
+	maxRetries?: number;
+	/** Base delay in milliseconds for exponential backoff (default: 50) */
+	baseDelayMs?: number;
+	/** Maximum delay in milliseconds between retries (default: 5000) */
+	maxDelayMs?: number;
+}
+
+const defaultRetryConfig: Required<DSQLRetryConfig> = {
+	maxRetries: DEFAULT_MAX_RETRIES,
+	baseDelayMs: DEFAULT_BASE_DELAY_MS,
+	maxDelayMs: DEFAULT_MAX_DELAY_MS,
+};
 
 function isDSQLRetryableError(error: unknown): boolean {
 	if (!error || typeof error !== 'object') return false;
@@ -66,8 +85,9 @@ function isDSQLRetryableError(error: unknown): boolean {
 
 async function withRetry<T>(
 	fn: () => Promise<T>,
-	maxRetries: number = DEFAULT_MAX_RETRIES,
+	config: DSQLRetryConfig = {},
 ): Promise<T> {
+	const { maxRetries, baseDelayMs, maxDelayMs } = { ...defaultRetryConfig, ...config };
 	let lastError: unknown;
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
@@ -77,8 +97,11 @@ async function withRetry<T>(
 			if (!isDSQLRetryableError(error) || attempt === maxRetries) {
 				throw error;
 			}
-			// Exponential backoff with jitter
-			const delay = BASE_DELAY_MS * Math.pow(2, attempt) * (0.5 + Math.random() * 0.5);
+			// Exponential backoff with jitter, capped at maxDelayMs
+			const delay = Math.min(
+				baseDelayMs * Math.pow(2, attempt) * (0.5 + Math.random() * 0.5),
+				maxDelayMs,
+			);
 			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
 	}
@@ -96,6 +119,7 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		tables: string[];
 	} | undefined;
 	private cacheConfig: WithCacheConfig | undefined;
+	private retryConfig: DSQLRetryConfig;
 
 	constructor(
 		private client: DSQLClient,
@@ -111,6 +135,7 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		retryConfig: DSQLRetryConfig,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -119,6 +144,7 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		super({ sql: queryString, params });
 		this.cache = cache;
 		this.queryMetadata = queryMetadata;
+		this.retryConfig = retryConfig;
 		// Enable caching by default when cache strategy is 'all'
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
@@ -135,20 +161,20 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.queryString, params);
 
-		const { fields, customResultMapper, isRqbV2Query } = this;
+		const { fields, customResultMapper, isRqbV2Query, retryConfig } = this;
 
 		// If no fields and no custom mapper, return raw result with retry and caching
 		if (!fields && !customResultMapper) {
 			return this.queryWithCache(
 				this.queryString,
 				params,
-				() => withRetry(() => this.client.query(this.queryString, params)),
+				() => withRetry(() => this.client.query(this.queryString, params), retryConfig),
 			);
 		}
 
 		// For RQB v2 queries, use object mode with retry (no caching for relational queries)
 		if (isRqbV2Query) {
-			const result = await withRetry(() => this.client.query(this.queryString, params));
+			const result = await withRetry(() => this.client.query(this.queryString, params), retryConfig);
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 		}
 
@@ -159,8 +185,7 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 					text: this.queryString,
 					values: params,
 					rowMode: 'array',
-				})
-			));
+				}), retryConfig));
 
 		return customResultMapper
 			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
@@ -173,7 +198,7 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		return this.queryWithCache(
 			this.queryString,
 			params,
-			() => withRetry(() => this.client.query(this.queryString, params)),
+			() => withRetry(() => this.client.query(this.queryString, params), this.retryConfig),
 		).then((result) => result.rows);
 	}
 
@@ -246,6 +271,8 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 export interface DSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	/** Configuration for retry behavior on optimistic concurrency conflicts */
+	retryConfig?: DSQLRetryConfig;
 }
 
 export class DSQLDriverSession<
@@ -257,6 +284,7 @@ export class DSQLDriverSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private retryConfig: DSQLRetryConfig;
 
 	constructor(
 		private client: DSQLClient,
@@ -268,6 +296,7 @@ export class DSQLDriverSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.retryConfig = options.retryConfig ?? {};
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -293,6 +322,7 @@ export class DSQLDriverSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.retryConfig,
 			customResultMapper,
 		);
 	}
@@ -317,19 +347,56 @@ export class DSQLDriverSession<
 			fields,
 			name,
 			false,
+			this.retryConfig,
 			customResultMapper,
 			true,
 		);
 	}
 
 	override execute<T>(query: Query): Promise<T> {
-		return withRetry(() => this.client.query(query.sql, query.params)) as Promise<T>;
+		return withRetry(() => this.client.query(query.sql, query.params), this.retryConfig) as Promise<T>;
 	}
 
 	override all<T extends any[] = unknown[]>(query: Query): Promise<T> {
-		return withRetry(() => this.client.query(query.sql, query.params)).then((result) => result.rows) as Promise<T>;
+		return withRetry(() => this.client.query(query.sql, query.params), this.retryConfig).then((result) =>
+			result.rows
+		) as Promise<T>;
 	}
 
+	/**
+	 * Executes a transaction with automatic retry on DSQL optimistic concurrency conflicts.
+	 *
+	 * **Important:** DSQL uses optimistic concurrency control (OCC), which means transactions
+	 * may be automatically retried if a conflict is detected. The entire transaction callback
+	 * will be re-executed on retry.
+	 *
+	 * **Side Effects Warning:** If your transaction contains side effects (e.g., sending emails,
+	 * making external API calls, logging to external services), these side effects may be
+	 * executed multiple times if the transaction is retried. To avoid this:
+	 *
+	 * 1. Move side effects outside the transaction callback
+	 * 2. Make side effects idempotent
+	 * 3. Disable retries by setting `retryConfig: { maxRetries: 0 }` in the drizzle config
+	 *
+	 * @example
+	 * ```ts
+	 * // Safe: no side effects in transaction
+	 * const user = await db.transaction(async (tx) => {
+	 *   const [user] = await tx.insert(users).values({ name: 'Alice' }).returning();
+	 *   await tx.insert(profiles).values({ userId: user.id });
+	 *   return user;
+	 * });
+	 * // Side effect happens after transaction commits successfully
+	 * await sendWelcomeEmail(user.email);
+	 *
+	 * // Disable retries for transactions with unavoidable side effects
+	 * const db = drizzle(client, { retryConfig: { maxRetries: 0 } });
+	 * ```
+	 *
+	 * @param transaction - The transaction callback function
+	 * @param config - Optional transaction configuration
+	 * @param config.accessMode - Transaction access mode ('read only' or 'read write')
+	 */
 	async transaction<T>(
 		transaction: (tx: DSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: { accessMode?: 'read only' | 'read write' },
@@ -379,7 +446,7 @@ export class DSQLDriverSession<
 				}
 				throw error;
 			}
-		}).finally(() => {
+		}, this.retryConfig).finally(() => {
 			// Release the dedicated client back to the pool
 			if (dedicatedClient && typeof dedicatedClient.release === 'function') {
 				dedicatedClient.release();

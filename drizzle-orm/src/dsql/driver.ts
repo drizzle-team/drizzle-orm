@@ -20,7 +20,7 @@ import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { DSQLRelationalQueryBuilder } from './query-builder.ts';
 import type { DSQLRelationalQueryHKT } from './query.ts';
-import type { DSQLClient, DSQLTransaction } from './session.ts';
+import type { DSQLClient, DSQLRetryConfig, DSQLTransaction } from './session.ts';
 import { DSQLDriverSession } from './session.ts';
 
 export interface DSQLDriverOptions {
@@ -261,6 +261,40 @@ export class DSQLDatabase<
 		return this.session.execute(builtQuery);
 	}
 
+	/**
+	 * Executes a transaction with automatic retry on DSQL optimistic concurrency conflicts.
+	 *
+	 * **Important:** DSQL uses optimistic concurrency control (OCC), which means transactions
+	 * may be automatically retried if a conflict is detected. The entire transaction callback
+	 * will be re-executed on retry.
+	 *
+	 * **Side Effects Warning:** If your transaction contains side effects (e.g., sending emails,
+	 * making external API calls, logging to external services), these side effects may be
+	 * executed multiple times if the transaction is retried. To avoid this:
+	 *
+	 * 1. Move side effects outside the transaction callback
+	 * 2. Make side effects idempotent
+	 * 3. Disable retries by setting `retryConfig: { maxRetries: 0 }` in the drizzle config
+	 *
+	 * @example
+	 * ```ts
+	 * // Safe: no side effects in transaction
+	 * const user = await db.transaction(async (tx) => {
+	 *   const [user] = await tx.insert(users).values({ name: 'Alice' }).returning();
+	 *   await tx.insert(profiles).values({ userId: user.id });
+	 *   return user;
+	 * });
+	 * // Side effect happens after transaction commits successfully
+	 * await sendWelcomeEmail(user.email);
+	 *
+	 * // Disable retries for transactions with unavoidable side effects
+	 * const db = drizzle(client, { retryConfig: { maxRetries: 0 } });
+	 * ```
+	 *
+	 * @param transaction - The transaction callback function
+	 * @param config - Optional transaction configuration
+	 * @param config.accessMode - Transaction access mode ('read only' or 'read write')
+	 */
 	transaction<T>(
 		transaction: (tx: DSQLTransaction<TSchema, TRelations, any>) => Promise<T>,
 		config?: { accessMode?: 'read only' | 'read write' },
@@ -276,13 +310,24 @@ export interface DSQLConnectionConfig {
 	// AWS credentials would typically come from environment/IAM
 }
 
+/**
+ * DSQL-specific configuration options extending the base DrizzleConfig.
+ */
+export interface DSQLDrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends DrizzleConfig<TSchema, TRelations> {
+	/** Configuration for retry behavior on optimistic concurrency conflicts */
+	retryConfig?: DSQLRetryConfig;
+}
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends DSQLClient = DSQLClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: DSQLDrizzleConfig<TSchema, TRelations> = {},
 ): DSQLDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
@@ -311,6 +356,7 @@ function construct<
 	const session = new DSQLDriverSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
+		retryConfig: config.retryConfig,
 	});
 
 	const db = new DSQLDatabase(
@@ -339,16 +385,16 @@ export function drizzle<
 		]
 		| [
 			TClient,
-			DrizzleConfig<TSchema, TRelations>,
+			DSQLDrizzleConfig<TSchema, TRelations>,
 		]
 		| [
-			& DrizzleConfig<TSchema, TRelations>
+			& DSQLDrizzleConfig<TSchema, TRelations>
 			& {
 				client: TClient;
 			},
 		]
 		| [
-			& DrizzleConfig<TSchema, TRelations>
+			& DSQLDrizzleConfig<TSchema, TRelations>
 			& {
 				connection: DSQLConnectionConfig;
 			},
@@ -360,7 +406,7 @@ export function drizzle<
 	if (typeof params[0] === 'object' && params[0] !== null && 'connection' in params[0]) {
 		const { connection, ...drizzleConfig } = params[0] as (
 			& { connection: DSQLConnectionConfig }
-			& DrizzleConfig<TSchema, TRelations>
+			& DSQLDrizzleConfig<TSchema, TRelations>
 		);
 		// Create DSQL client from connection config
 		const client = createDSQLClient(connection);
@@ -370,13 +416,13 @@ export function drizzle<
 	if (typeof params[0] === 'object' && params[0] !== null && 'client' in params[0]) {
 		const { client, ...drizzleConfig } = params[0] as (
 			& { client: TClient }
-			& DrizzleConfig<TSchema, TRelations>
+			& DSQLDrizzleConfig<TSchema, TRelations>
 		);
 		return construct(client, drizzleConfig);
 	}
 
 	// Direct client passed
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DSQLDrizzleConfig<TSchema, TRelations> | undefined) as any;
 }
 
 function createDSQLClient(config: DSQLConnectionConfig): DSQLClient {
@@ -394,7 +440,7 @@ export namespace drizzle {
 		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
+		config?: DSQLDrizzleConfig<TSchema, TRelations>,
 	): DSQLDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
