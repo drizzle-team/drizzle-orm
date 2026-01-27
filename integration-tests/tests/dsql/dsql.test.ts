@@ -13,18 +13,18 @@ const ENABLE_LOGGING = false;
 let db: DSQLDatabase;
 
 beforeAll(async () => {
-	const clusterId = process.env['DSQL_CLUSTER_ID'];
-	if (!clusterId) {
-		throw new Error('DSQL_CLUSTER_ID environment variable is required');
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+	if (!clusterEndpoint) {
+		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 	}
 
 	// The drizzle function will handle connection setup
-	// using the cluster ID to derive endpoint and generate IAM auth token
+	// using the endpoint to connect and generate IAM auth token
 	db = await retry(
 		async () => {
 			const database = drizzle({
 				connection: {
-					host: `${clusterId}.dsql.us-west-2.on.aws`,
+					host: clusterEndpoint,
 				},
 				logger: ENABLE_LOGGING,
 			});

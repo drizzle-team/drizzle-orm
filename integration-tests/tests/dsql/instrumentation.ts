@@ -104,16 +104,16 @@ let sharedDbPromise: Promise<DSQLDatabase<any>> | null = null;
 let rqbDbPromise: Promise<DSQLDatabase<typeof schema, typeof relations>> | null = null;
 
 async function createSharedDb(): Promise<DSQLDatabase<any>> {
-	const clusterId = process.env['DSQL_CLUSTER_ID'];
-	if (!clusterId) {
-		throw new Error('DSQL_CLUSTER_ID environment variable is required');
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+	if (!clusterEndpoint) {
+		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 	}
 
 	const database = await retry(
 		async () => {
 			const db = drizzle({
 				connection: {
-					host: `${clusterId}.dsql.us-west-2.on.aws`,
+					host: clusterEndpoint,
 				},
 				logger: ENABLE_LOGGING,
 			});
@@ -152,16 +152,16 @@ function getSharedDb(): Promise<DSQLDatabase<any>> {
 }
 
 async function createRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
-	const clusterId = process.env['DSQL_CLUSTER_ID'];
-	if (!clusterId) {
-		throw new Error('DSQL_CLUSTER_ID environment variable is required');
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+	if (!clusterEndpoint) {
+		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 	}
 
 	const database = await retry(
 		async () => {
 			const db = drizzle({
 				connection: {
-					host: `${clusterId}.dsql.us-west-2.on.aws`,
+					host: clusterEndpoint,
 				},
 				relations,
 				logger: ENABLE_LOGGING,
@@ -293,13 +293,13 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 	caches: [
 		// eslint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const clusterId = process.env['DSQL_CLUSTER_ID'];
-			if (!clusterId) {
-				throw new Error('DSQL_CLUSTER_ID environment variable is required');
+			const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+			if (!clusterEndpoint) {
+				throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 			}
 
 			const connectionConfig = {
-				host: `${clusterId}.dsql.us-west-2.on.aws`,
+				host: clusterEndpoint,
 			};
 
 			const allDb = await retry(

@@ -5,7 +5,7 @@
  * These tests run against a real DSQL cluster.
  *
  * Required environment variable:
- *   DSQL_CLUSTER_ID - The DSQL cluster ID (e.g., "abc123def456")
+ *   DSQL_CLUSTER_ENDPOINT - The full DSQL cluster endpoint (e.g., "abc123.dsql.us-west-2.on.aws")
  *
  * The tests will:
  * 1. Create tables with various features (columns, indexes, constraints)
@@ -52,15 +52,15 @@ async function retry<T>(fn: () => Promise<T>, maxRetries = 20, delay = 250): Pro
 }
 
 beforeAll(async () => {
-	const clusterId = process.env['DSQL_CLUSTER_ID'];
-	if (!clusterId) {
-		throw new Error('DSQL_CLUSTER_ID environment variable is required');
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+	if (!clusterEndpoint) {
+		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 	}
 
 	dsqlDb = await retry(async () => {
 		const database = drizzle({
 			connection: {
-				host: `${clusterId}.dsql.us-west-2.on.aws`,
+				host: clusterEndpoint,
 			},
 			logger: ENABLE_LOGGING,
 		});
