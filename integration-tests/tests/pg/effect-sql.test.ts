@@ -1,7 +1,6 @@
 import { PgClient } from '@effect/sql-pg';
-import { expect, expectTypeOf, it } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import { and, asc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
-import { TaggedTransactionRollbackError } from 'drizzle-orm/effect-core/errors';
 import { drizzle, EffectPgDatabase } from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
@@ -42,7 +41,10 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { Effect, Redacted } from 'effect';
+import * as Effect from 'effect/Effect';
+import * as Either from 'effect/Either';
+import * as Predicate from 'effect/Predicate';
+import * as Redacted from 'effect/Redacted';
 import { types } from 'pg';
 import { randomString } from '~/utils';
 import { relations } from './relations';
@@ -97,11 +99,10 @@ const clientLayer = PgClient.layer({
 	},
 });
 
-const ENABLE_LOGGING = false;
 const usedSchema = 'effect_pg_test';
 const getDb = Effect.gen(function*() {
 	const client = yield* PgClient.PgClient;
-	const db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	const db = drizzle(client, { relations });
 
 	yield* db.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(usedSchema)} CASCADE`);
 	yield* db.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(`${usedSchema}_custom`)} CASCADE`);
@@ -1304,12 +1305,14 @@ it.layer(clientLayer)((it) => {
 					yield* tx.insert(users).values({ balance: 100 });
 					yield* tx.rollback();
 				})
-			).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e)));
+			).pipe(Effect.either);
+
+			assert(Either.isLeft(res));
+			assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
 
 			const result = yield* db.select().from(users);
 
 			expect(result).toEqual([]);
-			expect(res).toBeInstanceOf(TaggedTransactionRollbackError);
 		}));
 
 	it.effect('nested transaction', () =>
@@ -1355,14 +1358,15 @@ it.layer(clientLayer)((it) => {
 				Effect.gen(function*() {
 					yield* tx.insert(users).values({ balance: 100 });
 
-					expect(
-						yield* tx.transaction((tx) =>
-							Effect.gen(function*() {
-								yield* tx.update(users).set({ balance: 200 });
-								yield* tx.rollback();
-							})
-						).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e))),
-					).toBeInstanceOf(TaggedTransactionRollbackError);
+					const res = yield* tx.transaction((tx) =>
+						Effect.gen(function*() {
+							yield* tx.update(users).set({ balance: 200 });
+							yield* tx.rollback();
+						})
+					).pipe(Effect.either);
+
+					assert(Either.isLeft(res));
+					assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
 				})
 			);
 
@@ -1500,7 +1504,7 @@ it.layer(clientLayer)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			});
+			}).pipe(Effect.either);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1515,7 +1519,9 @@ it.layer(clientLayer)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+			assert(Either.isLeft(migratorRes));
+			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
+			expect(migratorRes.left.exitCode).toBe('localMigrations');
 			expect(meta.length).toStrictEqual(0);
 			expect(res[0]?.['tableExists']).toStrictEqual(false);
 		}));
@@ -1538,7 +1544,7 @@ it.layer(clientLayer)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			});
+			}).pipe(Effect.either);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1553,7 +1559,9 @@ it.layer(clientLayer)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+			assert(Either.isLeft(migratorRes));
+			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
+			expect(migratorRes.left.exitCode).toBe('databaseMigrations');
 			expect(meta.length).toStrictEqual(1);
 			expect(res[0]?.['tableExists']).toStrictEqual(true);
 		}));

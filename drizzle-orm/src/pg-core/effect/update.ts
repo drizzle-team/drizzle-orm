@@ -1,4 +1,5 @@
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
+import type { Effect } from 'effect';
+import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -12,11 +13,15 @@ import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
-export type PgEffectUpdatePrepare<T extends AnyPgEffectUpdate> = PgEffectPreparedQuery<
+export type PgEffectUpdatePrepare<
+	T extends AnyPgEffectUpdate,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> = PgEffectPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
 			: T['_']['returning'][];
-	}
+	},
+	TEffectHKT
 >;
 
 export type PgEffectUpdate<
@@ -27,6 +32,7 @@ export type PgEffectUpdate<
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
 	TJoins extends Join[] = [],
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = PgEffectUpdateBase<
 	TTable,
 	TQueryResult,
@@ -36,10 +42,11 @@ export type PgEffectUpdate<
 	TNullabilityMap,
 	TJoins,
 	true,
-	never
+	never,
+	TEffectHKT
 >;
 
-export interface PgEffectUpdateHKT extends PgUpdateHKTBase {
+export interface PgEffectUpdateHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgUpdateHKTBase {
 	_type: PgEffectUpdateBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -49,11 +56,12 @@ export interface PgEffectUpdateHKT extends PgUpdateHKTBase {
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		Assume<this['joins'], Join[]>,
 		this['dynamic'],
-		this['excludedMethods']
+		this['excludedMethods'],
+		TEffectHKT
 	>;
 }
 
-export type AnyPgEffectUpdate = PgEffectUpdateBase<any, any, any, any, any, any, any, any, any>;
+export type AnyPgEffectUpdate = PgEffectUpdateBase<any, any, any, any, any, any, any, any, any, any>;
 
 export interface PgEffectUpdateBase<
 	TTable extends PgTable,
@@ -71,7 +79,15 @@ export interface PgEffectUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryEffect<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {}
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends
+	Effect.Effect<
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+		TEffectHKT['error'],
+		TEffectHKT['context']
+	>
+{}
 
 export class PgEffectUpdateBase<
 	TTable extends PgTable,
@@ -83,8 +99,9 @@ export class PgEffectUpdateBase<
 	TJoins extends Join[] = [],
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends PgUpdateBase<
-	PgEffectUpdateHKT,
+	PgEffectUpdateHKT<TEffectHKT>,
 	TTable,
 	TQueryResult,
 	TFrom,
@@ -97,10 +114,10 @@ export class PgEffectUpdateBase<
 > implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectUpdate';
 
-	declare protected session: PgEffectSession;
+	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectUpdatePrepare<this> {
+	_prepare(name?: string): PgEffectUpdatePrepare<this, TEffectHKT> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
@@ -111,7 +128,7 @@ export class PgEffectUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): PgEffectUpdatePrepare<this> {
+	prepare(name: string): PgEffectUpdatePrepare<this, TEffectHKT> {
 		return this._prepare(name);
 	}
 

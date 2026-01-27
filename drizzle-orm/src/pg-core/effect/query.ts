@@ -1,4 +1,5 @@
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
+import type { Effect } from 'effect';
+import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -7,22 +8,27 @@ import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-build
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
-export type AnyPgEffectRelationalQuery = PgEffectRelationalQuery<any>;
+export type AnyPgEffectRelationalQuery = PgEffectRelationalQuery<any, any>;
 
-export interface PgEffectRelationalQueryHKT extends PgRelationalQueryHKTBase {
-	_type: PgEffectRelationalQuery<this['result']>;
+export interface PgEffectRelationalQueryHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends PgRelationalQueryHKTBase
+{
+	_type: PgEffectRelationalQuery<this['result'], TEffectHKT>;
 }
 
-export interface PgEffectRelationalQuery<TResult> extends QueryEffect<TResult> {}
-export class PgEffectRelationalQuery<TResult> extends PgRelationalQuery<PgEffectRelationalQueryHKT, TResult>
+export interface PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>
+{}
+export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends PgRelationalQuery<PgEffectRelationalQueryHKT<TEffectHKT>, TResult>
 	implements RunnableQuery<TResult, 'pg'>
 {
 	static override readonly [entityKind]: string = 'PgEffectRelationalQueryV2';
 
-	declare protected session: PgEffectSession;
+	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
@@ -41,7 +47,7 @@ export class PgEffectRelationalQuery<TResult> extends PgRelationalQuery<PgEffect
 		});
 	}
 
-	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
 		return this._prepare(name);
 	}
 

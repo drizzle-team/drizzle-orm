@@ -2,18 +2,17 @@ import type { PgClient } from '@effect/sql-pg/PgClient';
 import * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
+import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
 
 export class EffectPgDatabase<
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgEffectDatabase<EffectPgQueryResultHKT, TFullSchema, TRelations> {
+> extends PgEffectDatabase<EffectPgQueryEffectHKT, EffectPgQueryResultHKT, TFullSchema, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
 
@@ -21,7 +20,7 @@ export type EffectDrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 > =
-	& Omit<DrizzleConfig<TSchema, TRelations>, 'cache'>
+	& Omit<DrizzleConfig<TSchema, TRelations>, 'cache' | 'logger'>
 	& {
 		cache?: EffectCache | undefined;
 	};
@@ -38,14 +37,6 @@ function construct<
 } {
 	const dialect = new PgDialect({ casing: config.casing });
 
-	// TODO: implement effect ver
-	let logger;
-	if (config.logger === true) {
-		logger = new DefaultLogger();
-	} else if (config.logger !== false) {
-		logger = config.logger;
-	}
-
 	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
 		const tablesConfig = V1.extractTablesRelationalConfig(
@@ -60,7 +51,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new EffectPgSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new EffectPgSession(client, dialect, relations, schema, { cache: config.cache });
 	const db = new EffectPgDatabase(
 		dialect,
 		session,
