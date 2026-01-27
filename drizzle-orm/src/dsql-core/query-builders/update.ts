@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -92,7 +93,9 @@ export class DSQLUpdateBase<
 
 	private _prepare(name?: string) {
 		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+			throw new DrizzleError({
+				message: 'Cannot execute a query on a query builder. Please use a database instance instead.',
+			});
 		}
 		return this.session.prepareQuery<any>(
 			this.dialect.sqlToQuery(this.getSQL()),

@@ -1,6 +1,7 @@
 import type { CacheConfig } from '~/cache/core/types.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -182,7 +183,7 @@ export abstract class DSQLSelectQueryBuilderBase<
 			const tableName = getTableLikeName(table);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
-				throw new Error(`Alias "${tableName}" is already used in this query`);
+				throw new DrizzleError({ message: `Alias "${tableName}" is already used in this query` });
 			}
 
 			if (!this.isPartialSelect) {

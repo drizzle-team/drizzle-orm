@@ -110,6 +110,9 @@ export const generate = command({
 				),
 			);
 			process.exit(1);
+		} else if (dialect === 'dsql') {
+			const { handle } = await import('./commands/generate-dsql');
+			await handle(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -642,6 +645,11 @@ export const pull = command({
 
 			const { handle } = await import('./commands/pull-cockroach');
 			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+		} else if (dialect === 'dsql') {
+			const { handle, prepareDsqlDB } = await import('./commands/pull-dsql');
+			const db = await prepareDsqlDB(credentials as any);
+			// DSQL doesn't support migrate --init due to one-DDL-per-transaction limitation
+			await handle(casing, out, breakpoints, credentials as any, filters, db);
 		} else {
 			assertUnreachable(dialect);
 		}

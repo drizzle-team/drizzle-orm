@@ -299,11 +299,11 @@ export class DSQLDialect {
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
-				throw new Error(
-					`Your "${
+				throw new DrizzleError({
+					message: `Your "${
 						f.path.join('->')
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
-				);
+				});
 			}
 		}
 
@@ -366,7 +366,7 @@ export class DSQLDialect {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
-			throw new Error('Cannot pass undefined values to any set operator');
+			throw new DrizzleError({ message: 'Cannot pass undefined values to any set operator' });
 		}
 
 		if (rest.length === 0) {
