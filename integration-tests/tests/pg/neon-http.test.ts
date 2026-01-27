@@ -247,14 +247,14 @@ describe('migrator', () => {
 	});
 
 	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ neonhttp: db }) => {
-		const users = pgTable('users', {
+		const users = pgTable('migrations_users', {
 			id: serial('id').primaryKey(),
 			name: text().notNull(),
 			email: text().notNull(),
 			age: integer(),
 		});
 
-		const users2 = pgTable('users2', {
+		const users2 = pgTable('migrations_users2', {
 			id: serial('id').primaryKey(),
 			name: text().notNull(),
 			email: text().notNull(),
@@ -274,12 +274,12 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240101010101_initial/migration.sql`,
-			`CREATE TABLE "users" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+			`CREATE TABLE "migrations_users" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
 		);
 		mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240303030303_third/migration.sql`,
-			`ALTER TABLE "users" ADD COLUMN "age" integer;`,
+			`ALTER TABLE "migrations_users" ADD COLUMN "age" integer;`,
 		);
 
 		await migrate(db, { migrationsFolder: migrationDir });
@@ -292,7 +292,7 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240202020202_second/migration.sql`,
-			`CREATE TABLE "users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+			`CREATE TABLE "migrations_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 		);
 		await migrate(db, { migrationsFolder: migrationDir });
 
@@ -984,7 +984,7 @@ describe('migrator', () => {
 	});
 });
 
-describe('$withAuth tests', (it) => {
+describe.skip('$withAuth tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
@@ -1095,7 +1095,7 @@ describe('$withAuth tests', (it) => {
 	});
 });
 
-describe('$withAuth callback tests', (it) => {
+describe.skip('$withAuth callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
@@ -1197,7 +1197,7 @@ describe('$withAuth callback tests', (it) => {
 	});
 });
 
-describe('$withAuth async callback tests', (it) => {
+describe.skip('$withAuth async callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,

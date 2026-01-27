@@ -153,7 +153,7 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-test.only('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
 	const users = sqliteTable('users', {
 		id: int('id').primaryKey(),
 		name: text().notNull(),

@@ -298,6 +298,9 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res2).toStrictEqual(expected);
 
 	rmdirSync(migrationDir, { recursive: true });
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop table if exists ${users2}`);
 });
 
 test('all date and time columns without timezone first case mode string', async () => {
