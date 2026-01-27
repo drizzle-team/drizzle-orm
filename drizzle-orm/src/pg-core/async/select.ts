@@ -129,7 +129,7 @@ export class PgAsyncSelectBase<
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
 	prepare(
-		name: string,
+		name?: string,
 	): PgAsyncSelectPrepare<this> {
 		return this._prepare(name);
 	}

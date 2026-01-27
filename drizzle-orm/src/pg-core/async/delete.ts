@@ -86,7 +86,7 @@ export class PgAsyncDeleteBase<
 		});
 	}
 
-	prepare(name: string): PgAsyncDeletePrepare<this> {
+	prepare(name?: string): PgAsyncDeletePrepare<this> {
 		return this._prepare(name);
 	}
 

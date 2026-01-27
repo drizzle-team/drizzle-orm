@@ -30,7 +30,7 @@ export class PgEffectRefreshMaterializedView<TQueryResult extends PgQueryResultH
 		});
 	}
 
-	prepare(name: string): PgEffectPreparedQuery<
+	prepare(name?: string): PgEffectPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}

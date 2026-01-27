@@ -84,7 +84,7 @@ export class GelRefreshMaterializedView<TQueryResult extends GelQueryResultHKT>
 		});
 	}
 
-	prepare(name: string): GelPreparedQuery<
+	prepare(name?: string): GelPreparedQuery<
 		PreparedQueryConfig & {
 			execute: GelQueryResultKind<TQueryResult, never>;
 		}

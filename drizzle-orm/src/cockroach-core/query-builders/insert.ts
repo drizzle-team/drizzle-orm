@@ -408,7 +408,7 @@ export class CockroachInsertBase<
 		});
 	}
 
-	prepare(name: string): CockroachInsertPrepare<this> {
+	prepare(name?: string): CockroachInsertPrepare<this> {
 		return this._prepare(name);
 	}
 

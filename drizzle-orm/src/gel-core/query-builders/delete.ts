@@ -232,7 +232,7 @@ export class GelDeleteBase<
 		});
 	}
 
-	prepare(name: string): GelDeletePrepare<this> {
+	prepare(name?: string): GelDeletePrepare<this> {
 		return this._prepare(name);
 	}
 

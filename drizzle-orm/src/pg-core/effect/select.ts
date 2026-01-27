@@ -123,7 +123,7 @@ export class PgEffectSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): PgEffectSelectPrepare<this> {
+	prepare(name?: string): PgEffectSelectPrepare<this> {
 		return this._prepare(name);
 	}
 

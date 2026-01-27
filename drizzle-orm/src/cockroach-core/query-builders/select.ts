@@ -1070,7 +1070,7 @@ export class CockroachSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): CockroachSelectPrepare<this> {
+	prepare(name?: string): CockroachSelectPrepare<this> {
 		return this._prepare(name);
 	}
 

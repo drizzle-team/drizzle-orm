@@ -79,7 +79,7 @@ export class PgEffectInsertBase<
 		}, this.cacheConfig);
 	}
 
-	prepare(name: string): PgInsertPrepare<this> {
+	prepare(name?: string): PgInsertPrepare<this> {
 		return this._prepare(name);
 	}
 

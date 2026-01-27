@@ -85,7 +85,7 @@ export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQuer
 		});
 	}
 
-	prepare(name: string): CockroachPreparedQuery<
+	prepare(name?: string): CockroachPreparedQuery<
 		PreparedQueryConfig & {
 			execute: CockroachQueryResultKind<TQueryResult, never>;
 		}

@@ -86,7 +86,7 @@ export class PgEffectDeleteBase<
 		});
 	}
 
-	prepare(name: string): PgEffectDeletePrepare<this> {
+	prepare(name?: string): PgEffectDeletePrepare<this> {
 		return this._prepare(name);
 	}
 

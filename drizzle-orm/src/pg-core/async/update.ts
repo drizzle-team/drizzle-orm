@@ -111,7 +111,7 @@ export class PgAsyncUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): PgAsyncUpdatePrepare<this> {
+	prepare(name?: string): PgAsyncUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 

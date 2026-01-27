@@ -552,7 +552,7 @@ export class GelUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): GelUpdatePrepare<this> {
+	prepare(name?: string): GelUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 

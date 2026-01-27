@@ -598,7 +598,7 @@ export class CockroachUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): CockroachUpdatePrepare<this> {
+	prepare(name?: string): CockroachUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 

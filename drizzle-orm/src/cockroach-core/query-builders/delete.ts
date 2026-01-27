@@ -254,7 +254,7 @@ export class CockroachDeleteBase<
 		});
 	}
 
-	prepare(name: string): CockroachDeletePrepare<this> {
+	prepare(name?: string): CockroachDeletePrepare<this> {
 		return this._prepare(name);
 	}
 

@@ -109,7 +109,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name?: string): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

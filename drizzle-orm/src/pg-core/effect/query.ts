@@ -41,7 +41,7 @@ export class PgEffectRelationalQuery<TResult> extends PgRelationalQuery<PgEffect
 		});
 	}
 
-	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

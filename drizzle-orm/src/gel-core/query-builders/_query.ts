@@ -105,7 +105,7 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name?: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

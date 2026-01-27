@@ -111,7 +111,7 @@ export class PgEffectUpdateBase<
 		return query;
 	}
 
-	prepare(name: string): PgEffectUpdatePrepare<this> {
+	prepare(name?: string): PgEffectUpdatePrepare<this> {
 		return this._prepare(name);
 	}
 

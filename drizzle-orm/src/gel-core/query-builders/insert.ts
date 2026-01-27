@@ -401,7 +401,7 @@ export class GelInsertBase<
 		});
 	}
 
-	prepare(name: string): GelInsertPrepare<this> {
+	prepare(name?: string): GelInsertPrepare<this> {
 		return this._prepare(name);
 	}
 

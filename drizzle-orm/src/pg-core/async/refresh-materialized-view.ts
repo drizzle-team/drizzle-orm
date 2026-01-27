@@ -33,7 +33,7 @@ export class PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHK
 		});
 	}
 
-	prepare(name: string): PgAsyncPreparedQuery<
+	prepare(name?: string): PgAsyncPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}

@@ -106,7 +106,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
