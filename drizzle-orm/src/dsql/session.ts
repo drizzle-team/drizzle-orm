@@ -22,8 +22,30 @@ import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQLWrapper } from '~/sql/sql.ts';
 import { assertUnreachable, type Assume, mapResultRow } from '~/utils.ts';
 
-// DSQL client type - could be AWS SDK client or pg-compatible client
-export type DSQLClient = unknown;
+/** Result shape returned by pg-compatible query methods */
+export interface DSQLQueryResult<T = unknown> {
+	rows: T[];
+	rowCount?: number;
+	command?: string;
+}
+
+/** A pg-compatible pool client with release capability */
+export interface DSQLPoolClient {
+	query(text: string, values?: unknown[]): Promise<DSQLQueryResult<Record<string, unknown>>>;
+	query(config: { text: string; values?: unknown[]; rowMode?: 'array' }): Promise<DSQLQueryResult<unknown[]>>;
+	release(): void;
+}
+
+/**
+ * DSQL client interface - compatible with pg Pool or Client.
+ * Supports both AWS Aurora DSQL connector pools and standard pg clients.
+ */
+export interface DSQLClient {
+	query(text: string, values?: unknown[]): Promise<DSQLQueryResult<Record<string, unknown>>>;
+	query(config: { text: string; values?: unknown[]; rowMode?: 'array' }): Promise<DSQLQueryResult<unknown[]>>;
+	/** Optional connect method for pool-based clients to acquire a dedicated connection */
+	connect?(): Promise<DSQLPoolClient>;
+}
 
 // DSQL optimistic concurrency error codes
 const DSQL_RETRYABLE_ERRORS = ['OC000', 'OC001', '40001'];
@@ -120,27 +142,24 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 			return this.queryWithCache(
 				this.queryString,
 				params,
-				() => withRetry(() => (this.client as any).query(this.queryString, params)),
+				() => withRetry(() => this.client.query(this.queryString, params)),
 			);
 		}
 
 		// For RQB v2 queries, use object mode with retry (no caching for relational queries)
 		if (isRqbV2Query) {
-			const result = await withRetry<{ rows: Record<string, unknown>[] }>(
-				() => (this.client as any).query(this.queryString, params),
-			);
+			const result = await withRetry(() => this.client.query(this.queryString, params));
 			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 		}
 
 		// Use array mode for select queries with fields, with retry and caching
 		const result = await this.queryWithCache(this.queryString, params, () =>
-			withRetry<{ rows: unknown[][] }>(
-				() =>
-					(this.client as any).query({
-						text: this.queryString,
-						values: params,
-						rowMode: 'array',
-					}),
+			withRetry(() =>
+				this.client.query({
+					text: this.queryString,
+					values: params,
+					rowMode: 'array',
+				})
 			));
 
 		return customResultMapper
@@ -154,8 +173,8 @@ export class DSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		return this.queryWithCache(
 			this.queryString,
 			params,
-			() => withRetry(() => (this.client as any).query(this.queryString, params)),
-		).then((result: any) => result.rows);
+			() => withRetry(() => this.client.query(this.queryString, params)),
+		).then((result) => result.rows);
 	}
 
 	/** @internal */
@@ -304,11 +323,11 @@ export class DSQLDriverSession<
 	}
 
 	override execute<T>(query: Query): Promise<T> {
-		return withRetry(() => (this.client as any).query(query.sql, query.params));
+		return withRetry(() => this.client.query(query.sql, query.params)) as Promise<T>;
 	}
 
 	override all<T extends any[] = unknown[]>(query: Query): Promise<T> {
-		return withRetry(() => (this.client as any).query(query.sql, query.params)).then((result: any) => result.rows);
+		return withRetry(() => this.client.query(query.sql, query.params)).then((result) => result.rows) as Promise<T>;
 	}
 
 	async transaction<T>(
@@ -316,11 +335,11 @@ export class DSQLDriverSession<
 		config?: { accessMode?: 'read only' | 'read write' },
 	): Promise<T> {
 		// Check if client is a pool by looking for connect method
-		const isPool = this.client && typeof (this.client as any).connect === 'function';
+		const isPool = this.client && typeof this.client.connect === 'function';
 
 		// For pools, get a dedicated client for the transaction
-		const dedicatedClient = isPool ? await (this.client as any).connect() : null;
-		const transactionClient = dedicatedClient || this.client;
+		const dedicatedClient = isPool ? await this.client.connect!() : null;
+		const transactionClient: DSQLClient = dedicatedClient || this.client;
 
 		// Create a session with the dedicated client for the transaction
 		const session = dedicatedClient
