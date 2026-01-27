@@ -241,7 +241,7 @@ export class DSQLDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList }: DSQLUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: DSQLUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const tableName = table[DSQLTable.Symbol.Name];
@@ -255,12 +255,15 @@ export class DSQLDialect {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from && (!joins || joins.length === 0) })}`
 			: undefined;
+
+		const fromSql = from ? sql` from ${this.buildFromTable(from)}` : undefined;
+		const joinsSql = this.buildJoins(joins);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${tableSql} set ${setSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}`;
 	}
 
 	buildSelectQuery(
@@ -345,6 +348,17 @@ export class DSQLDialect {
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
 			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			if (lockingClause.config.of) {
+				const tables = Array.isArray(lockingClause.config.of)
+					? lockingClause.config.of
+					: [lockingClause.config.of];
+				clauseSql.append(sql` of ${
+					sql.join(
+						tables.map((t) => sql.identifier(t[DSQLTable.Symbol.Name])),
+						sql`, `,
+					)
+				}`);
+			}
 			if (lockingClause.config.noWait) {
 				clauseSql.append(sql` nowait`);
 			} else if (lockingClause.config.skipLocked) {

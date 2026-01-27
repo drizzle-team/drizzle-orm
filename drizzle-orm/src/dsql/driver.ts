@@ -3,12 +3,14 @@ import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import type { DSQLColumn } from '~/dsql-core/columns/common.ts';
 import { DSQLDialect } from '~/dsql-core/dialect.ts';
+import { DSQLCountBuilder } from '~/dsql-core/query-builders/count.ts';
 import { DSQLDeleteBase } from '~/dsql-core/query-builders/delete.ts';
 import { DSQLInsertBuilder } from '~/dsql-core/query-builders/insert.ts';
 import { DSQLSelectBuilder, type SelectedFields } from '~/dsql-core/query-builders/select.ts';
 import { DSQLUpdateBuilder } from '~/dsql-core/query-builders/update.ts';
 import type { WithSubqueryWithSelection } from '~/dsql-core/subquery.ts';
 import type { DSQLTable } from '~/dsql-core/table.ts';
+import type { DSQLViewBase } from '~/dsql-core/view-base.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -251,6 +253,42 @@ export class DSQLDatabase<
 
 	delete<TTable extends DSQLTable>(table: TTable): DSQLDeleteBase<TTable, any, undefined> {
 		return new DSQLDeleteBase(table, this.session, this.dialect);
+	}
+
+	/**
+	 * Returns the count of rows that match the query.
+	 *
+	 * The result can be used in two ways:
+	 * 1. As a standalone query using `await db.$count(table)`
+	 * 2. As a subquery in other queries, since it extends SQL
+	 *
+	 * @param source - The table or view to count from
+	 * @param filters - Optional WHERE clause filters
+	 *
+	 * @example
+	 * ```ts
+	 * // Count all rows
+	 * const count = await db.$count(users);
+	 *
+	 * // Count with filter
+	 * const activeCount = await db.$count(users, eq(users.active, true));
+	 *
+	 * // Use as subquery
+	 * const result = await db.select({
+	 *   totalUsers: db.$count(users),
+	 *   activeUsers: db.$count(users, eq(users.active, true)),
+	 * });
+	 * ```
+	 */
+	$count(
+		source: DSQLTable | DSQLViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	): DSQLCountBuilder {
+		return new DSQLCountBuilder({
+			source,
+			filters,
+			dialect: this.dialect,
+		});
 	}
 
 	execute<T extends Record<string, unknown> = Record<string, unknown>>(

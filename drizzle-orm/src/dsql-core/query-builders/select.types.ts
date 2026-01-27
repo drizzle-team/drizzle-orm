@@ -28,6 +28,7 @@ export interface DSQLSelectConfig {
 	lockingClause?: {
 		strength: 'update' | 'no key update' | 'share' | 'key share';
 		config: {
+			of?: DSQLTable | DSQLTable[];
 			noWait?: boolean;
 			skipLocked?: boolean;
 		};

@@ -258,6 +258,315 @@ export function tests(test: Test) {
 			}
 		});
 
+		test.concurrent('update with from clause', async ({ db }) => {
+			const usersTableName = uniqueName('users');
+			const ordersTableName = uniqueName('orders');
+
+			const users = dsqlTable(usersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable(ordersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+				product: text('product').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(usersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table ${sql.identifier(ordersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					user_id uuid not null,
+					product text not null
+				)
+			`);
+
+			try {
+				const [user] = await db.insert(users).values({ name: 'John' }).returning();
+				await db.insert(orders).values({ userId: user!.id, product: 'Widget' });
+
+				// Update user name based on their order's product
+				await db.update(users)
+					.set({ name: sql`${orders.product}` })
+					.from(orders)
+					.where(eq(users.id, orders.userId));
+
+				const result = await db.select().from(users);
+				expect(result[0]?.name).toBe('Widget');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(ordersTableName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(usersTableName)} cascade`);
+			}
+		});
+
+		test.concurrent('update from sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+			});
+
+			const query = db.update(users)
+				.set({ name: 'updated' })
+				.from(orders)
+				.where(eq(users.id, orders.userId))
+				.toSQL();
+
+			expect(query.sql).toMatch(/update "users" set "name" = \$1 from "orders" where/i);
+		});
+
+		test.concurrent('update with join', async ({ db }) => {
+			const usersTableName = uniqueName('users');
+			const ordersTableName = uniqueName('orders');
+			const productsTableName = uniqueName('products');
+
+			const users = dsqlTable(usersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable(ordersTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+				productId: uuid('product_id').notNull(),
+			});
+			const products = dsqlTable(productsTableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(usersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table ${sql.identifier(productsTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+			await db.execute(sql`
+				create table ${sql.identifier(ordersTableName)} (
+					id uuid primary key default gen_random_uuid(),
+					user_id uuid not null,
+					product_id uuid not null
+				)
+			`);
+
+			try {
+				const [user] = await db.insert(users).values({ name: 'John' }).returning();
+				const [product] = await db.insert(products).values({ name: 'SuperWidget' }).returning();
+				await db.insert(orders).values({ userId: user!.id, productId: product!.id });
+
+				// Update user name to the product name via join
+				await db.update(users)
+					.set({ name: sql`${products.name}` })
+					.from(orders)
+					.innerJoin(products, eq(orders.productId, products.id))
+					.where(eq(users.id, orders.userId));
+
+				const result = await db.select().from(users);
+				expect(result[0]?.name).toBe('SuperWidget');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(ordersTableName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(productsTableName)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(usersTableName)} cascade`);
+			}
+		});
+
+		test.concurrent('update with join sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+				productId: uuid('product_id').notNull(),
+			});
+			const products = dsqlTable('products', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.update(users)
+				.set({ name: 'updated' })
+				.from(orders)
+				.innerJoin(products, eq(orders.productId, products.id))
+				.where(eq(users.id, orders.userId))
+				.toSQL();
+
+			expect(query.sql).toMatch(/update "users" set "name" = \$1 from "orders" inner join "products" on/i);
+		});
+
+		test.concurrent('update with left join sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+			});
+			const products = dsqlTable('products', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.update(users)
+				.set({ name: 'updated' })
+				.from(orders)
+				.leftJoin(products, eq(orders.id, products.id))
+				.toSQL();
+
+			expect(query.sql).toMatch(/from "orders" left join "products"/i);
+		});
+
+		test.concurrent('update with right join sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+			});
+			const products = dsqlTable('products', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.update(users)
+				.set({ name: 'updated' })
+				.from(orders)
+				.rightJoin(products, eq(orders.id, products.id))
+				.toSQL();
+
+			expect(query.sql).toMatch(/from "orders" right join "products"/i);
+		});
+
+		test.concurrent('update with full join sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+			});
+			const products = dsqlTable('products', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.update(users)
+				.set({ name: 'updated' })
+				.from(orders)
+				.fullJoin(products, eq(orders.id, products.id))
+				.toSQL();
+
+			expect(query.sql).toMatch(/from "orders" full join "products"/i);
+		});
+
+		// $count tests
+		test.concurrent('$count all rows', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+					{ name: 'Bob' },
+				]);
+
+				const count = await db.select({ count: db.$count(users) }).from(sql`(select 1) as dummy`);
+				expect(count[0]?.count).toBe(3);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('$count with filter', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null,
+					verified boolean not null default false
+				)
+			`);
+
+			try {
+				await db.insert(users).values([
+					{ name: 'John', verified: true },
+					{ name: 'Jane', verified: false },
+					{ name: 'Bob', verified: true },
+				]);
+
+				const count = await db.select({
+					count: db.$count(users, eq(users.verified, true)),
+				}).from(sql`(select 1) as dummy`);
+				expect(count[0]?.count).toBe(2);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('$count sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const countBuilder = db.$count(users);
+			// DSQLCountBuilder extends SQL, so we can check its structure
+			expect(countBuilder).toBeDefined();
+
+			// Use it in a select and check the generated SQL
+			const query = db.select({ total: countBuilder }).from(sql`(select 1) as t`).toSQL();
+			expect(query.sql).toMatch(/select count\(\*\) from "users"/i);
+		});
+
+		test.concurrent('$count with filter sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			const query = db.select({
+				total: db.$count(users, eq(users.verified, true)),
+			}).from(sql`(select 1) as t`).toSQL();
+
+			expect(query.sql).toMatch(/select count\(\*\) from "users" where/i);
+		});
+
 		test.concurrent('delete with returning all fields', async ({ db }) => {
 			const tableName = uniqueName('users');
 			const users = dsqlTable(tableName, {
@@ -635,6 +944,73 @@ export function tests(test: Test) {
 			} finally {
 				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
 			}
+		});
+
+		test.concurrent('insert with onConflict do update with setWhere', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					name text not null unique,
+					verified boolean not null default false
+				)
+			`);
+
+			try {
+				// Insert an unverified user
+				await db.insert(users).values({ name: 'John', verified: false });
+
+				// This should NOT update because the setWhere condition isn't met
+				await db.insert(users).values({ name: 'John', verified: true }).onConflictDoUpdate({
+					target: users.name,
+					set: { verified: true },
+					setWhere: eq(users.verified, true), // Only update if already verified
+				});
+
+				const result = await db.select().from(users);
+				expect(result).toHaveLength(1);
+				expect(result[0]?.verified).toBe(false); // Should still be false
+
+				// Now make them verified first
+				await db.update(users).set({ verified: true }).where(eq(users.name, 'John'));
+
+				// Now the upsert should work
+				await db.insert(users).values({ name: 'John', verified: false }).onConflictDoUpdate({
+					target: users.name,
+					set: { name: 'Jane' },
+					setWhere: eq(users.verified, true),
+				});
+
+				const result2 = await db.select().from(users);
+				expect(result2).toHaveLength(1);
+				expect(result2[0]?.name).toBe('Jane');
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		test.concurrent('insert with onConflict do update with setWhere sql generation', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			const query = db.insert(users).values({ name: 'John' }).onConflictDoUpdate({
+				target: users.name,
+				set: { name: 'Jane' },
+				setWhere: eq(users.verified, true),
+			}).toSQL();
+
+			expect(query.sql).toMatch(
+				/on conflict \("name"\) do update set "name" = \$\d+ where "users"\."verified" = \$\d+/i,
+			);
 		});
 
 		test.concurrent('prepared statement', async ({ db }) => {
@@ -1839,6 +2215,51 @@ export function tests(test: Test) {
 
 			const query = db.select().from(users).for('update').toSQL();
 			expect(query.sql).toMatch(/for update$/i);
+		});
+
+		test.concurrent('select for update of table', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update', { of: users }).toSQL();
+			expect(query.sql).toMatch(/for update of "users"$/i);
+		});
+
+		test.concurrent('select for update of multiple tables', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+			const orders = dsqlTable('orders', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').notNull(),
+			});
+
+			const query = db.select().from(users).leftJoin(orders, eq(users.id, orders.userId))
+				.for('update', { of: [users, orders] }).toSQL();
+			expect(query.sql).toMatch(/for update of "users", "orders"$/i);
+		});
+
+		test.concurrent('select for update of table with nowait', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update', { of: users, noWait: true }).toSQL();
+			expect(query.sql).toMatch(/for update of "users" nowait$/i);
+		});
+
+		test.concurrent('select for update of table with skip locked', ({ db }) => {
+			const users = dsqlTable('users', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			});
+
+			const query = db.select().from(users).for('update', { of: users, skipLocked: true }).toSQL();
+			expect(query.sql).toMatch(/for update of "users" skip locked$/i);
 		});
 
 		test.concurrent('select for share', ({ db }) => {

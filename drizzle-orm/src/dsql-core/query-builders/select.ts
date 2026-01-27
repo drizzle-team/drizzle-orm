@@ -348,9 +348,30 @@ export abstract class DSQLSelectQueryBuilderBase<
 		return this;
 	}
 
+	/**
+	 * Adds a locking clause to the SELECT query.
+	 *
+	 * @param strength - The lock strength ('update', 'no key update', 'share', 'key share')
+	 * @param config - Optional configuration for the lock
+	 * @param config.of - Table(s) to lock (generates FOR ... OF clause)
+	 * @param config.noWait - If true, query fails immediately if lock cannot be acquired
+	 * @param config.skipLocked - If true, skip rows that are already locked
+	 *
+	 * @example
+	 * ```ts
+	 * // Lock all tables in the query
+	 * db.select().from(users).for('update');
+	 *
+	 * // Lock specific table
+	 * db.select().from(users).leftJoin(orders).for('update', { of: users });
+	 *
+	 * // Lock multiple tables with noWait
+	 * db.select().from(users).for('update', { of: [users, orders], noWait: true });
+	 * ```
+	 */
 	for(
 		strength: 'update' | 'no key update' | 'share' | 'key share',
-		config: { noWait?: boolean; skipLocked?: boolean } = {},
+		config: { of?: DSQLTable | DSQLTable[]; noWait?: boolean; skipLocked?: boolean } = {},
 	): this {
 		this.config.lockingClause = { strength, config };
 		return this;

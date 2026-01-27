@@ -105,15 +105,47 @@ export class DSQLInsertBase<
 		return this;
 	}
 
-	onConflictDoUpdate(config: { target: any; set: Record<string, unknown>; where?: SQL }): this {
+	/**
+	 * Adds an `ON CONFLICT DO UPDATE` clause to the INSERT query.
+	 *
+	 * @param config - Configuration for conflict resolution
+	 * @param config.target - The column(s) that define the unique constraint
+	 * @param config.set - The values to set when a conflict occurs
+	 * @param config.setWhere - WHERE clause for the UPDATE action (filters which rows to update)
+	 *
+	 * @example
+	 * ```ts
+	 * // Basic upsert
+	 * await db.insert(users)
+	 *   .values({ id: '1', name: 'Alice' })
+	 *   .onConflictDoUpdate({
+	 *     target: users.id,
+	 *     set: { name: 'Alice Updated' },
+	 *   });
+	 *
+	 * // With setWhere (conditional update)
+	 * await db.insert(users)
+	 *   .values({ id: '1', name: 'Alice' })
+	 *   .onConflictDoUpdate({
+	 *     target: users.id,
+	 *     set: { name: 'Alice Updated' },
+	 *     setWhere: sql`excluded.updated_at > ${users.updatedAt}`,
+	 *   });
+	 * ```
+	 */
+	onConflictDoUpdate(config: {
+		target: any;
+		set: Record<string, unknown>;
+		setWhere?: SQL;
+	}): this {
 		const targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
 			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
 
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 
-		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${whereSql}`;
+		this.config.onConflict = sql`(${sql.raw(targetColumn)}) do update set ${setSql}${setWhereSql}`;
 		return this;
 	}
 

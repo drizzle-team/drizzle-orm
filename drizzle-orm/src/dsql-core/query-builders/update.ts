@@ -4,12 +4,13 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { applyMixins, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { DSQLViewBase } from '../view-base.ts';
+import type { DSQLSelectJoinConfig, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
@@ -17,6 +18,8 @@ export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
 	where?: SQL;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	from?: DSQLTable | Subquery | DSQLViewBase | SQL;
+	joins: DSQLSelectJoinConfig[];
 }
 
 export type SelectedFieldsFlat = Record<string, unknown>;
@@ -50,6 +53,8 @@ export interface DSQLUpdateBase<
 	TReturning = undefined,
 > extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper {}
 
+type JoinType = 'left' | 'right' | 'inner' | 'full';
+
 export class DSQLUpdateBase<
 	TTable extends DSQLTable,
 	_TQueryResult,
@@ -58,6 +63,7 @@ export class DSQLUpdateBase<
 	static override readonly [entityKind]: string = 'DSQLUpdate';
 
 	protected config: DSQLUpdateConfig<TTable>;
+	protected joinsNotNullableMap: Record<string, boolean>;
 
 	constructor(
 		table: TTable,
@@ -67,8 +73,99 @@ export class DSQLUpdateBase<
 		withList?: Subquery[],
 	) {
 		super();
-		this.config = { table, set, withList };
+		this.config = { table, set, withList, joins: [] };
+		const tableName = getTableLikeName(table);
+		this.joinsNotNullableMap = typeof tableName === 'string' ? { [tableName]: true } : {};
 	}
+
+	/**
+	 * Adds a FROM clause to the UPDATE query, allowing you to reference other tables.
+	 *
+	 * @example
+	 * ```ts
+	 * await db.update(users)
+	 *   .set({ name: sql`${orders.product}` })
+	 *   .from(orders)
+	 *   .where(eq(users.id, orders.userId));
+	 * ```
+	 */
+	from(source: DSQLTable | Subquery | DSQLViewBase | SQL): this {
+		const tableName = getTableLikeName(source);
+		if (typeof tableName === 'string') {
+			this.joinsNotNullableMap[tableName] = true;
+		}
+		this.config.from = source;
+		return this;
+	}
+
+	private createJoin(joinType: JoinType) {
+		return (
+			table: DSQLTable | Subquery | DSQLViewBase | SQL,
+			on: SQL | undefined,
+		): this => {
+			const tableName = getTableLikeName(table);
+
+			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
+				throw new DrizzleError({ message: `Alias "${tableName}" is already used in this query` });
+			}
+
+			this.config.joins.push({
+				on,
+				table,
+				joinType,
+				alias: tableName,
+			});
+
+			if (typeof tableName === 'string') {
+				switch (joinType) {
+					case 'left': {
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+					}
+					case 'right': {
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					}
+					case 'inner': {
+						this.joinsNotNullableMap[tableName] = true;
+						break;
+					}
+					case 'full': {
+						this.joinsNotNullableMap = Object.fromEntries(
+							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
+						);
+						this.joinsNotNullableMap[tableName] = false;
+						break;
+					}
+				}
+			}
+
+			return this;
+		};
+	}
+
+	/**
+	 * Executes a `left join` operation in the UPDATE query.
+	 */
+	leftJoin = this.createJoin('left');
+
+	/**
+	 * Executes a `right join` operation in the UPDATE query.
+	 */
+	rightJoin = this.createJoin('right');
+
+	/**
+	 * Executes an `inner join` operation in the UPDATE query.
+	 */
+	innerJoin = this.createJoin('inner');
+
+	/**
+	 * Executes a `full join` operation in the UPDATE query.
+	 */
+	fullJoin = this.createJoin('full');
 
 	where(where: SQL | undefined): this {
 		this.config.where = where;
