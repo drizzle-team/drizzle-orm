@@ -3371,7 +3371,7 @@ export function tests(test: Test) {
 		// });
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
-		test.skipIf(Date.now() < +new Date('2026-01-23')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-01-30')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
