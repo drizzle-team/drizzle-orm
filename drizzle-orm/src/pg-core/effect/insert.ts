@@ -55,7 +55,6 @@ export interface PgEffectInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends
 	Effect.Effect<

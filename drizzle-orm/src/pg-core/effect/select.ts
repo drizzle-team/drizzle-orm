@@ -68,14 +68,12 @@ export interface PgEffectSelectBase<
 	TDynamic extends boolean = false,
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
-	// oxlint-disable-next-line no-unused-vars
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
 		Assume<TSelection, ColumnsSelection>,
 		TNullabilityMap
 	>,
-	// oxlint-disable-next-line no-unused-vars
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']> {
 }
