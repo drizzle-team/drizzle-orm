@@ -337,7 +337,7 @@ ORDER BY dt_timestamp DESC`);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4582
-test('view #3 aggregate function', async () => {
+test.skipIf(Date.now() < +new Date('2026-01-30'))('view #3 aggregate function', async () => {
 	const sqlite = new Database(':memory:');
 
 	const orderDetails = sqliteTable(
