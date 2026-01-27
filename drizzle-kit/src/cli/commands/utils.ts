@@ -14,6 +14,8 @@ import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import type { Casing, CasingType, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { DsqlCredentials } from '../validations/dsql';
+import { dsqlCredentials, printConfigConnectionIssues as printDsqlIssues } from '../validations/dsql';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { GelCredentials } from '../validations/gel';
 import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
@@ -430,6 +432,10 @@ export const preparePushConfig = async (
 		process.exit(1);
 	}
 
+	if (config.dialect === 'dsql') {
+		throw new Error(`You can't use 'push' command with DSQL dialect`);
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -469,6 +475,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'cockroach';
 			credentials: CockroachCredentials;
+		}
+		| {
+			dialect: 'dsql';
+			credentials: DsqlCredentials;
 		}
 	) & {
 		out: string;
@@ -655,6 +665,25 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'dsql') {
+		const parsed = dsqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			printDsqlIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			filters,
+			init: !!options.init,
+			migrations,
+		};
+	}
+
 	if (dialect === 'duckdb') {
 		console.log(
 			error(
@@ -811,6 +840,10 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
+	if (dialect === 'dsql') {
+		throw new Error(`You can't use 'studio' command with DSQL dialect`);
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -956,6 +989,10 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			),
 		);
 		process.exit(1);
+	}
+
+	if (dialect === 'dsql') {
+		throw new Error(`You can't use 'migrate' command with DSQL dialect`);
 	}
 
 	assertUnreachable(dialect);

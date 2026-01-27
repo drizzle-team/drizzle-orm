@@ -9,24 +9,34 @@ import { fromDatabase } from '../../dialects/dsql/introspect';
 import type { DB } from '../../utils';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
+import type { DsqlCredentials } from '../validations/dsql';
 import { IntrospectProgress } from '../views';
 import { relationsToTypeScript } from './pull-common';
 
-export interface DsqlCredentials {
-	endpoint: string;
-	region: string;
-}
+export type { DsqlCredentials } from '../validations/dsql';
 
 export const prepareDsqlDB = async (
 	credentials: DsqlCredentials,
 ): Promise<DB> => {
+	if (!credentials.host?.trim()) {
+		throw new Error('DSQL host is required');
+	}
+
 	const { drizzle } = await import('drizzle-orm/dsql');
 	const { sql } = await import('drizzle-orm');
 
 	const db = drizzle({
 		connection: {
-			endpoint: credentials.endpoint,
+			host: credentials.host,
 			region: credentials.region,
+			user: credentials.user,
+			database: credentials.database,
+			port: credentials.port,
+			profile: credentials.profile,
+			tokenDurationSecs: credentials.tokenDurationSecs,
+			max: credentials.max,
+			connectionTimeoutMillis: credentials.connectionTimeoutMillis,
+			idleTimeoutMillis: credentials.idleTimeoutMillis,
 		},
 	});
 
@@ -56,7 +66,7 @@ export const handle = async (
 	const progress = new IntrospectProgress(true);
 	const entityFilter = prepareEntityFilter('postgresql', filters, []);
 
-	// Use PostgreSQL's introspection (DSQL is PG-compatible)
+	// Use DSQL's introspection
 	const task = fromDatabase(db, entityFilter, (stage, count, status) => {
 		progress.update(stage, count, status);
 	});
@@ -67,7 +77,8 @@ export const handle = async (
 	const { ddl, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		console.error('Schema errors:', errors);
+		// TODO: print errors
+		console.error(errors);
 		process.exit(1);
 	}
 

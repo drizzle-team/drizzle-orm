@@ -111,8 +111,7 @@ export const generate = command({
 			);
 			process.exit(1);
 		} else if (dialect === 'dsql') {
-			const { handle } = await import('./commands/generate-dsql');
-			await handle(opts);
+			throw new Error(`You can't use 'generate' command with DSQL dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -647,9 +646,9 @@ export const pull = command({
 			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else if (dialect === 'dsql') {
 			const { handle, prepareDsqlDB } = await import('./commands/pull-dsql');
-			const db = await prepareDsqlDB(credentials as any);
+			const db = await prepareDsqlDB(credentials);
 			// DSQL doesn't support migrate --init due to one-DDL-per-transaction limitation
-			await handle(casing, out, breakpoints, credentials as any, filters, db);
+			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -873,6 +872,8 @@ export const exportRaw = command({
 				),
 			);
 			process.exit(1);
+		} else if (dialect === 'dsql') {
+			throw new Error(`You can't use 'export' command with DSQL dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}

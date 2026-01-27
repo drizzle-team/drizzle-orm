@@ -24,8 +24,7 @@ beforeAll(async () => {
 		async () => {
 			const database = drizzle({
 				connection: {
-					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
-					region: 'us-west-2',
+					host: `${clusterId}.dsql.us-west-2.on.aws`,
 				},
 				logger: ENABLE_LOGGING,
 			});

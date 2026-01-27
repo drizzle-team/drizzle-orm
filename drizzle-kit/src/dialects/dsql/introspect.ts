@@ -91,7 +91,8 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
+	// Escape single quotes to prevent SQL injection
+	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name.replace(/'/g, "''")}'`).join(',');
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	if (!filteredNamespacesStringForSQL) {

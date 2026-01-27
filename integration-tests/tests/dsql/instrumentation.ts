@@ -113,8 +113,7 @@ async function createSharedDb(): Promise<DSQLDatabase<any>> {
 		async () => {
 			const db = drizzle({
 				connection: {
-					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
-					region: 'us-west-2',
+					host: `${clusterId}.dsql.us-west-2.on.aws`,
 				},
 				logger: ENABLE_LOGGING,
 			});
@@ -162,8 +161,7 @@ async function createRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relatio
 		async () => {
 			const db = drizzle({
 				connection: {
-					endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
-					region: 'us-west-2',
+					host: `${clusterId}.dsql.us-west-2.on.aws`,
 				},
 				relations,
 				logger: ENABLE_LOGGING,
@@ -301,8 +299,7 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 			}
 
 			const connectionConfig = {
-				endpoint: `${clusterId}.dsql.us-west-2.on.aws`,
-				region: 'us-west-2',
+				host: `${clusterId}.dsql.us-west-2.on.aws`,
 			};
 
 			const allDb = await retry(

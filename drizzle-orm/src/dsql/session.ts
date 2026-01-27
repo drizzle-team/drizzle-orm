@@ -15,8 +15,7 @@ import {
 } from '~/dsql-core/session.ts';
 import type { DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
-import { TransactionRollbackError } from '~/errors.ts';
+import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQLWrapper } from '~/sql/sql.ts';
@@ -52,6 +51,31 @@ const DSQL_RETRYABLE_ERRORS = ['OC000', 'OC001', '40001'];
 const DEFAULT_MAX_RETRIES = 10;
 const DEFAULT_BASE_DELAY_MS = 50;
 const DEFAULT_MAX_DELAY_MS = 5000;
+
+/**
+ * Error thrown when DSQL retry attempts are exhausted due to optimistic concurrency conflicts.
+ *
+ * This error indicates that the operation failed after multiple retry attempts due to
+ * concurrent modifications to the same data. Consider:
+ * - Increasing maxRetries in retryConfig
+ * - Reducing contention by batching operations differently
+ * - Using read-only transactions where possible
+ */
+export class DSQLRetryExhaustedError extends DrizzleError {
+	static override readonly [entityKind]: string = 'DSQLRetryExhaustedError';
+
+	constructor(
+		public readonly attempts: number,
+		cause: unknown,
+	) {
+		super({
+			message: `DSQL operation failed after ${attempts} retry attempts due to optimistic concurrency conflicts. `
+				+ `This typically occurs when multiple transactions are modifying the same data. `
+				+ `Consider increasing maxRetries in retryConfig or reducing contention.`,
+			cause,
+		});
+	}
+}
 
 /**
  * Configuration for DSQL retry behavior on optimistic concurrency conflicts.
@@ -94,8 +118,13 @@ async function withRetry<T>(
 			return await fn();
 		} catch (error) {
 			lastError = error;
-			if (!isDSQLRetryableError(error) || attempt === maxRetries) {
+			if (!isDSQLRetryableError(error)) {
+				// Non-retryable error, throw immediately
 				throw error;
+			}
+			if (attempt === maxRetries) {
+				// Retries exhausted, throw with helpful context
+				throw new DSQLRetryExhaustedError(attempt + 1, error);
 			}
 			// Exponential backoff with jitter, capped at maxDelayMs
 			const delay = Math.min(

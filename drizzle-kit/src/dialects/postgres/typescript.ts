@@ -241,7 +241,7 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
-	mode: 'pg' | 'gel',
+	mode: 'pg' | 'gel' | 'dsql',
 ) => {
 	const tableFn = `${mode}Table`;
 	for (const fk of ddl.fks.list()) {

@@ -426,7 +426,9 @@ export class DSQLSelectBase<
 	private _prepare(name?: string) {
 		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+			throw new DrizzleError({
+				message: 'Cannot execute a query on a query builder. Please use a database instance instead.',
+			});
 		}
 		const fieldsList = orderSelectedFields<DSQLColumn>(config.fields);
 		const query = session.prepareQuery<any>(

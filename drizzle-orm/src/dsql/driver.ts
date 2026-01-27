@@ -303,11 +303,32 @@ export class DSQLDatabase<
 	}
 }
 
+/**
+ * DSQL connection configuration combining DSQL-specific options with node-postgres Pool options.
+ *
+ * @see https://node-postgres.com/apis/pool
+ */
 export interface DSQLConnectionConfig {
-	endpoint: string;
+	/** DSQL cluster hostname (e.g., "abc123.dsql.us-west-2.on.aws") */
+	host: string;
+	/** Database user (defaults to "admin") */
 	user?: string;
+	/** AWS region (auto-detected from hostname if not provided) */
 	region?: string;
-	// AWS credentials would typically come from environment/IAM
+	/** Database name (defaults to "postgres") */
+	database?: string;
+	/** Port number (defaults to 5432) */
+	port?: number;
+	/** IAM profile name (defaults to "default") */
+	profile?: string;
+	/** Token expiration time in seconds */
+	tokenDurationSecs?: number;
+	/** Maximum pool size (defaults to 10) */
+	max?: number;
+	/** Connection timeout in milliseconds (defaults to 0, no timeout) */
+	connectionTimeoutMillis?: number;
+	/** Idle timeout in milliseconds (defaults to 10000) */
+	idleTimeoutMillis?: number;
 }
 
 /**
@@ -430,8 +451,16 @@ function createDSQLClient(config: DSQLConnectionConfig): DSQLClient {
 	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const { AuroraDSQLPool } = require('@aws/aurora-dsql-node-postgres-connector');
 	return new AuroraDSQLPool({
-		host: config.endpoint,
+		host: config.host,
 		user: config.user ?? 'admin',
+		region: config.region,
+		database: config.database,
+		port: config.port,
+		profile: config.profile,
+		tokenDurationSecs: config.tokenDurationSecs,
+		max: config.max,
+		connectionTimeoutMillis: config.connectionTimeoutMillis,
+		idleTimeoutMillis: config.idleTimeoutMillis,
 	});
 }
 

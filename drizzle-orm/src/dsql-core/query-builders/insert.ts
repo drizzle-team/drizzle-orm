@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
@@ -35,7 +36,7 @@ export class DSQLInsertBuilder<TTable extends DSQLTable> {
 	values(values: Record<string, unknown> | Record<string, unknown>[]): DSQLInsertBase<TTable, any, any> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
-			throw new Error('values() must be called with at least one value');
+			throw new DrizzleError({ message: 'values() must be called with at least one value' });
 		}
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
@@ -128,7 +129,9 @@ export class DSQLInsertBase<
 
 	private _prepare(name?: string) {
 		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
+			throw new DrizzleError({
+				message: 'Cannot execute a query on a query builder. Please use a database instance instead.',
+			});
 		}
 		return this.session.prepareQuery<any>(
 			this.dialect.sqlToQuery(this.getSQL()),
