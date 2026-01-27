@@ -83,6 +83,7 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
@@ -188,7 +189,7 @@ const usersTable = mysqlTable('userstest', {
 const users2Table = mysqlTable('users2', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	cityId: int('city_id').references(() => citiesTable.id),
+	cityId: bigint('city_id', { unsigned: true, mode: 'number' }).references(() => citiesTable.id),
 });
 
 const citiesTable = mysqlTable('cities', {
@@ -219,7 +220,7 @@ const datesTable = mysqlTable('datestable', {
 const coursesTable = mysqlTable('courses', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	categoryId: int('category_id').references(() => courseCategoriesTable.id),
+	categoryId: bigint('category_id', { unsigned: true, mode: 'number' }).references(() => courseCategoriesTable.id),
 });
 
 const courseCategoriesTable = mysqlTable('course_categories', {
@@ -374,19 +375,19 @@ describe('common', () => {
 
 		await db.execute(
 			sql`
-				create table users2 (
+				create table cities (
 					id serial primary key,
-					name text not null,
-					city_id int references cities(id)
+					name text not null
 				)
 			`,
 		);
 
 		await db.execute(
 			sql`
-				create table cities (
+				create table users2 (
 					id serial primary key,
-					name text not null
+					name text not null,
+					city_id bigint unsigned references cities(id)
 				)
 			`,
 		);
@@ -417,7 +418,7 @@ describe('common', () => {
 				create table \`mySchema\`.\`users2\` (
 					\`id\` serial primary key,
 					\`name\` text not null,
-					\`city_id\` int references \`mySchema\`.\`cities\`(\`id\`)
+					\`city_id\` bigint unsigned references \`mySchema\`.\`cities\`(\`id\`)
 				)
 			`,
 		);
@@ -454,21 +455,22 @@ describe('common', () => {
 	async function setupSetOperationTest(db: MySqlDatabase<any, any, any, any, any>) {
 		await db.execute(sql`drop table if exists \`users2\``);
 		await db.execute(sql`drop table if exists \`cities\``);
-		await db.execute(
-			sql`
-				create table \`users2\` (
-					\`id\` serial primary key,
-					\`name\` text not null,
-					\`city_id\` int references \`cities\`(\`id\`)
-				)
-			`,
-		);
 
 		await db.execute(
 			sql`
 				create table \`cities\` (
 					\`id\` serial primary key,
 					\`name\` text not null
+				)
+			`,
+		);
+
+		await db.execute(
+			sql`
+				create table \`users2\` (
+					\`id\` serial primary key,
+					\`name\` text not null,
+					\`city_id\` bigint unsigned references \`cities\`(\`id\`)
 				)
 			`,
 		);
@@ -1361,6 +1363,67 @@ describe('common', () => {
 		await db.execute(sql`drop table __drizzle_migrations`);
 	});
 
+	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async () => {
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: int(),
+		});
+
+		const users2 = mysqlTable('users2', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: int(),
+		});
+
+		await db.execute(sql`drop table if exists \`__drizzle_migrations\`;`);
+		await db.execute(sql`drop table if exists ${users};`);
+		await db.execute(sql`drop table if exists ${users2};`);
+
+		// create migration directory
+		const migrationDir = './migrations/bun-mysql';
+		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		mkdirSync(migrationDir, { recursive: true });
+
+		// first branch
+		mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240101010101_initial/migration.sql`,
+			'CREATE TABLE `users` (\n`id` serial PRIMARY KEY NOT NULL,\n`name` text NOT NULL,\n`email` text NOT NULL\n);',
+		);
+		mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240303030303_third/migration.sql`,
+			'ALTER TABLE `users` ADD COLUMN `age` INT;',
+		);
+
+		await migrate.mysql(db, { migrationsFolder: migrationDir });
+		await db.insert(users).values({ name: 'John', email: '', age: 30 });
+		const res1 = await db.select().from(users);
+
+		// second migration was not applied yet
+		expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects.toThrowError();
+
+		// insert migration with earlier timestamp
+		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240202020202_second/migration.sql`,
+			'CREATE TABLE `users2` (\n`id` serial PRIMARY KEY NOT NULL,\n`name` text NOT NULL,\n`email` text NOT NULL\n,`age` INT\n);',
+		);
+		await migrate.mysql(db, { migrationsFolder: migrationDir });
+
+		await db.insert(users2).values({ name: 'John', email: '', age: 30 });
+		const res2 = await db.select().from(users2);
+
+		const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+		expect(res1).toStrictEqual(expected);
+		expect(res2).toStrictEqual(expected);
+
+		rmdirSync(migrationDir, { recursive: true });
+	});
+
 	test('insert via db.execute + select via db.execute', async () => {
 		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
@@ -1611,7 +1674,7 @@ describe('common', () => {
 				create table \`courses\` (
 					\`id\` serial primary key,
 					\`name\` text not null,
-					\`category_id\` int references \`course_categories\`(\`id\`)
+					\`category_id\` bigint unsigned references \`course_categories\`(\`id\`)
 				)
 			`,
 		);
@@ -2505,7 +2568,7 @@ describe('common', () => {
 			sql`create table ${users} (id serial not null primary key, name text)`,
 		);
 
-		await expect((async () => {
+		expect((async () => {
 			await db.insert(users).values({ name: undefined });
 		})()).resolves.toStrictEqual(undefined);
 

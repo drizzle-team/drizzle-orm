@@ -29,6 +29,7 @@ import {
 	year,
 } from 'drizzle-orm/singlestore-core';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { toLocalDate } from '../utils';
 import type { Test } from './instrumentation';
@@ -932,6 +933,67 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table users_migration`);
 			await db.execute(sql`drop table users12`);
 			await db.execute(sql`drop table __drizzle_migrations`);
+		});
+
+		test.concurrent('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+			const users = singlestoreTable('users', {
+				id: serial('id').primaryKey(),
+				name: text().notNull(),
+				email: text().notNull(),
+				age: int(),
+			});
+
+			const users2 = singlestoreTable('users2', {
+				id: serial('id').primaryKey(),
+				name: text().notNull(),
+				email: text().notNull(),
+				age: int(),
+			});
+
+			await db.execute(sql`drop table if exists \`__drizzle_migrations\`;`);
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`drop table if exists ${users2}`);
+
+			// create migration directory
+			const migrationDir = './migrations/singlestore';
+			if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+			mkdirSync(migrationDir, { recursive: true });
+
+			// first branch
+			mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240101010101_initial/migration.sql`,
+				'CREATE TABLE `users` (\n`id` serial PRIMARY KEY NOT NULL,\n`name` text NOT NULL,\n`email` text NOT NULL\n);',
+			);
+			mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240303030303_third/migration.sql`,
+				'ALTER TABLE `users` ADD `age` int;',
+			);
+
+			await migrate(db, { migrationsFolder: migrationDir });
+			await db.insert(users).values({ name: 'John', email: '', age: 30 });
+			const res1 = await db.select().from(users);
+
+			// second migration was not applied yet
+			await expect(db.insert(users2).values({ name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+			// insert migration with earlier timestamp
+			mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240202020202_second/migration.sql`,
+				'CREATE TABLE `users2` (\n`id` serial PRIMARY KEY NOT NULL,\n`name` text NOT NULL,\n`email` text NOT NULL,\n`age` int\n);',
+			);
+			await migrate(db, { migrationsFolder: migrationDir });
+
+			await db.insert(users2).values({ name: 'John', email: '', age: 30 });
+			const res2 = await db.select().from(users2);
+
+			const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+			expect(res1).toStrictEqual(expected);
+			expect(res2).toStrictEqual(expected);
+
+			rmdirSync(migrationDir, { recursive: true });
 		});
 
 		test.concurrent('insert via db.execute + select via db.execute', async ({ db }) => {
