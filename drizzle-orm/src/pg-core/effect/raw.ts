@@ -1,4 +1,4 @@
-import type { Effect } from 'effect';
+import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';

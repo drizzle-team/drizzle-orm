@@ -1,6 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { SqlError } from '@effect/sql/SqlError';
-import type { Effect } from 'effect';
+import type * as Effect from 'effect/Effect';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
