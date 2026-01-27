@@ -1,5 +1,6 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { PgRemoteDatabase } from './driver.ts';
@@ -32,9 +33,7 @@ export async function migrate<
 	await db.execute(migrationTableCreate);
 
 	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -63,22 +62,17 @@ export async function migrate<
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0] ?? undefined;
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	const queriesToRun: string[] = [];
-	for (const migration of migrations) {
-		if (
-			!lastDbMigration
-			|| Number(lastDbMigration.created_at)! < migration.folderMillis
-		) {
-			queriesToRun.push(
-				...migration.sql,
-				db.dialect.sqlToQuery(
-					sql`insert into ${sql.identifier(migrationsSchema)}.${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
-				).sql,
-			);
-		}
+	for (const migration of migrationsToRun) {
+		queriesToRun.push(
+			...migration.sql,
+			db.dialect.sqlToQuery(
+				sql`insert into ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		);
 	}
 
 	await callback(queriesToRun);

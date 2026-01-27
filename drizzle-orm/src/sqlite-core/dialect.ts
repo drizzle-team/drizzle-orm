@@ -12,6 +12,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -1167,8 +1168,8 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		`;
 		session.run(migrationTableCreate);
 
-		const dbMigrations = session.values<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
+		const dbMigrations = session.all<{ id: number; hash: string; created_at: string }>(
+			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1193,21 +1194,19 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			return;
 		}
 
-		const lastDbMigration = dbMigrations[0] ?? undefined;
+		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 		session.run(sql`BEGIN`);
 
 		try {
-			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-					for (const stmt of migration.sql) {
-						session.run(sql.raw(stmt));
-					}
-					session.run(
-						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					session.run(sql.raw(stmt));
 				}
+				session.run(
+					sql`INSERT INTO ${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 
 			session.run(sql`COMMIT`);
@@ -1247,8 +1246,8 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		`;
 		await session.run(migrationTableCreate);
 
-		const dbMigrations = await session.values<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
+			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)};`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1273,19 +1272,17 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			return;
 		}
 
-		const lastDbMigration = dbMigrations[0] ?? undefined;
+		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-					for (const stmt of migration.sql) {
-						await tx.run(sql.raw(stmt));
-					}
-					await tx.run(
-						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					await tx.run(sql.raw(stmt));
 				}
+				await tx.run(
+					sql`INSERT INTO ${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 		});
 	}

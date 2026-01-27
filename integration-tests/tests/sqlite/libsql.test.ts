@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { getTableConfig } from 'drizzle-orm/sqlite-core';
+import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
-import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { libSQLTest as test } from './instrumentation';
 import relations from './relations';
@@ -152,6 +152,65 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 	expect(meta.length).toStrictEqual(1);
 	expect(!!res?.tableExists).toStrictEqual(true);
+});
+
+test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+	const users = sqliteTable('migration_users', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	const users2 = sqliteTable('migration_users2', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	await db.run(sql`drop table if exists \`__drizzle_migrations\`;`);
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`drop table if exists ${users2}`);
+
+	// create migration directory
+	const migrationDir = './migrations/libsql';
+	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	mkdirSync(migrationDir, { recursive: true });
+
+	// first branch
+	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240101010101_initial/migration.sql`,
+		`CREATE TABLE "migration_users" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+	);
+	mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240303030303_third/migration.sql`,
+		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
+	);
+
+	await migrate(db as LibSQLDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
+
+	// second migration was not applied yet
+	await expect(db.insert(users2).values({ name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+	// insert migration with earlier timestamp
+	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240202020202_second/migration.sql`,
+		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+	);
+	await migrate(db as LibSQLDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+
+	const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
+
+	const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+	expect(res1).toStrictEqual(expected);
+	expect(res2).toStrictEqual(expected);
+
+	rmdirSync(migrationDir, { recursive: true });
 });
 
 const skip = [
