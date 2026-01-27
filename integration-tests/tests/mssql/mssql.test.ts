@@ -987,14 +987,14 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 });
 
 test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
-	const users = mssqlTable('users', {
+	const users = mssqlTable('migration_users', {
 		id: int('id').primaryKey(),
 		name: text().notNull(),
 		email: text().notNull(),
 		age: int(),
 	});
 
-	const users2 = mssqlTable('users2', {
+	const users2 = mssqlTable('migration_users2', {
 		id: int('id').primaryKey(),
 		name: text().notNull(),
 		email: text().notNull(),
@@ -1014,12 +1014,12 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240101010101_initial/migration.sql`,
-		`CREATE TABLE [users] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n);`,
+		`CREATE TABLE [migration_users] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n);`,
 	);
 	mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240303030303_third/migration.sql`,
-		`ALTER TABLE [users] ADD [age] INT;`,
+		`ALTER TABLE [migration_users] ADD [age] INT;`,
 	);
 
 	await migrate(db, { migrationsFolder: migrationDir });
@@ -1033,7 +1033,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240202020202_second/migration.sql`,
-		`CREATE TABLE [users2] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n,[age] INT\n);`,
+		`CREATE TABLE [migration_users2] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n,[age] INT\n);`,
 	);
 	await migrate(db, { migrationsFolder: migrationDir });
 

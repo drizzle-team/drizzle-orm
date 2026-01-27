@@ -129,14 +129,14 @@ describe('migrator', () => {
 	});
 
 	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
-		const users = mysqlTable('users', {
+		const users = mysqlTable('migration_users', {
 			id: int('id').primaryKey(),
 			name: text().notNull(),
 			email: text().notNull(),
 			age: int(),
 		});
 
-		const users2 = mysqlTable('users2', {
+		const users2 = mysqlTable('migration_users2', {
 			id: int('id').primaryKey(),
 			name: text().notNull(),
 			email: text().notNull(),
@@ -155,12 +155,12 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240101010101_initial/migration.sql`,
-			'CREATE TABLE `users` (\n`id` INT PRIMARY KEY,\n`name` text NOT NULL,\n`email` text NOT NULL\n);',
+			'CREATE TABLE `migration_users` (\n`id` INT PRIMARY KEY,\n`name` text NOT NULL,\n`email` text NOT NULL\n);',
 		);
 		mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240303030303_third/migration.sql`,
-			'ALTER TABLE `users` ADD COLUMN `age` INT;',
+			'ALTER TABLE `migration_users` ADD COLUMN `age` INT;',
 		);
 
 		await migrate(db, { migrationsFolder: migrationDir });
@@ -174,7 +174,7 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
 		writeFileSync(
 			`${migrationDir}/20240202020202_second/migration.sql`,
-			'CREATE TABLE `users2` (\n`id` INT PRIMARY KEY,\n`name` text NOT NULL,\n`email` text NOT NULL\n,`age` INT\n);',
+			'CREATE TABLE `migration_users2` (\n`id` INT PRIMARY KEY,\n`name` text NOT NULL,\n`email` text NOT NULL\n,`age` INT\n);',
 		);
 		await migrate(db, { migrationsFolder: migrationDir });
 

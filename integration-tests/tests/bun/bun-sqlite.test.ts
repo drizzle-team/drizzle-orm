@@ -270,14 +270,14 @@ test('migrator', async () => {
 });
 
 test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async () => {
-	let users = sqliteTable('users', {
+	const users = sqliteTable('migration_users', {
 		id: int('id').primaryKey(),
 		name: text().notNull(),
 		email: text().notNull(),
 		age: int(),
 	});
 
-	const users2 = sqliteTable('users2', {
+	const users2 = sqliteTable('migration_users2', {
 		id: int('id').primaryKey(),
 		name: text().notNull(),
 		email: text().notNull(),
@@ -297,12 +297,12 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240101010101_initial/migration.sql`,
-		`CREATE TABLE "users" (\n"id" INTEGER PRIMARY KEY NOT NULL,\n"name" TEXT NOT NULL,\n"email" TEXT NOT NULL\n);`,
+		`CREATE TABLE "migration_users" (\n"id" INTEGER PRIMARY KEY NOT NULL,\n"name" TEXT NOT NULL,\n"email" TEXT NOT NULL\n);`,
 	);
 	mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240303030303_third/migration.sql`,
-		`ALTER TABLE "users" ADD COLUMN "age" INTEGER;`,
+		`ALTER TABLE "migration_users" ADD COLUMN "age" INTEGER;`,
 	);
 
 	await migrate.sqlite(db, { migrationsFolder: migrationDir });
@@ -316,7 +316,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
 	writeFileSync(
 		`${migrationDir}/20240202020202_second/migration.sql`,
-		`CREATE TABLE "users2" (\n"id" INTEGER PRIMARY KEY NOT NULL,\n"name" TEXT NOT NULL,\n"email" TEXT NOT NULL\n,"age" INTEGER\n);`,
+		`CREATE TABLE "migration_users2" (\n"id" INTEGER PRIMARY KEY NOT NULL,\n"name" TEXT NOT NULL,\n"email" TEXT NOT NULL\n,"age" INTEGER\n);`,
 	);
 	await migrate.sqlite(db, { migrationsFolder: migrationDir });
 
