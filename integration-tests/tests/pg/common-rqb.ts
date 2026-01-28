@@ -1094,11 +1094,14 @@ export function tests(test: Test) {
 				},
 			}));
 
-			const result = await db.query.entity.findFirst({
+			await db.execute('insert into prices(id, col0, col1, col2) values (1, 23,24,25);');
+			await db.insert(entity).values([{ id: 1, priceId: 1 }]);
+			const query = db.query.entity.findFirst({
 				with: {
 					price: {},
 				},
 			});
+			await query;
 		});
 	});
 }

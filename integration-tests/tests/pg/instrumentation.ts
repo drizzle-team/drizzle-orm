@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
+	DrizzleConfig,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
 	getTableName,
@@ -485,6 +486,11 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 			): PgAsyncDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
+				schema: S,
+				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
+				casing: NonNullable<DrizzleConfig['casing']>,
+			): PgAsyncDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: { all: PgAsyncDatabase<any, any, typeof relations>; explicit: PgAsyncDatabase<any, any, typeof relations> };
 	}>({
@@ -578,14 +584,15 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 					cb?: (
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
+					casing?: NonNullable<DrizzleConfig['casing']>,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
-					if (vendor === 'neon-http') return drizzleNeonHttp({ client: kit.client, relations });
-					if (vendor === 'neon-serverless') return drizzleNeonWs({ client: kit.client as any, relations });
-					if (vendor === 'pglite') return drizzlePglite({ client: kit.client as any, relations });
-					if (vendor === 'node-postgres') return drizzleNodePostgres({ client: kit.client as any, relations });
-					if (vendor === 'postgresjs') return drizzlePostgresjs({ client: kit.client as any, relations });
+					if (vendor === 'neon-http') return drizzleNeonHttp({ client: kit.client, relations, casing });
+					if (vendor === 'neon-serverless') return drizzleNeonWs({ client: kit.client as any, relations, casing });
+					if (vendor === 'pglite') return drizzlePglite({ client: kit.client as any, relations, casing });
+					if (vendor === 'node-postgres') return drizzleNodePostgres({ client: kit.client as any, relations, casing });
+					if (vendor === 'postgresjs') return drizzlePostgresjs({ client: kit.client as any, relations, casing });
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
@@ -603,7 +610,7 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations });
+						return drizzleProxy(proxyHandler, { relations, casing });
 					}
 					throw new Error();
 				};

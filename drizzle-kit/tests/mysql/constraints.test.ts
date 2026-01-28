@@ -824,8 +824,8 @@ test('adding autoincrement to table with pk #1', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5301
 test('adding autoincrement to table with pk #2', async () => {
-	// TODO: revise: I can successfully run all the queries manually, but somehow it throws error in the test
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: int().notNull(),
@@ -838,7 +838,7 @@ test('adding autoincrement to table with pk #2', async () => {
 	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1: string[] = [
-		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 
 	expect(st1).toStrictEqual(expectedSt1);

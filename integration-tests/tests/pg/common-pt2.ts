@@ -3481,5 +3481,59 @@ export function tests(test: Test) {
 				// expect(result).toStrictEqual([{ name: 'bName' }]);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5282
+		test('casing in sql``', async ({ createDB, push }) => {
+			const payments = pgTable('payments', {
+				id: integer().primaryKey(),
+				amount: numeric(),
+				completedAt: timestamp(),
+			});
+			const schema = { payments };
+			const db = createDB(schema, () => ({}), 'snake_case');
+
+			await push(schema);
+			db.insert(payments).values({ id: 1, amount: '10.12', completedAt: new Date() });
+
+			const query = db
+				.insert(payments)
+				.values({ id: 1, amount: '12.14', completedAt: new Date() })
+				.onConflictDoUpdate({
+					target: [payments.id],
+					set: {
+						completedAt: sql`excluded.${payments.completedAt}`,
+						amount: sql`excluded.${payments.amount}`,
+					},
+				});
+
+			expect(query.toSQL().sql).toEqual(
+				'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
+			);
+			await query;
+
+			const result = await db.select({ amount: payments.amount })
+				.from(payments).where(eq(payments.id, 1));
+
+			expect(result).toStrictEqual([{ amount: '12.14' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4419
+		test('db/js timestamp comparison', async ({ db, push }) => {
+			const table1 = pgTable('table1', {
+				id: integer(),
+				// default config equal to: { mode: 'date' }
+				// config to make it work: { mode: 'date', precision: 3 }
+				rowCreatedAt: timestamp('row_created_at').notNull().defaultNow(),
+			});
+
+			await push({ table1 });
+
+			await db.insert(table1).values({ id: 1 });
+			const result1 = await db.select().from(table1);
+			const rowCreatedAt = result1[0]!.rowCreatedAt;
+
+			const result2 = await db.select({ id: table1.id }).from(table1).where(eq(table1.rowCreatedAt, rowCreatedAt));
+			expect(result2).toStrictEqual([{ id: 1 }]);
+		});
 	});
 }
