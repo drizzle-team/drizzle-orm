@@ -16,7 +16,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
 
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
@@ -109,7 +109,10 @@ export class SQLiteBunTransaction<
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
 	override transaction<T>(
-		transaction: (tx: SQLiteBunTransaction<TFullSchema, TRelations, TSchema>) => T,
+		transaction: (
+			tx: SQLiteBunTransaction<TFullSchema, TRelations, TSchema>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
 	): T {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new SQLiteBunTransaction(
@@ -124,7 +127,7 @@ export class SQLiteBunTransaction<
 		try {
 			const result = transaction(tx);
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
-			return result;
+			return result as T;
 		} catch (err) {
 			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
