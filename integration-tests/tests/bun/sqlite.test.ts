@@ -583,8 +583,8 @@ test('RQB v2 simple find many - placeholders', async () => {
 });
 
 test('RQB v2 transaction find first - no rows', async () => {
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbUser.findFirst();
+	db.transaction((db) => {
+		const result = db.query.rqbUser.findFirst().sync();
 
 		expect(result).toStrictEqual(undefined);
 	});
@@ -603,12 +603,12 @@ test('RQB v2 transaction find first - multiple rows', async () => {
 		name: 'Second',
 	}]);
 
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbUser.findFirst({
+	await db.transaction((db) => {
+		const result = db.query.rqbUser.findFirst({
 			orderBy: {
 				id: 'desc',
 			},
-		});
+		}).sync();
 
 		expect(result).toStrictEqual({
 			id: 2,
@@ -643,8 +643,8 @@ test('RQB v2 transaction find first - with relation', async () => {
 		content: 'Has message this time',
 	}]);
 
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbUser.findFirst({
+	await db.transaction((db) => {
+		const result = db.query.rqbUser.findFirst({
 			with: {
 				posts: {
 					orderBy: {
@@ -655,7 +655,7 @@ test('RQB v2 transaction find first - with relation', async () => {
 			orderBy: {
 				id: 'asc',
 			},
-		});
+		}).sync();
 
 		expect(result).toStrictEqual({
 			id: 1,
@@ -689,7 +689,7 @@ test('RQB v2 transaction find first - placeholders', async () => {
 		name: 'Second',
 	}]);
 
-	await db.transaction(async (db) => {
+	await db.transaction((db) => {
 		const query = db.query.rqbUser.findFirst({
 			where: {
 				id: {
@@ -701,9 +701,9 @@ test('RQB v2 transaction find first - placeholders', async () => {
 			},
 		}).prepare();
 
-		const result = await query.execute({
+		const result = query.execute({
 			filter: 2,
-		});
+		}).sync();
 
 		expect(result).toStrictEqual({
 			id: 2,
@@ -714,8 +714,8 @@ test('RQB v2 transaction find first - placeholders', async () => {
 });
 
 test('RQB v2 transaction find many - no rows', async () => {
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbUser.findMany();
+	await db.transaction((db) => {
+		const result = db.query.rqbUser.findMany().sync();
 
 		expect(result).toStrictEqual([]);
 	});
@@ -734,12 +734,12 @@ test('RQB v2 transaction find many - multiple rows', async () => {
 		name: 'Second',
 	}]);
 
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbUser.findMany({
+	await db.transaction((db) => {
+		const result = db.query.rqbUser.findMany({
 			orderBy: {
 				id: 'desc',
 			},
-		});
+		}).sync();
 
 		expect(result).toStrictEqual([{
 			id: 2,
@@ -778,15 +778,15 @@ test('RQB v2 transaction find many - with relation', async () => {
 		content: 'Has message this time',
 	}]);
 
-	await db.transaction(async (db) => {
-		const result = await db.query.rqbPost.findMany({
+	await db.transaction((db) => {
+		const result = db.query.rqbPost.findMany({
 			with: {
 				author: true,
 			},
 			orderBy: {
 				id: 'asc',
 			},
-		});
+		}).sync();
 
 		expect(result).toStrictEqual([{
 			id: 1,
@@ -825,7 +825,7 @@ test('RQB v2 transaction find many - placeholders', async () => {
 		name: 'Second',
 	}]);
 
-	await db.transaction(async (db) => {
+	await db.transaction((db) => {
 		const query = db.query.rqbUser.findMany({
 			where: {
 				id: {
@@ -837,9 +837,9 @@ test('RQB v2 transaction find many - placeholders', async () => {
 			},
 		}).prepare();
 
-		const result = await query.execute({
+		const result = query.execute({
 			filter: 2,
-		});
+		}).sync();
 
 		expect(result).toStrictEqual([{
 			id: 2,

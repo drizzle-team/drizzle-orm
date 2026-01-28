@@ -309,9 +309,20 @@ const createViewColumns = (view: View, columns: ViewColumn[], casing: Casing) =>
 
 	for (const it of columns) {
 		const key = withCasing(it.name, casing);
+
 		statement += `${key}: ${it.type}()`;
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
+		// const grammarType = typeFor(it.type);
+		// const drizzleType = grammarType.drizzleImport();
+		// const res = grammarType.toTs(null, it.type);
+		// const { def: _def, customType } = typeof res === 'string' ? { def: res } : res;
+
+		// statement += `${key}: ${drizzleType}${
+		// 	drizzleType === 'customType' ? `({ dataType: () => '${!customType ? 'unknown' : customType}' })` : ''
+		// }()`;
+		// statement += it.notNull ? '.notNull()' : '';
+		// statement += ',\n';
 	}
 
 	return statement;

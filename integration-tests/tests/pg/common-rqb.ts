@@ -1027,7 +1027,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
-		test.skipIf(Date.now() < +new Date('2026-01-24')).concurrent(
+		test.concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1047,20 +1047,20 @@ export function tests(test: Test) {
 
 				const query = db.query.orderTable.findMany({
 					extras: {
-						itemCount: sql`
-					    (select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${orderTable.id})
-					`.as('itemCount'),
+						itemCount: (t) =>
+							sql`(select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = 
+							${t.id})`
+								.as('itemCount'),
 					},
 				});
 
 				expect(query.toSQL()).toStrictEqual({
-					sql: `select "d0"."id" as "id", (
-                                            (select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")
-                                        ) as "itemCount" from "rqb_order_19" as "d0"`,
+					sql:
+						`select "d0"."id" as "id", ((select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")) as "itemCount" from "rqb_order_19" as "d0"`,
 					params: [],
 				});
 
-				const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
+				const expectedResult = [{ id: 1, itemCount: '2' }, { id: 2, itemCount: '0' }];
 				const result = await query;
 				expect(result).toStrictEqual(expectedResult);
 			},
