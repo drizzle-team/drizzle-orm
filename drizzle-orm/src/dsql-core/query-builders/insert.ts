@@ -8,7 +8,7 @@ import { Table } from '~/table.ts';
 import { applyMixins, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
-import type { DSQLSession } from '../session.ts';
+import type { DSQLQueryResultHKT, DSQLQueryResultKind, DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
@@ -59,18 +59,22 @@ export class DSQLInsertBuilder<TTable extends DSQLTable> {
 }
 
 export interface DSQLInsertBase<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	// oxlint-disable-next-line no-unused-vars
 	TTable extends DSQLTable,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	_TQueryResult,
+	TQueryResult extends DSQLQueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? any : TReturning[]>, SQLWrapper {}
+> extends
+	QueryPromise<TReturning extends undefined ? DSQLQueryResultKind<TQueryResult, never> : TReturning[]>,
+	SQLWrapper
+{}
 
 export class DSQLInsertBase<
 	TTable extends DSQLTable,
-	_TQueryResult,
+	TQueryResult extends DSQLQueryResultHKT,
 	TReturning = undefined,
-> extends QueryPromise<TReturning extends undefined ? any : TReturning[]> implements SQLWrapper {
+> extends QueryPromise<TReturning extends undefined ? DSQLQueryResultKind<TQueryResult, never> : TReturning[]>
+	implements SQLWrapper
+{
 	static override readonly [entityKind]: string = 'DSQLInsert';
 
 	protected config: DSQLInsertConfig<TTable>;
