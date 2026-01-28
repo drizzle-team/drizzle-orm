@@ -9,6 +9,7 @@ import type {
 	InterimIndex,
 	InterimSchema,
 	PrimaryKey,
+	Role,
 	Schema,
 	UniqueConstraint,
 	View,
@@ -62,6 +63,7 @@ export const fromDatabase = async (
 	const checks: CheckConstraint[] = [];
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
+	const roles: Role[] = [];
 
 	type Namespace = {
 		oid: number | string;
@@ -694,6 +696,59 @@ export const fromDatabase = async (
 		});
 	}
 
+	// Query roles
+	const rolesList = await db.query<{
+		rolname: string;
+		rolsuper: boolean;
+		rolinherit: boolean;
+		rolcreaterole: boolean;
+		rolcreatedb: boolean;
+		rolcanlogin: boolean;
+		rolreplication: boolean;
+		rolconnlimit: number;
+		rolvaliduntil: string | null;
+		rolbypassrls: boolean;
+	}>(`
+		SELECT
+			rolname,
+			rolsuper,
+			rolinherit,
+			rolcreaterole,
+			rolcreatedb,
+			rolcanlogin,
+			rolreplication,
+			rolconnlimit,
+			rolvaliduntil::text,
+			rolbypassrls
+		FROM pg_catalog.pg_roles
+		ORDER BY pg_catalog.lower(rolname);
+	`).then((rows) => {
+		queryCallback('roles', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('roles', [], err);
+		throw err;
+	});
+
+	// Process roles
+	const filteredRoles = rolesList.filter((x) => filter({ type: 'role', name: x.rolname }));
+	for (const dbRole of filteredRoles) {
+		roles.push({
+			entityType: 'roles',
+			name: dbRole.rolname,
+			superuser: dbRole.rolsuper,
+			inherit: dbRole.rolinherit,
+			createRole: dbRole.rolcreaterole,
+			createDb: dbRole.rolcreatedb,
+			canLogin: dbRole.rolcanlogin,
+			replication: dbRole.rolreplication,
+			connLimit: dbRole.rolconnlimit,
+			password: null,
+			validUntil: dbRole.rolvaliduntil,
+			bypassRls: dbRole.rolbypassrls,
+		});
+	}
+
 	progressCallback('tables', filteredTables.length, 'done');
 	progressCallback('columns', columnsList.length, 'done');
 	progressCallback('checks', checks.length, 'done');
@@ -726,7 +781,7 @@ export const fromDatabase = async (
 		uniques: resultUniques,
 		checks: resultChecks,
 		sequences: [], // DSQL doesn't support sequences
-		roles: [], // DSQL doesn't expose roles via introspection
+		roles,
 		privileges: [], // DSQL doesn't expose privileges via introspection
 		policies: [], // DSQL doesn't support policies
 		views: resultViews,

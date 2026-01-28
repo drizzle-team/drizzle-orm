@@ -354,4 +354,25 @@ describe('DSQL introspection', () => {
 			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
 		}
 	});
+
+	test('introspect roles', async () => {
+		const roleName = uniqueName('test_role');
+
+		await dsqlDb.execute(sql`CREATE ROLE ${sql.identifier(roleName)}`);
+
+		try {
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			// Find our role
+			const roles = ddl.roles.list();
+			const testRole = roles.find((r) => r.name === roleName);
+			expect(testRole).toBeTruthy();
+			expect(testRole?.name).toBe(roleName);
+		} finally {
+			await dsqlDb.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
+		}
+	});
 });
