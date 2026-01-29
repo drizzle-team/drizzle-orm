@@ -1,37 +1,56 @@
-import { Effect } from 'effect';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 import { entityKind } from '~/entity.ts';
-import { type Cache as Wrapped, type MutationOption, NoopCache } from './cache.ts';
-import type { CacheConfig } from './types.ts';
+import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './cache.ts';
 
-export class EffectCache {
+export class EffectCache extends Effect.Service<EffectCache>()('drizzle-orm/EffectCache', {
+	sync: () => make(new NoopCache()),
+	accessors: true,
+}) {
 	static readonly [entityKind]: string = 'EffectCache';
 
-	constructor(readonly wrapped: Wrapped) {}
-
-	strategy = () => this.wrapped.strategy();
-
-	get(
-		key: string,
-		tables: string[],
-		isTag: boolean,
-		isAutoInvalidate?: boolean,
-	): Effect.Effect<any[] | undefined, unknown, never> {
-		return Effect.tryPromise(() => this.wrapped.get(key, tables, isTag, isAutoInvalidate));
+	static fromDrizzle(cache: DrizzleCache) {
+		return new EffectCache(make(cache));
 	}
 
-	put(
-		hashedQuery: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Effect.Effect<void, unknown, never> {
-		return Effect.tryPromise(() => this.wrapped.put(hashedQuery, response, tables, isTag, config));
-	}
-
-	onMutate(params: MutationOption): Effect.Effect<void, unknown, never> {
-		return Effect.tryPromise(() => this.wrapped.onMutate(params));
+	static layerFromDrizzle(cache: DrizzleCache) {
+		return Layer.succeed(EffectCache, EffectCache.fromDrizzle(cache));
 	}
 }
 
-export const EffectNoopCache = new EffectCache(new NoopCache());
+function make(cache: DrizzleCache) {
+	const strategy = () => cache.strategy();
+
+	const get = (...args: Parameters<DrizzleCache['get']>) =>
+		Effect.tryPromise({
+			try: () => cache.get(...args),
+			catch: (error) => new EffectCacheError({ cause: error }),
+		});
+
+	const put = (...args: Parameters<DrizzleCache['put']>) =>
+		Effect.tryPromise({
+			try: () => cache.put(...args),
+			catch: (error) => new EffectCacheError({ cause: error }),
+		});
+
+	const onMutate = (params: MutationOption) =>
+		Effect.tryPromise({
+			try: () => cache.onMutate(params),
+			catch: (error) => new EffectCacheError({ cause: error }),
+		});
+
+	return {
+		strategy,
+		get,
+		put,
+		onMutate,
+		cache,
+	};
+}
+
+export class EffectCacheError extends Schema.TaggedError<EffectCacheError>()('EffectCacheError', {
+	cause: Schema.Unknown,
+}) {
+	static readonly [entityKind]: string = this._tag;
+}

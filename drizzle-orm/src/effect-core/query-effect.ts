@@ -10,7 +10,9 @@ export interface QueryEffectHKTBase {
 export type QueryEffectKind<
 	TKind extends QueryEffectHKTBase,
 	TSuccess,
-> = Effect.Effect<TSuccess, TKind['error'], TKind['context']>;
+	TError = never,
+	TContext = never,
+> = Effect.Effect<TSuccess, TKind['error'] | TError, TKind['context'] | TContext>;
 
 export function applyEffectWrapper(baseClass: any) {
 	Object.assign(baseClass.prototype, Effectable.CommitPrototype);

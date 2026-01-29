@@ -1,5 +1,7 @@
 import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
 import { entityKind } from '~/entity.ts';
+import type { Logger } from '~/logger';
 
 export class EffectLogger extends Effect.Service<EffectLogger>()('EffectLogger', {
 	sync: () => {
@@ -24,4 +26,22 @@ export class EffectLogger extends Effect.Service<EffectLogger>()('EffectLogger',
 	accessors: true,
 }) {
 	static readonly [entityKind]: string = this.Service._tag;
+
+	static fromDrizzle(logger: Logger) {
+		return Layer.succeed(
+			EffectLogger,
+			new EffectLogger({
+				logQuery: (query: string, params: unknown[]) => {
+					return Effect.sync(() => logger.logQuery(query, params));
+				},
+			}),
+		);
+	}
+
+	static noop = Layer.succeed(
+		EffectLogger,
+		new EffectLogger({
+			logQuery: () => Effect.void,
+		}),
+	);
 }

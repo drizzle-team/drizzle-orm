@@ -35,7 +35,8 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private client: PgClient,
 		private queryString: string,
 		private params: unknown[],
-		cache: EffectCache | undefined,
+		private logger: EffectLogger,
+		cache: EffectCache,
 		queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -61,7 +62,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			yield* EffectLogger.logQuery(query.sql, params);
 
 			if (!fields && !customResultMapper) {
-				return yield* this.queryWithCache<T['execute']>(
+				return yield* this.queryWithCache<T['execute'], SqlError, never>(
 					query.sql,
 					params,
 					this.client.unsafe(query.sql, params as any).withoutTransform,
@@ -81,7 +82,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 					return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
 				},
 			));
-		}).pipe(Effect.provide(EffectLogger.Default));
+		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 
 	private executeRqbV2(
@@ -103,7 +104,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 				),
 				Effect.catchAll((e) => new EffectDrizzleQueryError({ query: query.sql, params, cause: e })),
 			);
-		}).pipe(Effect.provide(EffectLogger.Default));
+		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 
 	override all(placeholderValues?: Record<string, unknown>) {
@@ -113,12 +114,12 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 			yield* EffectLogger.logQuery(query.sql, params);
 
-			return yield* this.queryWithCache<T['all']>(
+			return yield* this.queryWithCache<T['all'], SqlError, never>(
 				query.sql,
 				params,
 				client.unsafe(query.sql, params as any).withoutTransform,
 			);
-		}).pipe(Effect.provide(EffectLogger.Default));
+		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 
 	/** @internal */
@@ -135,17 +136,15 @@ export class EffectPgSession<
 > extends PgEffectSession<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'EffectPgSession';
 
-	private cache: EffectCache | undefined;
-
 	constructor(
 		private client: PgClient,
 		dialect: PgDialect,
 		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: { cache?: EffectCache } = {},
+		private logger: EffectLogger,
+		private cache: EffectCache,
 	) {
 		super(dialect);
-		this.cache = options.cache;
 	}
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -164,6 +163,7 @@ export class EffectPgSession<
 			this.client,
 			query.sql,
 			query.params,
+			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
@@ -188,6 +188,7 @@ export class EffectPgSession<
 			this.client,
 			query.sql,
 			query.params,
+			this.logger,
 			this.cache,
 			undefined,
 			undefined,

@@ -86,13 +86,8 @@
 				"no-useless-escape": "off",
 				"consistent-type-imports": "off",
 				"no-unused-vars": "off",
-				"no-unused-expressions": "off"
-			}
-		},
-		{
-			"files": ["**/type-tests/**/*.ts", "**/integration-tests/tests/**/*.ts"],
-			"rules": {
-				"no-unused-expressions": "off"
+				"no-unused-expressions": "off",
+				"drizzle-internal/require-entity-kind": "off"
 			}
 		},
 		{

@@ -2,7 +2,7 @@ import type { SqlError } from '@effect/sql/SqlError';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type * as V1 from '~/_relations.ts';
-import type { EffectCache } from '~/cache/core/cache-effect.ts';
+import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
@@ -32,7 +32,7 @@ export abstract class PgEffectPreparedQuery<
 
 	constructor(
 		query: Query,
-		private cache: EffectCache | undefined,
+		private cache: EffectCache,
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -49,14 +49,16 @@ export abstract class PgEffectPreparedQuery<
 		}
 	}
 
-	protected override queryWithCache<T>(
+	protected override queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
-		query: Effect.Effect<T, SqlError>,
-	): Effect.Effect<T, EffectDrizzleQueryError> {
-		const { cache, cacheConfig, queryMetadata } = this;
-		return Effect.gen(function*() {
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.wrapped, NoopCache)
+		query: Effect.Effect<A, E, R>,
+	) {
+		return Effect.gen(this, function*() {
+			const { cacheConfig, queryMetadata } = this;
+			const cache = yield* EffectCache;
+
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)
@@ -83,7 +85,7 @@ export abstract class PgEffectPreparedQuery<
 					autoInvalidate,
 				);
 
-				if (typeof fromCache !== 'undefined') return fromCache as unknown as T;
+				if (typeof fromCache !== 'undefined') return fromCache as unknown as A;
 
 				const result = yield* query;
 
@@ -99,9 +101,12 @@ export abstract class PgEffectPreparedQuery<
 			}
 
 			assertUnreachable(cacheStrat);
-		}).pipe(Effect.catchAll((e) => {
-			return new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) });
-		}));
+		}).pipe(
+			Effect.provideService(EffectCache, this.cache),
+			Effect.catchAll((e) => {
+				return new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) });
+			}),
+		);
 	}
 
 	abstract override execute(
@@ -150,13 +155,13 @@ export abstract class PgEffectSession<
 		) => T['execute'],
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 
-	override execute<T>(query: SQL): QueryEffectKind<TEffectHKT, T> {
+	override execute<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined, false)
 			.execute();
 	}
 
-	override all<T>(query: SQL): QueryEffectKind<TEffectHKT, T[]> {
+	override all<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined, false)
 			.all();
