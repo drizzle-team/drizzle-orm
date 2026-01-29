@@ -37,6 +37,12 @@ let db: DB;
 const testRunId = Math.random().toString(36).substring(2, 8);
 const uniqueName = (base: string) => `${base}_${testRunId}`;
 
+// Check if DSQL cluster is available for tests
+const skipIfNoCluster = () => {
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
+	return { skip: !clusterEndpoint, reason: 'DSQL_CLUSTER_ENDPOINT environment variable not set' };
+};
+
 // Simple retry helper
 async function retry<T>(fn: () => Promise<T>, maxRetries = 20, delay = 250): Promise<T> {
 	let lastError: Error | undefined;
@@ -52,10 +58,11 @@ async function retry<T>(fn: () => Promise<T>, maxRetries = 20, delay = 250): Pro
 }
 
 beforeAll(async () => {
-	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
-	if (!clusterEndpoint) {
-		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
+	if (skipIfNoCluster().skip) {
+		return;
 	}
+
+	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT']!;
 
 	dsqlDb = await retry(async () => {
 		const database = drizzle({
@@ -81,7 +88,7 @@ afterAll(async () => {
 	// Cleanup is handled per-test
 });
 
-describe('DSQL introspection', () => {
+describe.skipIf(skipIfNoCluster().skip)('DSQL introspection', () => {
 	test('introspect basic table', async () => {
 		const tableName = uniqueName('basic_table');
 

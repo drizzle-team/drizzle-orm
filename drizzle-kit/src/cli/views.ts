@@ -62,6 +62,30 @@ export const cockroachSchemaWarning = (warning: CockroachSchemaWarning): string 
 	assertUnreachable(warning.type);
 };
 
+/**
+ * DSQL schema warning formatter.
+ * DSQL reuses PostgreSQL's warning types since it outputs PostgreSQL-compatible SQL.
+ */
+export const dsqlSchemaWarning = (warning: PostgresSchemaWarning): string => {
+	// DSQL doesn't support policies, but we handle this for completeness
+	if (warning.type === 'policy_not_linked') {
+		return withStyle.errorWarning(
+			`"Policy ${warning.policy} was skipped because DSQL does not support policies/RLS.`,
+		);
+	}
+
+	assertUnreachable(warning.type);
+};
+
+/**
+ * DSQL schema error formatter.
+ * DSQL reuses PostgreSQL's error types since it outputs PostgreSQL-compatible SQL.
+ */
+export const dsqlSchemaError = (error: PostgresSchemaError): string => {
+	// Reuse postgres error formatting with DSQL-specific context where needed
+	return postgresSchemaError(error);
+};
+
 export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	if (error.type === 'conflict_table') {
 		return `'${error.table}' table name is a duplicate`;
@@ -132,7 +156,7 @@ function formatOptionChanges(
 }
 
 export const explain = (
-	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
+	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach' | 'dsql',
 	grouped: {
 		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockraoch;
 		sqlStatements: string[];
@@ -143,7 +167,7 @@ export const explain = (
 	const res = [];
 	const explains = [];
 	for (const { jsonStatement, sqlStatements } of grouped) {
-		const res = dialect === 'postgres'
+		const res = dialect === 'postgres' || dialect === 'dsql'
 			? psqlExplain(jsonStatement as StatementPostgres)
 			: dialect === 'sqlite'
 			? sqliteExplain(jsonStatement as StatementSqlite)

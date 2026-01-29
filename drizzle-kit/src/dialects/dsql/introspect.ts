@@ -15,15 +15,10 @@ import type {
 	View,
 	ViewColumn,
 } from '../postgres/ddl';
-import {
-	defaultForColumn,
-	isSerialExpression,
-	isSystemNamespace,
-	parseOnType,
-	parseViewDefinition,
-} from '../postgres/grammar';
+import { defaultForColumn, isSerialExpression, parseOnType, parseViewDefinition } from '../postgres/grammar';
 import type { EntityFilter } from '../pull-utils';
 import { filterMigrationsSchema } from '../utils';
+import { isSystemNamespace } from './grammar';
 
 /**
  * Introspects a DSQL database and returns the schema.
@@ -32,11 +27,11 @@ import { filterMigrationsSchema } from '../utils';
  * DSQL supports JSON runtime functions but not JSON as column data types,
  * so we cast JSON results to ::text and parse them in JavaScript.
  *
- * DSQL limitations:
+ * DSQL limitations (not supported in schema generation):
  * - No enums (uses text/varchar instead)
  * - No sequences (uses UUID with gen_random_uuid())
  * - No policies/RLS
- * - No foreign keys
+ * - No foreign keys (DDL operations blocked, but introspection reads any existing FKs)
  * - Only btree indexes (no hash, gin, gist, etc.)
  */
 export const fromDatabase = async (
@@ -262,7 +257,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	// Query columns (without JSON for identity - DSQL doesn't support identity columns anyway)
+	// Query columns (without JSON for identity - DSQL doesn't support identity columns)
 	const columnsList = await db.query<{
 		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
@@ -504,7 +499,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	// Process foreign keys (DSQL doesn't support FKs, but include for completeness)
+	// Process foreign keys (DSQL doesn't support FKs yet, but include for completeness)
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
 		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
@@ -780,7 +775,7 @@ export const fromDatabase = async (
 		fks: resultFKs,
 		uniques: resultUniques,
 		checks: resultChecks,
-		sequences: [], // DSQL doesn't support sequences
+		sequences: [], // DSQL doesn't support sequences yet
 		roles,
 		privileges: [], // DSQL doesn't expose privileges via introspection
 		policies: [], // DSQL doesn't support policies

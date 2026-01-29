@@ -57,12 +57,19 @@ export class UniqueConstraint {
 
 	readonly columns: AnyDSQLColumn[];
 	readonly name?: string;
-	readonly nullsNotDistinct: boolean = false;
+	readonly nullsNotDistinct: boolean;
+	readonly isNameExplicit: boolean;
 
-	constructor(readonly table: DSQLTable, columns: AnyDSQLColumn[], nullsNotDistinct: boolean, name?: string) {
+	constructor(
+		readonly table: DSQLTable,
+		columns: AnyDSQLColumn[],
+		nullsNotDistinct: boolean,
+		name?: string,
+	) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 		this.nullsNotDistinct = nullsNotDistinct;
+		this.isNameExplicit = !!name;
 	}
 
 	getName() {

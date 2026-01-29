@@ -237,6 +237,10 @@ export const preparePushConfig = async (
 			dialect: 'cockroach';
 			credentials: CockroachCredentials;
 		}
+		| {
+			dialect: 'dsql';
+			credentials: DsqlCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -433,7 +437,23 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'dsql') {
-		throw new Error(`You can't use 'push' command with DSQL dialect`);
+		const parsed = dsqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			printDsqlIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'dsql',
+			schemaPath: config.schema,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			filters,
+			explain: (options.explain as boolean) ?? false,
+			migrations: config.migrations,
+		};
 	}
 
 	assertUnreachable(config.dialect);
@@ -992,7 +1012,19 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'dsql') {
-		throw new Error(`You can't use 'migrate' command with DSQL dialect`);
+		const parsed = dsqlCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printDsqlIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
 	}
 
 	assertUnreachable(dialect);

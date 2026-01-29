@@ -1,15 +1,18 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
+import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
+import type { EntityFilter } from 'src/dialects/pull-utils';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { fromDatabase } from '../../dialects/dsql/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/dsql/introspect';
 import type { DB } from '../../utils';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { DsqlCredentials } from '../validations/dsql';
+import type { IntrospectStage, IntrospectStatus } from '../views';
 import { IntrospectProgress } from '../views';
 import { relationsToTypeScript } from './pull-common';
 
@@ -98,4 +101,25 @@ export const handle = async (
 	render(
 		`[${chalk.green('✓')}] Your relations file is ready ➜ ${chalk.bold.underline.blue(relationsFile)} 🚀`,
 	);
+};
+
+/**
+ * Introspects a DSQL database for use with push command.
+ * Returns the schema in a format compatible with DDL diff.
+ */
+export const introspect = async (
+	db: DB,
+	filter: EntityFilter,
+	progress: TaskView,
+	callback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	migrations: {
+		schema: string;
+		table: string;
+	},
+) => {
+	const schema = await renderWithTask(
+		progress,
+		fromDatabaseForDrizzle(db, filter, callback, migrations),
+	);
+	return { schema };
 };

@@ -27,10 +27,15 @@ export class PrimaryKey {
 
 	readonly columns: AnyDSQLColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(table: DSQLTable, columns: AnyDSQLColumn[], name?: string) {
+		if (columns.length === 0) {
+			throw new Error('Primary key must include at least one column');
+		}
 		this.columns = columns;
 		this.name = name ?? `${table[TableName]}_${columns.map((c) => c.name).join('_')}_pk`;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {
