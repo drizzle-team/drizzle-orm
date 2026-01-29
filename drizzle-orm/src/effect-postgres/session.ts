@@ -5,6 +5,7 @@ import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
+import { EffectLogger } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -15,7 +16,6 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
-import { EffectLogger } from './logger.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;

@@ -3,13 +3,13 @@ import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as V1 from '~/_relations.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
+import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { EffectLogger } from './index.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
 
 export class EffectPgDatabase<

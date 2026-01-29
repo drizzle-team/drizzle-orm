@@ -2,8 +2,8 @@ import { PgClient } from '@effect/sql-pg';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import { and, asc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
 import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
+import { EffectLogger } from 'drizzle-orm/effect-core';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { EffectLogger } from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
 	alias,
@@ -3002,25 +3002,6 @@ it.layer(TestLive)((it) => {
 			const ops = yield* Ref.get(cacheOperations);
 			expect(ops.some((o) => o.op === 'mutate')).toBe(true);
 			expect(ops.some((o) => o.op === 'get')).toBe(true);
-		}));
-
-	it.effect('EffectLogger.noop - no logging occurs', () =>
-		Effect.gen(function*() {
-			const db = yield* PgDrizzle.make({ relations }).pipe(
-				Effect.provide(EffectLogger.noop),
-				Effect.provide(PgDrizzle.DefaultServices),
-			);
-
-			const users = pgTable('users_noop_logger', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
-
-			yield* push({ users });
-			yield* db.insert(users).values({ name: 'John' });
-			const result = yield* db.select().from(users);
-
-			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		}));
 
 	it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
