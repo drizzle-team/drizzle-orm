@@ -29,6 +29,32 @@ export const DefaultServices = Layer.merge(
 	EffectLogger.Default,
 );
 
+/**
+ * Creates an EffectPgDatabase instance.
+ *
+ * Requires `PgClient`, `EffectLogger`, and `EffectCache` services to be provided.
+ * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ *
+ * @example
+ * ```ts
+ * // With default services (no logging, no caching)
+ * const db = yield* PgDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PgDrizzle.DefaultServices),
+ * );
+ *
+ * // With Effect-based logging
+ * const db = yield* PgDrizzle.make({ relations }).pipe(
+ *   Effect.provide(EffectLogger.layer),
+ *   Effect.provide(PgDrizzle.DefaultServices),
+ * );
+ *
+ * // With custom Drizzle logger
+ * const db = yield* PgDrizzle.make({ relations }).pipe(
+ *   Effect.provide(EffectLogger.layerFromDrizzle(myLogger)),
+ *   Effect.provide(PgDrizzle.DefaultServices),
+ * );
+ * ```
+ */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<
 		TSchema extends Record<string, unknown> = Record<string, never>,
@@ -74,16 +100,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 );
 
 /**
- * Creates an EffectPgDatabase with default services (EffectLogger.Default and EffectCache.Default).
- * This is a convenience function for users who don't need custom service implementations.
- *
- * For custom services, use `make()` directly and provide your own layers before `DefaultServices`:
- * ```ts
- * PgDrizzle.make({ ... }).pipe(
- *   Effect.provide(myCustomLogger),
- *   Effect.provide(PgDrizzle.DefaultServices),
- * )
- * ```
+ * Convenience function that creates an EffectPgDatabase with `DefaultServices` already provided.
  */
 export const makeWithDefaults = <
 	TSchema extends Record<string, unknown> = Record<string, never>,

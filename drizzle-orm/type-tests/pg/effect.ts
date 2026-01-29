@@ -4,16 +4,42 @@ import type * as Effect from 'effect/Effect';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
-import { makeWithDefaults, type EffectPgDatabase } from '~/effect-postgres/index.ts';
+import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
+import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
+import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';
 
-declare const client: PgClient;
+{
+	const dbEffect = makeWithDefaults();
+	type DbEffect = typeof dbEffect;
 
-const db = makeWithDefaults(client);
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient }, never, PgClient>
+		>
+	>;
+}
 
-Expect<Equal<typeof db, EffectPgDatabase<Record<string, never>>>>;
+{
+	const dbEffect = make();
+	type DbEffect = typeof dbEffect;
+
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<
+				EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient },
+				never,
+				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
+			>
+		>
+	>;
+}
+
+declare const db: EffectPgDatabase<Record<string, never>>;
 
 {
 	const selectAll = db.select().from(users);
