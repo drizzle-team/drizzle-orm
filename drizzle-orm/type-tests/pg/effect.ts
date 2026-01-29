@@ -4,16 +4,16 @@ import type * as Effect from 'effect/Effect';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
-import { drizzle, type EffectPgDatabase } from '~/effect-postgres/index.ts';
+import { makeWithDefaults, type EffectPgDatabase } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';
 
 declare const client: PgClient;
 
-const db = drizzle(client);
+const db = makeWithDefaults(client);
 
-Expect<Equal<typeof db, EffectPgDatabase<Record<string, never>> & { $client: PgClient }>>;
+Expect<Equal<typeof db, EffectPgDatabase<Record<string, never>>>>;
 
 {
 	const selectAll = db.select().from(users);
