@@ -7,6 +7,7 @@ import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/
 import { parse } from 'url';
 import { error, info } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
+import { snapshotValidator as dsqlSnapshotValidator } from '../dialects/dsql/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
@@ -216,6 +217,20 @@ const singlestoreValidator = (
 	return { status: 'valid' };
 };
 
+const dsqlValidator = (
+	snapshot: object,
+): ValidationResult => {
+	const versionError = assertVersion(snapshot, 1);
+	if (versionError) return { status: versionError };
+
+	const res = dsqlSnapshotValidator.parse(snapshot);
+	if (!res.success) {
+		return { status: 'malformed', errors: res.errors ?? [] };
+	}
+
+	return { status: 'valid' };
+};
+
 export const validatorForDialect = (dialect: Dialect): (snapshot: object) => ValidationResult => {
 	switch (dialect) {
 		case 'postgresql':
@@ -237,7 +252,7 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: object) => Val
 		case 'duckdb':
 			throw Error('duckdb validator is not implemented yet'); // TODO
 		case 'dsql':
-			throw Error('dsql validator is not implemented yet'); // TODO
+			return dsqlValidator;
 		default:
 			assertUnreachable(dialect);
 	}
