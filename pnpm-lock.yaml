@@ -607,7 +607,7 @@ importers:
         specifier: ^10.0.0
         version: 10.0.0
       vite-tsconfig-paths:
-        specifier: 4.3.2
+        specifier: ^4.3.2
         version: 4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@22.19.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
       zod:
         specifier: ^4.0.0
