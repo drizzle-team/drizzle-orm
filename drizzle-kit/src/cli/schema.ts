@@ -674,7 +674,7 @@ export const pull = command({
 			const { handle, prepareDsqlDB } = await import('./commands/pull-dsql');
 			const db = await prepareDsqlDB(credentials);
 			// DSQL doesn't support migrate --init due to one-DDL-per-transaction limitation
-			await handle(casing, out, breakpoints, credentials, filters, db);
+			await handle(casing, out, breakpoints, credentials, filters, migrations, db);
 		} else {
 			assertUnreachable(dialect);
 		}

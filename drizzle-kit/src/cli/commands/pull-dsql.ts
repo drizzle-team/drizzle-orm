@@ -7,7 +7,7 @@ import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import type { EntityFilter } from 'src/dialects/pull-utils';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/dsql/introspect';
+import { fromDatabaseForDrizzle } from '../../dialects/dsql/introspect';
 import type { DB } from '../../utils';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
@@ -60,6 +60,10 @@ export const handle = async (
 	breakpoints: boolean,
 	credentials: DsqlCredentials,
 	filters: EntitiesFilterConfig,
+	migrations: {
+		schema: string;
+		table: string;
+	},
 	db?: DB,
 ) => {
 	if (!db) {
@@ -69,10 +73,10 @@ export const handle = async (
 	const progress = new IntrospectProgress(true);
 	const entityFilter = prepareEntityFilter('postgresql', filters, []);
 
-	// Use DSQL's introspection
-	const task = fromDatabase(db, entityFilter, (stage, count, status) => {
+	// Use DSQL's introspection (fromDatabaseForDrizzle filters out PK/unique backing indexes)
+	const task = fromDatabaseForDrizzle(db, entityFilter, (stage, count, status) => {
 		progress.update(stage, count, status);
-	});
+	}, migrations);
 
 	const res = await renderWithTask(progress, task);
 
