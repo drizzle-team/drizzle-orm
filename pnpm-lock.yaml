@@ -555,9 +555,6 @@ importers:
       drizzle-orm:
         specifier: workspace:../drizzle-orm/dist
         version: link:../drizzle-orm/dist
-      drizzle-zod:
-        specifier: workspace:../drizzle-zod/dist
-        version: link:../drizzle-zod/dist
       get-port:
         specifier: ^7.1.0
         version: 7.1.0
