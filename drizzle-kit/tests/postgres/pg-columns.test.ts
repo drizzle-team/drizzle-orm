@@ -1127,6 +1127,7 @@ test('defaults: timestamptz with precision', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231
 // https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('no diff for all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);

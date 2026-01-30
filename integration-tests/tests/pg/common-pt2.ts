@@ -218,6 +218,44 @@ export function tests(test: Test) {
 			})()).rejects.toThrowError();
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4189
+		test.concurrent('set operations; union; date mode', async ({ db, push }) => {
+			const recipes = pgTable('recipes', {
+				id: serial().primaryKey(),
+				publishedAt: timestamp({ mode: 'date' }).defaultNow(),
+			});
+
+			const recipesQuery = db
+				.select({
+					id: recipes.id,
+					publishedAt: recipes.publishedAt,
+				})
+				.from(recipes);
+
+			const creators = pgTable('creators', {
+				id: serial().primaryKey(),
+				publishedAt: timestamp({ mode: 'date' }).defaultNow(),
+			});
+
+			const creatorsQuery = db
+				.select({
+					id: creators.id,
+					publishedAt: creators.publishedAt,
+				})
+				.from(creators);
+
+			await push({ recipes, creators });
+			await db.insert(recipes).values({});
+			await db.insert(creators).values({});
+
+			const unionQuery = union(creatorsQuery, recipesQuery);
+			const result = await unionQuery;
+
+			for (const val of result) {
+				expect(val.publishedAt).toBeInstanceOf(Date);
+			}
+		});
+
 		test.concurrent('aggregate function: count', async ({ db, push }) => {
 			const aggregateTable = pgTable('aggregate_table_3', {
 				id: serial('id').notNull(),
