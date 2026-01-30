@@ -47,11 +47,8 @@ jobs:
           - drizzle-kit
           - drizzle-kit-cockroach 
           - drizzle-kit-mssql 
-          - drizzle-zod
           - drizzle-seed
-          - drizzle-typebox
-          - drizzle-valibot
-          - drizzle-arktype
+          - validators
           - other
     runs-on: ubuntu-22.04
     services:
@@ -257,8 +254,12 @@ jobs:
               pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql
             ;;
 
-            drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
+            drizzle-orm|drizzle-seed)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
+            ;;
+
+            validators)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/validators
             ;;
 
             other)
@@ -275,7 +276,8 @@ jobs:
                 --exclude tests/pg/neon-http-batch.test.ts \
                 --exclude tests/pg/neon-serverless.test.ts \
                 --exclude tests/cockroach \
-                --exclude tests/mssql
+                --exclude tests/mssql \
+                --exclude tests/validators
             ;;
 
           esac
@@ -285,11 +287,8 @@ jobs:
       matrix:
         package:
           - drizzle-kit
-          - drizzle-zod
           - drizzle-seed
           - drizzle-typebox
-          - drizzle-valibot
-          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
@@ -475,11 +474,7 @@ jobs:
         package:
           - drizzle-orm
           - drizzle-kit
-          - drizzle-zod
           - drizzle-seed
-          - drizzle-typebox
-          - drizzle-valibot
-          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
