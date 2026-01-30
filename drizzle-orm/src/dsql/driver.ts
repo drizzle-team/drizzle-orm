@@ -499,6 +499,7 @@ function createDSQLClient(config: DSQLConnectionConfig): DSQLClient {
 		max: config.max,
 		connectionTimeoutMillis: config.connectionTimeoutMillis,
 		idleTimeoutMillis: config.idleTimeoutMillis,
+		applicationName: 'drizzle',
 	});
 }
 
