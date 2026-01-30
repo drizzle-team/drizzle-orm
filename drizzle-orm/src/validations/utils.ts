@@ -3,7 +3,7 @@ import type { SelectedFieldsFlat } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
 import type { Table } from '~/table.ts';
-import type { IsNever } from '~/utils';
+import type { IsNever } from '~/utils.ts';
 
 export function isWithEnum(column: Column<any>): column is typeof column & { enumValues: [string, ...string[]] } {
 	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
