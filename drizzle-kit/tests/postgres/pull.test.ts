@@ -43,7 +43,9 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
+import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
@@ -1930,4 +1932,58 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 	const { sqlStatements, statements } = await diffIntrospect(db, {}, 'problem-with-backslash-in-check-constraint');
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+});
+
+// Complex SQL defaults should be wrapped in sql`` in generated TypeScript
+test('introspect complex SQL defaults', async () => {
+	// Create table with complex SQL default expressions via raw SQL
+	await db.query(`
+		CREATE TABLE complex_defaults (
+			id serial PRIMARY KEY,
+			random_int integer DEFAULT floor((random() * 100)),
+			random_real real DEFAULT random(),
+			computed_value double precision DEFAULT (random() * 100 + 50)
+		)
+	`);
+
+	// Introspect the database
+	const filter = prepareEntityFilter('postgresql', {
+		tables: [],
+		schemas: ['public'],
+		entities: undefined,
+		extensions: [],
+	}, []);
+
+	const schema = await fromDatabaseForDrizzle(db, filter, () => true, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors).toHaveLength(0);
+
+	// Verify our table was introspected
+	const table = ddl.tables.one({ name: 'complex_defaults' });
+	expect(table).toBeTruthy();
+
+	// Check the raw default values in DDL columns
+	const columns = ddl.columns.list({ table: 'complex_defaults' });
+	const randomIntCol = columns.find((c) => c.name === 'random_int');
+	const randomRealCol = columns.find((c) => c.name === 'random_real');
+	const computedCol = columns.find((c) => c.name === 'computed_value');
+
+	// Defaults should be present
+	expect(randomIntCol?.default).toBeTruthy();
+	expect(randomRealCol?.default).toBeTruthy();
+	expect(computedCol?.default).toBeTruthy();
+
+	// Generate TypeScript code
+	const { file: tsOutput } = ddlToTypeScript(ddl, schema.viewColumns, 'camel', 'pg');
+
+	// Verify complex defaults are wrapped in sql``
+	// Complex expressions like floor((random() * 100)) should be wrapped with sql`...`
+	// The default for random_int should be sql`floor(...)` not floor(...)
+	expect(tsOutput).toMatch(/\.default\(sql`/); // Should have sql`` wrapper
+	expect(tsOutput).not.toMatch(/\.default\(floor\(/); // Should NOT be raw expression
+	expect(tsOutput).not.toMatch(/\.default\(\(random\(/); // Should NOT be raw expression
 });

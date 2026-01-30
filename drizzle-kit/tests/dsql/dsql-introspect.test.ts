@@ -26,6 +26,7 @@ import { drizzle, type DSQLDatabase } from 'drizzle-orm/dsql';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { fromDatabase } from '../../src/dialects/dsql/introspect';
 import { interimToDDL } from '../../src/dialects/postgres/ddl';
+import { ddlToTypeScript } from '../../src/dialects/postgres/typescript';
 import type { DB } from '../../src/utils';
 
 const ENABLE_LOGGING = false;
@@ -380,6 +381,55 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL introspection', () => {
 			expect(testRole?.name).toBe(roleName);
 		} finally {
 			await dsqlDb.execute(sql`DROP ROLE IF EXISTS ${sql.identifier(roleName)}`);
+		}
+	});
+
+	test('introspect complex SQL defaults', async () => {
+		const tableName = uniqueName('complex_defaults');
+
+		// Create table with complex SQL default expressions
+		await dsqlDb.execute(sql`
+			CREATE TABLE ${sql.identifier(tableName)} (
+				id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+				random_int integer DEFAULT floor((random() * 100)),
+				random_real real DEFAULT random(),
+				computed_value double precision DEFAULT (random() * 100 + 50)
+			)
+		`);
+
+		try {
+			// Introspect the database
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			// Verify our table was introspected
+			const table = ddl.tables.one({ name: tableName });
+			expect(table).toBeTruthy();
+
+			// Check the raw default values in DDL columns
+			const columns = ddl.columns.list({ table: tableName });
+			const randomIntCol = columns.find((c) => c.name === 'random_int');
+			const randomRealCol = columns.find((c) => c.name === 'random_real');
+			const computedCol = columns.find((c) => c.name === 'computed_value');
+
+			// Defaults should be present
+			expect(randomIntCol?.default).toBeTruthy();
+			expect(randomRealCol?.default).toBeTruthy();
+			expect(computedCol?.default).toBeTruthy();
+
+			// Generate TypeScript code
+			const { file: tsOutput } = ddlToTypeScript(ddl, [], 'camel', 'dsql');
+
+			// Verify complex defaults are wrapped in sql``
+			// Complex expressions like floor((random() * 100)) should be wrapped with sql`...`
+			// The default for random_int should be sql`floor(...)` not floor(...)
+			expect(tsOutput).toMatch(/\.default\(sql`/); // Should have sql`` wrapper
+			expect(tsOutput).not.toMatch(/\.default\(floor\(/); // Should NOT be raw expression
+			expect(tsOutput).not.toMatch(/\.default\(\(random\(/); // Should NOT be raw expression
+		} finally {
+			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
 		}
 	});
 });
