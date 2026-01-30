@@ -22,7 +22,8 @@
 			"error",
 			"always",
 			{
-				"ignorePackages": true
+				"ignorePackages": true,
+				"checkTypeImports": true
 			}
 		],
 		"typescript/no-explicit-any": "off",
