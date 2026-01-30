@@ -3,7 +3,6 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { tracer } from '~/tracing.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
@@ -30,9 +29,7 @@ export class PgEffectRefreshMaterializedView<
 		},
 		TEffectHKT
 	> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
-		});
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
 	}
 
 	prepare(name: string): PgEffectPreparedQuery<
@@ -45,9 +42,7 @@ export class PgEffectRefreshMaterializedView<
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		return this._prepare().execute(placeholderValues);
 	};
 }
 

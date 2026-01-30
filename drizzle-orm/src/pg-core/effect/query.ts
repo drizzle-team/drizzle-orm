@@ -3,7 +3,6 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { tracer } from '~/tracing.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -29,22 +28,20 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 
 	/** @internal */
 	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
+		const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			);
-		});
+		return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
+			builtQuery,
+			undefined,
+			name,
+			(rawRows, mapColumnValue) => {
+				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
+				if (this.mode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			},
+		);
 	}
 
 	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {

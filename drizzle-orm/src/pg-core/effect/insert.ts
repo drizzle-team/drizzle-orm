@@ -5,7 +5,6 @@ import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~
 import type { PgTable } from '~/pg-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
@@ -105,11 +104,9 @@ export class PgEffectInsertBase<
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues).pipe(
-				Effect.withSpan('drizzle.operation'),
-			);
-		});
+		return this._prepare().execute(placeholderValues).pipe(
+			Effect.withSpan('drizzle.operation'),
+		);
 	};
 }
 
