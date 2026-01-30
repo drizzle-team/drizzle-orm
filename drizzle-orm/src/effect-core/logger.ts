@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger';
+import type { Logger } from '~/logger.ts';
 
 /**
  * Effect service for logging SQL queries in Drizzle ORM.
