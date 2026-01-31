@@ -1,5 +1,5 @@
-import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
+import type { SqlError } from 'effect/unstable/sql';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
@@ -46,7 +46,7 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 	protected override queryWithCache<T>(
 		queryString: string,
 		params: any[],
-		query: Effect.Effect<T, SqlError>,
+		query: Effect.Effect<T, SqlError.SqlError>,
 	): Effect.Effect<T, TaggedDrizzleQueryError> {
 		const { cache, cacheConfig, queryMetadata } = this;
 		return Effect.gen(function*() {
@@ -93,9 +93,11 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 			}
 
 			assertUnreachable(cacheStrat);
-		}).pipe(Effect.catchAll((e) => {
-			// eslint-disable-next-line @drizzle-internal/no-instanceof
-			return Effect.fail(new TaggedDrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
+		}).pipe(Effect.catch((e) => {
+			return Effect.fail(
+				// eslint-disable-next-line @drizzle-internal/no-instanceof
+				new TaggedDrizzleQueryError({ query: queryString, params, cause: e instanceof Error ? e : undefined }),
+			);
 		}));
 	}
 

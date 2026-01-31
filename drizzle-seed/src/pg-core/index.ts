@@ -58,7 +58,12 @@ export const seedPostgres = async (
 
 	const { pgSchema, pgTables } = filterPgSchema(schema);
 
-	const { tables, relations } = getSchemaInfo(pgSchema, pgTables, mapPgColumns);
+	const { tables, relations } = getSchemaInfo(
+		pgSchema,
+		pgTables,
+		mapPgColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 	// const { tables, relations } = getPostgresInfo(pgSchema, pgTables);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',

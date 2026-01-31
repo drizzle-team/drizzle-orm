@@ -5,6 +5,7 @@ import {
 	One,
 	type Relations,
 } from 'drizzle-orm/_relations';
+import type { CasingCache } from 'drizzle-orm/casing';
 import { CockroachTable, getTableConfig as getCockroachTableConfig } from 'drizzle-orm/cockroach-core';
 import { getTableConfig as getMsSqlTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { getTableConfig as getMySqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
@@ -103,6 +104,7 @@ export const getSchemaInfo = (
 		tableConfig: AnyColumn[],
 		dbToTsColumnNamesMap: { [key: string]: string },
 	) => Column[],
+	casing?: CasingCache,
 ) => {
 	let tableConfig: ReturnType<typeof getTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
@@ -128,7 +130,10 @@ export const getSchemaInfo = (
 
 		const tableConfig = getTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			if (is(col, DrizzleColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleColumn)) {
+				const dbColName = casing ? casing.getColumnCasing(col) : col.name;
+				dbToTsColumnNamesMap[dbColName] = tsCol;
+			}
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 

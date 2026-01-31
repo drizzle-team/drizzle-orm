@@ -63,7 +63,12 @@ export const seedSingleStore = async (
 	refinements?: RefinementsType,
 ) => {
 	const { singleStoreSchema, singleStoreTables } = filterSingleStoreTables(schema);
-	const { tables, relations } = getSchemaInfo(singleStoreSchema, singleStoreTables, mapSingleStoreColumns);
+	const { tables, relations } = getSchemaInfo(
+		singleStoreSchema,
+		singleStoreTables,
+		mapSingleStoreColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 
 	const seedService = new SeedService();
 

@@ -61,7 +61,12 @@ export const seedSqlite = async (
 	refinements?: RefinementsType,
 ) => {
 	const { sqliteSchema, sqliteTables } = filterSqliteTables(schema);
-	const { tables, relations } = getSchemaInfo(sqliteSchema, sqliteTables, mapSqliteColumns);
+	const { tables, relations } = getSchemaInfo(
+		sqliteSchema,
+		sqliteTables,
+		mapSqliteColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 
 	const seedService = new SeedService();
 
