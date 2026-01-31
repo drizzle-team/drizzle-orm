@@ -766,7 +766,7 @@ const createTableChecks = (
 	checkConstraints.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${it.value.replaceAll('`', '\\`')}\`)`;
 		statement += `,`;
 	});
 

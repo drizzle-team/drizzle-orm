@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
-import { formatToMillis, type MigrationMeta } from '~/migrator.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { OPSQLiteDatabase } from './driver.ts';
 

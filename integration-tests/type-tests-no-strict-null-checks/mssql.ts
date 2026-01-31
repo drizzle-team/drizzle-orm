@@ -1,4 +1,5 @@
 // oxlint-disable no-unused-expressions
+import { sql } from 'drizzle-orm';
 import { mssqlTable, text } from 'drizzle-orm/mssql-core';
 import { drizzle } from 'drizzle-orm/node-mssql';
 import { type Equal, Expect } from './utils.ts';
@@ -8,7 +9,7 @@ export const test = mssqlTable(
 	{
 		id: text('id')
 			.primaryKey()
-			.generatedAlwaysAs('genstr'),
+			.generatedAlwaysAs(sql`'genstr'`),
 		name: text('name').$defaultFn(() => '' as string),
 		title: text('title').notNull(),
 		description: text('description'),

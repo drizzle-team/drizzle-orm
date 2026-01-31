@@ -1,4 +1,5 @@
-import { formatToMillis, type MigrationMeta, type MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';

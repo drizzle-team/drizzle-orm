@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { desc, isNull, sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	foreignKey,
@@ -672,6 +672,7 @@ test('pk #1_0. drop table with pk', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4549
 // https://github.com/drizzle-team/drizzle-orm/issues/3801
 test('pk #1_1. add column with pk', async () => {
 	const from = {
@@ -1906,6 +1907,7 @@ test('fk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4574
 // https://github.com/drizzle-team/drizzle-orm/issues/3255
 test('index #1', async () => {
 	const table1 = sqliteTable('table1', {
@@ -1944,6 +1946,59 @@ test('index #1', async () => {
 		'CREATE INDEX `index5` ON `table1` ("col1" asc);',
 		'CREATE INDEX `index6` ON `table1` ("col1" asc,"col2" desc);',
 	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4704
+test('issue No4704. Composite index with sort outputs', async () => {
+	const schema1 = {
+		table: sqliteTable(
+			'table',
+			{ col1: text(), col2: text(), col3: text() },
+			(table) => [
+				index('table_composite_idx').on(
+					table.col1,
+					table.col2,
+					desc(table.col3), // Attempting to sort by col3 DESC
+				),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table` (\n\t`col1` text,\n\t`col2` text,\n\t`col3` text\n);\n',
+		'CREATE INDEX `table_composite_idx` ON `table` (`col1`,`col2`,"col3" desc);', // drizzle-orm parses as "". Should work, but still...
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4688
+test('issue No4688. subsequent push with where part of partial index', async () => {
+	const schema1 = {
+		table: sqliteTable(
+			'table',
+			{
+				id: int().primaryKey(),
+				type: text(),
+				isDeleted: int({ mode: 'boolean' }),
+			},
+			(table) => [
+				index('table_composite_idx').on(table.id, table.type).where(isNull(table.isDeleted)),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 }); // subsequent push inside
+	const expectedSt1 = [
+		'CREATE TABLE `table` (\n\t`id` integer PRIMARY KEY,\n\t`type` text,\n\t`isDeleted` integer\n);\n',
+		'CREATE INDEX `table_composite_idx` ON `table` (`id`,`type`) WHERE ("table"."isDeleted" is null);', // drizzle-orm parses as "". Should work, but still...
+	];
+
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });

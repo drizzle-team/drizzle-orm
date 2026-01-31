@@ -848,3 +848,25 @@ test('RQB v2 transaction find many - placeholders', async () => {
 		}]);
 	});
 });
+
+test('db.get', async () => {
+	await db.insert(usersTable).values({
+		id: 1,
+		name: 'First',
+	});
+
+	const result = db.get<{ id: number; name: string }>(sql`SELECT id, name FROM ${usersTable};`);
+
+	expect(result).toStrictEqual({ id: 1, name: 'First' });
+});
+
+test('db.all', async () => {
+	await db.insert(usersTable).values({
+		id: 1,
+		name: 'First',
+	});
+
+	const result = db.all<{ id: number; name: string }>(sql`SELECT id, name FROM ${usersTable};`);
+
+	expect(result).toStrictEqual([{ id: 1, name: 'First' }]);
+});
