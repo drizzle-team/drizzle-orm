@@ -63,7 +63,12 @@ export const seedMySql = async (
 	refinements?: RefinementsType,
 ) => {
 	const { mysqlSchema, mysqlTables } = filterMysqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mysqlSchema, mysqlTables, mapMySqlColumns);
+	const { tables, relations } = getSchemaInfo(
+		mysqlSchema,
+		mysqlTables,
+		mapMySqlColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 
 	const seedService = new SeedService();
 

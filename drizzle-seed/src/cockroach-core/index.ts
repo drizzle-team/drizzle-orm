@@ -57,7 +57,12 @@ export const seedCockroach = async (
 	const seedService = new SeedService();
 
 	const { cockroachSchema, cockroachTables } = filterCockroachSchema(schema);
-	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachColumns);
+	const { tables, relations } = getSchemaInfo(
+		cockroachSchema,
+		cockroachTables,
+		mapCockroachColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'cockroach',

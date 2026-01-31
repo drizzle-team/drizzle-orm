@@ -169,7 +169,12 @@ export const seedMsSql = async (
 	refinements?: RefinementsType,
 ) => {
 	const { mssqlSchema, mssqlTables } = filterMsSqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlColumns);
+	const { tables, relations } = getSchemaInfo(
+		mssqlSchema,
+		mssqlTables,
+		mapMsSqlColumns,
+		(db as unknown as { dialect: { casing: Parameters<typeof getSchemaInfo>[3] } }).dialect.casing,
+	);
 
 	const seedService = new SeedService();
 
