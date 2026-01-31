@@ -4,9 +4,12 @@ import { entityKind } from '~/entity.ts';
 import { applyMixins } from '~/utils.ts';
 import type { TaggedDrizzleQueryError } from './errors.ts';
 
+const EffectTypeId = '~effect/Effect' as const;
+
 export interface QueryEffect<Success = never, Failure = TaggedDrizzleQueryError, Context = never>
 	extends Effect.Effect<Success, Failure, Context>
 {
+	readonly [EffectTypeId]: Effect.Variance<Success, Failure, Context>;
 }
 
 export abstract class QueryEffect<Success = never, Failure = TaggedDrizzleQueryError, Context = never> {
@@ -42,8 +45,8 @@ export abstract class QueryEffect<Success = never, Failure = TaggedDrizzleQueryE
 
 	abstract execute(...args: any[]): Effect.Effect<Success, Failure, Context>;
 
-	get [Effect.EffectTypeId]() {
-		return this.effect[Effect.EffectTypeId];
+	get [EffectTypeId](): Effect.Variance<Success, Failure, Context> {
+		return this.effect[EffectTypeId];
 	}
 
 	[Symbol.iterator]() {
@@ -62,7 +65,7 @@ export function applyEffectWrapper(baseClass: any) {
 
 	Object.defineProperty(
 		baseClass.prototype,
-		Effect.EffectTypeId,
-		Object.getOwnPropertyDescriptor(QueryEffect.prototype, Effect.EffectTypeId)!,
+		EffectTypeId,
+		Object.getOwnPropertyDescriptor(QueryEffect.prototype, EffectTypeId)!,
 	);
 }

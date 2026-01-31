@@ -101,7 +101,7 @@ export class PgEffectDatabase<
 		}
 
 		this.$cache = {
-			invalidate: (_params: MutationOption) => Effect.async(() => {}),
+			invalidate: (_params: MutationOption) => Effect.callback(() => {}),
 		};
 	}
 

@@ -95,9 +95,11 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						mapColumnValue?: (value: unknown) => unknown,
 					) => unknown)(v as Record<string, unknown>[])
 				),
-			).pipe(Effect.catchAll((e) => {
-				// eslint-disable-next-line @drizzle-internal/no-instanceof
-				return Effect.fail(new TaggedDrizzleQueryError(query.sql, params, e instanceof Error ? e : undefined));
+			).pipe(Effect.catch((e) => {
+				return Effect.fail(
+					// eslint-disable-next-line @drizzle-internal/no-instanceof
+					new TaggedDrizzleQueryError({ query: query.sql, params, cause: e instanceof Error ? e : undefined }),
+				);
 			}))
 		);
 	}
