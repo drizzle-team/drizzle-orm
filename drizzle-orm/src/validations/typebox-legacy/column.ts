@@ -1,5 +1,5 @@
-import Type from 'typebox';
-import type { TNumberOptions, TSchema, TStringOptions } from 'typebox';
+import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
+import type { BigIntOptions, StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import {
 	type ColumnDataArrayConstraint,
 	type ColumnDataBigIntConstraint,
@@ -11,52 +11,18 @@ import {
 import { type Column, getColumnTable } from '~/column.ts';
 import { getTableName } from '~/table.ts';
 import { CONSTANTS } from '../constants.ts';
-import type { JsonSchema } from './column.types.ts';
+import type { BigIntStringModeSchema, BufferSchema, JsonSchema } from './column.types.ts';
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TBuffer extends Type.Base<Buffer> {
-	public override Check(value: unknown): value is Buffer {
-		// oxlint-disable-next-line drizzle-internal/no-instanceof
-		return value instanceof Buffer;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a Buffer' }] : [];
-	}
-
-	public override Clone(): TBuffer {
-		return new TBuffer();
-	}
-}
-
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TDate extends Type.Base<Date> {
-	public override Check(value: unknown): value is Date {
-		// oxlint-disable-next-line drizzle-internal/no-instanceof
-		return value instanceof Date;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a Date' }] : [];
-	}
-
-	public override Clone(): TDate {
-		return new TDate();
-	}
-}
-
-export const literalSchema = Type.Union([Type.String(), Type.Number(), Type.Boolean(), Type.Null()]);
-export const jsonSchema: JsonSchema = Type.Union([
-	literalSchema,
-	Type.Array(Type.Any()),
-	Type.Record(Type.String(), Type.Any()),
-]);
+export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
+export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
-export function columnToSchema(column: Column, t: typeof Type): TSchema {
+export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 	let schema!: TSchema;
 
 	// Check for PG array columns (have dimensions property instead of changing dataType)
@@ -107,7 +73,7 @@ export function columnToSchema(column: Column, t: typeof Type): TSchema {
 function numberColumnToSchema(
 	column: Column,
 	constraint: ColumnDataNumberConstraint | undefined,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	let min!: number;
 	let max!: number;
@@ -219,58 +185,45 @@ function numberColumnToSchema(
 	});
 }
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TBigIntString extends Type.Base<string> {
-	override Check(value: unknown): value is string {
-		if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
-			return false;
-		}
-
-		const bigint = BigInt(value);
-		if (bigint < CONSTANTS.INT64_MIN || bigint > CONSTANTS.INT64_MAX) {
-			return false;
-		}
-
-		return true;
+TypeRegistry.Set('BigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
+		return false;
 	}
 
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a bigint string' }] : [];
+	const bigint = BigInt(value);
+	if (bigint < CONSTANTS.INT64_MIN || bigint > CONSTANTS.INT64_MAX) {
+		return false;
 	}
 
-	override Clone() {
-		return new TBigIntString();
-	}
-}
+	return true;
+});
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TUnsignedBigIntString extends Type.Base<string> {
-	override Check(value: unknown): value is string {
-		if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
-			return false;
-		}
-
-		const bigint = BigInt(value);
-		if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
-			return false;
-		}
-
-		return true;
+TypeRegistry.Set('UnsignedBigIntStringMode', (_, value) => {
+	if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
+		return false;
 	}
 
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not an unsigned bigint string' }] : [];
+	const bigint = BigInt(value);
+	if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
+		return false;
 	}
 
-	override Clone() {
-		return new TUnsignedBigIntString();
-	}
-}
+	return true;
+});
+export const bigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'BigIntStringMode',
+	type: 'string',
+} as any;
+
+export const unsignedBigintStringModeSchema: BigIntStringModeSchema = {
+	[Kind]: 'UnsignedBigIntStringMode',
+	type: 'string',
+} as any;
 
 function pgArrayColumnToSchema(
 	column: Column,
 	dimensions: number,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	// PG style: the column IS the base type, with dimensions indicating array depth
 	// Get the base schema from the column's own dataType
@@ -313,7 +266,7 @@ function pgArrayColumnToSchema(
 function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	switch (constraint) {
 		case 'geometry':
@@ -374,14 +327,14 @@ function arrayColumnToSchema(
 function objectColumnToSchema(
 	column: Column,
 	constraint: ColumnDataObjectConstraint | undefined,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	switch (constraint) {
 		case 'buffer': {
-			return new TBuffer();
+			return bufferSchema;
 		}
 		case 'date': {
-			return new TDate();
+			return t.Date();
 		}
 		case 'geometry':
 		case 'point': {
@@ -409,7 +362,7 @@ function objectColumnToSchema(
 function bigintColumnToSchema(
 	column: Column,
 	constraint: ColumnDataBigIntConstraint | undefined,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	let min!: bigint | undefined;
 	let max!: bigint | undefined;
@@ -427,7 +380,7 @@ function bigintColumnToSchema(
 		}
 	}
 
-	const options: Partial<TNumberOptions> = {};
+	const options: Partial<BigIntOptions> = {};
 
 	if (min !== undefined) {
 		options.minimum = min;
@@ -442,7 +395,7 @@ function bigintColumnToSchema(
 function stringColumnToSchema(
 	column: Column,
 	constraint: ColumnDataStringConstraint | undefined,
-	t: typeof Type,
+	t: typeof typebox,
 ): TSchema {
 	const { name: columnName, length, isLengthExact } = column;
 	let regex: RegExp | undefined;
@@ -465,13 +418,13 @@ function stringColumnToSchema(
 		return t.Enum(mapEnumValues(enumValues));
 	}
 	if (constraint === 'int64') {
-		return new TBigIntString();
+		return bigintStringModeSchema;
 	}
 	if (constraint === 'uint64') {
-		return new TUnsignedBigIntString();
+		return unsignedBigintStringModeSchema;
 	}
 
-	const options: Partial<TStringOptions> = {};
+	const options: Partial<StringOptions> = {};
 
 	if (length !== undefined && isLengthExact) {
 		options.minLength = length;
@@ -479,9 +432,8 @@ function stringColumnToSchema(
 	} else if (length !== undefined) {
 		options.maxLength = length;
 	}
-	if (regex) {
-		options.pattern = regex;
-	}
 
-	return t.String(Object.keys(options).length > 0 ? options : undefined);
+	return regex
+		? t.RegExp(regex, Object.keys(options).length > 0 ? options : undefined)
+		: t.String(Object.keys(options).length > 0 ? options : undefined);
 }

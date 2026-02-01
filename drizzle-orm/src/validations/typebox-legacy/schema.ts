@@ -1,5 +1,5 @@
-import { Type as t } from 'typebox';
-import type { TSchema } from 'typebox';
+import { Type as t } from '@sinclair/typebox';
+import type { TSchema } from '@sinclair/typebox';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';

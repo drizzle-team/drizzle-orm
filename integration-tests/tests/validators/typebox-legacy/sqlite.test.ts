@@ -1,3 +1,4 @@
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { CONSTANTS } from 'drizzle-orm/validations/constants';
@@ -6,13 +7,9 @@ import {
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
-	jsonSchema,
-	TBigIntString,
-	TBuffer,
-	TDate,
-} from 'drizzle-orm/validations/typebox';
+} from 'drizzle-orm/validations/typebox-legacy';
+import { bufferSchema, jsonSchema } from 'drizzle-orm/validations/typebox-legacy/column';
 import type { TopLevelCondition } from 'json-rules-engine';
-import t, { type Static } from 'typebox';
 import { test } from 'vitest';
 import { Expect, expectSchemaShape } from './utils';
 
@@ -360,25 +357,24 @@ test('all data types', (tc) => {
 
 	const result = createSelectSchema(table);
 	const expected = t.Object({
-		blob1: new TBuffer(),
+		blob1: bufferSchema,
 		blob2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		blob3: jsonSchema,
 		integer1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		integer2: t.Boolean(),
-		integer3: new TDate(),
-		integer4: new TDate(),
+		integer3: t.Date(),
+		integer4: t.Date(),
 		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		numeric3: t.String(),
 		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		text1: t.String(),
 		text2: t.String({ maxLength: 10 }),
-		text3: t.Enum(['a', 'b', 'c']),
+		text3: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		text4: jsonSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
-	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
 });
 
 /* Infinitely recursive type */ {

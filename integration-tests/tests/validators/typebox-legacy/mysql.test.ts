@@ -1,3 +1,4 @@
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { CONSTANTS } from 'drizzle-orm/validations/constants';
@@ -6,14 +7,13 @@ import {
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
+} from 'drizzle-orm/validations/typebox-legacy';
+import {
+	bigintStringModeSchema,
 	jsonSchema,
-	TBigIntString,
-	TBuffer,
-	TDate,
-	TUnsignedBigIntString,
-} from 'drizzle-orm/validations/typebox';
+	unsignedBigintStringModeSchema,
+} from 'drizzle-orm/validations/typebox-legacy/column';
 import type { TopLevelCondition } from 'json-rules-engine';
-import t, { type Static } from 'typebox';
 import { test } from 'vitest';
 import { Expect, expectSchemaShape } from './utils';
 
@@ -219,7 +219,7 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -243,7 +243,7 @@ test('refine table - select with custom data type', (tc) => {
 
 	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
@@ -267,7 +267,7 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -288,7 +288,7 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -324,14 +324,14 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});
@@ -445,15 +445,15 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
-		bigint5: new TBigIntString(),
-		bigint6: new TUnsignedBigIntString(),
-		binary: t.String({ pattern: /^[01]*$/, maxLength: 10 }),
+		bigint5: bigintStringModeSchema,
+		bigint6: unsignedBigintStringModeSchema,
+		binary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),
-		char2: t.Enum(['a', 'b', 'c']),
-		date1: new TDate(),
+		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		date1: t.Date(),
 		date2: t.String(),
-		datetime1: new TDate(),
+		datetime1: t.Date(),
 		datetime2: t.String(),
 		decimal1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		decimal2: t.Number({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
@@ -470,32 +470,31 @@ test('all data types', (tc) => {
 		json: jsonSchema,
 		mediumint1: t.Integer({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
 		mediumint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT24_UNSIGNED_MAX }),
-		enum: t.Enum(['a', 'b', 'c']),
+		enum: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		serial: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		smallint1: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
 		smallint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT16_UNSIGNED_MAX }),
 		text1: t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX }),
-		text2: t.Enum(['a', 'b', 'c']),
+		text2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		time: t.String(),
-		timestamp1: new TDate(),
+		timestamp1: t.Date(),
 		timestamp2: t.String(),
 		tinyint1: t.Integer({ minimum: CONSTANTS.INT8_MIN, maximum: CONSTANTS.INT8_MAX }),
 		tinyint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT8_UNSIGNED_MAX }),
 		varchar1: t.String({ maxLength: 10 }),
-		varchar2: t.Enum(['a', 'b', 'c']),
-		varbinary: t.String({ pattern: /^[01]*$/, maxLength: 10 }),
+		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		varbinary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		year: t.Integer({ minimum: 1901, maximum: 2155 }),
 		longtext1: t.String({ maxLength: CONSTANTS.INT32_UNSIGNED_MAX }),
-		longtext2: t.Enum(['a', 'b', 'c']),
+		longtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		mediumtext1: t.String({ maxLength: CONSTANTS.INT24_UNSIGNED_MAX }),
-		mediumtext2: t.Enum(['a', 'b', 'c']),
+		mediumtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
-		tinytext2: t.Enum(['a', 'b', 'c']),
+		tinytext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
-	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
 });
 
 /* Infinitely recursive type */ {

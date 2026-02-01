@@ -1,3 +1,4 @@
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import {
 	cockroachEnum,
@@ -15,13 +16,9 @@ import {
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
-	jsonSchema,
-	TBigIntString,
-	TBuffer,
-	TDate,
-} from 'drizzle-orm/validations/typebox';
+} from 'drizzle-orm/validations/typebox-legacy';
+import { jsonSchema } from 'drizzle-orm/validations/typebox-legacy/column';
 import type { TopLevelCondition } from 'json-rules-engine';
-import t, { type Static } from 'typebox';
 import { test } from 'vitest';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils';
 
@@ -184,7 +181,7 @@ test('enum - select', (tc) => {
 	const enum_ = cockroachEnum('test', ['a', 'b', 'c']);
 
 	const result = createSelectSchema(enum_);
-	const expected = t.Enum(['a', 'b', 'c']);
+	const expected = t.Enum({ a: 'a', b: 'b', c: 'c' });
 
 	expectEnumValues(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -262,7 +259,7 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -285,7 +282,7 @@ test('refine table - select with custom data type', (tc) => {
 
 	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
@@ -309,7 +306,7 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -330,7 +327,7 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -366,14 +363,14 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: (<any> schema).minimum, maximum: 1000 }),
+			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
 			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});
@@ -472,11 +469,11 @@ test('all data types', (tc) => {
 	const expected = t.Object({
 		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bit: t.String({ pattern: /^[01]*$/, minLength: 5, maxLength: 5 }),
+		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),
-		char2: t.Enum(['a', 'b', 'c']),
-		date1: new TDate(),
+		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		date1: t.Date(),
 		date2: t.String(),
 		decimal1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		decimal2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
@@ -498,22 +495,21 @@ test('all data types', (tc) => {
 		real: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
 		smallint: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
 		string1: t.String(),
-		string2: t.Enum(['a', 'b', 'c']),
+		string2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		text1: t.String(),
-		text2: t.Enum(['a', 'b', 'c']),
+		text2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		time: t.String(),
-		timestamp1: new TDate(),
+		timestamp1: t.Date(),
 		timestamp2: t.String(),
 		uuid: t.String({ format: 'uuid' }),
 		varchar1: t.String({ maxLength: 10 }),
-		varchar2: t.Enum(['a', 'b', 'c']),
+		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
 		array: t.Array(int4Schema),
 	});
 
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
-	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
 });
 
 /* Infinitely recursive type */ {

@@ -1,4 +1,4 @@
-import type * as t from 'typebox';
+import type * as t from '@sinclair/typebox';
 import { expect, type TestContext } from 'vitest';
 
 function removeKeysFromObject(obj: Record<string, any>, keys: string[]) {
@@ -26,7 +26,7 @@ export function expectSchemaShape<T extends t.TObject>(t: TestContext, expected:
 export function expectEnumValues<T extends t.TEnum<any>>(t: TestContext, expected: T) {
 	return {
 		from(actual: T) {
-			expect(actual.enum).toStrictEqual(expected.enum);
+			expect(actual.anyOf).toStrictEqual(expected.anyOf);
 		},
 	};
 }

@@ -1,4 +1,4 @@
-Allows you to generate [typebox](https://sinclairzx81.github.io/typebox/#/) schemas from Drizzle ORM schemas.
+Allows you to generate [@sinclair/typebox](https://github.com/sinclairzx81/typebox) schemas from Drizzle ORM schemas.
 
 **Features**
 
@@ -11,8 +11,8 @@ Allows you to generate [typebox](https://sinclairzx81.github.io/typebox/#/) sche
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/typebox';
-import { Type } from 'typebox';
-import { Value } from 'typebox/value';
+import { Type } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),

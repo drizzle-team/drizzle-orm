@@ -83,6 +83,7 @@
 		"postgres": ">=3",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
+		"typebox": ">=1.0.0",
 		"valibot": ">=1.0.0-beta.7",
 		"zod": "^3.25.0 || ^4.0.0"
 	},
@@ -192,6 +193,9 @@
 		"@effect/sql-pg": {
 			"optional": true
 		},
+		"typebox": {
+			"optional": true
+		},
 		"valibot": {
 			"optional": true
 		},
@@ -250,6 +254,7 @@
 		"tsdown": "^0.18.3",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
+		"typebox": "^1.0.80",
 		"valibot": "1.0.0-beta.7",
 		"zod": "^3.20.2"
 	}

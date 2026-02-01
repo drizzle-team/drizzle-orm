@@ -494,6 +494,9 @@ importers:
       tsx:
         specifier: ^3.12.7
         version: 3.14.0
+      typebox:
+        specifier: ^1.0.80
+        version: 1.0.80
       valibot:
         specifier: 1.0.0-beta.7
         version: 1.0.0-beta.7(typescript@5.9.2)
@@ -741,6 +744,9 @@ importers:
       sst:
         specifier: ^3.14.24
         version: 3.17.23
+      typebox:
+        specifier: ^1.0.80
+        version: 1.0.80
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
@@ -8464,6 +8470,9 @@ packages:
   type-is@2.0.1:
     resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
     engines: {node: '>= 0.6'}
+
+  typebox@1.0.80:
+    resolution: {integrity: sha512-ZeTgC357AxaeAw4HX+ZJRBGxpWQIUVt2FNQC+QDoF3piv4/fRmy8DU9ci8cwSkNCbWT6BIUqEXdcaU8f3ib/Iw==}
 
   typescript@5.6.1-rc:
     resolution: {integrity: sha512-E3b2+1zEFu84jB0YQi9BORDjz9+jGbwwy1Zi3G0LUNw7a7cePUrHMRNy8aPh53nXpkFGVHSxIZo5vKTfYaFiBQ==}
@@ -18099,6 +18108,8 @@ snapshots:
       content-type: 1.0.5
       media-typer: 1.1.0
       mime-types: 3.0.2
+
+  typebox@1.0.80: {}
 
   typescript@5.6.1-rc: {}
 

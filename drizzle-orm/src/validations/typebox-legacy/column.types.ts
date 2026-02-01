@@ -1,16 +1,29 @@
-import type * as t from 'typebox';
+import type * as t from '@sinclair/typebox';
 import type { ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
 import type { Assume } from '~/utils.ts';
-import type { jsonSchema, literalSchema, TBigIntString, TBuffer, TDate, TUnsignedBigIntString } from './column.ts';
+import type { Json } from '../utils.ts';
+import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './column.ts';
 
-export interface GenericSchema<T> extends t.TSchema {
+export interface GenericSchema<T> extends t.TSchema { // oxlint-disable-line import/namespace false-positive
 	static: T;
 }
 
 export interface JsonSchema extends t.TSchema {
-	'~kind': 'Union';
-	anyOf: [typeof literalSchema, t.TArray<t.TAny>, t.TRecord<'^.*$', t.TAny>];
+	[t.Kind]: 'Union';
+	static: Json;
+	anyOf: Json;
+}
+export interface BufferSchema extends t.TSchema {
+	[t.Kind]: 'Buffer';
+	static: Buffer;
+	type: 'buffer';
+}
+
+export interface BigIntStringModeSchema extends t.TSchema {
+	[t.Kind]: 'BigIntStringMode';
+	static: string;
+	type: 'string';
 }
 
 type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
@@ -50,9 +63,9 @@ type GetBaseTypeboxType<
 	: TType['type'] extends 'object'
 		? TType['constraint'] extends 'geometry' | 'point' ? t.TObject<{ x: t.TNumber; y: t.TNumber }>
 		: TType['constraint'] extends 'line' ? t.TObject<{ a: t.TNumber; b: t.TNumber; c: t.TNumber }>
-		: TType['constraint'] extends 'date' ? TDate
-		: TType['constraint'] extends 'buffer' ? TBuffer
-		: TType['constraint'] extends 'json' ? typeof jsonSchema
+		: TType['constraint'] extends 'date' ? t.TDate
+		: TType['constraint'] extends 'buffer' ? BufferSchema
+		: TType['constraint'] extends 'json' ? JsonSchema
 		: t.TObject
 	: TType['type'] extends 'custom' ? t.TAny
 	: TType['type'] extends 'number'
@@ -62,10 +75,10 @@ type GetBaseTypeboxType<
 		: t.TNumber
 	: TType['type'] extends 'bigint' ? t.TBigInt
 	: TType['type'] extends 'boolean' ? t.TBoolean
-	: TType['type'] extends 'string' ? TType['constraint'] extends 'binary' | 'varbinary' ? t.TString
-		: TType['constraint'] extends 'int64' ? TBigIntString
-		: TType['constraint'] extends 'uint64' ? TUnsignedBigIntString
-		: TType['constraint'] extends 'enum' ? t.TEnum<Assume<TColumn['_']['enumValues'], string[]>>
+	: TType['type'] extends 'string' ? TType['constraint'] extends 'binary' | 'varbinary' ? t.TRegExp
+		: TType['constraint'] extends 'int64' ? typeof bigintStringModeSchema
+		: TType['constraint'] extends 'uint64' ? typeof unsignedBigintStringModeSchema
+		: TType['constraint'] extends 'enum' ? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
 		: t.TString
 	: t.TAny;
 
@@ -73,20 +86,20 @@ type HandleSelectColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? TSchema
-	: t.TUnion<[TSchema, t.TNull]>;
+	: t.Union<[TSchema, t.TNull]>;
 
 type HandleInsertColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? t.TOptional<TSchema>
 	: TSchema
-	: t.TOptional<t.TUnion<[TSchema, t.TNull]>>;
+	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
 
 type HandleUpdateColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? t.TOptional<TSchema>
-	: t.TOptional<t.TUnion<[TSchema, t.TNull]>>;
+	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
 
 export type HandleColumn<
 	TType extends 'select' | 'insert' | 'update',

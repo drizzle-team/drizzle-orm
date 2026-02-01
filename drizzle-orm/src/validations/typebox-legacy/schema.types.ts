@@ -1,8 +1,9 @@
-import type * as t from 'typebox';
+import type * as t from '@sinclair/typebox';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
+import type { EnumValuesToEnum } from '../utils.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema {
@@ -26,7 +27,7 @@ export interface CreateSelectSchema {
 
 	<TEnum extends PgEnum<any> | CockroachEnum<any>>(
 		enum_: TEnum,
-	): t.TEnum<TEnum['enumValues']>;
+	): t.TEnum<EnumValuesToEnum<TEnum['enumValues']>>;
 }
 
 export interface CreateInsertSchema {

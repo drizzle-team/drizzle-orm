@@ -1,4 +1,4 @@
-import type * as t from 'typebox';
+import type * as t from '@sinclair/typebox';
 import type { Column } from '~/column.ts';
 import type { SelectedFieldsFlat } from '~/operations.ts';
 import type { View } from '~/sql/sql.ts';
