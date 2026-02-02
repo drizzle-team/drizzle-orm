@@ -13,14 +13,14 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/validations/typebox-legacy';
+import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/typebox-legacy';
 import {
 	createInsertSchema,
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
-} from 'drizzle-orm/validations/typebox-legacy';
+} from 'drizzle-orm/typebox-legacy';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils';

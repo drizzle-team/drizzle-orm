@@ -1,9 +1,9 @@
 import { type Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/arktype';
+import { bigintNarrow, bufferSchema, jsonSchema } from 'drizzle-orm/arktype/column';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/arktype';
-import { bigintNarrow, bufferSchema, jsonSchema } from 'drizzle-orm/validations/arktype/column';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Expect, expectSchemaShape } from './utils';

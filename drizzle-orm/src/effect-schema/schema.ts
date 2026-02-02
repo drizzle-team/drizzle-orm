@@ -1,46 +1,51 @@
-import { z } from 'zod/v4';
+import { Schema as s } from 'effect';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
 import { getColumns } from '~/utils.ts';
-import { isPgEnum } from '../utils.ts';
+import { isWithEnum } from '../utils.ts';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
-import type {
-	CoerceOptions,
-	CreateInsertSchema,
-	CreateSchemaFactoryOptions,
-	CreateSelectSchema,
-	CreateUpdateSchema,
-	FactoryOptions,
-} from './schema.types.ts';
+import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
+
+function isOptional(schema: unknown): schema is s.optional<s.Schema.Any> {
+	if ((typeof schema !== 'object' || schema === null) && typeof schema !== 'function') return false;
+
+	return !s.isSchema(schema) && 'from' in schema && s.isSchema(schema.from);
+}
+
+function isStructField(schema: unknown): schema is s.optional<s.Schema.Any> | s.Schema.Any {
+	if (s.isSchema(schema)) return true;
+
+	return isOptional(schema);
+}
 
 function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-	factory?: FactoryOptions,
-): z.ZodType {
-	const columnSchemas: Record<string, z.ZodType> = {};
-
+): s.Schema.Any {
+	const columnSchemas: Record<string, s.Schema.Any | s.optional<s.Schema.Any>> = {};
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
-			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory);
+			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions);
 			continue;
 		}
 
 		const refinement = refinements[key];
-		if (refinement !== undefined && typeof refinement !== 'function') {
+
+		if (refinement !== undefined && !(typeof refinement === 'function' && !isStructField(refinement))) {
 			columnSchemas[key] = refinement;
 			continue;
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column, factory) : z.any();
-		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
+		const schema = column ? columnToSchema(column) : s.Any;
+		const _refined = isStructField(refinement) || typeof refinement !== 'function' ? schema : refinement(schema);
+		const refined = isOptional(_refined) ? _refined.from : _refined as s.Schema.Any;
 
 		if (conditions.never(column)) {
 			continue;
@@ -50,24 +55,22 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = columnSchemas[key]!.nullable();
+				columnSchemas[key] = s.NullOr(columnSchemas[key]);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = columnSchemas[key]!.optional();
+				columnSchemas[key] = s.optional(s.UndefinedOr(columnSchemas[key]));
 			}
 		}
 	}
 
-	return z.object(columnSchemas) as any;
+	return s.Struct(columnSchemas);
 }
 
 function handleEnum(
-	enum_: PgEnum<any>,
-	factory?: FactoryOptions,
+	enum_: PgEnum<[string, ...string[]]>,
 ) {
-	const zod: typeof z = factory?.zodInstance ?? z;
-	return zod.enum(enum_.enumValues);
+	return s.Literal(...enum_.enumValues);
 }
 
 const selectConditions: Conditions = {
@@ -92,18 +95,18 @@ const updateConditions: Conditions = {
 	nullable: (column) => !column.notNull,
 };
 
-export const createSelectSchema: CreateSelectSchema<undefined> = (
+export const createSelectSchema: CreateSelectSchema = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
-	if (isPgEnum(entity)) {
+	if (isWithEnum(entity)) {
 		return handleEnum(entity);
 	}
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, selectConditions) as any;
 };
 
-export const createInsertSchema: CreateInsertSchema<undefined> = (
+export const createInsertSchema: CreateInsertSchema = (
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
@@ -111,43 +114,10 @@ export const createInsertSchema: CreateInsertSchema<undefined> = (
 	return handleColumns(columns, refine ?? {}, insertConditions) as any;
 };
 
-export const createUpdateSchema: CreateUpdateSchema<undefined> = (
+export const createUpdateSchema: CreateUpdateSchema = (
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, updateConditions) as any;
 };
-
-export function createSchemaFactory<
-	TCoerce extends CoerceOptions,
->(options?: CreateSchemaFactoryOptions<TCoerce>) {
-	const createSelectSchema: CreateSelectSchema<TCoerce> = (
-		entity: Table | View | PgEnum<[string, ...string[]]>,
-		refine?: Record<string, any>,
-	) => {
-		if (isPgEnum(entity)) {
-			return handleEnum(entity, options);
-		}
-		const columns = getColumns(entity);
-		return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
-	};
-
-	const createInsertSchema: CreateInsertSchema<TCoerce> = (
-		entity: Table,
-		refine?: Record<string, any>,
-	) => {
-		const columns = getColumns(entity);
-		return handleColumns(columns, refine ?? {}, insertConditions, options) as any;
-	};
-
-	const createUpdateSchema: CreateUpdateSchema<TCoerce> = (
-		entity: Table,
-		refine?: Record<string, any>,
-	) => {
-		const columns = getColumns(entity);
-		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
-	};
-
-	return { createSelectSchema, createInsertSchema, createUpdateSchema };
-}

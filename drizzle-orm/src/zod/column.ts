@@ -9,8 +9,7 @@ import {
 } from '~/column-builder.ts';
 import { type Column, getColumnTable } from '~/column.ts';
 import { getTableName } from '~/table.ts';
-import { CONSTANTS } from '../constants.ts';
-import type { Json } from '../utils.ts';
+import { CONSTANTS, type Json } from '../utils.ts';
 import type { CoerceOptions, FactoryOptions } from './schema.types.ts';
 
 export const literalSchema = zod.union([zod.string(), zod.number(), zod.boolean(), zod.null()]);

@@ -1,5 +1,4 @@
-import { Schema as S } from 'effect';
-import type { Schema } from 'effect/Schema';
+import * as v from 'valibot';
 import {
 	type ColumnDataArrayConstraint,
 	type ColumnDataBigIntConstraint,
@@ -10,31 +9,22 @@ import {
 } from '~/column-builder.ts';
 import { type Column, getColumnTable } from '~/column.ts';
 import { getTableName } from '~/table.ts';
-import { CONSTANTS } from '../constants.ts';
-import type { Json } from '../utils.ts';
+import { CONSTANTS, type Json } from '../utils.ts';
 
-export const literalSchema = S.Union(
-	S.String,
-	S.Number,
-	S.Boolean,
-	S.Null,
-);
-
-export const jsonSchema = S.Union(
+export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
+export const jsonSchema: v.GenericSchema<Json> = v.union([
 	literalSchema,
-	S.Record({
-		key: S.String,
-		value: S.Any,
-	}),
-	S.Array(S.Any),
-) satisfies Schema<Json>;
+	v.array(v.any()),
+	v.record(v.string(), v.any()),
+]);
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
 
-export const bufferSchema = S.instanceOf(Buffer) satisfies Schema<Buffer>;
+export function mapEnumValues(values: string[]) {
+	return Object.fromEntries(values.map((value) => [value, value]));
+}
 
-export function columnToSchema(
-	column: Column,
-): Schema.Any {
-	let schema!: Schema.Any;
+export function columnToSchema(column: Column): v.GenericSchema {
+	let schema!: v.GenericSchema;
 
 	// Check for PG array columns (have dimensions property instead of changing dataType)
 	const dimensions = (<{ dimensions?: number }> column).dimensions;
@@ -62,7 +52,7 @@ export function columnToSchema(
 			break;
 		}
 		case 'boolean': {
-			schema = S.Boolean;
+			schema = v.boolean();
 			break;
 		}
 		case 'string': {
@@ -70,21 +60,18 @@ export function columnToSchema(
 			break;
 		}
 		case 'custom': {
-			schema = S.Any;
+			schema = v.any();
 			break;
 		}
 		default: {
-			schema = S.Any;
+			schema = v.any();
 		}
 	}
 
 	return schema;
 }
 
-function numberColumnToSchema(
-	column: Column,
-	constraint: ColumnDataNumberConstraint | undefined,
-): Schema.Any {
+function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstraint | undefined): v.GenericSchema {
 	let min!: number;
 	let max!: number;
 	let integer = false;
@@ -188,30 +175,34 @@ function numberColumnToSchema(
 		}
 	}
 
-	let schema = integer
-		? S.Int
-		: S.Number;
-	schema = schema.pipe(
-		S.greaterThanOrEqualTo(min),
-		S.lessThanOrEqualTo(max),
-	);
-	return schema;
+	const actions: any[] = [v.minValue(min), v.maxValue(max)];
+	if (integer) {
+		actions.push(v.integer());
+	}
+	return v.pipe(v.number(), ...actions);
 }
 
-export const bigintStringModeSchema = S.BigInt.pipe(
-	S.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-	S.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
+export const bigintStringModeSchema = v.pipe(
+	v.string(),
+	v.regex(/^-?\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	v.transform((v) => BigInt(v)),
+	v.minValue(CONSTANTS.INT64_MIN),
+	v.maxValue(CONSTANTS.INT64_MAX),
+	v.transform((v) => v.toString()),
 );
 
-export const unsignedBigintStringModeSchema = S.BigInt.pipe(
-	S.greaterThanOrEqualToBigInt(0n),
-	S.lessThanOrEqualToBigInt(CONSTANTS.INT64_UNSIGNED_MAX),
+export const unsignedBigintStringModeSchema = v.pipe(
+	v.string(),
+	v.regex(/^\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
+	v.transform((v) => BigInt(v)),
+	v.minValue(0n),
+	v.maxValue(CONSTANTS.INT64_MAX),
+	v.transform((v) => v.toString()),
 );
 
-function bigintColumnToSchema(
-	column: Column,
-	constraint: ColumnDataBigIntConstraint | undefined,
-): Schema.Any {
+function bigintColumnToSchema(column: Column, constraint: ColumnDataBigIntConstraint | undefined): v.GenericSchema {
 	let min!: bigint | undefined;
 	let max!: bigint | undefined;
 
@@ -228,21 +219,21 @@ function bigintColumnToSchema(
 		}
 	}
 
-	let schema: Schema<bigint, bigint> = S.BigIntFromSelf;
+	const actions: any[] = [];
+	if (min !== undefined) actions.push(v.minValue(min));
+	if (max !== undefined) actions.push(v.maxValue(max));
 
-	if (min !== undefined) schema = schema.pipe(S.greaterThanOrEqualToBigInt(min));
-	if (max !== undefined) schema = schema.pipe(S.lessThanOrEqualToBigInt(max));
-	return schema;
+	return actions.length > 0 ? v.pipe(v.bigint(), ...actions) : v.bigint();
 }
 
 function pgArrayColumnToSchema(
 	column: Column,
 	dimensions: number,
-): Schema.Any {
+): v.GenericSchema {
 	// PG style: the column IS the base type, with dimensions indicating array depth
 	// Get the base schema from the column's own dataType
 	const [baseType, baseConstraint] = column.dataType.split(' ');
-	let baseSchema: Schema.Any;
+	let baseSchema: v.GenericSchema;
 
 	switch (baseType) {
 		case 'number':
@@ -252,7 +243,7 @@ function pgArrayColumnToSchema(
 			baseSchema = bigintColumnToSchema(column, baseConstraint as ColumnDataBigIntConstraint);
 			break;
 		case 'boolean':
-			baseSchema = S.Boolean;
+			baseSchema = v.boolean();
 			break;
 		case 'string':
 			baseSchema = stringColumnToSchema(column, baseConstraint as ColumnDataStringConstraint);
@@ -265,124 +256,107 @@ function pgArrayColumnToSchema(
 			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint);
 			break;
 		default:
-			baseSchema = S.Any;
+			baseSchema = v.any();
 	}
 
 	// Wrap in arrays based on dimensions
 	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
-	let schema: Schema.Any = S.Array(baseSchema);
+	let schema: v.GenericSchema = v.array(baseSchema);
 	for (let i = 1; i < dimensions; i++) {
-		schema = S.Array(schema);
+		schema = v.array(schema);
 	}
 	return schema;
 }
 
-function arrayColumnToSchema(
-	column: Column,
-	constraint: ColumnDataArrayConstraint | undefined,
-): Schema.Any {
+function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstraint | undefined): v.GenericSchema {
 	switch (constraint) {
 		case 'geometry':
 		case 'point': {
-			return S.Tuple(S.Number, S.Number);
+			return v.tuple([v.number(), v.number()]);
 		}
 		case 'line': {
-			return S.Tuple(S.Number, S.Number, S.Number);
+			return v.tuple([v.number(), v.number(), v.number()]);
 		}
 		case 'vector':
 		case 'halfvector': {
-			const length = column.length;
-			const schema = S.Array(S.Number);
+			const { length } = column;
 			return length
-				? schema.pipe(S.itemsCount(length))
-				: schema;
+				? v.pipe(v.array(v.number()), v.length(length))
+				: v.array(v.number());
 		}
 		case 'int64vector': {
 			const length = column.length;
-			const schema = S.Array(
-				S.BigIntFromSelf.pipe(
-					S.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-					S.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
-				),
-			);
 			return length
-				? schema.pipe(S.itemsCount(length))
-				: schema;
+				? v.pipe(
+					v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX))),
+					v.length(length),
+				)
+				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
 		}
 		case 'basecolumn': {
 			// CockroachDB/GEL style: has a separate baseColumn
 			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
 			if (baseColumn) {
-				const baseSchema = columnToSchema(baseColumn);
-				// For CockroachDB style, column.length is the array size
-				const length = column.length;
-				const schema: Schema.Any = S.Array(baseSchema);
-				if (length) {
-					return schema.pipe(S.itemsCount(length));
-				}
+				const { length } = column;
+				const schema = v.array(columnToSchema(baseColumn));
+				if (length) return v.pipe(schema, v.length(length));
 				return schema;
 			}
-			return S.Array(S.Any);
+			return v.array(v.any());
 		}
 		default: {
-			return S.Array(S.Any);
+			return v.array(v.any());
 		}
 	}
 }
 
-function objectColumnToSchema(
-	column: Column,
-	constraint: ColumnDataObjectConstraint | undefined,
-): Schema.Any {
+function objectColumnToSchema(column: Column, constraint: ColumnDataObjectConstraint | undefined): v.GenericSchema {
 	switch (constraint) {
 		case 'buffer': {
 			return bufferSchema;
 		}
 		case 'date': {
-			return S.Date;
+			return v.date();
 		}
 		case 'geometry':
 		case 'point': {
-			return S.Struct({
-				x: S.Number,
-				y: S.Number,
+			return v.object({
+				x: v.number(),
+				y: v.number(),
 			});
 		}
 		case 'json': {
 			return jsonSchema;
 		}
 		case 'line': {
-			return S.Struct({
-				a: S.Number,
-				b: S.Number,
-				c: S.Number,
+			return v.object({
+				a: v.number(),
+				b: v.number(),
+				c: v.number(),
 			});
 		}
 		default: {
-			return S.Object;
+			return v.looseObject({});
 		}
 	}
 }
 
-function stringColumnToSchema(
-	column: Column<any>,
-	constraint: ColumnDataStringConstraint | undefined,
-): Schema.Any {
+function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstraint | undefined): v.GenericSchema {
 	const { name: columnName, length, isLengthExact } = column;
 	let regex: RegExp | undefined;
 
 	if (constraint === 'binary') {
 		regex = /^[01]*$/;
 	}
-	if (constraint === 'uuid') return S.UUID;
+	if (constraint === 'uuid') return v.pipe(v.string(), v.uuid());
 	if (constraint === 'enum') {
-		const enumValues = column.enumValues as [string, ...string[]] | undefined;
+		const enumValues = column.enumValues;
 		if (!enumValues) {
 			throw new Error(
 				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
 			);
 		}
-		return S.Literal(...enumValues);
+		return v.enum(mapEnumValues(enumValues));
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
@@ -391,11 +365,14 @@ function stringColumnToSchema(
 		return unsignedBigintStringModeSchema;
 	}
 
-	let schema = S.String;
-	schema = regex ? schema.pipe(S.pattern(regex)) : schema;
-	return length && isLengthExact
-		? schema.pipe(S.length(length))
-		: length
-		? schema.pipe(S.maxLength(length))
-		: schema;
+	const actions: any[] = [];
+	if (regex) {
+		actions.push(v.regex(regex));
+	}
+	if (length && isLengthExact) {
+		actions.push(v.length(length));
+	} else if (length) {
+		actions.push(v.maxLength(length));
+	}
+	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
 }

@@ -1,13 +1,13 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import {
 	bigintStringModeSchema,
 	bufferSchema,
 	createInsertSchema,
 	createSelectSchema,
 	createUpdateSchema,
-} from 'drizzle-orm/validations/valibot';
+} from 'drizzle-orm/valibot';
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';

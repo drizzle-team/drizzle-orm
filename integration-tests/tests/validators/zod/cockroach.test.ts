@@ -9,14 +9,9 @@ import {
 	int4,
 	text,
 } from 'drizzle-orm/cockroach-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import {
-	createInsertSchema,
-	createSchemaFactory,
-	createSelectSchema,
-	createUpdateSchema,
-} from 'drizzle-orm/validations/zod';
-import { jsonSchema } from 'drizzle-orm/validations/zod/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
+import { jsonSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';

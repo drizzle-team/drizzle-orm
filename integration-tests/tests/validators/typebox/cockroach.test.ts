@@ -9,7 +9,6 @@ import {
 	int4,
 	text,
 } from 'drizzle-orm/cockroach-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
 import {
 	createInsertSchema,
 	createSelectSchema,
@@ -19,7 +18,8 @@ import {
 	TBigIntString,
 	TBuffer,
 	TDate,
-} from 'drizzle-orm/validations/typebox';
+} from 'drizzle-orm/typebox';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import t, { type Static } from 'typebox';
 import { test } from 'vitest';

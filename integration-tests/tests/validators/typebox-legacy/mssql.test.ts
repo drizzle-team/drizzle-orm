@@ -1,10 +1,10 @@
 import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/typebox-legacy';
-import { bigintStringModeSchema, bufferSchema } from 'drizzle-orm/validations/typebox-legacy/column';
-import { GenericSchema } from 'drizzle-orm/validations/typebox-legacy/column.types';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/typebox-legacy';
+import { bigintStringModeSchema, bufferSchema } from 'drizzle-orm/typebox-legacy/column';
+import { GenericSchema } from 'drizzle-orm/typebox-legacy/column.types';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Expect, expectSchemaShape } from './utils';

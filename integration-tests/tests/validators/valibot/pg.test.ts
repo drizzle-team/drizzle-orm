@@ -10,9 +10,9 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/valibot';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/validations/valibot/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/valibot';
+import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/valibot/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';

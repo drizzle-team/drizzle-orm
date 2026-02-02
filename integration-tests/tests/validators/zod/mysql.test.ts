@@ -1,13 +1,8 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import {
-	createInsertSchema,
-	createSchemaFactory,
-	createSelectSchema,
-	createUpdateSchema,
-} from 'drizzle-orm/validations/zod';
-import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/validations/zod/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';

@@ -1,6 +1,5 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
 import {
 	createInsertSchema,
 	createSelectSchema,
@@ -11,7 +10,8 @@ import {
 	TBuffer,
 	TDate,
 	TUnsignedBigIntString,
-} from 'drizzle-orm/validations/typebox';
+} from 'drizzle-orm/typebox';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import t, { type Static } from 'typebox';
 import { test } from 'vitest';

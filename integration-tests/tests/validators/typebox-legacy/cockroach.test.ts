@@ -10,14 +10,14 @@ import {
 	int4,
 	text,
 } from 'drizzle-orm/cockroach-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
 import {
 	createInsertSchema,
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
-} from 'drizzle-orm/validations/typebox-legacy';
-import { jsonSchema } from 'drizzle-orm/validations/typebox-legacy/column';
+} from 'drizzle-orm/typebox-legacy';
+import { jsonSchema } from 'drizzle-orm/typebox-legacy/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils';

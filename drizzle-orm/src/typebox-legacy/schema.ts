@@ -1,51 +1,45 @@
-import { Schema as s } from 'effect';
+import { Type as t } from '@sinclair/typebox';
+import type { TSchema } from '@sinclair/typebox';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
 import { getColumns } from '~/utils.ts';
-import { isPgEnum } from '../utils.ts';
-import { columnToSchema } from './column.ts';
+import { isWithEnum } from '../utils.ts';
+import { columnToSchema, mapEnumValues } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
-import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
+import type {
+	CreateInsertSchema,
+	CreateSchemaFactoryOptions,
+	CreateSelectSchema,
+	CreateUpdateSchema,
+} from './schema.types.ts';
 
-function isOptional(schema: unknown): schema is s.optional<s.Schema.Any> {
-	if ((typeof schema !== 'object' || schema === null) && typeof schema !== 'function') return false;
-
-	return !s.isSchema(schema) && 'from' in schema && s.isSchema(schema.from);
-}
-
-function isStructField(schema: unknown): schema is s.optional<s.Schema.Any> | s.Schema.Any {
-	if (s.isSchema(schema)) return true;
-
-	return isOptional(schema);
-}
-
-function handleColumns(
+export function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-): s.Schema.Any {
-	const columnSchemas: Record<string, s.Schema.Any | s.optional<s.Schema.Any>> = {};
+	factory?: CreateSchemaFactoryOptions,
+): TSchema {
+	const columnSchemas: Record<string, TSchema> = {};
+
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
-			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions);
+			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory);
 			continue;
 		}
 
 		const refinement = refinements[key];
-
-		if (refinement !== undefined && !(typeof refinement === 'function' && !isStructField(refinement))) {
+		if (refinement !== undefined && typeof refinement !== 'function') {
 			columnSchemas[key] = refinement;
 			continue;
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column) : s.Any;
-		const _refined = isStructField(refinement) || typeof refinement !== 'function' ? schema : refinement(schema);
-		const refined = isOptional(_refined) ? _refined.from : _refined as s.Schema.Any;
+		const schema = column ? columnToSchema(column, factory?.typeboxInstance ?? t) : t.Any();
+		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
 			continue;
@@ -55,22 +49,21 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = s.NullOr(columnSchemas[key]);
+				columnSchemas[key] = t.Union([columnSchemas[key]!, t.Null()]);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = s.optional(s.UndefinedOr(columnSchemas[key]));
+				columnSchemas[key] = t.Optional(columnSchemas[key]!);
 			}
 		}
 	}
 
-	return s.Struct(columnSchemas);
+	return t.Object(columnSchemas) as any;
 }
 
-function handleEnum(
-	enum_: PgEnum<[string, ...string[]]>,
-) {
-	return s.Literal(...enum_.enumValues);
+export function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
+	const typebox: typeof t = factory?.typeboxInstance ?? t;
+	return typebox.Enum(mapEnumValues(enum_.enumValues));
 }
 
 const selectConditions: Conditions = {
@@ -99,7 +92,7 @@ export const createSelectSchema: CreateSelectSchema = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
-	if (isPgEnum(entity)) {
+	if (isWithEnum(entity)) {
 		return handleEnum(entity);
 	}
 	const columns = getColumns(entity);
@@ -121,3 +114,34 @@ export const createUpdateSchema: CreateUpdateSchema = (
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, updateConditions) as any;
 };
+
+export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
+	const createSelectSchema: CreateSelectSchema = (
+		entity: Table | View | PgEnum<[string, ...string[]]>,
+		refine?: Record<string, any>,
+	) => {
+		if (isWithEnum(entity)) {
+			return handleEnum(entity, options);
+		}
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
+	};
+
+	const createInsertSchema: CreateInsertSchema = (
+		entity: Table,
+		refine?: Record<string, any>,
+	) => {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, insertConditions, options) as any;
+	};
+
+	const createUpdateSchema: CreateUpdateSchema = (
+		entity: Table,
+		refine?: Record<string, any>,
+	) => {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
+	};
+
+	return { createSelectSchema, createInsertSchema, createUpdateSchema };
+}

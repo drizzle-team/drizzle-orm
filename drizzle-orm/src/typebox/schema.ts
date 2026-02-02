@@ -6,7 +6,7 @@ import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
 import { getColumns } from '~/utils.ts';
-import { isPgEnum } from '../utils.ts';
+import { isWithEnum } from '../utils.ts';
 import { columnToSchema, mapEnumValues } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type {
@@ -92,7 +92,7 @@ export const createSelectSchema: CreateSelectSchema = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
-	if (isPgEnum(entity)) {
+	if (isWithEnum(entity)) {
 		return handleEnum(entity);
 	}
 	const columns = getColumns(entity);
@@ -120,7 +120,7 @@ export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
 		entity: Table | View | PgEnum<[string, ...string[]]>,
 		refine?: Record<string, any>,
 	) => {
-		if (isPgEnum(entity)) {
+		if (isWithEnum(entity)) {
 			return handleEnum(entity, options);
 		}
 		const columns = getColumns(entity);

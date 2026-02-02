@@ -9,7 +9,7 @@ import {
 } from '~/column-builder.ts';
 import { type Column, getColumnTable } from '~/column.ts';
 import { getTableName } from '~/table.ts';
-import { CONSTANTS } from '../constants.ts';
+import { CONSTANTS } from '~/utils.ts';
 
 export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());

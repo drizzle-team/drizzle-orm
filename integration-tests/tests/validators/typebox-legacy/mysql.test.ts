@@ -1,18 +1,14 @@
 import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
 import {
 	createInsertSchema,
 	createSelectSchema,
 	createUpdateSchema,
 	type GenericSchema,
-} from 'drizzle-orm/validations/typebox-legacy';
-import {
-	bigintStringModeSchema,
-	jsonSchema,
-	unsignedBigintStringModeSchema,
-} from 'drizzle-orm/validations/typebox-legacy/column';
+} from 'drizzle-orm/typebox-legacy';
+import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/typebox-legacy/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Expect, expectSchemaShape } from './utils';

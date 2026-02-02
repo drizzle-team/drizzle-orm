@@ -9,9 +9,9 @@ import {
 	int4,
 	text,
 } from 'drizzle-orm/cockroach-core';
-import { CONSTANTS } from 'drizzle-orm/validations/constants';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/effect';
-import { jsonSchema } from 'drizzle-orm/validations/effect/column';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/effect-schema';
+import { jsonSchema } from 'drizzle-orm/effect-schema/column';
+import { CONSTANTS } from 'drizzle-orm/utils';
 import { Schema as s } from 'effect';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
