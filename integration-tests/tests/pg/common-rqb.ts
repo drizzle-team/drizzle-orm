@@ -1048,9 +1048,7 @@ export function tests(test: Test) {
 				const query = db.query.orderTable.findMany({
 					extras: {
 						itemCount: (t) =>
-							sql`(select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = 
-							${t.id})`
-								.as('itemCount'),
+							sql`(select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${t.id})`.as('itemCount'),
 					},
 				});
 

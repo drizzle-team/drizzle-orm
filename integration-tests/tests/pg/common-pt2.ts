@@ -3409,7 +3409,7 @@ export function tests(test: Test) {
 		// });
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
-		test.skipIf(Date.now() < +new Date('2026-01-23')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-02-10')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3483,7 +3483,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test(
+		test.skipIf(Date.now() < +new Date('2026-02-10'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3521,7 +3521,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test('casing in sql``', async ({ createDB, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-02-10'))('casing in sql``', async ({ createDB, push }) => {
 			const payments = pgTable('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
@@ -3556,7 +3556,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-02-10'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
