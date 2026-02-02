@@ -1145,7 +1145,7 @@ test('drop column with pk and add pk to another column #2', async () => {
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` varchar(256),\n\t`column2` varchar(256),'
 		+ '\n\t`column3` varchar(256) NOT NULL,\n\t`column4` varchar(256) NOT NULL,'
-		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		+ '\n\tCONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1186,7 +1186,7 @@ test('drop column with pk and add pk to another column #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `authors` (\n\t`publication_id` varchar(64),\n\t`author_id` varchar(10),'
-		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
+		+ '\n\tCONSTRAINT PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

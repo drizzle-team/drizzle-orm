@@ -55,7 +55,9 @@ const createTable = convertor('create_table', (st) => {
 
 	if (pk && (pk.columns.length > 1)) {
 		statement += ',\n';
-		statement += `\tCONSTRAINT \`${pk.name}\` PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
+		// old versions of MySQL did not support naming primary keys
+		// MySql always stores primary key name as `PRIMARY`
+		statement += `\tCONSTRAINT PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
 	}
 
 	for (const unique of uniqueIndexes) {
