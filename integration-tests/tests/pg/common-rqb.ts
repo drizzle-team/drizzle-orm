@@ -966,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-02-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-02-10')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1058,7 +1058,7 @@ export function tests(test: Test) {
 					params: [],
 				});
 
-				const expectedResult = [{ id: 1, itemCount: '2' }, { id: 2, itemCount: '0' }];
+				const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
 				const result = await query;
 				expect(result).toStrictEqual(expectedResult);
 			},

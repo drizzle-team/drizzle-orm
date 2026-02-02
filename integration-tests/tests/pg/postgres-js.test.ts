@@ -453,7 +453,9 @@ describe('postgresjs', () => {
 		expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		await db.execute(sql`drop table if exists ${usersTable};`);
+		await push({ usersTable });
 		const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);

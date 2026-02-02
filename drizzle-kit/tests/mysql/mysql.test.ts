@@ -109,7 +109,7 @@ test('add table #3', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` serial,\n\t`test` varchar(1),\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`id`,`test`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` serial,\n\t`test` varchar(1),\n\tCONSTRAINT PRIMARY KEY(`id`,`test`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -696,7 +696,7 @@ test('add table #20. table already exists; multiple pk defined', async () => {
 		+ '\n\tCONSTRAINT `column2_unique` UNIQUE INDEX(`column2`)\n);\n',
 		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
-		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		+ 'CONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1126,7 +1126,7 @@ test('composite primary key #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1152,7 +1152,7 @@ test('composite primary key #2', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`col1`,`col2`)\n);\n',
+		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT PRIMARY KEY(`col1`,`col2`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1961,7 +1961,7 @@ test(`push-push: check on update now with fsp #2`, async () => {
 
 test('weird serial non-pk', async () => {
 	// old kit was generating serials with autoincrements which is wrong
-	db.query('create table `table`(c1 int not null, c2 serial auto_increment, CONSTRAINT `PRIMARY` PRIMARY KEY(`c1`));');
+	db.query('create table `table`(c1 int not null, c2 serial auto_increment, CONSTRAINT PRIMARY KEY(`c1`));');
 
 	const table = mysqlTable('table', {
 		c1: int().primaryKey(),
@@ -1995,7 +1995,7 @@ test('rename column with pk on another column', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int,\n\tCONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
