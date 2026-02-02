@@ -315,6 +315,8 @@ jobs:
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-valibot/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-arktype/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
+        env:
+          ATTW_FORMAT: concise
 
   attw-orm:
     needs: [prepare]
@@ -341,6 +343,8 @@ jobs:
       - name: Run @arethetypeswrong/cli
         working-directory: drizzle-orm
         run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+        env:
+          ATTW_FORMAT: concise
 
   release:
     needs: [test, prepare, attw, attw-orm]

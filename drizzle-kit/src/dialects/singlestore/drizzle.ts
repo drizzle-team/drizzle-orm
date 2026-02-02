@@ -5,7 +5,7 @@ import type { AnySingleStoreColumn, AnySingleStoreTable } from 'drizzle-orm/sing
 import { getTableConfig, SingleStoreDialect, SingleStoreTable, uniqueKeyName } from 'drizzle-orm/singlestore-core';
 import type { CasingType } from 'src/cli/validations/common';
 import { escapeSingleQuotes } from 'src/utils';
-import { safeRegister } from '../../utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import type { Column, InterimSchema } from '../mysql/ddl';
 import { typeFor } from '../mysql/grammar';
@@ -182,16 +182,14 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnySingleStoreTable[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = prepareFromExports(i0);
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = prepareFromExports(i0);
 
-			tables.push(...prepared.tables);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		relations.push(...prepared.relations);
+	}
 
 	return { tables: Array.from(new Set(tables)), relations };
 };

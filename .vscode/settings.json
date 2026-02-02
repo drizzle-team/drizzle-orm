@@ -13,5 +13,14 @@
 	"[markdown]": {
 		"editor.defaultFormatter": "dprint.dprint"
 	},
-	"oxc.enable": true
+	"oxc.enable": true,
+	"postman.settings.dotenv-detection-notification-visibility": false,
+	"files.watcherExclude": {
+		"**/dist/**": true,
+		"**/dist.new/**": true,
+		"**/.cache/**": true,
+		"**/.turbo/**": true,
+		"**/.rollup.cache/**": true,
+		"**/dist-dts/**": true
+	}
 }

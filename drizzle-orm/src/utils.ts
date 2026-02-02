@@ -15,7 +15,7 @@ import { ViewBaseConfig } from './view-common.ts';
 /** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	row: unknown[],
+	row: unknown[] | (readonly unknown[]),
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise

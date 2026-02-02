@@ -1,6 +1,5 @@
-import type { Effect } from 'effect/Effect';
-import type { TaggedDrizzleQueryError } from '~/effect-core/errors.ts';
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
+import type * as Effect from 'effect/Effect';
+import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -9,26 +8,28 @@ import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectSession } from './session.ts';
 
-export interface PgEffectCountBuilder extends PgCountBuilder, QueryEffect<number, TaggedDrizzleQueryError> {}
+export interface PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends PgCountBuilder, Effect.Effect<number, TEffectHKT['error'], TEffectHKT['context']>
+{}
 
-export class PgEffectCountBuilder extends PgCountBuilder {
+export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgCountBuilder {
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
 
-	protected session: PgEffectSession;
+	protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	constructor(
 		{ source, dialect, filters, session }: {
 			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: PgDialect;
-			session: PgEffectSession;
+			session: PgEffectSession<TEffectHKT, any, any, any, any>;
 		},
 	) {
 		super({ source, dialect, filters });
 		this.session = session;
 	}
 
-	execute(placeholderValues?: Record<string, unknown>): Effect<number, TaggedDrizzleQueryError> {
+	execute(placeholderValues?: Record<string, unknown>) {
 		return this.session.prepareQuery<{
 			execute: number;
 			all: unknown;

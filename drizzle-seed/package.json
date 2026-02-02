@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "1.0.0-beta.12",
+	"version": "1.0.0-beta.13",
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",

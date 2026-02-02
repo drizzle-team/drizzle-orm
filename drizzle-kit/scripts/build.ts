@@ -29,8 +29,6 @@ const driversPackages = [
 
 const external = [
 	'esbuild',
-	'tsx',
-	/^tsx\//,
 	/^drizzle-orm\/?/,
 	...driversPackages,
 ];

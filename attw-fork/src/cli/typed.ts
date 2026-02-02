@@ -6,6 +6,7 @@ import type * as core from '../index.ts';
 import {
 	filterProblems,
 	problemAffectsEntrypoint,
+	problemAffectsEntrypointResolution,
 	problemAffectsResolutionKind,
 	problemKindInfo,
 } from '../problems.ts';
@@ -18,6 +19,7 @@ export async function typed(
 	analysis: core.Analysis,
 	{ emoji = true, summary = true, format = 'auto', ignoreRules = [], ignoreResolutions = [] }: RenderOptions,
 ): Promise<string> {
+	const isConciseFormat = format === 'concise';
 	let output = '';
 	const problems = analysis.problems.filter(
 		(problem) => !ignoreRules || !ignoreRules.includes(problemFlags[problem.kind]),
@@ -40,9 +42,7 @@ export async function typed(
 		out('Build tools:');
 		out(
 			Object.entries(analysis.buildTools)
-				.map(([tool, version]) => {
-					return `- ${tool}@${version}`;
-				})
+				.map(([tool, version]) => `- ${tool}@${version}`)
 				.join('\n'),
 		);
 		out();
@@ -60,109 +60,157 @@ export async function typed(
 	if (summary) {
 		const defaultSummary = marked(!emoji ? ' No problems found' : ' No problems found 🌟');
 		const grouped = groupProblemsByKind(problems);
-		const summaryTexts = Object.entries(grouped).map(([kind, kindProblems]) => {
-			const info = problemKindInfo[kind as core.ProblemKind];
-			const affectsRequiredResolution = kindProblems.some((p) =>
-				requiredResolutions.some((r) => problemAffectsResolutionKind(p, r, analysis))
-			);
-			const description = marked(
-				`${info.description}${info.details ? ` Use \`-f json\` to see ${info.details}.` : ''} ${info.docsUrl}`,
-			);
-			return `${affectsRequiredResolution ? '' : '(ignored per resolution) '}${
-				emoji ? `${info.emoji} ` : ''
-			}${description}`;
-		});
 
+		const summaryTexts = Object.entries(grouped)
+			.filter(([_, kindProblems]) =>
+				isConciseFormat
+					? true
+					: kindProblems.some((p) => requiredResolutions.some((r) => problemAffectsResolutionKind(p, r, analysis)))
+			)
+			.map(([kind, kindProblems]) => {
+				const info = problemKindInfo[kind as core.ProblemKind];
+				const affectsRequiredResolution = !isConciseFormat
+					&& kindProblems.some((p) => requiredResolutions.some((r) => problemAffectsResolutionKind(p, r, analysis)));
+				const description = marked(
+					`${info.description}${info.details ? ` Use \`-f json\` to see ${info.details}.` : ''} ${info.docsUrl}`,
+				);
+				return `${affectsRequiredResolution ? '' : '(ignored per resolution) '}${
+					emoji ? `${info.emoji} ` : ''
+				}${description}`;
+			});
 		out(summaryTexts.join('') || defaultSummary);
 	}
 
-	const entrypointNames = entrypoints.map(
-		(s) => `"${s === '.' ? analysis.packageName : `${analysis.packageName}/${s.substring(2)}`}"`,
-	);
-	const entrypointHeaders = entrypoints.map((s, i) => {
-		const hasProblems = problems.some((p) => problemAffectsEntrypoint(p, s, analysis));
-		const color = hasProblems ? 'redBright' : 'greenBright';
-		return chalk.bold[color](entrypointNames[i]);
-	});
-
-	const getCellContents = memo((subpath: string, resolutionKind: core.ResolutionKind) => {
-		const ignoredPrefix = ignoreResolutions.includes(resolutionKind) ? '(ignored) ' : '';
-		const problemsForCell = groupProblemsByKind(
-			filterProblems(problems, analysis, { entrypoint: subpath, resolutionKind }),
+	if (format === 'concise') {
+		const failedEntrypoints = entrypoints.filter((subpath) =>
+			problems.some((p) => requiredResolutions.some((r) => problemAffectsEntrypointResolution(p, subpath, r, analysis)))
 		);
-		const entrypoint = analysis.entrypoints[subpath]!.resolutions[resolutionKind];
-		const resolution = entrypoint.resolution;
-		const kinds = Object.keys(problemsForCell) as core.ProblemKind[];
-		if (kinds.length) {
-			return kinds
-				.map(
-					(kind) =>
-						ignoredPrefix + (emoji ? `${problemKindInfo[kind].emoji} ` : '') + problemKindInfo[kind].shortDescription,
-				)
-				.join('\n');
+		const passedEntrypoints = entrypoints.filter((subpath) =>
+			!problems.some((p) =>
+				requiredResolutions.some((r) => problemAffectsEntrypointResolution(p, subpath, r, analysis))
+			)
+		);
+
+		if (passedEntrypoints.length > 0 || failedEntrypoints.length === 0) {
+			out();
+			out(chalk.greenBright((emoji ? `✅ ` : '') + `Passed (${passedEntrypoints.length})`));
 		}
 
-		const jsonResult = !emoji ? 'OK (JSON)' : '🟢 (JSON)';
-		const moduleResult = entrypoint.isWildcard
-			? '(wildcard)'
-			: (!emoji ? 'OK ' : '🟢 ')
-				+ moduleKinds[
-					analysis.programInfo[getResolutionOption(resolutionKind)].moduleKinds?.[resolution?.fileName ?? '']
-						?.detectedKind || ''
-				];
-		return ignoredPrefix + (resolution?.isJson ? jsonResult : moduleResult);
-	});
+		if (failedEntrypoints.length > 0) {
+			out();
+			out(chalk.redBright((emoji ? `❌ ` : '') + `Failed (${failedEntrypoints.length}):`));
+			out();
 
-	const flippedTable = format === 'auto' || format === 'table-flipped'
-		? new Table({
-			head: [
-				'',
-				...resolutions.map((kind) =>
-					chalk.reset(resolutionKinds[kind] + (ignoreResolutions.includes(kind) ? ' (ignored)' : ''))
-				),
-			],
-		})
-		: undefined;
-	if (flippedTable) {
-		entrypoints.forEach((subpath, i) => {
-			flippedTable.push([
-				entrypointHeaders[i],
-				...resolutions.map((resolutionKind) => getCellContents(subpath, resolutionKind)),
-			]);
+			failedEntrypoints.forEach((subpath) => {
+				const entrypointName = subpath === '.'
+					? analysis.packageName
+					: `${analysis.packageName}/${subpath.substring(2)}`;
+				out(chalk.bold.redBright(`"${entrypointName}"`));
+
+				requiredResolutions.forEach((resolutionKind) => {
+					const problemsForCell = filterProblems(problems, analysis, { entrypoint: subpath, resolutionKind });
+					if (problemsForCell.length > 0) {
+						const grouped = groupProblemsByKind(problemsForCell);
+						const problemDescriptions = Object.keys(grouped).map((kind) => {
+							const info = problemKindInfo[kind as core.ProblemKind];
+							return emoji ? `${info.emoji} ${info.shortDescription}` : info.shortDescription;
+						}).join(', ');
+
+						out(`  ${resolutionKinds[resolutionKind]}: ${problemDescriptions}`);
+					}
+				});
+				out();
+			});
+		}
+	} else {
+		const entrypointNames = entrypoints.map(
+			(s) => `"${s === '.' ? analysis.packageName : `${analysis.packageName}/${s.substring(2)}`}"`,
+		);
+		const entrypointHeaders = entrypoints.map((s, i) => {
+			const hasProblems = problems.some((p) => problemAffectsEntrypoint(p, s, analysis));
+			const color = hasProblems ? 'redBright' : 'greenBright';
+			return chalk.bold[color](entrypointNames[i]);
 		});
-	}
 
-	const table = format === 'auto' || !flippedTable
-		? (new Table({
-			head: ['', ...entrypointHeaders],
-		}) as GenericTable<HorizontalTableRow>)
-		: undefined;
-	if (table) {
-		resolutions.forEach((kind) => {
-			table.push([resolutionKinds[kind], ...entrypoints.map((entrypoint) => getCellContents(entrypoint, kind))]);
-		});
-	}
-
-	switch (format) {
-		case 'table':
-			out(table!.toString());
-			break;
-		case 'table-flipped':
-			out(flippedTable!.toString());
-			break;
-		case 'ascii':
-			out(asciiTable(table!));
-			break;
-		case 'auto':
-			const terminalWidth = process.stdout.columns || 133; // This looks like GitHub Actions' width
-			if (table!.width <= terminalWidth) {
-				out(table!.toString());
-			} else if (flippedTable!.width <= terminalWidth) {
-				out(flippedTable!.toString());
-			} else {
-				out(asciiTable(table!));
+		const getCellContents = memo((subpath: string, resolutionKind: core.ResolutionKind) => {
+			const ignoredPrefix = ignoreResolutions.includes(resolutionKind) ? '(ignored) ' : '';
+			const problemsForCell = groupProblemsByKind(
+				filterProblems(problems, analysis, { entrypoint: subpath, resolutionKind }),
+			);
+			const entrypoint = analysis.entrypoints[subpath]!.resolutions[resolutionKind];
+			const resolution = entrypoint.resolution;
+			const kinds = Object.keys(problemsForCell) as core.ProblemKind[];
+			if (kinds.length) {
+				return kinds
+					.map(
+						(kind) =>
+							ignoredPrefix + (emoji ? `${problemKindInfo[kind].emoji} ` : '') + problemKindInfo[kind].shortDescription,
+					)
+					.join('\n');
 			}
-			break;
+
+			const jsonResult = !emoji ? 'OK (JSON)' : '🟢 (JSON)';
+			const moduleResult = entrypoint.isWildcard
+				? '(wildcard)'
+				: (!emoji ? 'OK ' : '🟢 ')
+					+ moduleKinds[
+						analysis.programInfo[getResolutionOption(resolutionKind)].moduleKinds?.[resolution?.fileName ?? '']
+							?.detectedKind || ''
+					];
+			return ignoredPrefix + (resolution?.isJson ? jsonResult : moduleResult);
+		});
+
+		const flippedTable = format === 'auto' || format === 'table-flipped'
+			? new Table({
+				head: [
+					'',
+					...resolutions.map((kind) =>
+						chalk.reset(resolutionKinds[kind] + (ignoreResolutions.includes(kind) ? ' (ignored)' : ''))
+					),
+				],
+			})
+			: undefined;
+		if (flippedTable) {
+			entrypoints.forEach((subpath, i) => {
+				flippedTable.push([
+					entrypointHeaders[i],
+					...resolutions.map((resolutionKind) => getCellContents(subpath, resolutionKind)),
+				]);
+			});
+		}
+
+		const table = format === 'auto' || !flippedTable
+			? (new Table({
+				head: ['', ...entrypointHeaders],
+			}) as GenericTable<HorizontalTableRow>)
+			: undefined;
+		if (table) {
+			resolutions.forEach((kind) => {
+				table.push([resolutionKinds[kind], ...entrypoints.map((entrypoint) => getCellContents(entrypoint, kind))]);
+			});
+		}
+
+		switch (format) {
+			case 'table':
+				out(table!.toString());
+				break;
+			case 'table-flipped':
+				out(flippedTable!.toString());
+				break;
+			case 'ascii':
+				out(asciiTable(table!));
+				break;
+			case 'auto':
+				const terminalWidth = process.stdout.columns || 133; // This looks like GitHub Actions' width
+				if (table!.width <= terminalWidth) {
+					out(table!.toString());
+				} else if (flippedTable!.width <= terminalWidth) {
+					out(flippedTable!.toString());
+				} else {
+					out(asciiTable(table!));
+				}
+				break;
+		}
 	}
 
 	return output.trimEnd();
