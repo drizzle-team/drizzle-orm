@@ -1,5 +1,6 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { LibSQLDatabase } from './driver.ts';
@@ -20,8 +21,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	`;
 	await db.session.run(migrationTableCreate);
 
-	const dbMigrations = await db.values<[number, string, string]>(
-		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
+	const dbMigrations = await db.all<{ id: number; hash: string; created_at: string }>(
+		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
 	);
 
 	if (config.init) {
@@ -46,22 +47,20 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0] ?? undefined;
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	const statementToBatch = [];
-	for (const migration of migrations) {
-		if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-			for (const stmt of migration.sql) {
-				statementToBatch.push(db.run(sql.raw(stmt)));
-			}
-
-			statementToBatch.push(
-				db.run(
-					sql`INSERT INTO ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-				),
-			);
+	for (const migration of migrationsToRun) {
+		for (const stmt of migration.sql) {
+			statementToBatch.push(db.run(sql.raw(stmt)));
 		}
+
+		statementToBatch.push(
+			db.run(
+				sql`INSERT INTO ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+			),
+		);
 	}
 
 	await db.session.migrate(statementToBatch);

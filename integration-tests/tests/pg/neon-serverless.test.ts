@@ -1,7 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { getTableConfig, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
@@ -13,7 +14,8 @@ import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
 	it doesn't work as expected, scope: "file" treats all these tests as 1 file
 	thus extra execute statements below
  */
-tests(test, []);
+// tests(test, []);
+
 describe('neon-serverless', () => {
 	let db: PgAsyncDatabase<any, any>;
 	test.sequential('_', async ({ db: _db, push }) => {
@@ -583,5 +585,64 @@ describe('neon-serverless', () => {
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
 		expect(res.rows[0]?.tableExists).toStrictEqual(true);
+	});
+
+	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db: database }) => {
+		const users = pgTable('migration_users', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: integer(),
+		});
+
+		const users2 = pgTable('migration_users2', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: integer(),
+		});
+
+		await database.execute(sql`drop schema if exists "drizzle" cascade;`);
+		await database.execute(sql`drop table if exists ${users}`);
+		await database.execute(sql`drop table if exists ${users2}`);
+
+		// create migration directory
+		const migrationDir = './migrations/postgres-neon-serverless';
+		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		mkdirSync(migrationDir, { recursive: true });
+
+		// first branch
+		mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240101010101_initial/migration.sql`,
+			`CREATE TABLE "migration_users" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+		);
+		mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240303030303_third/migration.sql`,
+			`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
+		);
+
+		await migrate(database, { migrationsFolder: migrationDir });
+		const res1 = await database.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
+
+		// second migration was not applied yet
+		await expect(database.insert(users2).values({ name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+		// insert migration with earlier timestamp
+		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240202020202_second/migration.sql`,
+			`CREATE TABLE "migration_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+		);
+		await migrate(database, { migrationsFolder: migrationDir });
+
+		const res2 = await database.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
+
+		const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+		expect(res1).toStrictEqual(expected);
+		expect(res2).toStrictEqual(expected);
+
+		rmdirSync(migrationDir, { recursive: true });
 	});
 });
