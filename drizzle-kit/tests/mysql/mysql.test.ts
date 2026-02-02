@@ -1245,7 +1245,7 @@ test('optional db aliases (snake case)', async () => {
 		`CREATE TABLE \`t3\` (
 	\`t3_id1\` int,
 	\`t3_id2\` int,
-	CONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
+	CONSTRAINT PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
 );\n`,
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fkey` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
