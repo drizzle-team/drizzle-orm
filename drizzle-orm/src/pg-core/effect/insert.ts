@@ -1,33 +1,38 @@
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
+import * as Effect from 'effect/Effect';
+import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
-export interface PgEffectInsertHKT extends PgInsertHKTBase {
+export interface PgEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgInsertHKTBase {
 	_type: PgEffectInsertBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
 		this['selectedFields'],
 		this['returning'],
 		this['dynamic'],
-		this['excludedMethods']
+		this['excludedMethods'],
+		TEffectHKT
 	>;
 }
 
 export type AnyPgEffectInsert = PgEffectInsertBase<any, any, any, any, any, any>;
 
-export type PgInsertPrepare<T extends AnyPgEffectInsert> = PgEffectPreparedQuery<
+export type PgInsertPrepare<
+	T extends AnyPgEffectInsert,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> = PgEffectPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
-	}
+	},
+	TEffectHKT
 >;
 
 export type PgInsert<
@@ -35,7 +40,8 @@ export type PgInsert<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = PgInsertBase<PgEffectInsertHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> = PgInsertBase<PgEffectInsertHKT<TEffectHKT>, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 
 export interface PgEffectInsertBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -48,7 +54,14 @@ export interface PgEffectInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryEffect<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends
+	Effect.Effect<
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[],
+		TEffectHKT['error'],
+		TEffectHKT['context']
+	>
+{
 }
 
 export class PgEffectInsertBase<
@@ -60,15 +73,22 @@ export class PgEffectInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends PgInsertBase<PgEffectInsertHKT, TTable, TQueryResult, TSelectedFields, TReturning, TDynamic, TExcludedMethods>
-	implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>
-{
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends PgInsertBase<
+	PgEffectInsertHKT<TEffectHKT>,
+	TTable,
+	TQueryResult,
+	TSelectedFields,
+	TReturning,
+	TDynamic,
+	TExcludedMethods
+> implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectInsert';
 
-	declare protected session: PgEffectSession;
+	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string): PgInsertPrepare<this> {
+	_prepare(name?: string): PgInsertPrepare<this, TEffectHKT> {
 		return this.session.prepareQuery<
 			PreparedQueryConfig & {
 				execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
@@ -79,14 +99,14 @@ export class PgEffectInsertBase<
 		}, this.cacheConfig);
 	}
 
-	prepare(name: string): PgInsertPrepare<this> {
+	prepare(name: string): PgInsertPrepare<this, TEffectHKT> {
 		return this._prepare(name);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		return this._prepare().execute(placeholderValues).pipe(
+			Effect.withSpan('drizzle.operation'),
+		);
 	};
 }
 

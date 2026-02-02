@@ -6,7 +6,7 @@ import { object, string } from 'zod';
 import { assertUnreachable, type Journal } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
-import { safeRegister } from '../../utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
@@ -1000,11 +1000,7 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
-	const content = await safeRegister(async () => {
-		const required = require(`${path}`);
-		const content = required.default ?? required;
-		return content;
-	});
+	const content = await loadModule<any>(path);
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);

@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { checkPackage } from './checkPackage.ts';
 import { getExitCode } from './cli/getExitCode.ts';
+import type { Format } from './cli/renderOptions.ts';
 import { typed } from './cli/typed.ts';
 import { untyped } from './cli/untyped.ts';
 import { write } from './cli/write.ts';
@@ -10,6 +11,7 @@ import type { ResolutionKind, UntypedResult } from './types.ts';
 try {
 	const path = process.argv[2];
 	const mode = process.argv[3];
+	const format = (process.env['ATTW_FORMAT'] as Format) || 'auto';
 	const modes: Record<ResolutionKind, boolean> | undefined = mode
 		? mode === 'node10'
 			? {
@@ -70,6 +72,7 @@ try {
 		await write(
 			await typed(analysis, {
 				ignoreResolutions,
+				format,
 			}),
 			out,
 		);

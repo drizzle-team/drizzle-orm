@@ -4,7 +4,7 @@ import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
-import { parse } from 'url';
+import { parse, pathToFileURL } from 'url';
 import { error, info } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
@@ -330,27 +330,6 @@ export const normaliseSQLiteUrl = (
 	assertUnreachable(type);
 };
 
-// NextJs default config is target: es5, which esbuild-register can't consume
-const assertES5 = async () => {
-	try {
-		await import('./_es5');
-	} catch (e: any) {
-		if ('errors' in e && Array.isArray(e.errors) && e.errors.length > 0) {
-			const es5Error = (e.errors as any[]).filter((it) => it.text?.includes(`("es5") is not supported yet`)).length > 0;
-			if (es5Error) {
-				console.log(
-					error(
-						`Please change compilerOptions.target from 'es5' to 'es6' or above in your tsconfig.json`,
-					),
-				);
-				process.exit(1);
-			}
-		}
-		console.error(e);
-		process.exit(1);
-	}
-};
-
 export class InMemoryMutex {
 	private lockPromise: Promise<void> | null = null;
 
@@ -374,28 +353,43 @@ export class InMemoryMutex {
 	}
 }
 
-const registerMutex = new InMemoryMutex();
+const isBun = typeof (globalThis as any).Bun !== 'undefined';
+const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
-let tsxRegistered = false;
-const ensureTsxRegistered = () => {
-	if (tsxRegistered) return;
-
-	const isBun = typeof (globalThis as any).Bun !== 'undefined';
-	const isDeno = typeof (globalThis as any).Deno !== 'undefined';
+export const loadModule = async <T = unknown>(modulePath: string): Promise<T> => {
 	if (isBun || isDeno) {
-		tsxRegistered = true;
-		return;
+		const fileUrl = pathToFileURL(modulePath).href;
+		const mod = await import(fileUrl);
+		return mod.default ?? mod;
 	}
 
-	const tsx = require('tsx/cjs/api');
-	tsx.register();
-	tsxRegistered = true;
-};
+	const [major, minor] = process.versions.node.split('.').map(Number);
+	const supportsModuleRegister = (major === 18 && minor >= 19)
+		|| (major === 20 && minor >= 6)
+		|| major >= 21;
 
-export const safeRegister = async <T>(fn: () => Promise<T>) => {
-	return registerMutex.withLock(async () => {
-		ensureTsxRegistered();
-		await assertES5();
-		return fn();
-	});
+	if (!supportsModuleRegister) {
+		console.error(`Node.js ${process.version} does not support the required module.register() API.`);
+		console.error(`Please upgrade to Node.js v18.19+, v20.6+, or v21+.`);
+		process.exit(1);
+	}
+
+	const path = require('path');
+	const absoluteModulePath = path.isAbsolute(modulePath) ? modulePath : path.resolve(modulePath);
+	const ext = path.extname(modulePath);
+	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
+
+	if (isTS) {
+		const jiti = require('jiti')(path.dirname(absoluteModulePath), {
+			interopDefault: true,
+			esmResolve: true,
+			requireCache: false,
+		});
+		const mod = await jiti.import(absoluteModulePath);
+		return mod;
+	}
+
+	const fileUrl = pathToFileURL(absoluteModulePath).href;
+	const mod = await import(fileUrl);
+	return mod.default ?? mod;
 };
