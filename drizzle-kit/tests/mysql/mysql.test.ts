@@ -1304,7 +1304,7 @@ test('optional db aliases (camel case)', async () => {
 		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE INDEX(\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
-		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
+		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fkey` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
