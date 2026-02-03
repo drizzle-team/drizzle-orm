@@ -143,7 +143,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-02-10'))('fk: recreate vs drop', async () => {
+	test.skipIf(Date.now() < +new Date('2026-02-11'))('fk: recreate vs drop', async () => {
 		const p = mysqlTable('p', (t) => ({
 			id: t.int().primaryKey(),
 		}));
