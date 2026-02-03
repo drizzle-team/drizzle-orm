@@ -1751,7 +1751,7 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 	subsequent ddl diffs
  */
 export const isSerialExpression = (expr: string, schema: string) => {
-	const schemaPrefix = schema === 'public' ? '' : `${schema}.`;
+	const schemaPrefix = schema === 'public' ? '' : `${schema}`;
 	return (expr.startsWith(`nextval('${schemaPrefix}`)
 		|| expr.startsWith(`nextval('"${schemaPrefix}"${schemaPrefix ? '.' : ''}`))
 		&& (expr.endsWith(`_seq'::regclass)`) || expr.endsWith(`_seq"'::regclass)`));
