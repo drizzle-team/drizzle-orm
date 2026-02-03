@@ -215,7 +215,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 				grouped.push({
 					hint: `· You're about to drop ${
 						chalk.underline(id)
-					} primary key, this statements may fail and your table may loose primary key`,
+					} primary key, these statements may fail and your table may lose the primary key`,
 				});
 			}
 
