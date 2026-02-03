@@ -740,6 +740,8 @@ test.skipIf(Date.now() < +new Date('2026-02-10'))('introspect view #4', async ()
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
+// postopone
+// Need to write discussion/guide on this and add ts comment in typescript file
 test.skipIf(Date.now() < +new Date('2026-02-10'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
