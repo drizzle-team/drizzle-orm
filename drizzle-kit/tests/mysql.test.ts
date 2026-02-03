@@ -595,7 +595,7 @@ test('add table with indexes', async () => {
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE \`users\` (\n\t\`id\` serial AUTO_INCREMENT NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
+		`CREATE TABLE \`users\` (\n\t\`id\` serial AUTO_INCREMENT NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tPRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
 );
 `,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
@@ -653,7 +653,7 @@ test('composite primary key', async () => {
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
 	]);
 });
 
@@ -741,7 +741,7 @@ test('optional db aliases (snake case)', async () => {
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
-	CONSTRAINT \`t1_t1_id1\` PRIMARY KEY(\`t1_id1\`),
+	PRIMARY KEY(\`t1_id1\`),
 	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
 	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
 );
@@ -749,14 +749,14 @@ test('optional db aliases (snake case)', async () => {
 
 	const st2 = `CREATE TABLE \`t2\` (
 	\`t2_id\` serial AUTO_INCREMENT NOT NULL,
-	CONSTRAINT \`t2_t2_id\` PRIMARY KEY(\`t2_id\`)
+	PRIMARY KEY(\`t2_id\`)
 );
 `;
 
 	const st3 = `CREATE TABLE \`t3\` (
 	\`t3_id1\` int NOT NULL,
 	\`t3_id2\` int NOT NULL,
-	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
+	PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
 );
 `;
 
@@ -832,7 +832,7 @@ test('optional db aliases (camel case)', async () => {
 	\`t1Uni\` int NOT NULL,
 	\`t1UniIdx\` int NOT NULL,
 	\`t1Idx\` int NOT NULL,
-	CONSTRAINT \`t1_t1Id1\` PRIMARY KEY(\`t1Id1\`),
+	PRIMARY KEY(\`t1Id1\`),
 	CONSTRAINT \`t1Uni\` UNIQUE(\`t1Uni\`),
 	CONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)
 );
@@ -840,14 +840,14 @@ test('optional db aliases (camel case)', async () => {
 
 	const st2 = `CREATE TABLE \`t2\` (
 	\`t2Id\` serial AUTO_INCREMENT NOT NULL,
-	CONSTRAINT \`t2_t2Id\` PRIMARY KEY(\`t2Id\`)
+	PRIMARY KEY(\`t2Id\`)
 );
 `;
 
 	const st3 = `CREATE TABLE \`t3\` (
 	\`t3Id1\` int NOT NULL,
 	\`t3Id2\` int NOT NULL,
-	CONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)
+	PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)
 );
 `;
 
