@@ -50,8 +50,13 @@ String.prototype.snake_case = function() {
 	return this && this.length > 0 ? `${this.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)}` : String(this);
 };
 
-Array.prototype.random = function() {
-	return this[~~(Math.random() * this.length)];
-};
+Object.defineProperty(Array.prototype, 'random', {
+	value: function() {
+		return this[~~(Math.random() * this.length)];
+	},
+	enumerable: false,
+	writable: true,
+	configurable: true,
+});
 
 export {};
