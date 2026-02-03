@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
-import type { TaggedDrizzleQueryError, TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
+import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
@@ -33,6 +33,7 @@ import type { PgEffectSession, PgEffectTransaction } from './session.ts';
 import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
 
 export class PgEffectDatabase<
+	TEffectHKT extends QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -45,7 +46,7 @@ export class PgEffectDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgEffectSession<TQueryResult, TFullSchema, TRelations, TSchema>;
+		readonly session: PgEffectSession<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -53,7 +54,7 @@ export class PgEffectDatabase<
 		[K in keyof TRelations]: RelationalQueryBuilder<
 			TRelations,
 			TRelations[K],
-			PgEffectRelationalQueryHKT
+			PgEffectRelationalQueryHKT<TEffectHKT>
 		>;
 	};
 
@@ -61,7 +62,7 @@ export class PgEffectDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgEffectSession<any, any, any, any>,
+		readonly session: PgEffectSession<TEffectHKT, any, any, any, any>,
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
@@ -85,6 +86,7 @@ export class PgEffectDatabase<
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as PgEffectDatabase<
+				TEffectHKT,
 				TQueryResult,
 				TSchema,
 				AnyRelations,
@@ -101,7 +103,7 @@ export class PgEffectDatabase<
 		}
 
 		this.$cache = {
-			invalidate: (_params: MutationOption) => Effect.async(() => {}),
+			invalidate: (_params: MutationOption) => Effect.void,
 		};
 	}
 
@@ -229,11 +231,13 @@ export class PgEffectDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): PgEffectSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
+		function select(): PgEffectSelectBuilder<undefined, TEffectHKT>;
+		function select<TSelection extends SelectedFields>(
+			fields: TSelection,
+		): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgEffectSelectBuilder<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -266,13 +270,13 @@ export class PgEffectDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): PgEffectSelectBuilder<undefined>;
+		function selectDistinct(): PgEffectSelectBuilder<undefined, TEffectHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): PgEffectSelectBuilder<TSelection>;
+		): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): PgEffectSelectBuilder<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -307,15 +311,15 @@ export class PgEffectDatabase<
 		 *   .orderBy(cars.brand, cars.color);
 		 * ```
 		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined>;
+		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined, TEffectHKT>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
-		): PgEffectSelectBuilder<TSelection>;
+		): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
-		): PgEffectSelectBuilder<TSelection | undefined> {
+		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
 			return new PgEffectSelectBase({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -352,7 +356,9 @@ export class PgEffectDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgEffectUpdateHKT> {
+		function update<TTable extends PgTable>(
+			table: TTable,
+		): PgUpdateBuilder<TTable, TQueryResult, PgEffectUpdateHKT<TEffectHKT>> {
 			return new PgUpdateBuilder(table, self.session, self.dialect, queries, PgEffectUpdateBase);
 		}
 
@@ -382,7 +388,7 @@ export class PgEffectDatabase<
 		 */
 		function insert<TTable extends PgTable>(
 			table: TTable,
-		): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT> {
+		): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT<TEffectHKT>> {
 			return new PgInsertBuilder(table, self.session, self.dialect, queries, undefined, PgEffectInsertBase);
 		}
 
@@ -410,7 +416,9 @@ export class PgEffectDatabase<
 		 *   .returning();
 		 * ```
 		 */
-		function delete_<TTable extends PgTable>(table: TTable): PgEffectDeleteBase<TTable, TQueryResult> {
+		function delete_<TTable extends PgTable>(
+			table: TTable,
+		): PgEffectDeleteBase<TTable, TQueryResult, undefined, undefined, false, never, TEffectHKT> {
 			return new PgEffectDeleteBase(table, self.session, self.dialect, queries);
 		}
 
@@ -453,11 +461,11 @@ export class PgEffectDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): PgEffectSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
+	select(): PgEffectSelectBuilder<undefined, TEffectHKT>;
+	select<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgEffectSelectBuilder<TSelection> {
+	): PgEffectSelectBuilder<TSelection, TEffectHKT> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -489,11 +497,11 @@ export class PgEffectDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): PgEffectSelectBuilder<undefined>;
-	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection>;
+	selectDistinct(): PgEffectSelectBuilder<undefined, TEffectHKT>;
+	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
-	): PgEffectSelectBuilder<TSelection | undefined> {
+	): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -527,15 +535,15 @@ export class PgEffectDatabase<
 	 *   .orderBy(cars.brand, cars.color);
 	 * ```
 	 */
-	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined>;
+	selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgEffectSelectBuilder<undefined, TEffectHKT>;
 	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
-	): PgEffectSelectBuilder<TSelection>;
+	): PgEffectSelectBuilder<TSelection, TEffectHKT>;
 	selectDistinctOn<TSelection extends SelectedFields | undefined>(
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
-	): PgEffectSelectBuilder<TSelection> {
+	): PgEffectSelectBuilder<TSelection, TEffectHKT> {
 		return new PgEffectSelectBase({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -571,7 +579,7 @@ export class PgEffectDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgEffectUpdateHKT> {
+	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgEffectUpdateHKT<TEffectHKT>> {
 		return new PgUpdateBuilder(table, this.session, this.dialect, undefined, PgEffectUpdateBase);
 	}
 
@@ -599,7 +607,9 @@ export class PgEffectDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT> {
+	insert<TTable extends PgTable>(
+		table: TTable,
+	): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT<TEffectHKT>> {
 		return new PgInsertBuilder(table, this.session, this.dialect, undefined, undefined, PgEffectInsertBase);
 	}
 
@@ -627,19 +637,21 @@ export class PgEffectDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends PgTable>(table: TTable): PgEffectDeleteBase<TTable, TQueryResult> {
+	delete<TTable extends PgTable>(
+		table: TTable,
+	): PgEffectDeleteBase<TTable, TQueryResult, undefined, undefined, false, never, TEffectHKT> {
 		return new PgEffectDeleteBase(table, this.session, this.dialect);
 	}
 
 	refreshMaterializedView<TView extends PgMaterializedView>(
 		view: TView,
-	): PgEffectRefreshMaterializedView<TQueryResult> {
+	): PgEffectRefreshMaterializedView<TQueryResult, TEffectHKT> {
 		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	execute<TRow extends Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>> {
+	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
@@ -658,11 +670,11 @@ export class PgEffectDatabase<
 		);
 	}
 
-	transaction<T>(
+	transaction<A, E, R>(
 		transaction: (
-			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
-	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError> {
+			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
+		) => Effect.Effect<A, E, R>,
+	) {
 		return this.session.transaction(
 			transaction,
 		);
@@ -672,11 +684,13 @@ export class PgEffectDatabase<
 export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
+	TEffectHKT extends QueryEffectHKTBase,
 	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
 	Q extends PgEffectDatabase<
+		TEffectHKT,
 		HKT,
 		TFullSchema,
 		TRelations,

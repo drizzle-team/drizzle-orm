@@ -1,4 +1,5 @@
-import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
+import type * as Effect from 'effect/Effect';
+import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type {
 	BuildSubquerySelection,
@@ -15,15 +16,20 @@ import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.t
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
-export type PgEffectSelectPrepare<T extends AnyPgEffectSelect> = PgEffectPreparedQuery<
+export type PgEffectSelectPrepare<
+	T extends AnyPgEffectSelect,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> = PgEffectPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
-	}
+	},
+	TEffectHKT
 >;
 
 export type PgEffectSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-> = PgSelectBuilder<TSelection, PgEffectSelectHKT>;
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> = PgSelectBuilder<TSelection, PgEffectSelectHKT<TEffectHKT>>;
 
 export type PgEffectSelect<
 	TTableName extends string | undefined = string | undefined,
@@ -39,7 +45,7 @@ export type PgEffectSelect<
 	never
 >;
 
-export interface PgEffectSelectHKT extends PgSelectHKTBase {
+export interface PgEffectSelectHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgSelectHKTBase {
 	_type: PgEffectSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -48,7 +54,8 @@ export interface PgEffectSelectHKT extends PgSelectHKTBase {
 		this['dynamic'],
 		this['excludedMethods'],
 		Assume<this['result'], any[]>,
-		Assume<this['selectedFields'], ColumnsSelection>
+		Assume<this['selectedFields'], ColumnsSelection>,
+		TEffectHKT
 	>;
 }
 
@@ -62,14 +69,14 @@ export interface PgEffectSelectBase<
 	TDynamic extends boolean = false,
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
-	// oxlint-disable-next-line no-unused-vars
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
 		Assume<TSelection, ColumnsSelection>,
 		TNullabilityMap
 	>,
-> extends QueryEffect<TResult> {
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']> {
 }
 
 export class PgEffectSelectBase<
@@ -85,8 +92,9 @@ export class PgEffectSelectBase<
 		Assume<TSelection, ColumnsSelection>,
 		TNullabilityMap
 	>,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends PgSelectBase<
-	PgEffectSelectHKT,
+	PgEffectSelectHKT<TEffectHKT>,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -98,10 +106,10 @@ export class PgEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
 
-	declare protected session: PgEffectSession;
+	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this> {
+	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
 		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
@@ -133,7 +141,7 @@ export class PgEffectSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name?: string): PgEffectSelectPrepare<this> {
+	prepare(name?: string): PgEffectSelectPrepare<this, TEffectHKT> {
 		return this._prepare(name, true);
 	}
 
@@ -144,4 +152,4 @@ export class PgEffectSelectBase<
 
 applyEffectWrapper(PgEffectSelectBase);
 
-export type AnyPgEffectSelect = PgEffectSelectBase<any, any, any, any, any, any, any, any>;
+export type AnyPgEffectSelect = PgEffectSelectBase<any, any, any, any, any, any, any, any, any>;
