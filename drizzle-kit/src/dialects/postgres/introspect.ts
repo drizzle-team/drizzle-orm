@@ -62,8 +62,8 @@ export const fromDatabase = async (
 	const checks: CheckConstraint[] = [];
 	const sequences: Sequence[] = [];
 	const roles: Role[] = [];
-	const privileges: Privilege[] = [];
 	const policies: Policy[] = [];
+	const privileges: Privilege[] = [];
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 
@@ -163,6 +163,8 @@ export const fromDatabase = async (
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
+	// TABLES
+
 	type TableListItem = {
 		oid: number | string;
 		schema: string;
@@ -175,6 +177,7 @@ export const fromDatabase = async (
 		tablespaceid: number | string;
 		definition: string | null;
 	};
+	progressCallback('tables', 0, 'fetching');
 	const tablesList = filteredNamespacesStringForSQL
 		? await db
 			.query<TableListItem>(`
@@ -233,6 +236,7 @@ export const fromDatabase = async (
 			isRlsEnabled: table.rlsEnabled,
 		});
 	}
+	progressCallback('tables', tables.length, 'done');
 
 	const dependQuery = db.query<{
 		oid: number | string;
@@ -275,6 +279,7 @@ export const fromDatabase = async (
 		ordinality: number;
 		value: string;
 	};
+	progressCallback('enums', 0, 'fetching');
 	const enumsQuery = filteredNamespacesStringForSQL
 		? db
 			.query<EnumListItem>(`SELECT
@@ -363,6 +368,7 @@ export const fromDatabase = async (
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
 	// and filter them out in runtime, simplifying filterings
+	progressCallback('policies', 0, 'fetching');
 	const policiesQuery = db.query<
 		{
 			schema: string;
@@ -463,6 +469,8 @@ export const fromDatabase = async (
 			})
 		: [] as PrivilegeListItem[];
 
+	progressCallback('fks', 0, 'fetching');
+	progressCallback('checks', 0, 'fetching');
 	const constraintsQuery = db.query<{
 		oid: number | string;
 		schemaId: number | string;
@@ -503,6 +511,7 @@ export const fromDatabase = async (
 	});
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
+	progressCallback('columns', 0, 'fetching');
 	const columnsQuery = db.query<{
 		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
@@ -647,6 +656,7 @@ export const fromDatabase = async (
 			values: it.values,
 		});
 	}
+	progressCallback('enums', enums.length, 'done');
 
 	for (const seq of sequencesList) {
 		const depend = dependList.find((it) => Number(it.oid) === Number(seq.oid));
@@ -715,6 +725,7 @@ export const fromDatabase = async (
 			withCheck: it.withCheck ?? null,
 		});
 	}
+	progressCallback('policies', policies.length, 'done');
 
 	type DBColumn = (typeof columnsList)[number];
 
@@ -831,6 +842,7 @@ export const fromDatabase = async (
 				: null,
 		});
 	}
+	progressCallback('columns', columns.length, 'done');
 
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(unique.tableId))!;
@@ -908,6 +920,7 @@ export const fromDatabase = async (
 			onDelete: parseOnType(fk.onDelete),
 		});
 	}
+	progressCallback('fks', fks.length, 'done');
 
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(check.tableId))!;
@@ -921,6 +934,7 @@ export const fromDatabase = async (
 			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
 		});
 	}
+	progressCallback('checks', checks.length, 'done');
 
 	const idxs = await db.query<{
 		oid: number | string;
@@ -1091,6 +1105,7 @@ export const fromDatabase = async (
 			forPK,
 		});
 	}
+	progressCallback('indexes', indexes.length, 'done');
 
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
 		const view = viewsList.find((x) => Number(x.oid) === Number(it.tableId))!;
@@ -1189,15 +1204,7 @@ export const fromDatabase = async (
 			withNoData: null,
 		});
 	}
-
-	progressCallback('tables', filteredTables.length, 'done');
-	progressCallback('columns', columnsList.length, 'done');
-	progressCallback('checks', checks.length, 'done');
-	progressCallback('indexes', indexes.length, 'fetching');
-	progressCallback('views', viewsList.length, 'done');
-	progressCallback('fks', fks.length, 'done');
-	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
-	progressCallback('policies', policiesList.length, 'done');
+	progressCallback('views', views.length, 'done');
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));

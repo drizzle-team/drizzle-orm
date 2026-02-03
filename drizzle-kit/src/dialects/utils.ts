@@ -1,4 +1,4 @@
-import { type Simplify, trimChar } from '../utils';
+import { type DB, type Simplify, trimChar } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
@@ -205,4 +205,32 @@ export const filterMigrationsSchema = (
 	}
 
 	return interim;
+};
+
+export const batchQuery = async <T>(
+	db: DB,
+	getSQL: (params: { limit: number; cursor: T | undefined }) => string,
+	callback: (count: number) => void,
+	batchSize: number = 100_000,
+): Promise<T[]> => {
+	let results: T[] = [];
+	let cursor: T | undefined;
+
+	while (true) {
+		const batch = await db.query(getSQL({ limit: batchSize, cursor }).trim());
+
+		if (batch.length === 0) {
+			break;
+		}
+
+		results.push(...batch);
+		callback(results.length);
+
+		if (batch.length < batchSize) {
+			break;
+		}
+
+		cursor = batch[batch.length - 1];
+	}
+	return results;
 };
