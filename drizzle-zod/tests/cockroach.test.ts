@@ -201,7 +201,7 @@ test('nullability - insert', (t) => {
 		c2: int4().notNull(),
 		c3: int4().default(1),
 		c4: int4().notNull().default(1),
-		c5: int4().generatedAlwaysAs(1),
+		c5: int4().generatedAlwaysAs(sql`1`),
 		c6: int4().generatedAlwaysAsIdentity(),
 		c7: int4().generatedByDefaultAsIdentity(),
 	});
@@ -223,7 +223,7 @@ test('nullability - update', (t) => {
 		c2: int4().notNull(),
 		c3: int4().default(1),
 		c4: int4().notNull().default(1),
-		c5: int4().generatedAlwaysAs(1),
+		c5: int4().generatedAlwaysAs(sql`1`),
 		c6: int4().generatedAlwaysAsIdentity(),
 		c7: int4().generatedByDefaultAsIdentity(),
 	});
@@ -291,7 +291,7 @@ test('refine table - insert', (t) => {
 		c1: int4(),
 		c2: int4().notNull(),
 		c3: int4().notNull(),
-		c4: int4().generatedAlwaysAs(1),
+		c4: int4().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createInsertSchema(table, {
@@ -312,7 +312,7 @@ test('refine table - update', (t) => {
 		c1: int4(),
 		c2: int4().notNull(),
 		c3: int4().notNull(),
-		c4: int4().generatedAlwaysAs(1),
+		c4: int4().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createUpdateSchema(table, {

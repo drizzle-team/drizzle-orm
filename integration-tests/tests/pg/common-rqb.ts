@@ -966,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-02-24')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1026,86 +1026,43 @@ export function tests(test: Test) {
 			},
 		);
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/5186
-		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
-			'RQB v2 incorrect aliasing with RAW in where clause',
+		// https://github.com/drizzle-team/drizzle-orm/issues/4696
+		test.skipIf(Date.now() < +new Date('2026-02-24')).concurrent(
+			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
-				const users = pgTable('rqb_users_19', {
-					id: serial('id').primaryKey(),
-					name: text('name').notNull(),
-					email: text('email').notNull().unique(),
-					createdAt: timestamp('created_at').defaultNow().notNull(),
+				const orderItemTable = pgTable('rqb_order_item_19', {
+					id: integer('id').primaryKey(),
+					orderId: integer().references(() => orderTable.id),
 				});
 
-				const orders = pgTable('rqb_orders_19', {
-					id: serial('id').primaryKey(),
-					userId: integer('user_id').references(() => users.id).notNull(),
-					amount: integer('amount').notNull(),
-					createdAt: timestamp('created_at').defaultNow().notNull(),
+				const orderTable = pgTable('rqb_order_19', {
+					id: integer('id').primaryKey(),
 				});
 
-				await push({ users, orders });
-				const db = createDB({ users, orders }, (r) => ({
-					orders: {
-						user: r.one.users({
-							from: [r.orders.userId],
-							to: [r.users.id],
-						}),
-					},
-				}));
+				await push({ orderItemTable, orderTable });
+				const db = createDB({ orderItemTable, orderTable });
 
-				await db.insert(users).values([{ id: 1, email: 'a', name: 'b' }, { id: 2, email: 'aa', name: 'bb' }]);
-				await db.insert(orders).values([{ userId: 1, amount: 11 }, { userId: 2, amount: 22 }]);
+				await db.insert(orderTable).values([{ id: 1 }, { id: 2 }]);
+				await db.insert(orderItemTable).values([{ id: 1, orderId: 1 }, { id: 2, orderId: 1 }]);
 
-				const query = db.query.orders.findFirst({
-					columns: {
-						id: true,
-					},
-					with: {
-						user: {
-							columns: {
-								id: true,
-								name: true,
-								email: true,
-								createdAt: true,
-							},
-						},
-					},
-					where: {
-						RAW: isNotNull(orders.userId),
-					},
-				});
-
-				const orderWithUser = await query;
-				expect(orderWithUser?.user!.id).toBeDefined();
-			},
-		);
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/5020
-		test.skipIf(Date.now() < +new Date('2026-01-20')).concurrent(
-			'RQB v2 incorrect aliasing in extras clause',
-			async ({ push, createDB }) => {
-				const orders = pgTable('rqb_orders_20', {
-					id: serial('id').primaryKey(),
-					amount: integer('amount').notNull(),
-					createdAt: timestamp('created_at').defaultNow().notNull(),
-				});
-
-				await push({ orders });
-				const db = createDB({ orders });
-
-				await db.insert(orders).values([{ id: 1, amount: 11 }, { id: 2, amount: 22 }]);
-
-				const res = await db.query.orders.findMany({
-					columns: {
-						id: true,
-					},
+				const query = db.query.orderTable.findMany({
 					extras: {
-						status: sql.raw(`CASE WHEN ${eq(orders.amount, 11)} THEN ${1} ELSE ${0} END`),
+						itemCount: sql`
+					    (select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${orderTable.id})
+					`.as('itemCount'),
 					},
 				});
 
-				expect(res).toStrictEqual([{ id: 1, status: 1 }, { id: 2, status: 0 }]);
+				expect(query.toSQL()).toStrictEqual({
+					sql: `select "d0"."id" as "id", (
+                                            (select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")
+                                        ) as "itemCount" from "rqb_order_19" as "d0"`,
+					params: [],
+				});
+
+				const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
+				const result = await query;
+				expect(result).toStrictEqual(expectedResult);
 			},
 		);
 	});

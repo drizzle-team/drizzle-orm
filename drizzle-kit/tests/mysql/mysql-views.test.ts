@@ -678,3 +678,48 @@ test('drop existing', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4520
+test.skipIf(Date.now() < +new Date('2026-02-24'))('create 2 dependent views', async () => {
+	const table1 = mysqlTable('table1', {
+		col1: int(),
+		col2: int(),
+		col3: int(),
+	});
+	const accountBalancesPMMV = mysqlView('accountBalancesPM').as(
+		(qb) => {
+			return qb
+				.select({
+					col1: table1.col1,
+					col2: table1.col2,
+					col3: table1.col3,
+				})
+				.from(table1);
+		},
+	);
+
+	const accountBalancesMV = mysqlView('accountBalances').as(
+		(qb) =>
+			qb
+				.select({
+					accountId: accountBalancesPMMV.col1,
+				})
+				.from(accountBalancesPMMV),
+	);
+
+	const schema = { table1, accountBalancesMV, accountBalancesPMMV };
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`col1` int,\n\t`col2` int,\n\t`col3` int\n);\n',
+		'CREATE ALGORITHM = undefined SQL SECURITY definer VIEW `accountBalancesPM` AS (select `col1`, `col2`, `col3` from `table1`);',
+		'CREATE ALGORITHM = undefined SQL SECURITY definer VIEW `accountBalances` AS (select `col1` from `accountBalancesPM`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});

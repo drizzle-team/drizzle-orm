@@ -368,6 +368,8 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
         run: bun --bun run ../attw-fork/src/run.ts package.tgz
+        env:
+          ATTW_FORMAT: concise
 
 
   attw-orm:
@@ -460,6 +462,8 @@ jobs:
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: drizzle-orm
         run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.shard }}
+        env:
+          ATTW_FORMAT: concise
 
   release:
     permissions:

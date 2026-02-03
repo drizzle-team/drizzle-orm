@@ -110,7 +110,8 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
-	private shouldInlineParams = false;
+	/** @internal */
+	public shouldInlineParams = false;
 
 	/** @internal */
 	usedTables: string[] = [];

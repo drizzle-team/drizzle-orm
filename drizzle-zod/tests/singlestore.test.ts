@@ -1,4 +1,4 @@
-import type { Equal } from 'drizzle-orm';
+import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -30,7 +30,7 @@ const customSchema = z.string().transform(Number);
 test('table - select', (t) => {
 	const table = singlestoreTable('test', {
 		id: serial().primaryKey(),
-		generated: int().generatedAlwaysAs(1).notNull(),
+		generated: int().generatedAlwaysAs(sql`1`).notNull(),
 		name: text().notNull(),
 	});
 
@@ -165,7 +165,7 @@ test('nullability - insert', (t) => {
 		c2: int().notNull(),
 		c3: int().default(1),
 		c4: int().notNull().default(1),
-		c5: int().generatedAlwaysAs(1),
+		c5: int().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createInsertSchema(table);
@@ -185,7 +185,7 @@ test('nullability - update', (t) => {
 		c2: int().notNull(),
 		c3: int().default(1),
 		c4: int().notNull().default(1),
-		c5: int().generatedAlwaysAs(1),
+		c5: int().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createUpdateSchema(table);
@@ -251,7 +251,7 @@ test('refine table - insert', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1),
+		c4: int().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createInsertSchema(table, {
@@ -272,7 +272,7 @@ test('refine table - update', (t) => {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
-		c4: int().generatedAlwaysAs(1),
+		c4: int().generatedAlwaysAs(sql`1`),
 	});
 
 	const result = createUpdateSchema(table, {

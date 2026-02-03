@@ -449,6 +449,7 @@ test('introspect table with self reference', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4885
 // https://github.com/drizzle-team/drizzle-orm/issues/4110
 test('introspect table with boolean(tinyint(1))', async () => {
 	const schema = {
@@ -573,7 +574,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`'users\\\\hello'`,
+				sql`'users\\\\hello'`,
 			),
 		}),
 	};

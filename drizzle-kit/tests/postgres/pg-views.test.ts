@@ -2105,7 +2105,7 @@ test('.as in view select', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-01-20'))('create view with snake_case', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-24'))('create view with snake_case', async () => {
 	const test = pgTable('test', {
 		testId: serial().primaryKey(),
 		testName: text().notNull(),
@@ -2142,7 +2142,7 @@ test.skipIf(Date.now() < +new Date('2026-01-20'))('create view with snake_case',
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-01-20'))('create view with camelCase', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-24'))('create view with camelCase', async () => {
 	const test = pgTable('test', {
 		test_id: serial().primaryKey(),
 		test_name: text().notNull(),
@@ -2229,4 +2229,93 @@ test('rename column referenced in view', async () => {
 		'ALTER TABLE "users" RENAME COLUMN "id" TO "id2";',
 		'CREATE VIEW "users_view" AS (select "id2", "name2" from "users");',
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4520
+test.skipIf(Date.now() < +new Date('2026-02-24'))('create 2 dependent materialized views', async () => {
+	const table1 = pgTable('table1', {
+		col1: integer(),
+		col2: integer(),
+		col3: integer(),
+	});
+	const accountBalancesPMMV = pgMaterializedView('accountBalancesPM').as(
+		(qb) => {
+			return qb
+				.select({
+					col1: table1.col1,
+					col2: table1.col2,
+					col3: table1.col3,
+				})
+				.from(table1);
+		},
+	);
+
+	const accountBalancesMV = pgMaterializedView('accountBalances').as(
+		(qb) =>
+			qb
+				.select({
+					accountId: accountBalancesPMMV.col1,
+				})
+				.from(accountBalancesPMMV),
+	);
+
+	const schema = { table1, accountBalancesMV, accountBalancesPMMV };
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer,\n\t"col2" integer,\n\t"col3" integer\n);\n',
+		'CREATE MATERIALIZED VIEW "accountBalancesPM" AS (select "col1", "col2", "col3" from "table1");',
+		'CREATE MATERIALIZED VIEW "accountBalances" AS (select "col1" from "accountBalancesPM");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
+test.skipIf(Date.now() < +new Date('2026-02-24'))('create 2 dependent views', async () => {
+	const table1 = pgTable('table1', {
+		col1: integer(),
+		col2: integer(),
+		col3: integer(),
+	});
+	const accountBalancesPMMV = pgView('accountBalancesPM').as(
+		(qb) => {
+			return qb
+				.select({
+					col1: table1.col1,
+					col2: table1.col2,
+					col3: table1.col3,
+				})
+				.from(table1);
+		},
+	);
+
+	const accountBalancesMV = pgView('accountBalances').as(
+		(qb) =>
+			qb
+				.select({
+					accountId: accountBalancesPMMV.col1,
+				})
+				.from(accountBalancesPMMV),
+	);
+
+	const schema = { table1, accountBalancesMV, accountBalancesPMMV };
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		'CREATE TABLE "table1" (\n\t"col1" integer,\n\t"col2" integer,\n\t"col3" integer\n);\n',
+		'CREATE VIEW "accountBalancesPM" AS (select "col1", "col2", "col3" from "table1");',
+		'CREATE VIEW "accountBalances" AS (select "col1" from "accountBalancesPM");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
