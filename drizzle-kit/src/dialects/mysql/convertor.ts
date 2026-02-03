@@ -55,8 +55,8 @@ const createTable = convertor('create_table', (st) => {
 
 	if (pk && (pk.columns.length > 1)) {
 		statement += ',\n';
-		// old versions of MySQL did not support naming primary keys
-		// MySql always stores primary key name as `PRIMARY`
+		// TIDB does not allow naming primary key constraints
+		// under the hood mysql always names it `PRIMARY`
 		statement += `\tCONSTRAINT PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
 	}
 
