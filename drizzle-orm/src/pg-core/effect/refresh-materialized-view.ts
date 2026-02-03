@@ -1,6 +1,7 @@
 import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
@@ -20,13 +21,19 @@ export class PgEffectRefreshMaterializedView<TQueryResult extends PgQueryResultH
 	declare protected session: PgEffectSession;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectPreparedQuery<
+	_prepare(name?: string, generateName = false): PgEffectPreparedQuery<
 		PreparedQueryConfig & {
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
+			const query = this.dialect.sqlToQuery(this.getSQL());
+			return this.session.prepareQuery(
+				query,
+				undefined,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+			);
 		});
 	}
 
@@ -35,7 +42,7 @@ export class PgEffectRefreshMaterializedView<TQueryResult extends PgQueryResultH
 			execute: PgQueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

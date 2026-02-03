@@ -2,6 +2,7 @@ import { applyEffectWrapper, type QueryEffect } from '~/effect-core/query-effect
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -68,19 +69,28 @@ export class PgEffectInsertBase<
 	declare protected session: PgEffectSession;
 
 	/** @internal */
-	_prepare(name?: string): PgInsertPrepare<this> {
+	_prepare(name?: string, generateName = false): PgInsertPrepare<this> {
+		const query = this.dialect.sqlToQuery(this.getSQL());
 		return this.session.prepareQuery<
 			PreparedQueryConfig & {
 				execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 			}
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-			type: 'insert',
-			tables: extractUsedTable(this.config.table),
-		}, this.cacheConfig);
+		>(
+			query,
+			this.config.returning,
+			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
+		);
 	}
 
 	prepare(name?: string): PgInsertPrepare<this> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

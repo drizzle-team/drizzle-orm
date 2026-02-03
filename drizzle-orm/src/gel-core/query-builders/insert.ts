@@ -11,6 +11,7 @@ import type {
 import type { GelTable, TableConfig } from '~/gel-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
@@ -19,7 +20,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import type { AnyGelColumn, GelColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -70,13 +71,6 @@ export class GelInsertBuilder<
 		private withList?: Subquery[],
 		private overridingSystemValue_?: boolean,
 	) {}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
 
 	overridingSystemValue(): Omit<GelInsertBuilder<TTable, TQueryResult, true>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
@@ -388,21 +382,29 @@ export class GelInsertBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelInsertPrepare<this> {
+	_prepare(name?: string, generateName = false): GelInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			});
+			>(
+				query,
+				this.config.returning,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'insert',
+					tables: extractUsedTable(this.config.table),
+				},
+			);
 		});
 	}
 
 	prepare(name?: string): GelInsertPrepare<this> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

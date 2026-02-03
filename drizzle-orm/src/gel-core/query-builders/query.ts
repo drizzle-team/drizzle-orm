@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -11,7 +12,7 @@ import {
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly, NeonAuthToken } from '~/utils.ts';
+import type { KnownKeysOnly } from '~/utils.ts';
 import type { GelDialect } from '../dialect.ts';
 import type { GelPreparedQuery, GelSession, PreparedQueryConfig } from '../session.ts';
 import type { GelTable } from '../table.ts';
@@ -82,14 +83,14 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string, generateName = false): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
 			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
-				name,
+				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
 				(rows, mapColumnValue) => {
 					for (const row of rows) {
 						mapRelationalRow(row, query.selection, mapColumnValue);
@@ -104,7 +105,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	}
 
 	prepare(name?: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	private _getQuery() {
@@ -132,13 +133,6 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	override execute(): Promise<TResult> {

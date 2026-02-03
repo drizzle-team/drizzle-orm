@@ -20,6 +20,7 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -32,7 +33,6 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
@@ -590,27 +590,26 @@ export class CockroachUpdateBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): CockroachUpdatePrepare<this> {
-		const query = this.session.prepareQuery<
+	_prepare(name?: string, generateName = false): CockroachUpdatePrepare<this> {
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		>(
+			query,
+			this.config.returning,
+			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			true,
+		);
+		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		return preparedQuery;
 	}
 
 	prepare(name?: string): CockroachUpdatePrepare<this> {
-		return this._prepare(name);
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+		return this._prepare(name, true);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues, this.authToken);
+		return this._prepare().execute(placeholderValues);
 	};
 
 	/** @internal */

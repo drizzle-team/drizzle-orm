@@ -11,6 +11,7 @@ import type { CockroachTable, TableConfig } from '~/cockroach-core/table.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -398,18 +399,24 @@ export class CockroachInsertBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): CockroachInsertPrepare<this> {
+	_prepare(name?: string, generateName = false): CockroachInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(
+				query,
+				this.config.returning,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+			);
 		});
 	}
 
 	prepare(name?: string): CockroachInsertPrepare<this> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	private authToken?: NeonAuthToken;

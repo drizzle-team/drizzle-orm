@@ -16,6 +16,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -30,7 +31,6 @@ import {
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
@@ -91,13 +91,6 @@ export class CockroachSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -144,7 +137,7 @@ export class CockroachSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-		}).setToken(this.authToken)) as any;
+		}));
 	}
 }
 
@@ -1047,19 +1040,25 @@ export class CockroachSelectBase<
 	static override readonly [entityKind]: string = 'CockroachSelect';
 
 	/** @internal */
-	_prepare(name?: string): CockroachSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, authToken } = this;
+	_prepare(name?: string, generateName = false): CockroachSelectPrepare<this> {
+		const { session, config, dialect, joinsNotNullableMap } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = orderSelectedFields<CockroachColumn>(config.fields);
-			const query = session.prepareQuery<
+			const query = dialect.sqlToQuery(this.getSQL());
+			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
-			query.joinsNotNullableMap = joinsNotNullableMap;
+			>(
+				query,
+				fieldsList,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+			);
+			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 
-			return query.setToken(authToken);
+			return preparedQuery;
 		});
 	}
 
@@ -1071,19 +1070,12 @@ export class CockroachSelectBase<
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
 	prepare(name?: string): CockroachSelectPrepare<this> {
-		return this._prepare(name);
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues, this.authToken);
+			return this._prepare().execute(placeholderValues);
 		});
 	};
 }

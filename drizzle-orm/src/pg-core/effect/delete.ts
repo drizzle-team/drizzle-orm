@@ -3,6 +3,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -73,21 +74,30 @@ export class PgEffectDeleteBase<
 	declare protected session: PgEffectSession;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectDeletePrepare<this> {
+	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
+			>(
+				query,
+				this.config.returning,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'delete',
+					tables: extractUsedTable(this.config.table),
+				},
+				this.cacheConfig,
+			);
 		});
 	}
 
 	prepare(name?: string): PgEffectDeletePrepare<this> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
