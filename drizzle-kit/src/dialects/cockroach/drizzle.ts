@@ -29,7 +29,7 @@ import {
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
 import type { CasingType } from 'src/cli/validations/common';
-import { safeRegister } from 'src/utils/utils-node';
+import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
@@ -710,24 +710,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const matViews: CockroachMaterializedView[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = fromExports(i0);
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = fromExports(i0);
 
-			tables.push(...prepared.tables);
-			enums.push(...prepared.enums);
-			schemas.push(...prepared.schemas);
-			sequences.push(...prepared.sequences);
-			views.push(...prepared.views);
-			matViews.push(...prepared.matViews);
-			roles.push(...prepared.roles);
-			policies.push(...prepared.policies);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		enums.push(...prepared.enums);
+		schemas.push(...prepared.schemas);
+		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
+		matViews.push(...prepared.matViews);
+		roles.push(...prepared.roles);
+		policies.push(...prepared.policies);
+		relations.push(...prepared.relations);
+	}
 
 	return {
 		tables,

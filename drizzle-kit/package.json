@@ -56,7 +56,7 @@
 		"@drizzle-team/brocli": "^0.11.0",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.10",
-		"tsx": "^4.20.6"
+		"jiti": "^2.6.1"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.556.0",
@@ -120,6 +120,7 @@
 		"rolldown": "^1.0.0-beta.57",
 		"semver": "^7.7.2",
 		"tsdown": "^0.18.3",
+		"tsx": "^4.20.6",
 		"typescript": "^5.9.3",
 		"uuid": "^9.0.1",
 		"ws": "^8.18.2",

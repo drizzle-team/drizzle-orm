@@ -10,7 +10,7 @@ import {
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { safeRegister } from 'src/utils/utils-node';
+import { loadModule } from 'src/utils/utils-node';
 import type { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import type {
@@ -251,18 +251,16 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const views: SQLiteView[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = fromExports(i0);
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = fromExports(i0);
 
-			tables.push(...prepared.tables);
-			views.push(...prepared.views);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		views.push(...prepared.views);
+		relations.push(...prepared.relations);
+	}
 
 	return { tables: Array.from(new Set(tables)), views, relations };
 };
