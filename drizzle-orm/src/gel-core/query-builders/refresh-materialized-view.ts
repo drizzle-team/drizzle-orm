@@ -8,7 +8,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/gel-core/session.ts';
 import type { GelMaterializedView } from '~/gel-core/view.ts';
-import { preparedStatementName } from '~/query-name-generator';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
