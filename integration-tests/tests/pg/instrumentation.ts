@@ -185,12 +185,14 @@ class ServerSimulator {
 export const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
 	schema: any,
+	log?: 'statements',
 ) => {
 	const { diff } = await import('../../../drizzle-kit/tests/postgres/mocks' as string);
 
 	const res = await diff({}, schema, []);
 
 	for (const s of res.sqlStatements) {
+		if (log === 'statements') console.log(s);
 		await query(s, []).catch((e) => {
 			console.error(s);
 			console.error(e);
@@ -479,7 +481,7 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 		};
 		client: any;
 		db: PgAsyncDatabase<any, any, typeof relations>;
-		push: (schema: any) => Promise<void>;
+		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
 		createDB: {
 			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, any, ReturnType<typeof defineRelations<S>>>;
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
@@ -571,7 +573,8 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 			async ({ kit }, use) => {
 				const push = (
 					schema: any,
-				) => _push(kit.query, schema);
+					params?: { log: 'statements' },
+				) => _push(kit.query, schema, params?.log);
 
 				await use(push);
 			},
