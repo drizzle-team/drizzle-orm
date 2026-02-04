@@ -18,7 +18,7 @@ import {
 	MySqlView,
 } from 'drizzle-orm/mysql-core';
 import type { CasingType } from 'src/cli/validations/common';
-import { safeRegister } from '../../utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import type { Column, InterimSchema } from './ddl';
 import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
@@ -250,7 +250,21 @@ export const fromDrizzleSchema = (
 		}
 	}
 
-	for (const view of views) {
+	for (
+		// see in "./dialects/postgres/drizzle.ts" for more
+		const view of views.sort((a, b) => {
+			const aConfig = getViewConfig(a);
+			const bConfig = getViewConfig(b);
+
+			// If a's fields include b, a depends on b → b comes first
+			if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+			// If b's fields include a, b depends on a → a comes first
+			if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+			return 0;
+		})
+	) {
 		const cfg = getViewConfig(view);
 		const {
 			isExisting,
@@ -296,17 +310,15 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const views: MySqlView[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = prepareFromExports(i0);
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = prepareFromExports(i0);
 
-			tables.push(...prepared.tables);
-			views.push(...prepared.views);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		views.push(...prepared.views);
+		relations.push(...prepared.relations);
+	}
 	return { tables: Array.from(new Set(tables)), views, relations };
 };
 

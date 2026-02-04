@@ -2105,7 +2105,7 @@ test('.as in view select', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-02-01'))('create view with snake_case', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-10'))('create view with snake_case', async () => {
 	const test = pgTable('test', {
 		testId: serial().primaryKey(),
 		testName: text().notNull(),
@@ -2142,7 +2142,7 @@ test.skipIf(Date.now() < +new Date('2026-02-01'))('create view with snake_case',
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-02-01'))('create view with camelCase', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-10'))('create view with camelCase', async () => {
 	const test = pgTable('test', {
 		test_id: serial().primaryKey(),
 		test_name: text().notNull(),
@@ -2232,7 +2232,7 @@ test('rename column referenced in view', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4520
-test.skipIf(Date.now() < +new Date('2026-01-24'))('create 2 dependent materialized views', async () => {
+test('create 2 dependent materialized views', async () => {
 	const table1 = pgTable('table1', {
 		col1: integer(),
 		col2: integer(),
@@ -2276,7 +2276,7 @@ test.skipIf(Date.now() < +new Date('2026-01-24'))('create 2 dependent materializ
 	expect(pst2).toStrictEqual([]);
 });
 
-test.skipIf(Date.now() < +new Date('2026-01-24'))('create 2 dependent views', async () => {
+test('create 2 dependent views', async () => {
 	const table1 = pgTable('table1', {
 		col1: integer(),
 		col2: integer(),

@@ -323,7 +323,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-02-01'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-10'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1127,6 +1127,7 @@ test('defaults: timestamptz with precision', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231
 // https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('no diff for all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);

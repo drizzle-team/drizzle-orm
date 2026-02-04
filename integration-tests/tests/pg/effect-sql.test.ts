@@ -1,8 +1,9 @@
 import { PgClient } from '@effect/sql-pg';
-import { expect, expectTypeOf, it } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import { and, asc, eq, gt, gte, inArray, lt, sql } from 'drizzle-orm';
-import { TaggedTransactionRollbackError } from 'drizzle-orm/effect-core/errors';
-import { drizzle, EffectPgDatabase } from 'drizzle-orm/effect-postgres';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
+import { EffectLogger } from 'drizzle-orm/effect-core';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
 	alias,
@@ -42,7 +43,15 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { Effect, Redacted } from 'effect';
+import * as Context from 'effect/Context';
+import * as Effect from 'effect/Effect';
+import * as Either from 'effect/Either';
+import * as Fn from 'effect/Function';
+import * as Layer from 'effect/Layer';
+import * as Predicate from 'effect/Predicate';
+import * as Redacted from 'effect/Redacted';
+import * as Ref from 'effect/Ref';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { types } from 'pg';
 import { randomString } from '~/utils';
 import { relations } from './relations';
@@ -51,7 +60,7 @@ import { rqbPost, rqbUser, usersMigratorTable } from './schema';
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
 );
-const clientLayer = PgClient.layer({
+const PgClientLive = PgClient.layer({
 	url: connectionStr,
 	types: {
 		getTypeParser: (typeId, format) => {
@@ -97,11 +106,19 @@ const clientLayer = PgClient.layer({
 	},
 });
 
-const ENABLE_LOGGING = false;
-const usedSchema = 'effect_pg_test';
-const getDb = Effect.gen(function*() {
-	const client = yield* PgClient.PgClient;
-	const db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+const dbEffect = PgDrizzle.make({ relations }).pipe(Effect.provide(PgDrizzle.DefaultServices));
+class DB extends Context.Tag('DB')<DB, Effect.Effect.Success<typeof dbEffect>>() {}
+const DBLive = Layer.effect(
+	DB,
+	Effect.gen(function*() {
+		const db = yield* dbEffect;
+
+		return db;
+	}),
+);
+
+const setupDb = Effect.gen(function*() {
+	const db = yield* DB;
 
 	yield* db.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(usedSchema)} CASCADE`);
 	yield* db.execute(sql`DROP SCHEMA IF EXISTS ${sql.identifier(`${usedSchema}_custom`)} CASCADE`);
@@ -110,21 +127,26 @@ const getDb = Effect.gen(function*() {
 	yield* db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(usedSchema)};`);
 	yield* db.execute(sql`SET search_path TO ${sql.identifier(usedSchema)};`);
 	yield* db.execute(sql`SET TIME ZONE 'UTC';`);
-	return db;
 });
+
+const TestLive = Fn.pipe(
+	DBLive,
+	Layer.provideMerge(PgClientLive),
+);
 
 let _diff!: (_: {}, schema: Record<string, unknown>, renames: []) => Promise<{ sqlStatements: string[] }>;
 const getDiff = async () => {
 	return _diff ??= (await import('../../../drizzle-kit/tests/postgres/mocks' as string)).diff;
 };
 
-const push = (db: EffectPgDatabase, schema: Record<string, any>) =>
+const push = (schema: Record<string, any>) =>
 	Effect.gen(function*() {
+		const db = yield* DB;
 		const diff = yield* Effect.promise(() => getDiff());
 
 		const { sqlStatements } = yield* Effect.promise(() => diff({}, schema, []));
 
-		const result = yield* db.transaction((tx) =>
+		yield* db.transaction((tx) =>
 			Effect.gen(function*() {
 				for (const s of sqlStatements) {
 					yield* tx.execute(s);
@@ -133,10 +155,21 @@ const push = (db: EffectPgDatabase, schema: Record<string, any>) =>
 		);
 	});
 
-it.layer(clientLayer)((it) => {
+const usedSchema = 'effect_pg_test';
+
+it.layer(TestLive)((it) => {
+	// Run setup before each test
+	const _effect = it.effect;
+	const effect: typeof it.effect = Object.assign(
+		(name: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
+			_effect(name, () => Effect.zipRight(setupDb, fn()), timeout),
+		it.effect,
+	);
+	Object.assign(it, { effect });
+
 	it.effect('execute', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const res = yield* db.execute<{ '1': 1 }>(sql`SELECT 1 as "1"`);
 
 			expect(res).toStrictEqual([{ '1': 1 }]);
@@ -290,8 +323,8 @@ it.layer(clientLayer)((it) => {
 				arrvarchar: varchar('arrvarchar').array(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { en, allTypesTable });
+			const db = yield* DB;
+			yield* push({ en, allTypesTable });
 
 			yield* db.insert(allTypesTable).values({
 				serial: 1,
@@ -571,9 +604,9 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find first - no rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
-			yield* push(db, { rqbUser });
+			yield* push({ rqbUser });
 
 			const result = yield* db.query.rqbUser.findFirst();
 
@@ -582,8 +615,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find first - multiple rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -612,9 +645,9 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find first - with relation', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
-			yield* push(db, { rqbUser, rqbPost });
+			yield* push({ rqbUser, rqbPost });
 
 			const date = new Date(120000);
 
@@ -673,8 +706,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find first - placeholders', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -712,8 +745,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find many - no rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const result = yield* db.query.rqbUser.findMany();
 
@@ -722,8 +755,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find many - multiple rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -756,8 +789,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find many - with relation', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser, rqbPost });
+			const db = yield* DB;
+			yield* push({ rqbUser, rqbPost });
 
 			const date = new Date(120000);
 
@@ -817,8 +850,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 simple find many - placeholders', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -856,8 +889,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find first - no rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const result = yield* db.transaction((db) =>
 				Effect.gen(function*() {
@@ -874,8 +907,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find first - multiple rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -916,9 +949,9 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find first - with relation', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
-			yield* push(db, { rqbUser, rqbPost });
+			yield* push({ rqbUser, rqbPost });
 			const date = new Date(120000);
 
 			yield* db.insert(rqbUser).values([{
@@ -999,8 +1032,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find first - placeholders', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -1050,8 +1083,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find many - no rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const result = yield* db.transaction((db) =>
 				Effect.gen(function*() {
@@ -1067,8 +1100,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find many - multiple rows', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 
@@ -1117,9 +1150,9 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find many - with relation', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
-			yield* push(db, { rqbUser, rqbPost });
+			yield* push({ rqbUser, rqbPost });
 			const date = new Date(120000);
 
 			yield* db.insert(rqbUser).values([{
@@ -1206,8 +1239,8 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('RQB v2 transaction find many - placeholders', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
-			yield* push(db, { rqbUser });
+			const db = yield* DB;
+			yield* push({ rqbUser });
 
 			const date = new Date(120000);
 			yield* db.insert(rqbUser).values([{
@@ -1255,7 +1288,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('transaction', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
 			const users = pgTable('users_transactions', {
 				id: serial('id').primaryKey(),
@@ -1267,7 +1300,7 @@ it.layer(clientLayer)((it) => {
 				stock: integer('stock').notNull(),
 			});
 
-			yield* push(db, { users, products });
+			yield* push({ users, products });
 
 			const [user] = yield* db.insert(users).values({ balance: 100 }).returning();
 			const [product] = yield* db.insert(products).values({ price: 10, stock: 10 }).returning();
@@ -1290,38 +1323,40 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('transaction rollback', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
 			const users = pgTable('users_transactions_rollback', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
-			yield* push(db, { users });
+			yield* push({ users });
 
 			const res = yield* db.transaction((tx) =>
 				Effect.gen(function*() {
 					yield* tx.insert(users).values({ balance: 100 });
 					yield* tx.rollback();
 				})
-			).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e)));
+			).pipe(Effect.either);
+
+			assert(Either.isLeft(res));
+			assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
 
 			const result = yield* db.select().from(users);
 
 			expect(result).toEqual([]);
-			expect(res).toBeInstanceOf(TaggedTransactionRollbackError);
 		}));
 
 	it.effect('nested transaction', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
 			const users = pgTable('users_nested_transactions', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
-			yield* push(db, { users });
+			yield* push({ users });
 
 			yield* db.transaction((tx) =>
 				Effect.gen(function*() {
@@ -1342,27 +1377,28 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('nested transaction rollback', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
 			const users = pgTable('users_nested_transactions_rollback', {
 				id: serial('id').primaryKey(),
 				balance: integer('balance').notNull(),
 			});
 
-			yield* push(db, { users });
+			yield* push({ users });
 
 			yield* db.transaction((tx) =>
 				Effect.gen(function*() {
 					yield* tx.insert(users).values({ balance: 100 });
 
-					expect(
-						yield* tx.transaction((tx) =>
-							Effect.gen(function*() {
-								yield* tx.update(users).set({ balance: 200 });
-								yield* tx.rollback();
-							})
-						).pipe(Effect.catchTag('TransactionRollbackError', (e) => Effect.succeed(e))),
-					).toBeInstanceOf(TaggedTransactionRollbackError);
+					const res = yield* tx.transaction((tx) =>
+						Effect.gen(function*() {
+							yield* tx.update(users).set({ balance: 200 });
+							yield* tx.rollback();
+						})
+					).pipe(Effect.either);
+
+					assert(Either.isLeft(res));
+					assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
 				})
 			);
 
@@ -1373,7 +1409,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : default migration strategy', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 
 			yield* migrate(db, { migrationsFolder: './drizzle2/pg' });
 
@@ -1386,7 +1422,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : migrate with custom schema', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const customSchema = randomString();
 
 			yield* migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
@@ -1409,7 +1445,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : migrate with custom table', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const customTable = randomString();
 
 			const r1 = yield* migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
@@ -1430,7 +1466,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : migrate with custom table and custom schema', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const customTable = randomString();
 			const customSchema = randomString();
 
@@ -1458,7 +1494,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : --init', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const migrationsSchema = 'drzl_migrations_init';
 			const migrationsTable = 'drzl_init';
 
@@ -1490,7 +1526,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('migrator : --init - local migrations error', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const migrationsSchema = 'drzl_migrations_init';
 			const migrationsTable = 'drzl_init';
 
@@ -1500,7 +1536,7 @@ it.layer(clientLayer)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			});
+			}).pipe(Effect.either);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1515,14 +1551,16 @@ it.layer(clientLayer)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
+			assert(Either.isLeft(migratorRes));
+			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
+			expect(migratorRes.left.exitCode).toBe('localMigrations');
 			expect(meta.length).toStrictEqual(0);
 			expect(res[0]?.['tableExists']).toStrictEqual(false);
 		}));
 
 	it.effect('migrator : --init - db migrations error', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const migrationsSchema = 'drzl_migrations_init';
 			const migrationsTable = 'drzl_init';
 
@@ -1538,7 +1576,7 @@ it.layer(clientLayer)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			});
+			}).pipe(Effect.either);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1553,7 +1591,9 @@ it.layer(clientLayer)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
+			assert(Either.isLeft(migratorRes));
+			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
+			expect(migratorRes.left.exitCode).toBe('databaseMigrations');
 			expect(meta.length).toStrictEqual(1);
 			expect(res[0]?.['tableExists']).toStrictEqual(true);
 		}));
@@ -1573,8 +1613,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { mySchema, users, cities });
+			const db = yield* DB;
+			yield* push({ mySchema, users, cities });
 
 			const newYorkers1 = mySchema.materializedView('new_yorkers')
 				.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
@@ -1645,7 +1685,7 @@ it.layer(clientLayer)((it) => {
 
 	it.effect('update ... from with join', () =>
 		Effect.gen(function*() {
-			const db = yield* getDb;
+			const db = yield* DB;
 			const states = pgTable('states_30', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1661,7 +1701,7 @@ it.layer(clientLayer)((it) => {
 				cityId: integer('city_id').notNull().references(() => cities.id),
 			});
 
-			yield* push(db, { states, cities, users });
+			yield* push({ states, cities, users });
 
 			yield* db.insert(states).values([
 				{ name: 'New York' },
@@ -1742,9 +1782,9 @@ it.layer(clientLayer)((it) => {
 				}),
 			}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
 
-			const db = yield* getDb;
+			const db = yield* DB;
 
-			yield* push(db, { notifications, users, userNotications });
+			yield* push({ notifications, users, userNotications });
 
 			const newNotification = (yield* db
 				.insert(notifications)
@@ -1787,8 +1827,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1809,8 +1849,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1838,8 +1878,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1872,8 +1912,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1926,8 +1966,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1947,8 +1987,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { countTestTable });
+			const db = yield* DB;
+			yield* push({ countTestTable });
 
 			yield* db.insert(countTestTable).values([
 				{ id: 1, name: 'First' },
@@ -1977,8 +2017,8 @@ it.layer(clientLayer)((it) => {
 				age: integer('age').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersDistinctTable });
+			const db = yield* DB;
+			yield* push({ usersDistinctTable });
 
 			yield* db.insert(usersDistinctTable).values([
 				{ id: 1, name: 'John', age: 24 },
@@ -2033,8 +2073,8 @@ it.layer(clientLayer)((it) => {
 				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const now = Date.now();
 
@@ -2059,8 +2099,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			yield* db.insert(users).values({ name: 'John' });
 			const usersResult = yield* db
@@ -2085,8 +2125,8 @@ it.layer(clientLayer)((it) => {
 				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const now = Date.now();
 
@@ -2107,8 +2147,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			yield* db.insert(users).values({ name: 'John' });
 			const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning({
@@ -2128,8 +2168,8 @@ it.layer(clientLayer)((it) => {
 				jsonb: jsonb('jsonb').$type<string[]>(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			yield* db
 				.insert(users)
@@ -2165,8 +2205,8 @@ it.layer(clientLayer)((it) => {
 				jsonb: jsonb('jsonb').$type<string[]>(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const result = yield* db
 				.insert(users)
@@ -2200,8 +2240,8 @@ it.layer(clientLayer)((it) => {
 				jsonb: jsonb('jsonb').$type<string[]>(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const result = yield* db
 				.insert(users)
@@ -2229,8 +2269,8 @@ it.layer(clientLayer)((it) => {
 				verified: boolean('verified').notNull().default(false),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersTable });
+			const db = yield* DB;
+			yield* push({ usersTable });
 
 			const stmt = db
 				.insert(usersTable)
@@ -2273,8 +2313,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersTable });
+			const db = yield* DB;
+			yield* push({ usersTable });
 
 			yield* db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
@@ -2297,8 +2337,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersTable });
+			const db = yield* DB;
+			yield* push({ usersTable });
 
 			yield* db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
@@ -2324,8 +2364,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersTable });
+			const db = yield* DB;
+			yield* push({ usersTable });
 
 			yield* db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 			const stmt = db
@@ -2349,8 +2389,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { usersTable });
+			const db = yield* DB;
+			yield* push({ usersTable });
 
 			function withLimitOffset(qb: any) {
 				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
@@ -2381,8 +2421,8 @@ it.layer(clientLayer)((it) => {
 				quantity: integer('quantity').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { orders });
+			const db = yield* DB;
+			yield* push({ orders });
 
 			yield* db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -2508,8 +2548,8 @@ it.layer(clientLayer)((it) => {
 				cheap: boolean('cheap').notNull().default(false),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { products });
+			const db = yield* DB;
+			yield* push({ products });
 
 			yield* db.insert(products).values([
 				{ price: '10.99' },
@@ -2554,8 +2594,8 @@ it.layer(clientLayer)((it) => {
 				admin: boolean('admin').notNull().default(false),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const userCount = db
 				.$with('user_count')
@@ -2590,8 +2630,8 @@ it.layer(clientLayer)((it) => {
 				quantity: integer('quantity').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { orders });
+			const db = yield* DB;
+			yield* push({ orders });
 
 			yield* db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -2636,8 +2676,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const customerAlias = alias(users, 'customer');
 
@@ -2672,8 +2712,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const customers = alias(users, 'customer');
 
@@ -2703,8 +2743,8 @@ it.layer(clientLayer)((it) => {
 				name: text('name').notNull(),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { users });
+			const db = yield* DB;
+			yield* push({ users });
 
 			const user = alias(users, 'user');
 			const customers = alias(users, 'customer');
@@ -2741,8 +2781,8 @@ it.layer(clientLayer)((it) => {
 				cityId: integer('city_id').references(() => cities2Table.id),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { cities2Table, users2Table });
+			const db = yield* DB;
+			yield* push({ cities2Table, users2Table });
 
 			yield* db.insert(cities2Table).values([
 				{ id: 1, name: 'New York' },
@@ -2814,8 +2854,8 @@ it.layer(clientLayer)((it) => {
 				cityId: integer('city_id').references(() => cities2Table.id),
 			});
 
-			const db = yield* getDb;
-			yield* push(db, { cities2Table, users2Table });
+			const db = yield* DB;
+			yield* push({ cities2Table, users2Table });
 
 			yield* db.insert(cities2Table).values([
 				{ id: 1, name: 'New York' },
@@ -2883,5 +2923,165 @@ it.layer(clientLayer)((it) => {
 			}
 
 			expect(err).toBeInstanceOf(Error);
+		}));
+
+	it.effect('custom EffectLogger override - user provided logger takes precedence over default', () =>
+		Effect.gen(function*() {
+			const loggedQueries: Array<{ query: string; params: unknown[] }> = [];
+
+			const customLogger = new EffectLogger({
+				logQuery: (query: string, params: unknown[]) =>
+					Effect.sync(() => {
+						loggedQueries.push({ query, params });
+					}),
+			});
+			const customLoggerLayer = Layer.succeed(EffectLogger, customLogger);
+
+			const db = yield* PgDrizzle.make({ relations }).pipe(
+				Effect.provide(customLoggerLayer),
+				Effect.provide(PgDrizzle.DefaultServices),
+			);
+
+			const users = pgTable('users_custom_logger', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			yield* push({ users });
+			yield* db.insert(users).values({ name: 'John' });
+			yield* db.select().from(users);
+
+			expect(loggedQueries.length).toBeGreaterThanOrEqual(2);
+			expect(loggedQueries.some((q) => q.query.toLowerCase().includes('insert'))).toBe(true);
+			expect(loggedQueries.some((q) => q.query.toLowerCase().includes('select'))).toBe(true);
+		}));
+
+	it.effect('custom EffectCache override - user provided cache takes precedence over default', () =>
+		Effect.gen(function*() {
+			const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
+
+			const customCacheService = {
+				strategy: () => 'all' as const,
+				get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
+					Effect.gen(function*() {
+						yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
+						// oxlint-disable-next-line no-useless-undefined
+						return undefined;
+					}),
+				put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
+					Effect.gen(function*() {
+						yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'put' as const, key }]);
+					}),
+				onMutate: (_params: any) =>
+					Effect.gen(function*() {
+						yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
+					}),
+				cache: {
+					strategy: () => 'all' as const,
+					// oxlint-disable-next-line no-useless-undefined
+					get: async () => undefined,
+					put: async () => {},
+					onMutate: async () => {},
+				},
+			};
+			const customCacheLayer = Layer.succeed(EffectCache, new EffectCache(customCacheService));
+
+			const db = yield* PgDrizzle.make({ relations }).pipe(
+				Effect.provide(customCacheLayer),
+				Effect.provide(PgDrizzle.DefaultServices),
+			);
+
+			const users = pgTable('users_custom_cache', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			yield* push({ users });
+			yield* db.insert(users).values({ name: 'John' });
+			yield* db.select().from(users).$withCache();
+
+			const ops = yield* Ref.get(cacheOperations);
+			expect(ops.some((o) => o.op === 'mutate')).toBe(true);
+			expect(ops.some((o) => o.op === 'get')).toBe(true);
+		}));
+
+	it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
+		Effect.gen(function*() {
+			const db = yield* PgDrizzle.makeWithDefaults({ relations });
+
+			const users = pgTable('users_make_with_defaults', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			yield* push({ users });
+			yield* db.insert(users).values({ name: 'Alice' });
+			const result = yield* db.select().from(users);
+
+			expect(result).toEqual([{ id: 1, name: 'Alice' }]);
+		}));
+
+	it.effect('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', () =>
+		Effect.gen(function*() {
+			const db = yield* PgDrizzle.makeWithDefaults({ relations });
+
+			const users = pgTable('migration_users', {
+				id: serial('id').primaryKey(),
+				name: text().notNull(),
+				email: text().notNull(),
+				age: integer(),
+			});
+
+			const users2 = pgTable('migration_users2', {
+				id: serial('id').primaryKey(),
+				name: text().notNull(),
+				email: text().notNull(),
+				age: integer(),
+			});
+
+			yield* db.execute(sql`drop schema if exists "drizzle" cascade;`);
+			yield* db.execute(sql`drop table if exists ${users}`);
+			yield* db.execute(sql`drop table if exists ${users2}`);
+
+			// create migration directory
+			const migrationDir = './migrations/effect-sql';
+			if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+			mkdirSync(migrationDir, { recursive: true });
+
+			// first branch
+			mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240101010101_initial/migration.sql`,
+				`CREATE TABLE "migration_users" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+			);
+			mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240303030303_third/migration.sql`,
+				`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
+			);
+
+			yield* migrate(db, { migrationsFolder: migrationDir });
+			const res1 = yield* db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
+
+			// second migration was not applied yet
+			const insertResult = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).pipe(Effect.either);
+			assert(Either.isLeft(insertResult));
+			assert(Predicate.isTagged(insertResult.left, 'EffectDrizzleQueryError'));
+
+			// insert migration with earlier timestamp
+			mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+			writeFileSync(
+				`${migrationDir}/20240202020202_second/migration.sql`,
+				`CREATE TABLE "migration_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+			);
+			yield* migrate(db, { migrationsFolder: migrationDir });
+
+			const res2 = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
+
+			const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+			expect(res1).toStrictEqual(expected);
+			expect(res2).toStrictEqual(expected);
+
+			rmdirSync(migrationDir, { recursive: true });
 		}));
 });

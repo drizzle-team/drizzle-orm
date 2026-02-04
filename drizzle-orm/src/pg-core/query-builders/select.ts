@@ -239,6 +239,11 @@ export class PgSelectBase<
 
 		for (const item of extractUsedTable(src)) this.usedTables.add(item);
 
+		this.config.withList?.forEach((it) => {
+			const extracted = extractUsedTable(it);
+			for (const el of extracted) this.usedTables.add(el);
+		});
+
 		return this as any;
 	}
 

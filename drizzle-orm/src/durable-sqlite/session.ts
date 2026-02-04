@@ -13,7 +13,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
@@ -114,7 +114,10 @@ export class SQLiteDOTransaction<
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
 
 	override transaction<T>(
-		transaction: (tx: SQLiteDOTransaction<TFullSchema, TRelations, TSchema>) => T,
+		transaction: (
+			tx: SQLiteDOTransaction<TFullSchema, TRelations, TSchema>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
 	): T {
 		const tx = new SQLiteDOTransaction(
 			'sync',
@@ -126,7 +129,7 @@ export class SQLiteDOTransaction<
 			false,
 			true,
 		);
-		return this.session.transaction(() => transaction(tx));
+		return this.session.transaction(() => transaction(tx)) as T;
 	}
 }
 

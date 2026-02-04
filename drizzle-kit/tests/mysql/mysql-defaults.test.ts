@@ -670,6 +670,11 @@ test('datetime', async () => {
 		datetime({ mode: 'string', fsp: 6 }).default('2025-05-23 12:53:53.123456'),
 		`'2025-05-23 12:53:53.123456'`,
 	);
+	const res6 = await diffDefault(
+		_,
+		datetime().default(sql`CURRENT_TIMESTAMP`),
+		`(CURRENT_TIMESTAMP)`,
+	);
 
 	// database datetime without precision does not return .115 fraction
 	expect.soft(res1).toStrictEqual([
@@ -686,6 +691,7 @@ test('datetime', async () => {
 
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
 });
 
 test('time', async () => {

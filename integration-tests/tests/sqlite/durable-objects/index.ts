@@ -2132,7 +2132,7 @@ export class MyDurableObject extends DurableObject {
 			const user = this.db.insert(users).values({ balance: 100 }).returning().get();
 			const product = this.db.insert(products).values({ price: 10, stock: 10 }).returning().get();
 
-			this.db.transaction(async (tx) => {
+			this.db.transaction((tx) => {
 				tx.update(users)
 					.set({ balance: user.balance - product.price })
 					.where(eq(users.id, user.id))
@@ -3806,8 +3806,8 @@ export class MyDurableObject extends DurableObject {
 		const db = this.db;
 		await this.beforeEach();
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbUser.findFirst();
+		await db.transaction((db) => {
+			const result = db.query.rqbUser.findFirst().sync();
 
 			expect(result).deep.equal(undefined);
 		});
@@ -3829,12 +3829,12 @@ export class MyDurableObject extends DurableObject {
 			name: 'Second',
 		}]);
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbUser.findFirst({
+		await db.transaction((db) => {
+			const result = db.query.rqbUser.findFirst({
 				orderBy: {
 					id: 'desc',
 				},
-			});
+			}).sync();
 
 			expect(result).deep.equal({
 				id: 2,
@@ -3872,8 +3872,8 @@ export class MyDurableObject extends DurableObject {
 			content: 'Has message this time',
 		}]);
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbUser.findFirst({
+		await db.transaction((db) => {
+			const result = db.query.rqbUser.findFirst({
 				with: {
 					posts: {
 						orderBy: {
@@ -3884,7 +3884,7 @@ export class MyDurableObject extends DurableObject {
 				orderBy: {
 					id: 'asc',
 				},
-			});
+			}).sync();
 
 			expect(result).deep.equal({
 				id: 1,
@@ -3921,7 +3921,7 @@ export class MyDurableObject extends DurableObject {
 			name: 'Second',
 		}]);
 
-		await db.transaction(async (db) => {
+		await db.transaction((db) => {
 			const query = db.query.rqbUser.findFirst({
 				where: {
 					id: {
@@ -3933,7 +3933,7 @@ export class MyDurableObject extends DurableObject {
 				},
 			}).prepare();
 
-			const result = await query.execute({
+			const result = query.execute({
 				filter: 2,
 			});
 
@@ -3949,8 +3949,8 @@ export class MyDurableObject extends DurableObject {
 		const db = this.db;
 		await this.beforeEach();
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbUser.findMany();
+		await db.transaction((db) => {
+			const result = db.query.rqbUser.findMany().sync();
 
 			expect(result).deep.equal([]);
 		});
@@ -3972,12 +3972,12 @@ export class MyDurableObject extends DurableObject {
 			name: 'Second',
 		}]);
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbUser.findMany({
+		await db.transaction((db) => {
+			const result = db.query.rqbUser.findMany({
 				orderBy: {
 					id: 'desc',
 				},
-			});
+			}).sync();
 
 			expect(result).deep.equal([{
 				id: 2,
@@ -4019,15 +4019,15 @@ export class MyDurableObject extends DurableObject {
 			content: 'Has message this time',
 		}]);
 
-		await db.transaction(async (db) => {
-			const result = await db.query.rqbPost.findMany({
+		await db.transaction((db) => {
+			const result = db.query.rqbPost.findMany({
 				with: {
 					author: true,
 				},
 				orderBy: {
 					id: 'asc',
 				},
-			});
+			}).sync();
 
 			expect(result).deep.equal([{
 				id: 1,
@@ -4069,7 +4069,7 @@ export class MyDurableObject extends DurableObject {
 			name: 'Second',
 		}]);
 
-		await db.transaction(async (db) => {
+		await db.transaction((db) => {
 			const query = db.query.rqbUser.findMany({
 				where: {
 					id: {
@@ -4081,9 +4081,9 @@ export class MyDurableObject extends DurableObject {
 				},
 			}).prepare();
 
-			const result = await query.execute({
+			const result = query.execute({
 				filter: 2,
-			});
+			}).sync();
 
 			expect(result).deep.equal([{
 				id: 2,

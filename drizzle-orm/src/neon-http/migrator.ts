@@ -1,5 +1,6 @@
 import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import type { NeonHttpDatabase } from './driver.ts';
@@ -30,9 +31,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	await db.session.execute(migrationTableCreate);
 
 	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} `,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -57,23 +56,18 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0];
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	const rowsToInsert: SQL[] = [];
-	for await (const migration of migrations) {
-		if (
-			!lastDbMigration
-			|| Number(lastDbMigration.created_at) < migration.folderMillis
-		) {
-			for (const stmt of migration.sql) {
-				await db.session.execute(sql.raw(stmt));
-			}
-
-			rowsToInsert.push(
-				sql`insert into ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-			);
+	for await (const migration of migrationsToRun) {
+		for (const stmt of migration.sql) {
+			await db.session.execute(sql.raw(stmt));
 		}
+
+		rowsToInsert.push(
+			sql`insert into ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+		);
 	}
 
 	for await (const rowToInsert of rowsToInsert) {

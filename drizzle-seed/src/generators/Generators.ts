@@ -62,10 +62,10 @@ export abstract class AbstractGenerator<T = {}> {
 
 	init(params: { count: number | { weight: number; count: number | number[] }[]; seed: number }): void;
 	init() {
-		this.updateParams();
+		this.updateProperties();
 	}
 
-	updateParams() {
+	updateProperties() {
 		if ((this.params as any).arraySize !== undefined) {
 			this.arraySize = (this.params as any).arraySize;
 		}
@@ -78,6 +78,9 @@ export abstract class AbstractGenerator<T = {}> {
 			this.isUnique = (this.params as any).isUnique;
 		}
 	}
+
+	updateParams(config: { columnName: string; paramsToUpdate: Record<string, any> }): void;
+	updateParams() {}
 
 	abstract generate(
 		params: { i?: number; columnName?: string; input?: string },
@@ -94,7 +97,7 @@ export abstract class AbstractGenerator<T = {}> {
 	}
 
 	replaceIfUnique() {
-		this.updateParams();
+		this.updateProperties();
 		if (
 			(this.uniqueVersionOfGen !== undefined)
 			&& this.isUnique === true
@@ -113,7 +116,7 @@ export abstract class AbstractGenerator<T = {}> {
 	}
 
 	replaceIfArray() {
-		this.updateParams();
+		this.updateProperties();
 		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
 			const uniqueGen = this.replaceIfUnique();
 			const baseColumnGen = uniqueGen === undefined ? this : uniqueGen;
@@ -255,34 +258,31 @@ export class GenerateValuesFromArray extends AbstractGenerator<GenerateValuesFro
 		genMaxRepeatedValuesCount: GenerateDefault | GenerateWeightedCount | undefined;
 	} | undefined;
 	public override timeSpent: number = 0;
-	public override maxUniqueCount: number;
-	private allValuesCount: number = 0; // TODO rewrite generator
+	// TODO rewrite generator
 
 	constructor(params?: GenerateValuesFromArrayT) {
 		super(params);
+	}
 
-		this.allValuesCount = this.params.values.length;
-		if (isObject(this.params.values[0])) {
-			this.allValuesCount = (this.params.values as { values: any[] }[]).reduce(
-				(acc, currVal) => acc + currVal.values.length,
-				0,
-			);
-		}
-		this.maxUniqueCount = this.allValuesCount;
+	override updateParams({ paramsToUpdate }: { paramsToUpdate: Record<string, any> }) {
+		Object.assign(this.params, paramsToUpdate);
 	}
 
 	override getMaxUniqueCount(): number {
-		this.allValuesCount = this.params.values.length;
+		if (this.maxUniqueCount !== -1) return this.maxUniqueCount;
+
+		this.maxUniqueCount = this.params.values.length;
 		if (isObject(this.params.values[0])) {
-			this.allValuesCount = (this.params.values as { values: any[] }[]).reduce(
+			this.maxUniqueCount = (this.params.values as { values: any[] }[]).reduce(
 				(acc, currVal) => acc + currVal.values.length,
 				0,
 			);
 		}
-		return this.allValuesCount;
+		return this.maxUniqueCount;
 	}
 
 	checks({ count }: { count: number }) {
+		this.getMaxUniqueCount();
 		const { values } = this.params;
 		const { maxRepeatedValuesCount, notNull, isUnique } = this;
 		if (values.length === 0) {
@@ -318,7 +318,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<GenerateValuesFro
 					&& maxRepeatedValuesCount * values.length < count)
 				|| (isObject(values[0]) && typeof maxRepeatedValuesCount === 'number'
 					// eslint-disable-next-line unicorn/consistent-destructuring
-					&& maxRepeatedValuesCount * this.allValuesCount < count)
+					&& maxRepeatedValuesCount * this.maxUniqueCount < count)
 			)
 		) {
 			throw new Error("Can't fill notNull column with null values.");
@@ -342,7 +342,7 @@ export class GenerateValuesFromArray extends AbstractGenerator<GenerateValuesFro
 			isUnique === true && notNull === true && (
 				(!isObject(values[0]) && values.length < count)
 				// eslint-disable-next-line unicorn/consistent-destructuring
-				|| (isObject(values[0]) && this.allValuesCount < count)
+				|| (isObject(values[0]) && this.maxUniqueCount < count)
 			)
 		) {
 			// console.log(maxRepeatedValuesCount, values.length, allValuesCount, count)
@@ -482,7 +482,12 @@ export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ va
 		firstValues: (string | number | bigint)[];
 	} | undefined;
 
+	override updateParams({ paramsToUpdate }: { paramsToUpdate: Record<string, any> }) {
+		Object.assign(this.params, paramsToUpdate);
+	}
+
 	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
 		let rng = prand.xoroshiro128plus(seed);
 
 		// generate 15-40 % values with the same value as reference column
@@ -4406,6 +4411,11 @@ export class GenerateCompositeUniqueKey extends AbstractGenerator {
 
 	addGenerator(columnName: string, generator: AbstractGenerator<any>) {
 		this.columnGenerators.push({ columnName, generator });
+	}
+
+	override updateParams({ columnName, paramsToUpdate }: { columnName: string; paramsToUpdate: Record<string, any> }) {
+		const genIdx = this.columnGenerators.findIndex((val) => val.columnName === columnName);
+		if (genIdx !== -1) Object.assign(this.columnGenerators[genIdx]!.generator.params, paramsToUpdate);
 	}
 
 	override init({ count, seed }: { count: number; seed: number }) {

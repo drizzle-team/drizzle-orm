@@ -1,6 +1,16 @@
 import { Client } from '@planetscale/database';
 import { connect, type Connection } from '@tidbcloud/serverless';
-import { getTableName, is, Table } from 'drizzle-orm';
+import {
+	AnyRelationsBuilderConfig,
+	defineRelations,
+	ExtractTablesFromSchema,
+	ExtractTablesWithRelations,
+	getTableName,
+	is,
+	RelationsBuilder,
+	RelationsBuilderConfig,
+	Table,
+} from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
@@ -204,6 +214,13 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// 	rows: any;
 			// }>;
 			db: MySqlDatabase<any, any, never, typeof relations>;
+			createDB: {
+				<S extends MysqlSchema>(schema: S): MySqlDatabase<any, any, never, ReturnType<typeof defineRelations<S>>>;
+				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(
+					schema: S,
+					cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
+				): MySqlDatabase<any, any, never, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			};
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
 				schema: Schema,
@@ -339,6 +356,29 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					});
 
 				await use(db as any);
+			},
+			{ scope: 'worker' },
+		],
+		createDB: [
+			async ({ client }, use) => {
+				const createDB = <S extends MysqlSchema>(
+					schema: S,
+					cb?: (
+						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
+					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
+				) => {
+					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
+
+					if (vendor === 'mysql') return mysql2Drizzle({ client: client.client as any, relations });
+					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations });
+					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations });
+					if (vendor === 'mysql-proxy') {
+						return proxyDrizzle(createProxyHandler(client.client as any), { relations }) as any;
+					}
+					throw new Error();
+				};
+
+				await use(createDB);
 			},
 			{ scope: 'worker' },
 		],

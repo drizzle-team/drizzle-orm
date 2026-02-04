@@ -91,7 +91,7 @@ export const writeResult = (config: {
 			)
 		}] Your SQL migration ➜ ${
 			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}`),
+				path.join(`${outFolder}/${tag}/migration.sql`),
 			)
 		} 🚀`,
 	);

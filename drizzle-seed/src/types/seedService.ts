@@ -8,7 +8,7 @@ import type { BaseSQLiteDatabase, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { AbstractGenerator } from '../generators/Generators.ts';
 import type { Prettify } from './tables.ts';
 
-export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined;
+export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined | null;
 
 export type DbType =
 	| PgAsyncDatabase<any, any, any>
