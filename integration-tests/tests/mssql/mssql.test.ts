@@ -42,8 +42,9 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mssql-core';
-import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
+import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import { test } from './instrumentation';
@@ -985,6 +986,67 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(!!res.recordset[0]?.tableExists).toStrictEqual(true);
 });
 
+test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+	const users = mssqlTable('migration_users', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	const users2 = mssqlTable('migration_users2', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	await db.execute(sql`drop schema if exists "drizzle";`);
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop table if exists ${users2}`);
+
+	// create migration directory
+	const migrationDir = './migrations/mssql';
+	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	mkdirSync(migrationDir, { recursive: true });
+
+	// first branch
+	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240101010101_initial/migration.sql`,
+		`CREATE TABLE [migration_users] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n);`,
+	);
+	mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240303030303_third/migration.sql`,
+		`ALTER TABLE [migration_users] ADD [age] INT;`,
+	);
+
+	await migrate(db, { migrationsFolder: migrationDir });
+	await db.insert(users).values({ id: 1, name: 'John', email: '', age: 30 });
+	const res1 = await db.select().from(users);
+
+	// second migration was not applied yet
+	await expect(db.insert(users2).values({ id: 1, name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+	// insert migration with earlier timestamp
+	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240202020202_second/migration.sql`,
+		`CREATE TABLE [migration_users2] (\n[id] INT PRIMARY KEY,\n[name] text NOT NULL,\n[email] text NOT NULL\n,[age] INT\n);`,
+	);
+	await migrate(db, { migrationsFolder: migrationDir });
+
+	await db.insert(users2).values({ id: 1, name: 'John', email: '', age: 30 });
+	const res2 = await db.select().from(users2);
+
+	const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+	expect(res1).toStrictEqual(expected);
+	expect(res2).toStrictEqual(expected);
+
+	rmdirSync(migrationDir, { recursive: true });
+});
+
 test('insert via db.execute + select via db.execute', async ({ db }) => {
 	await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
@@ -1636,6 +1698,14 @@ test('transaction', async ({ db }) => {
 
 	await db.execute(sql`drop table ${users}`);
 	await db.execute(sql`drop table ${products}`);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5328
+test('transaction #2', async ({ url2 }) => {
+	const db = drizzle(url2);
+	await db.transaction(async (tx) => {
+		await tx.execute('select 1;');
+	});
 });
 
 test('transaction rollback', async ({ db }) => {

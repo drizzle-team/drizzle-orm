@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, gt, like, not, sql } from 'drizzle-orm';
-import { int, mysqlTable, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, int, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
@@ -671,6 +671,71 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			id: 2,
 			createdAt: new Date(120000),
 			name: 'Second',
+		}]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4891
+	test('RQB v2 find many - bigint precision loss', async ({ createDB, push }) => {
+		const products = mysqlTable(
+			'products_1',
+			{
+				id: bigint({ mode: 'bigint', unsigned: true }).notNull(),
+			},
+			(table) => [primaryKey({ columns: [table.id] })],
+		);
+
+		const prices = mysqlTable(
+			'prices_1',
+			{
+				id: bigint({ mode: 'bigint', unsigned: true }).notNull(),
+				productId: bigint('product_id', { mode: 'bigint', unsigned: true })
+					.notNull()
+					.references(() => products.id, { onDelete: 'cascade' }),
+			},
+			(table) => [primaryKey({ columns: [table.id] })],
+		);
+
+		const schema = { products, prices };
+		await push(schema);
+
+		const db = createDB(schema, (r) => ({
+			// prices: {
+			// 	product: r.one.products({
+			// 		from: r.prices.productId,
+			// 		to: r.products.id,
+			// 	}),
+			// },
+			products: {
+				price: r.many.prices({
+					from: r.products.id,
+					to: r.prices.productId,
+				}),
+			},
+		}));
+
+		await db.insert(products).values({ id: 219701375175495680n });
+		await db.insert(prices).values({ id: 219701380107997184n, productId: 219701375175495680n });
+
+		const result = await db.query.products.findMany({
+			columns: {
+				id: true,
+			},
+			with: {
+				price: {
+					columns: {
+						id: true,
+					},
+				},
+			},
+		});
+
+		expect(result).toStrictEqual([{
+			id: 219701375175495680n,
+			price: [
+				{
+					id: 219701380107997184n,
+				},
+			],
 		}]);
 	});
 

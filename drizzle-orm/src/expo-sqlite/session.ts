@@ -15,7 +15,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
@@ -106,7 +106,10 @@ export class ExpoSQLiteTransaction<
 	static override readonly [entityKind]: string = 'ExpoSQLiteTransaction';
 
 	override transaction<T>(
-		transaction: (tx: ExpoSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
+		transaction: (
+			tx: ExpoSQLiteTransaction<TFullSchema, TRelations, TSchema>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
 	): T {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new ExpoSQLiteTransaction(
@@ -121,7 +124,7 @@ export class ExpoSQLiteTransaction<
 		try {
 			const result = transaction(tx);
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
-			return result;
+			return result as T;
 		} catch (err) {
 			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;

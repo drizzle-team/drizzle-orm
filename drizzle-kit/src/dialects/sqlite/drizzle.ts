@@ -196,7 +196,19 @@ export const fromDrizzleSchema = (
 		});
 	}).flat();
 
-	const views = dViews.map((it) => {
+	const views = dViews.sort((a, b) => {
+		// see in "./dialects/postgres/drizzle.ts" for more
+		const aConfig = getViewConfig(a);
+		const bConfig = getViewConfig(b);
+
+		// If a's fields include b, a depends on b → b comes first
+		if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+		// If b's fields include a, b depends on a → a comes first
+		if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+		return 0;
+	}).map((it) => {
 		const { name: viewName, isExisting, query } = getViewConfig(it);
 
 		return {

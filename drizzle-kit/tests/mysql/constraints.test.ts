@@ -824,8 +824,8 @@ test('adding autoincrement to table with pk #1', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5301
 test('adding autoincrement to table with pk #2', async () => {
-	// TODO: revise: I can successfully run all the queries manually, but somehow it throws error in the test
 	const schema1 = {
 		table1: mysqlTable('table1', {
 			column1: int().notNull(),
@@ -838,7 +838,7 @@ test('adding autoincrement to table with pk #2', async () => {
 	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1: string[] = [
-		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 
 	expect(st1).toStrictEqual(expectedSt1);
@@ -1145,7 +1145,7 @@ test('drop column with pk and add pk to another column #2', async () => {
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` varchar(256),\n\t`column2` varchar(256),'
 		+ '\n\t`column3` varchar(256) NOT NULL,\n\t`column4` varchar(256) NOT NULL,'
-		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		+ '\n\tCONSTRAINT PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1186,7 +1186,7 @@ test('drop column with pk and add pk to another column #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `authors` (\n\t`publication_id` varchar(64),\n\t`author_id` varchar(10),'
-		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
+		+ '\n\tCONSTRAINT PRIMARY KEY(`publication_id`,`author_id`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

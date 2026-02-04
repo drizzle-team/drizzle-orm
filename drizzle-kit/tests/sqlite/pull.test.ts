@@ -8,7 +8,9 @@ import {
 	index,
 	int,
 	integer,
+	numeric,
 	primaryKey,
+	real,
 	sqliteTable,
 	sqliteView,
 	text,
@@ -221,6 +223,7 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4582
 test('introspect checks', async () => {
 	const sqlite = new Database(':memory:');
 
@@ -328,6 +331,47 @@ ORDER BY dt_timestamp DESC`);
 	const schema = { userLogs, latestUserLogs };
 
 	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-2');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4582
+test('view #3 aggregate function', async () => {
+	const sqlite = new Database(':memory:');
+
+	const orderDetails = sqliteTable(
+		'Order Details',
+		{
+			orderId: integer('OrderID').notNull(),
+			productId: integer('ProductID').notNull(),
+			unitPrice: numeric('UnitPrice', { mode: 'number' }).default(0).notNull(),
+			quantity: integer('Quantity').default(1).notNull(),
+			discount: real('Discount').default(0).notNull(),
+		},
+		(
+			table,
+		) => [
+			primaryKey({ columns: [table.orderId, table.productId], name: 'Order Details_pk' }),
+			check('Order Details_check_1', sql`[Discount]>=(0) AND [Discount]<=(1)`),
+			check('Order Details_check_2', sql`[Quantity]>(0)`),
+			check('Order Details_check_3', sql`[UnitPrice]>=(0)`),
+		],
+	);
+
+	const orderSubtotals = sqliteView('Order Subtotals', {
+		orderId: integer(),
+		subtotal: real(), // It seems that the aggregated column type of a view is not stored in the database.
+		// Instead, you can only determine its runtime storage class by running the following query once the view has rows.
+		// SELECT typeof(Subtotal) FROM [Order Subtotals];
+	}).as(sql`SELECT [Order Details].OrderID,
+		Sum(([Order Details].UnitPrice*Quantity*(1-Discount)/100)*100) AS Subtotal
+		FROM [Order Details]
+		GROUP BY [Order Details].OrderID`);
+
+	const schema = { orderDetails, orderSubtotals };
+
+	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-3');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
