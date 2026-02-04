@@ -1065,7 +1065,7 @@ test.concurrent('push materialized view with same name', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4520
-test.skipIf(Date.now() < +new Date('2026-02-01')).concurrent(
+test.concurrent(
 	'create 2 dependent materialized views',
 	async ({ db }) => {
 		const table1 = cockroachTable('table1', {
@@ -1112,7 +1112,7 @@ test.skipIf(Date.now() < +new Date('2026-02-01')).concurrent(
 	},
 );
 
-test.skipIf(Date.now() < +new Date('2026-02-01')).concurrent('create 2 dependent views', async ({ db }) => {
+test.concurrent('create 2 dependent views', async ({ db }) => {
 	const table1 = cockroachTable('table1', {
 		col1: int4(),
 		col2: int4(),

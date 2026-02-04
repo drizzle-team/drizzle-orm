@@ -968,7 +968,7 @@ test('view with "with"', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4520
-test.skipIf(Date.now() < +new Date('2026-02-01'))('create 2 dependent views', async () => {
+test('create 2 dependent views', async () => {
 	const table1 = mssqlTable('table1', {
 		col1: int(),
 		col2: int(),

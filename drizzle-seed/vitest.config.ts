@@ -1,3 +1,4 @@
+import tsconfigPaths from 'vite-tsconfig-paths';
 // oxlint-disable-next-line extensions
 import { defineConfig } from 'vitest/config';
 
@@ -23,4 +24,5 @@ export default defineConfig({
 		maxWorkers: 1,
 		fileParallelism: false,
 	},
+	plugins: [tsconfigPaths()],
 });

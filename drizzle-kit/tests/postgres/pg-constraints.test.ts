@@ -20,7 +20,7 @@ import {
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabase } from 'src/ext/studio-postgres';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, drizzleToDDL, preparePg18TestDatabase, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -2621,34 +2621,24 @@ test('composite pk multistep #3', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5156
 test('not null', async () => {
-	const { db, clear, close } = await preparePg18TestDatabase();
-	try {
-		const table1 = pgTable('table1', {
-			col1: integer().primaryKey(),
-			col2: integer().notNull(),
-			col3: integer(),
-		}, (table) => [
-			// this works too
-			// check('table1_col3_not_null', sql`col3 IS NOT NULL`),
-			check('table1_col3_not_null', sql`${table.col3} IS NOT NULL`),
-		]);
+	const table1 = pgTable('table1', {
+		col1: integer().primaryKey(),
+		col2: integer().notNull(),
+		col3: integer(),
+	}, (table) => [
+		// this works too
+		// check('table1_col3_not_null', sql`col3 IS NOT NULL`),
+		check('table1_col3_not_null', sql`${table.col3} IS NOT NULL`),
+	]);
 
-		const schema = { table1 };
-		const { next: n1 } = await diff({}, schema, []);
-		const { sqlStatements: st1 } = await push({ db, to: schema });
-		console.log(st1);
+	const schema = { table1 };
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
 
-		const { sqlStatements: st2 } = await diff(n1, schema, []);
-		const { sqlStatements: pst2 } = await push({ db, to: schema });
-		expect(st2).toStrictEqual([]);
-		expect(pst2).toStrictEqual([]);
-	} catch (error) {
-		await clear();
-		await close();
-		throw error;
-	}
-	await clear();
-	await close();
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4704

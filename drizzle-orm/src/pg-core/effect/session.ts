@@ -1,12 +1,16 @@
 import type { SqlError } from '@effect/sql/SqlError';
-import { Effect } from 'effect';
+import * as Cause from 'effect/Cause';
+import * as Effect from 'effect/Effect';
 import type * as V1 from '~/_relations.ts';
-import type { EffectCache } from '~/cache/core/cache-effect.ts';
+import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { TaggedDrizzleQueryError, TaggedTransactionRollbackError } from '~/effect-core/errors.ts';
+import { MigratorInitError } from '~/effect-core/errors.ts';
+import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
+import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
@@ -21,12 +25,15 @@ import {
 } from '../session.ts';
 import { PgEffectDatabase } from './db.ts';
 
-export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
+export abstract class PgEffectPreparedQuery<
+	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgEffectPreparedQuery';
 
 	constructor(
 		query: Query,
-		private cache: EffectCache | undefined,
+		private cache: EffectCache,
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -43,14 +50,16 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 		}
 	}
 
-	protected override queryWithCache<T>(
+	protected override queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
-		query: Effect.Effect<T, SqlError>,
-	): Effect.Effect<T, TaggedDrizzleQueryError> {
-		const { cache, cacheConfig, queryMetadata } = this;
-		return Effect.gen(function*() {
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.wrapped, NoopCache)
+		query: Effect.Effect<A, E, R>,
+	) {
+		return Effect.gen(this, function*() {
+			const { cacheConfig, queryMetadata } = this;
+			const cache = yield* EffectCache;
+
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)
@@ -77,7 +86,7 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 					autoInvalidate,
 				);
 
-				if (typeof fromCache !== 'undefined') return fromCache as unknown as T;
+				if (typeof fromCache !== 'undefined') return fromCache as unknown as A;
 
 				const result = yield* query;
 
@@ -93,21 +102,26 @@ export abstract class PgEffectPreparedQuery<T extends PreparedQueryConfig> exten
 			}
 
 			assertUnreachable(cacheStrat);
-		}).pipe(Effect.catchAll((e) => {
-			// eslint-disable-next-line @drizzle-internal/no-instanceof
-			return Effect.fail(new TaggedDrizzleQueryError(queryString, params, e instanceof Error ? e : undefined));
-		}));
+		}).pipe(
+			Effect.provideService(EffectCache, this.cache),
+			Effect.catchAll((e) => {
+				return new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) });
+			}),
+		);
 	}
 
 	abstract override execute(
 		placeholderValues?: Record<string, unknown>,
-	): Effect.Effect<T['execute'], TaggedDrizzleQueryError>;
+	): QueryEffectKind<TEffectHKT, T['execute']>;
 
 	/** @internal */
-	abstract override all(placeholderValues?: Record<string, unknown>): Effect.Effect<T['all'], TaggedDrizzleQueryError>;
+	abstract override all(
+		placeholderValues?: Record<string, unknown>,
+	): QueryEffectKind<TEffectHKT, T['all']>;
 }
 
 export abstract class PgEffectSession<
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -130,7 +144,7 @@ export abstract class PgEffectSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgEffectPreparedQuery<T>;
+	): PgEffectPreparedQuery<T, TEffectHKT>;
 
 	abstract override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -140,38 +154,39 @@ export abstract class PgEffectSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
-	): PgEffectPreparedQuery<T>;
+	): PgEffectPreparedQuery<T, TEffectHKT>;
 
-	override execute<T>(query: SQL): Effect.Effect<T, TaggedDrizzleQueryError> {
+	override execute<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined, false)
 			.execute();
 	}
 
-	override all<T>(query: SQL): Effect.Effect<T[], TaggedDrizzleQueryError> {
+	override all<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined, false)
 			.all();
 	}
 
-	abstract transaction<T>(
+	abstract transaction<A, E, R>(
 		transaction: (
-			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
-	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>;
+			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
+		) => Effect.Effect<A, E, R>,
+	): Effect.Effect<A, E | SqlError, R>;
 }
 
 export abstract class PgEffectTransaction<
+	TEffectHKT extends QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgEffectDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectDatabase<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgEffectTransaction';
 
 	constructor(
 		dialect: PgDialect,
-		session: PgEffectSession<any, any, any, any>,
+		session: PgEffectSession<TEffectHKT, any, any, any, any>,
 		protected relations: TRelations,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
@@ -184,8 +199,8 @@ export abstract class PgEffectTransaction<
 		super(dialect, session, relations, schema, parseRqbJson);
 	}
 
-	rollback(): Effect.Effect<never, TaggedTransactionRollbackError> {
-		return Effect.fail(new TaggedTransactionRollbackError());
+	rollback() {
+		return new EffectTransactionRollbackError();
 	}
 
 	/** @internal */
@@ -203,86 +218,70 @@ export abstract class PgEffectTransaction<
 		return sql.raw(chunks.join(' '));
 	}
 
-	setTransaction(config: PgTransactionConfig): Effect.Effect<void, TaggedDrizzleQueryError> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	setTransaction(config: PgTransactionConfig) {
+		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
-
-	abstract override transaction<T>(
-		transaction: (
-			tx: PgEffectTransaction<TQueryResult, TFullSchema, TRelations, TSchema>,
-		) => Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>,
-	): Effect.Effect<T, TaggedDrizzleQueryError | TaggedTransactionRollbackError>;
 }
 
-export function migrate(
+export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEffectHKTBase>(
 	migrations: MigrationMeta[],
-	session: PgEffectSession,
+	session: PgEffectSession<TEffectHKT>,
 	config: string | MigrationConfig,
-): Effect.Effect<void | MigratorInitFailResponse, TaggedDrizzleQueryError, never> {
-	return Effect.gen(function*() {
-		const migrationsTable = typeof config === 'string'
-			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-		const migrationTableCreate = sql`
+) {
+	const migrationsTable = typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
 			)
 		`;
-		yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-		yield* session.execute(migrationTableCreate);
+	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	yield* session.execute(migrationTableCreate);
 
-		const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} order by created_at desc limit 1`,
-		);
+	const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string }>(
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+	);
 
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			yield* session.execute(
-				sql`insert into ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-			);
-
-			return;
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
 		}
 
-		const lastDbMigration = dbMigrations[0];
-		yield* session.transaction((tx) =>
-			Effect.gen(function*() {
-				for (const migration of migrations) {
-					if (
-						!lastDbMigration
-						|| Number(lastDbMigration.created_at) < migration.folderMillis
-					) {
-						for (const stmt of migration.sql) {
-							yield* tx.execute(sql.raw(stmt));
-						}
-						yield* tx.execute(
-							sql`insert into ${sql.identifier(migrationsSchema)}.${
-								sql.identifier(migrationsTable)
-							} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-						);
-					}
-				}
-			})
+		if (migrations.length > 1) {
+			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		yield* session.execute(
+			sql`insert into ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 		);
 
 		return;
-	}) as Effect.Effect<void | MigratorInitFailResponse, TaggedDrizzleQueryError, never>;
-}
+	}
+
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+
+	yield* session.transaction((tx) =>
+		Effect.gen(function*() {
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					yield* tx.execute(sql.raw(stmt));
+				}
+				yield* tx.execute(
+					sql`insert into ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				);
+			}
+		})
+	);
+});

@@ -604,6 +604,7 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res15).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231
 // https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
 test('text + text arrays', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `'text'`);
@@ -702,6 +703,7 @@ test('json + json arrays', async () => {
 	expect.soft(res10).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4231
 // https://github.com/drizzle-team/drizzle-orm/issues/5119
 test('jsonb + jsonb arrays', async () => {
 	const res1 = await diffDefault(_, jsonb().default({}), `'{}'`);

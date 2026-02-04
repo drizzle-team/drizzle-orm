@@ -1,12 +1,13 @@
 import { Name, sql } from 'drizzle-orm';
-import { getTableConfig, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { postgresjsTest as test } from './instrumentation';
-import { usersMigratorTable, usersTable } from './schema';
+import { usersMigratorTable } from './schema';
 
 tests(test, []);
 
@@ -100,6 +101,65 @@ describe('postgresjs', () => {
 		await db.execute(sql`drop table all_columns`);
 		await db.execute(sql`drop table users12`);
 		await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+	});
+
+	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+		const users = pgTable('migration_users', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: integer(),
+		});
+
+		const users2 = pgTable('migration_users2', {
+			id: serial('id').primaryKey(),
+			name: text().notNull(),
+			email: text().notNull(),
+			age: integer(),
+		});
+
+		await db.execute(sql`drop schema if exists "drizzle" cascade;`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`drop table if exists ${users2}`);
+
+		// create migration directory
+		const migrationDir = './migrations/postgres-js';
+		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		mkdirSync(migrationDir, { recursive: true });
+
+		// first branch
+		mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240101010101_initial/migration.sql`,
+			`CREATE TABLE "migration_users" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+		);
+		mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240303030303_third/migration.sql`,
+			`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
+		);
+
+		await migrate(db, { migrationsFolder: migrationDir });
+		const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
+
+		// second migration was not applied yet
+		await expect(db.insert(users2).values({ name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+		// insert migration with earlier timestamp
+		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+		writeFileSync(
+			`${migrationDir}/20240202020202_second/migration.sql`,
+			`CREATE TABLE "migration_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+		);
+		await migrate(db, { migrationsFolder: migrationDir });
+
+		const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
+
+		const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+		expect(res1).toStrictEqual(expected);
+		expect(res2).toStrictEqual(expected);
+
+		rmdirSync(migrationDir, { recursive: true });
 	});
 
 	test('all date and time columns without timezone first case mode string', async ({ db }) => {
@@ -377,27 +437,58 @@ describe('postgresjs', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users2', {
+			id: serial('id' as string).primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			jsonb: jsonb('jsonb').$type<string[]>(),
+			createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		});
+		await push({ usersTable });
+
 		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
-		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+		const result = await db.execute<{ id: number; name: string }>(
+			sql`select id, name from "users2";`,
+		);
 		expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+		await db.execute(sql`drop table ${usersTable};`);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users3', {
+			id: serial('id' as string).primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			jsonb: jsonb('jsonb').$type<string[]>(),
+			createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		});
+		await push({ usersTable });
+
 		const result = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${new Name(
 				usersTable.name.name,
 			)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 		);
 		expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+		await db.execute(sql`drop table ${usersTable};`);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users4', {
+			id: serial('id' as string).primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			jsonb: jsonb('jsonb').$type<string[]>(),
+			createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		});
+		await push({ usersTable });
 		const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);
 		expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
+		await db.execute(sql`drop table ${usersTable};`);
 	});
 
 	test('migrator : --init', async ({ db }) => {

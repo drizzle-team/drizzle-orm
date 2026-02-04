@@ -288,7 +288,7 @@ test('create view', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4520
-test.skipIf(Date.now() < +new Date('2026-02-01'))('create 2 dependent views', async () => {
+test('create 2 dependent views', async () => {
 	const table1 = sqliteTable('table1', {
 		col1: integer(),
 		col2: integer(),

@@ -298,7 +298,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4677
-		test.skipIf(Date.now() < +new Date('2026-02-01'))('select+join+with', async ({ caches, push }) => {
+		test('select+join+with', async ({ caches, push }) => {
 			const { all: db } = caches;
 
 			const shortLink = pgTable('short-link', {
@@ -320,7 +320,7 @@ export function tests(test: Test) {
 			);
 			// @ts-expect-error
 			const usedTables = query.getUsedTables();
-			expect(usedTables).toStrictEqual(['users', 'short-link']);
+			expect(usedTables).toStrictEqual(['short-link', 'users']);
 
 			await query;
 			await db.insert(usersTable).values({ id: 1, name: 'Alex' });

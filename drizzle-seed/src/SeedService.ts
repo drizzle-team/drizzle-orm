@@ -276,7 +276,7 @@ export class SeedService {
 						)
 					)
 						&& col.notNull === false;
-
+					// TODO: revise this part
 					if (predicate === true) {
 						if (
 							(foreignKeyColumns[col.name]?.table === undefined
@@ -289,10 +289,13 @@ export class SeedService {
 									+ `\n\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-2`,
 							);
 						}
-						columnPossibleGenerator.generator = new generatorsMap.GenerateDefault[0]({ defaultValue: null });
+						columnPossibleGenerator.generator = new generatorsMap.GenerateValuesFromArray[0]({ values: [null] });
 						columnPossibleGenerator.wasDefinedBefore = true;
 					} else {
-						columnPossibleGenerator.generator = new generatorsMap.HollowGenerator[0]();
+						// self relation
+						if (foreignKeyColumns[col.name]!.table === table.name) {
+							columnPossibleGenerator.generator = new generatorsMap.GenerateSelfRelationsValuesFromArray[0]();
+						} else columnPossibleGenerator.generator = new generatorsMap.GenerateValuesFromArray[0]();
 					}
 				} // TODO: rewrite pickGeneratorFor... using new col properties: isUnique and notNull
 				else if (connectionType === 'postgresql') {
@@ -356,6 +359,7 @@ export class SeedService {
 
 				// to handle composite unique key generation, I will need a unique generator for each column in the composite key
 				if (compositeKeyColumnNames.length === 1) {
+					// params.isUnique = false can only be set by the user; by default, it is undefined
 					if (columnPossibleGenerator.generator.params.isUnique === false) {
 						throw new Error(
 							`To handle the composite unique key on columns: ${compositeKeyColumnNames[0]}, `
@@ -765,13 +769,8 @@ export class SeedService {
 							}))!.map((rows) => rows[refColName]);
 
 							hasSelfRelation = true;
-							genObj = new generatorsMap.GenerateSelfRelationsValuesFromArray[0]({
-								values: refColumnValues as (string | number | bigint)[],
-							});
-							genObj = this.selectVersionOfGenerator(genObj);
-							// genObj = new GenerateSelfRelationsValuesFromArray({
-							// 	values: refColumnValues,
-							// });
+							genObj = tableGenerators[rel.columns[colIdx]!]!.generator!;
+							genObj.updateParams({ columnName: rel.columns[colIdx]!, paramsToUpdate: { values: refColumnValues } });
 						} else if (
 							tableGenerators[rel.columns[colIdx]!]?.wasDefinedBefore === false
 							&& tableGenerators[rel.columns[colIdx]!]?.wasRefined === false
@@ -790,9 +789,9 @@ export class SeedService {
 							}
 
 							// TODO: revise maybe need to select version of generator here too
-							genObj = new generatorsMap.GenerateValuesFromArray[0]({
-								values: refColumnValues as (string | number | bigint)[],
-							});
+							genObj = tableGenerators[rel.columns[colIdx]!]!.generator!;
+							genObj.updateParams({ columnName: rel.columns[colIdx]!, paramsToUpdate: { values: refColumnValues } });
+
 							genObj.notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
 							genObj.weightedCountSeed = weightedCountSeed;
 							genObj.maxRepeatedValuesCount = repeatedValuesCount;

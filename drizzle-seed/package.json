@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "1.0.0-beta.12",
+	"version": "1.0.0-beta.14",
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
@@ -101,6 +101,7 @@
 		"tslib": "^2.7.0",
 		"tsx": "^4.19.0",
 		"uuid": "^10.0.0",
+		"vite-tsconfig-paths": "^4.3.2",
 		"zod": "^4.0.0",
 		"zx": "^8.1.5"
 	},

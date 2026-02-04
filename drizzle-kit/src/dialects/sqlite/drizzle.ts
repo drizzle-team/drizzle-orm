@@ -10,7 +10,7 @@ import {
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { safeRegister } from 'src/utils/utils-node';
+import { loadModule } from 'src/utils/utils-node';
 import type { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import type {
@@ -196,7 +196,19 @@ export const fromDrizzleSchema = (
 		});
 	}).flat();
 
-	const views = dViews.map((it) => {
+	const views = dViews.sort((a, b) => {
+		// see in "./dialects/postgres/drizzle.ts" for more
+		const aConfig = getViewConfig(a);
+		const bConfig = getViewConfig(b);
+
+		// If a's fields include b, a depends on b → b comes first
+		if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+		// If b's fields include a, b depends on a → a comes first
+		if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+		return 0;
+	}).map((it) => {
 		const { name: viewName, isExisting, query } = getViewConfig(it);
 
 		return {
@@ -239,18 +251,16 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const views: SQLiteView[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = fromExports(i0);
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = fromExports(i0);
 
-			tables.push(...prepared.tables);
-			views.push(...prepared.views);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		views.push(...prepared.views);
+		relations.push(...prepared.relations);
+	}
 
 	return { tables: Array.from(new Set(tables)), views, relations };
 };

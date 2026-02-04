@@ -720,7 +720,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-02-01'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-10'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -737,6 +737,51 @@ test.skipIf(Date.now() < +new Date('2026-02-01'))('introspect view #4', async ()
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 	// TODO: we need to check actual types generated;
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4262
+// postopone
+// Need to write discussion/guide on this and add ts comment in typescript file
+test.skipIf(Date.now() < +new Date('2026-02-10'))('introspect view #5', async () => {
+	const applications = pgTable('applications', {
+		applicationId: serial('application_id').primaryKey(),
+		studentId: integer('student_id').references(() => students.studentId),
+		isAdminAccepted: boolean('is_admin_accepted'),
+	});
+
+	const departments = pgTable('departments', {
+		departmentId: serial('department_id').primaryKey(),
+		title: text(),
+	});
+
+	const registrations = pgTable('registrations', {
+		registrationId: serial('registration_id').primaryKey(),
+		applicationId: integer('application_id').references(() => applications.applicationId),
+		departmentId: integer('department_id').references(() => departments.departmentId),
+		academicDegree: text('academic_degree'),
+	});
+
+	const students = pgTable('students', {
+		studentId: serial('student_id').primaryKey(),
+		fullNameAr: text('full_name_ar').notNull(),
+	});
+
+	const adminApplicationsList = pgView('admin_applications_list', {
+		applicationId: integer('application_id'),
+		studentName: text('student_name').notNull(),
+		academicDegree: text('academic_degree'),
+		department: text(),
+		isAdminAccepted: boolean('is_admin_accepted'),
+	}).as(
+		sql`SELECT a.application_id, s.full_name_ar AS student_name, r.academic_degree, d.title AS department, a.is_admin_accepted FROM applications a JOIN students s USING (student_id) JOIN registrations r USING (application_id) JOIN departments d ON d.department_id = r.department_id`,
+	);
+
+	const schema = { students, departments, applications, registrations, adminApplicationsList };
+
+	const { sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-5');
+	expect(sqlStatements).toStrictEqual([]);
+	throw new Error();
+	// text('student_name') column in view should contain notNull constraint
 });
 
 test('introspect view in other schema', async () => {
@@ -1378,7 +1423,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-02-01'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-02-10'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -1537,6 +1582,7 @@ test('jsonb default with boolean literals', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5294
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
 test('single quote default', async () => {
 	const group = pgTable('group', {

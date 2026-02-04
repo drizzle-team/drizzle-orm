@@ -37,7 +37,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import type { CasingType } from 'src/cli/validations/common';
-import { safeRegister } from 'src/utils/utils-node';
+import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
@@ -641,7 +641,23 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
+		const aConfig = is(a, PgView) ? getViewConfig(a) : getMaterializedViewConfig(a);
+		const bConfig = is(b, PgView) ? getViewConfig(b) : getMaterializedViewConfig(b);
+
+		// If a's fields include b, a depends on b -> b comes first
+		if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+		// If b's fields include a, b depends on a -> a comes first
+		if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+		return 0;
+	}).map((it) => {
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),
@@ -841,24 +857,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = fromExports(i0);
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = fromExports(i0);
 
-			tables.push(...prepared.tables);
-			enums.push(...prepared.enums);
-			schemas.push(...prepared.schemas);
-			sequences.push(...prepared.sequences);
-			views.push(...prepared.views);
-			matViews.push(...prepared.matViews);
-			roles.push(...prepared.roles);
-			policies.push(...prepared.policies);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		enums.push(...prepared.enums);
+		schemas.push(...prepared.schemas);
+		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
+		matViews.push(...prepared.matViews);
+		roles.push(...prepared.roles);
+		policies.push(...prepared.policies);
+		relations.push(...prepared.relations);
+	}
 
 	return {
 		tables,
