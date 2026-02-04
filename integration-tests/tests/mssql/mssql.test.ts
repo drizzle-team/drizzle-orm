@@ -42,7 +42,7 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mssql-core';
-import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
+import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
@@ -1698,6 +1698,14 @@ test('transaction', async ({ db }) => {
 
 	await db.execute(sql`drop table ${users}`);
 	await db.execute(sql`drop table ${products}`);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5328
+test('transaction #2', async ({ url2 }) => {
+	const db = drizzle(url2);
+	await db.transaction(async (tx) => {
+		await tx.execute('select 1;');
+	});
 });
 
 test('transaction rollback', async ({ db }) => {
