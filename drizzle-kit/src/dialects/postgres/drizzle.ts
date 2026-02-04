@@ -641,7 +641,23 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
+		const aConfig = is(a, PgView) ? getViewConfig(a) : getMaterializedViewConfig(a);
+		const bConfig = is(b, PgView) ? getViewConfig(b) : getMaterializedViewConfig(b);
+
+		// If a's fields include b, a depends on b -> b comes first
+		if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+		// If b's fields include a, b depends on a -> a comes first
+		if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+		return 0;
+	}).map((it) => {
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),

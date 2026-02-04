@@ -1,4 +1,5 @@
 import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { XataHttpDatabase } from './driver.ts';
@@ -40,7 +41,7 @@ export interface MigrationConfig {
 		hash: string;
 		created_at: string;
 	}>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -65,18 +66,16 @@ export interface MigrationConfig {
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0];
-	for await (const migration of migrations) {
-		if (!lastDbMigration || Number(lastDbMigration.created_at) < migration.folderMillis) {
-			for (const stmt of migration.sql) {
-				await db.session.execute(sql.raw(stmt));
-			}
-
-			await db.session.execute(
-				sql`insert into ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-			);
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+	for await (const migration of migrationsToRun) {
+		for (const stmt of migration.sql) {
+			await db.session.execute(sql.raw(stmt));
 		}
+
+		await db.session.execute(
+			sql`insert into ${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+		);
 	}
 }

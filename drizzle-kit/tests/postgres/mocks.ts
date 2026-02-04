@@ -591,6 +591,11 @@ export type TestDatabase<TClient = any> = {
 const client = new PGlite({ extensions: { citext, vector, pg_trgm } });
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
+	const envPgVersion = process.env.PG_VERSION;
+	if (envPgVersion && ['18', '17', '16'].includes(envPgVersion)) {
+		return await preparePgVersionTestDatabase(tx, envPgVersion);
+	}
+
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await client.query(`CREATE EXTENSION vector;`);
 	await client.query(`CREATE EXTENSION pg_trgm;`);
@@ -645,10 +650,24 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	return { db, close: async () => {}, clear, client };
 };
 
-export const preparePg18TestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
-	const envURL = process.env.PG18_URL;
+export const preparePgVersionTestDatabase = async (
+	tx: boolean = true,
+	version: string = '18',
+): Promise<TestDatabase<any>> => {
+	let envURL: string | undefined;
+	if (version === '16') {
+		envURL = process.env.PG16_URL;
+		if (!envURL) throw new Error('PG16_URL is not set');
+	} else if (version === '17') {
+		envURL = process.env.PG17_URL;
+		if (!envURL) throw new Error('PG17_URL is not set');
+	} else if (version === '18') {
+		envURL = process.env.PG18_URL;
+		if (!envURL) throw new Error('PG18_URL is not set');
+	}
+
 	if (!envURL) {
-		throw new Error('PG18_URL is not set');
+		throw new Error('One of PG18_URL, PG17_URL or PG16_URL is not set');
 	}
 
 	const parsed = new URL(envURL);
@@ -659,13 +678,14 @@ export const preparePg18TestDatabase = async (tx: boolean = true): Promise<TestD
 	await admin.connect();
 	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
 	await admin!.query(`CREATE DATABASE drizzle;`);
-	admin.end();
+	await admin.end();
 
+	// envURL should have drizzle set as database
 	const pgClient = new Client({ connectionString: envURL });
 	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
-	// await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
 	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
 	if (tx) {
 		await pgClient!.query('BEGIN').catch();
@@ -698,8 +718,8 @@ export const preparePg18TestDatabase = async (tx: boolean = true): Promise<TestD
 			await pgClient.query(`DROP ROLE "${role.rolname}"`);
 		}
 
-		// await pgClient.query(`CREATE EXTENSION vector;`);
-		await pgClient.query(`CREATE EXTENSION pg_trgm;`);
+		await pgClient.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+		await pgClient.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
 	};
 
 	const close = async () => {
@@ -736,8 +756,9 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 	await admin.connect();
 	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
 	await admin!.query(`CREATE DATABASE drizzle;`);
-	admin.end();
+	await admin.end();
 
+	// envURL should have drizzle set as database
 	const pgClient = new Client({ connectionString: envURL });
 	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);

@@ -111,7 +111,7 @@ type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer
 export type ResolvePgColumnConfig<
 	out T extends PgColumnBuilderConfig,
 	out TTableName extends string,
-	out TData extends unknown = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
+	out TData = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
 		: GetBaseData<T>,
 > = {
 	name: string;

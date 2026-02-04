@@ -475,7 +475,7 @@ export const DateTime: SqlType = {
 		if (!def) return { options, default: '' };
 		const trimmed = trimChar(def, "'");
 
-		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+		if (trimmed.includes('now') || trimmed.includes('CURRENT_TIMESTAMP')) {
 			return { options, default: `sql\`${trimmed}\`` };
 		}
 

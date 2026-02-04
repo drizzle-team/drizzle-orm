@@ -1,5 +1,6 @@
 import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
@@ -27,9 +28,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		id: sql.raw('id'),
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
-	}).from(sql.identifier(migrationsTable).getSQL()).orderBy(
-		sql.raw('created_at desc'),
-	).limit(1);
+	}).from(sql.identifier(migrationsTable).getSQL()) as { id: number; hash: string; created_at: string }[];
 
 	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {
@@ -55,22 +54,17 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0];
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	const queriesToRun: string[] = [];
-	for (const migration of migrations) {
-		if (
-			!lastDbMigration
-			|| Number(lastDbMigration.created_at) < migration.folderMillis
-		) {
-			queriesToRun.push(
-				...migration.sql,
-				db.dialect.sqlToQuery(
-					sql`insert into ${
-						sql.identifier(migrationsTable)
-					} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
-				).sql,
-			);
-		}
+	for (const migration of migrationsToRun) {
+		queriesToRun.push(
+			...migration.sql,
+			db.dialect.sqlToQuery(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		);
 	}
 
 	await callback(queriesToRun);

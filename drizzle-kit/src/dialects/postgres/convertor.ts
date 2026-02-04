@@ -535,7 +535,13 @@ const createIndexConvertor = convertor('create_index', (st) => {
 });
 
 const dropIndexConvertor = convertor('drop_index', (st) => {
-	return `DROP INDEX "${st.index.name}";`;
+	const { schema } = st.index;
+
+	const key = schema !== 'public'
+		? `"${schema}".`
+		: '';
+
+	return `DROP INDEX ${key}"${st.index.name}";`;
 });
 
 const renameIndexConvertor = convertor('rename_index', (st) => {

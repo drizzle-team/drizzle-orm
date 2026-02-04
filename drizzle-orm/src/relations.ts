@@ -1125,12 +1125,12 @@ export type RelationsBuilderConfig<TTables extends Schema> = {
 
 export type AnyRelationsBuilderConfig = Record<string, RelationsBuilderConfigValue>;
 
-export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Assume<
-	{
-		[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K extends string ? K : never : never]: TSchema[K];
-	},
-	Schema
->;
+export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
+	[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K extends string ? K : never : never]: Assume<
+		TSchema[K],
+		SchemaEntry
+	>;
+};
 
 export function createRelationsHelper<
 	TTables extends Schema,

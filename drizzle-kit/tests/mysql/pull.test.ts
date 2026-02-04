@@ -465,7 +465,6 @@ test('introspect table with boolean(tinyint(1))', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3046
-// TODO: revise: seems like drizzle-kit can't do this right now
 test('introspect index on json', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
@@ -478,6 +477,31 @@ test('introspect index on json', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'index-on-json');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4499
+test('introspect functional index', async () => {
+	const schema = {
+		appBadgeTag: mysqlTable('app_badge_tag', {
+			tagId: varchar('tag_id', { length: 255 }).primaryKey(),
+			badgeId: varchar('badge_id', { length: 32 }).notNull(),
+			designId: varchar('design_id', { length: 255 }),
+			colorId: varchar('color_id', { length: 255 }),
+			createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+		}, (table) => [
+			uniqueIndex('app_badge_tag_pk').on(
+				table.badgeId,
+				sql`(case when (\`design_id\` is null) then _utf8mb4\'\' else \`design_id\` end)`,
+				sql`(case when (\`color_id\` is null) then _utf8mb4\'\' else \`color_id\` end)`,
+			),
+			index('app_badge_tag_design_id_index').on(table.designId),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'functional-index');
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
@@ -746,16 +770,37 @@ test('pull after migrate with custom migrations table #2', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5212
-test('datetime', async () => {
+test('datetime #1', async () => {
 	const table1 = mysqlTable('table1', {
 		col1: datetime().notNull().default(sql`CURRENT_TIMESTAMP`),
-		// col2: datetime().notNull().default(sql`CURRENT_TIMESTAMP`).onUpdateNow(), // can't add onUpdateNow(), but it is part of the issue
+		col2: datetime().notNull().default(sql`CURRENT_TIMESTAMP`).onUpdateNow(),
 	});
 
 	const { sqlStatements } = await diffIntrospect(
 		db,
 		{ table1 },
-		'datetime',
+		'datetime-1',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4499
+test('datetime #2', async () => {
+	await db.query(`CREATE TABLE \`app_badge_tag\` (
+  				\`tag_id\` varchar(255) NOT NULL,
+  				\`badge_id\` varchar(32) NOT NULL,
+  				\`design_id\` varchar(255) DEFAULT NULL,
+  				\`color_id\` varchar(255) DEFAULT NULL,
+  				\`created_at\` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  				PRIMARY KEY (\`tag_id\`),
+  				UNIQUE KEY \`app_badge_tag_pk\` (\`badge_id\`,((case when (\`design_id\` is null) then _utf8mb4'' else \`design_id\` end)),((case when (\`color_id\` is null) then _utf8mb4'' else \`color_id\` end))),
+  				KEY \`app_badge_tag_design_id_index\` (\`design_id\`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`);
+	const { sqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'datetime-2',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);

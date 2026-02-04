@@ -14,7 +14,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
@@ -94,7 +94,10 @@ export class SQLJsTransaction<
 	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
 	override transaction<T>(
-		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TSchema>) => T,
+		transaction: (
+			tx: SQLJsTransaction<TFullSchema, TRelations, TSchema>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
 	): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SQLJsTransaction(
@@ -109,7 +112,7 @@ export class SQLJsTransaction<
 		try {
 			const result = transaction(tx);
 			tx.run(sql.raw(`release savepoint ${savepointName}`));
-			return result;
+			return result as T;
 		} catch (err) {
 			tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;

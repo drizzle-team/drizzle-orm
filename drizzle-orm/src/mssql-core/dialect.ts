@@ -10,6 +10,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
@@ -68,14 +69,12 @@ export class MsSqlDialect {
 		await session.execute(migrationSchemaCreate);
 		await session.execute(migrationTableCreate);
 
-		const { recordset: dbMigrations } = await session.execute<any>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} order by created_at desc offset 0 rows fetch next 1 rows only`,
-		);
+		const dbMigrations = (await session.execute<{ recordset: { id: number; hash: string; created_at: string }[] }>(
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+		)).recordset;
 
 		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
+			if (dbMigrations.length > 0) {
 				return { exitCode: 'databaseMigrations' as const };
 			}
 
@@ -96,22 +95,17 @@ export class MsSqlDialect {
 			return;
 		}
 
-		const lastDbMigration = dbMigrations[0];
+		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						await tx.execute(sql.raw(stmt));
-					}
-					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					await tx.execute(sql.raw(stmt));
 				}
+				await tx.execute(
+					sql`insert into ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 		});
 	}

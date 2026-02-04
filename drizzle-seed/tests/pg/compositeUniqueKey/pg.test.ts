@@ -1,85 +1,12 @@
-import { PGlite } from '@electric-sql/pglite';
-import { sql } from 'drizzle-orm';
-import type { PgliteDatabase } from 'drizzle-orm/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
+import { pgliteTest as test } from '../instrumentation.ts';
 import * as schema from './pgSchema.ts';
 
-let client: PGlite;
-let db: PgliteDatabase;
-
-beforeAll(async () => {
-	client = new PGlite();
-
-	db = drizzle({ client });
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "composite_example" (
-			    "id" integer not null,
-			    "name" text not null,
-			    CONSTRAINT "composite_example_id_name_unique" UNIQUE("id","name"),
-			    CONSTRAINT "custom_name" UNIQUE("id","name")
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_0" (
-			    "id" integer not null unique,
-			    "name" text not null,
-			    CONSTRAINT "custom_name0" UNIQUE("id","name")
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_two_1" (
-			    "id" integer not null,
-			    "name" text not null,
-			    CONSTRAINT "custom_name1" UNIQUE("id","name"),
-				CONSTRAINT "custom_name1_id" UNIQUE("id")
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_0" (
-			    "id" integer not null unique,
-			    "name" text not null,
-				"slug" text not null,
-			    CONSTRAINT "custom_name2" UNIQUE("id","name","slug")
-			);
-		`,
-	);
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "unique_column_in_composite_of_three_1" (
-			    "id" integer not null,
-			    "name" text not null,
-				"slug" text not null,
-			    CONSTRAINT "custom_name3" UNIQUE("id","name","slug"),
-				CONSTRAINT "custom_name3_id" UNIQUE("id")
-			);
-		`,
-	);
-});
-
-afterEach(async () => {
-	await reset(db, schema);
-});
-
-afterAll(async () => {
-	await client.close();
-});
-
-test('basic seed test', async () => {
+test('basic seed test', async ({ db, push }) => {
 	const currSchema = { composite: schema.composite };
+	await push(currSchema);
 	await seed(db, currSchema, { count: 16 });
 
 	let composite = await db.select().from(schema.composite);
@@ -130,8 +57,9 @@ test('basic seed test', async () => {
 	await reset(db, currSchema);
 });
 
-test('unique column in composite of 2 columns', async () => {
+test('unique column in composite of 2 columns', async ({ db, push }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfTwo0: schema.uniqueColumnInCompositeOfTwo0 };
+	await push(currSchema0);
 	await seed(db, currSchema0, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo0: {
 			columns: {
@@ -147,6 +75,7 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema0);
 
 	const currSchema1 = { uniqueColumnInCompositeOfTwo1: schema.uniqueColumnInCompositeOfTwo1 };
+	await push(currSchema1);
 	await seed(db, currSchema1, { count: 4 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfTwo1: {
 			columns: {
@@ -162,8 +91,9 @@ test('unique column in composite of 2 columns', async () => {
 	await reset(db, currSchema1);
 });
 
-test('unique column in composite of 3 columns', async () => {
+test('unique column in composite of 3 columns', async ({ db, push }) => {
 	const currSchema0 = { uniqueColumnInCompositeOfThree0: schema.uniqueColumnInCompositeOfThree0 };
+	await push(currSchema0);
 	await seed(db, currSchema0, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree0: {
 			columns: {
@@ -180,6 +110,7 @@ test('unique column in composite of 3 columns', async () => {
 	await reset(db, currSchema0);
 
 	const currSchema1 = { uniqueColumnInCompositeOfThree1: schema.uniqueColumnInCompositeOfThree1 };
+	await push(currSchema1);
 	await seed(db, currSchema1, { count: 16 }).refine((funcs) => ({
 		uniqueColumnInCompositeOfThree1: {
 			columns: {
@@ -195,3 +126,42 @@ test('unique column in composite of 3 columns', async () => {
 	expect(composite.length).toBe(16);
 	await reset(db, currSchema1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4354
+test('composite unique includes a fk column', async ({ db, push }) => {
+	const user = pgTable('user', { id: text().primaryKey() });
+	const paints = pgTable('paints', { id: uuid().primaryKey() });
+
+	const inventory = pgTable(
+		'inventory',
+		{
+			id: uuid().primaryKey().defaultRandom(),
+			userId: text()
+				.notNull()
+				.references(() => user.id),
+			paintId: uuid()
+				.notNull()
+				.references(() => paints.id),
+			amount: integer().default(1),
+		},
+		(table) => [unique().on(table.userId, table.paintId)],
+	);
+
+	const schema = { user, paints, inventory };
+	await push(schema);
+	await seed(db, schema).refine((f) => ({
+		user: { count: 100 },
+		paints: { count: 10 },
+		inventory: {
+			columns: {
+				amount: f.int({ minValue: 1, maxValue: 100 }),
+			},
+			count: 1000,
+		},
+	}));
+
+	const composite = await db.select().from(inventory);
+
+	expect(composite.length).toBe(1000);
+});
+// TODO add test with composite foreign key

@@ -628,10 +628,17 @@ export class BaseSQLiteDatabase<
 	transaction<T>(
 		transaction: (
 			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
-		) => Result<TResultKind, T>,
+		) => TResultKind extends 'sync'
+			? T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!"> : T
+			: Result<TResultKind, T>,
 		config?: SQLiteTransactionConfig,
 	): Result<TResultKind, T> {
-		return this.session.transaction(transaction, config);
+		return this.session.transaction(
+			transaction as (
+				tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
+			) => Result<TResultKind, T>,
+			config,
+		);
 	}
 }
 

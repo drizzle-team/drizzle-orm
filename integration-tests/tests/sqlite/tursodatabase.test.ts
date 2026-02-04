@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
-import { getTableConfig, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { SQLiteCloudDatabase } from 'drizzle-orm/sqlite-cloud';
+import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
 import { migrate } from 'drizzle-orm/tursodatabase/migrator';
+import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { tursoDatabaseTest as test } from './instrumentation';
 import relations from './relations';
@@ -131,12 +133,73 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(!!res).toStrictEqual(true);
 });
 
+test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
+	const users = sqliteTable('migration_users', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	const users2 = sqliteTable('migration_users2', {
+		id: int('id').primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: int(),
+	});
+
+	await db.run(sql`drop table if exists \`__drizzle_migrations\`;`);
+	await db.run(sql`drop table if exists ${users}`);
+	await db.run(sql`drop table if exists ${users2}`);
+
+	// create migration directory
+	const migrationDir = './migrations/sqlite-cloud';
+	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	mkdirSync(migrationDir, { recursive: true });
+
+	// first branch
+	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240101010101_initial/migration.sql`,
+		`CREATE TABLE "migration_users" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n);`,
+	);
+	mkdirSync(`${migrationDir}/20240303030303_third`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240303030303_third/migration.sql`,
+		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
+	);
+
+	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
+
+	// second migration was not applied yet
+	await expect(db.insert(users2).values({ name: 'John', email: '', age: 30 })).rejects.toThrowError();
+
+	// insert migration with earlier timestamp
+	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240202020202_second/migration.sql`,
+		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
+	);
+	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+
+	const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
+
+	const expected = [{ id: 1, name: 'John', email: '', age: 30 }];
+	expect(res1).toStrictEqual(expected);
+	expect(res2).toStrictEqual(expected);
+
+	rmdirSync(migrationDir, { recursive: true });
+});
+
 const skip = [
 	// Subquery in WHERE clause is not supported
 	'RQB v2 simple find many - with relation',
 	'RQB v2 transaction find many - with relation',
 	'RQB v2 simple find first - with relation',
 	'RQB v2 transaction find first - with relation',
+	'RQB v2 simple find many - with text pks',
+
 	'$count',
 	'$count embedded',
 	'$count embedded reuse',

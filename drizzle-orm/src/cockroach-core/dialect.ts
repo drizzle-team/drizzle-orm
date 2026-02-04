@@ -21,6 +21,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { and, eq, View } from '~/sql/index.ts';
 import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -65,9 +66,7 @@ export class CockroachDialect {
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -92,22 +91,17 @@ export class CockroachDialect {
 			return;
 		}
 
-		const lastDbMigration = dbMigrations[0];
+		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 		await session.transaction(async (tx) => {
-			for await (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						await tx.execute(sql.raw(stmt));
-					}
-					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for await (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					await tx.execute(sql.raw(stmt));
 				}
+				await tx.execute(
+					sql`insert into ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 		});
 	}

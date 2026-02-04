@@ -10,6 +10,7 @@ import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effec
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
@@ -242,9 +243,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	yield* session.execute(migrationTableCreate);
 
 	const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by created_at desc limit 1`,
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -269,23 +268,19 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		return;
 	}
 
-	const lastDbMigration = dbMigrations[0];
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+
 	yield* session.transaction((tx) =>
 		Effect.gen(function*() {
-			for (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						yield* tx.execute(sql.raw(stmt));
-					}
-					yield* tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					yield* tx.execute(sql.raw(stmt));
 				}
+				yield* tx.execute(
+					sql`insert into ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 		})
 	);

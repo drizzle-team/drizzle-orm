@@ -5,6 +5,7 @@ import {
 	integer,
 	pgEnum,
 	pgRole,
+	pgSchema,
 	pgTable,
 	serial,
 	text,
@@ -81,8 +82,15 @@ test('dropping basic index', async () => {
 			{
 				id: serial('id').primaryKey(),
 				name: text('name'),
+				id2: integer('id2'),
+				name2: text('name2'),
 			},
-			(t) => [index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 })],
+			(
+				t,
+			) => [
+				index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }),
+				uniqueIndex().on(t.name2.desc(), t.id2.asc().nullsLast()).with({ fillfactor: 70 }),
+			],
 		),
 	};
 
@@ -90,6 +98,8 @@ test('dropping basic index', async () => {
 		users: pgTable('users', {
 			id: serial('id').primaryKey(),
 			name: text('name'),
+			id2: integer('id2'),
+			name2: text('name2'),
 		}),
 	};
 
@@ -98,10 +108,56 @@ test('dropping basic index', async () => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = [`DROP INDEX "users_name_id_index";`];
+	const st0 = [`DROP INDEX "users_name_id_index";`, `DROP INDEX "users_name2_id2_index";`];
 
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st[0]).toBeOneOf([st0[0], st0[1]]);
+	expect(st[1]).toBeOneOf([st0[0], st0[1]]);
+	expect(pst[0]).toBeOneOf([st0[0], st0[1]]);
+	expect(pst[1]).toBeOneOf([st0[0], st0[1]]);
+});
+
+test('dropping basic index in other schema', async () => {
+	const schema = pgSchema('otherSchema');
+	const schema1 = {
+		schema,
+		users: schema.table(
+			'users',
+			{
+				id: serial('id').primaryKey(),
+				name: text('name'),
+				id2: integer('id2'),
+				name2: text('name2'),
+			},
+			(
+				t,
+			) => [
+				index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }),
+				uniqueIndex().on(t.name2.desc(), t.id2.asc().nullsLast()).with({ fillfactor: 70 }),
+			],
+		),
+	};
+
+	const schema2 = {
+		schema,
+		users: schema.table('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+			id2: integer('id2'),
+			name2: text('name2'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0 = [`DROP INDEX "otherSchema"."users_name_id_index";`, `DROP INDEX "otherSchema"."users_name2_id2_index";`];
+
+	expect(st[0]).toBeOneOf([st0[0], st0[1]]);
+	expect(st[1]).toBeOneOf([st0[0], st0[1]]);
+	expect(pst[0]).toBeOneOf([st0[0], st0[1]]);
+	expect(pst[1]).toBeOneOf([st0[0], st0[1]]);
 });
 
 test('altering indexes', async () => {

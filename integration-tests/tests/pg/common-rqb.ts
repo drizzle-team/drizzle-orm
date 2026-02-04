@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
-import type { PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
+import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -966,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-02-24')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-02-10')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1027,7 +1027,8 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
-		test.skipIf(Date.now() < +new Date('2026-02-24')).concurrent(
+		// postgresjs returns strings for itemCount but other drivers return numbers
+		test.skipIf(Date.now() < +new Date('2026-02-10')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1047,16 +1048,14 @@ export function tests(test: Test) {
 
 				const query = db.query.orderTable.findMany({
 					extras: {
-						itemCount: sql`
-					    (select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${orderTable.id})
-					`.as('itemCount'),
+						itemCount: (t) =>
+							sql`(select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${t.id})`.as('itemCount'),
 					},
 				});
 
 				expect(query.toSQL()).toStrictEqual({
-					sql: `select "d0"."id" as "id", (
-                                            (select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")
-                                        ) as "itemCount" from "rqb_order_19" as "d0"`,
+					sql:
+						`select "d0"."id" as "id", ((select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")) as "itemCount" from "rqb_order_19" as "d0"`,
 					params: [],
 				});
 
@@ -1065,5 +1064,43 @@ export function tests(test: Test) {
 				expect(result).toStrictEqual(expectedResult);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4494
+		test.concurrent('RQB v2 find first 100 columns in table', async ({ push, createDB }) => {
+			const columns: Record<string, PgColumnBuilder<any>> = {};
+			const columnCount = 101;
+			for (let i = 0; i < columnCount; i++) {
+				columns[`col${i}`] = numeric({ precision: 20, scale: 2 });
+			}
+
+			const prices = pgTable('prices', {
+				id: integer().primaryKey(),
+				...columns,
+			});
+
+			const entity = pgTable('entity', {
+				id: serial('id').primaryKey(),
+				priceId: integer('price_id').references(() => prices.id),
+			});
+
+			await push({ prices, entity });
+			const db = createDB({ prices, entity }, (r) => ({
+				entity: {
+					price: r.one.prices({
+						from: [r.entity.priceId],
+						to: [r.prices.id],
+					}),
+				},
+			}));
+
+			await db.execute('insert into prices(id, col0, col1, col2) values (1, 23,24,25);');
+			await db.insert(entity).values([{ id: 1, priceId: 1 }]);
+			const query = db.query.entity.findFirst({
+				with: {
+					price: {},
+				},
+			});
+			await query;
+		});
 	});
 }

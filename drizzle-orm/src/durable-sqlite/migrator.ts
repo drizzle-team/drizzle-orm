@@ -1,5 +1,5 @@
 import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { formatToMillis } from '~/migrator.utils.ts';
+import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
@@ -51,7 +51,7 @@ export async function migrate<
 ): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 
-	return await db.transaction((tx) => {
+	return db.transaction((tx) => {
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
@@ -64,9 +64,9 @@ export async function migrate<
 			`;
 			db.run(migrationTableCreate);
 
-			const dbMigrations = db.values<[number, string, string]>(
-				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
-			);
+			const dbMigrations = (db.values<[number, string, string]>(
+				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
+			)).map(([id, hash, created_at]) => ({ id, hash, created_at }));
 
 			if (config.init) {
 				if (dbMigrations.length) {
@@ -90,18 +90,16 @@ export async function migrate<
 				return;
 			}
 
-			const lastDbMigration = dbMigrations[0] ?? undefined;
-			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-					for (const stmt of migration.sql) {
-						db.run(sql.raw(stmt));
-					}
-					db.run(
-						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
+			const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					db.run(sql.raw(stmt));
 				}
+				db.run(
+					sql`INSERT INTO ${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 
 			return;

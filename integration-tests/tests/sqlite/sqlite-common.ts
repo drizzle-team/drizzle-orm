@@ -3524,6 +3524,85 @@ export function tests(test: Test, exclude: string[] = []) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5323
+		test.concurrent('RQB v2 simple find many - with text pks', async ({ createDB, push }) => {
+			const dmsGroups = sqliteTable('dms_groups', {
+				id: text()
+					.primaryKey()
+					.$defaultFn(() => crypto.randomUUID()),
+				name: text().notNull(),
+				sort: int().notNull().default(99),
+			});
+
+			const dmsDocuments = sqliteTable('dms_documents', {
+				id: text()
+					.primaryKey()
+					.$defaultFn(() => crypto.randomUUID()),
+				name: text().notNull(),
+				groupId: text().references(() => dmsGroups.id, { onDelete: 'set null' }),
+			});
+
+			const schema = { dmsGroups, dmsDocuments };
+
+			const db = createDB(schema, (r) => ({
+				dmsGroups: {
+					documents: r.many.dmsDocuments(),
+				},
+				dmsDocuments: {
+					group: r.one.dmsGroups({
+						from: r.dmsDocuments.groupId,
+						to: r.dmsGroups.id,
+					}),
+				},
+			}));
+
+			try {
+				await push(schema);
+				const groupId = '230a2c2f-59b3-4b64-98f3-d521020bc99c';
+				await db.insert(dmsGroups).values({ id: groupId, name: 'group1' });
+
+				await db.insert(dmsDocuments).values({
+					id: '6fba1c11-3342-411f-a5ef-e6faf2aa95ec',
+					name: 'document1',
+					groupId,
+				});
+
+				const query = db.query.dmsGroups.findMany({
+					with: {
+						documents: true,
+					},
+					orderBy: (group) => [asc(group.sort)],
+				});
+
+				const groups = await query;
+
+				const expectedGroups = [
+					{
+						id: '230a2c2f-59b3-4b64-98f3-d521020bc99c',
+						name: 'group1',
+						sort: 99,
+						documents: [{
+							id: '6fba1c11-3342-411f-a5ef-e6faf2aa95ec',
+							name: 'document1',
+							groupId: '230a2c2f-59b3-4b64-98f3-d521020bc99c',
+						}],
+					},
+				];
+				expect(groups).toStrictEqual(expectedGroups);
+			} finally {
+				try {
+					await db.run(sql`DROP TABLE IF EXISTS ${dmsDocuments};`);
+				} catch {
+					null;
+				}
+				try {
+					await db.run(sql`DROP TABLE IF EXISTS ${dmsGroups};`);
+				} catch {
+					null;
+				}
+			}
+		});
+
 		test.concurrent('RQB v2 simple find many - placeholders', async ({ db }) => {
 			try {
 				await init(db);
