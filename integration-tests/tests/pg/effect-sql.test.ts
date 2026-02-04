@@ -3064,7 +3064,9 @@ it.layer(TestLive)((it) => {
 			const res1 = yield* db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 			// second migration was not applied yet
-			expect((async () => db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects.toThrowError();
+			const insertResult = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).pipe(Effect.either);
+			assert(Either.isLeft(insertResult));
+			assert(Predicate.isTagged(insertResult.left, 'EffectDrizzleQueryError'));
 
 			// insert migration with earlier timestamp
 			mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
