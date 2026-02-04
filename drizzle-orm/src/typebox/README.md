@@ -10,7 +10,7 @@ Allows you to generate [typebox](https://sinclairzx81.github.io/typebox/#/) sche
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/typebox';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/typebox';
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 

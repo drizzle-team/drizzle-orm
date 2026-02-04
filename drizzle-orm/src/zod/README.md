@@ -10,7 +10,7 @@ Allows you to generate [Zod](https://zod.dev/) schemas from Drizzle ORM schemas.
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/zod';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
 import { z } from 'zod';
 
 const users = pgTable('users', {

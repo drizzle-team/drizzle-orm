@@ -10,7 +10,7 @@ Allows you to generate [arktype](https://arktype.io/) schemas from Drizzle ORM s
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/arktype';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/arktype';
 import { type } from 'arktype';
 
 const users = pgTable('users', {

@@ -10,7 +10,7 @@ Allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM 
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/valibot';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/valibot';
 import { string, parse, number, pipe } from 'valibot';
 
 const users = pgTable('users', {

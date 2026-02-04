@@ -10,7 +10,7 @@ Allows you to generate [effect](https://effect.website/) schemas from Drizzle OR
 
 ```ts
 import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/validations/effect';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/effect-schema';
 import { Schema } from 'effect';
 
 const users = pgTable('users', {
