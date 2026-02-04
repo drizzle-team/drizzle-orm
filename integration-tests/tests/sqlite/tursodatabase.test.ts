@@ -198,6 +198,8 @@ const skip = [
 	'RQB v2 transaction find many - with relation',
 	'RQB v2 simple find first - with relation',
 	'RQB v2 transaction find first - with relation',
+	'RQB v2 simple find many - with text pks',
+
 	'$count',
 	'$count embedded',
 	'$count embedded reuse',

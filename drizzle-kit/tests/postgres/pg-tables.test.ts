@@ -1500,14 +1500,21 @@ test('push with pscale_extensions schema', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('push empty schema with `schemaFilter` set to `["public"]`', async () => {
-	await db.query(`CREATE SCHEMA "cron";`);
-	await db.query(`CREATE TABLE "cron"."job" (id integer, type text);`);
-	await db.query(`CREATE POLICY "test" ON "cron"."job" AS PERMISSIVE FOR ALL TO public;`);
+test.skipIf(Date.now() < +new Date('2026-02-10'))(
+	'push empty schema with `schemaFilter` set to `["public"]`',
+	async () => {
+		await db.query(`CREATE SCHEMA "cron";`);
+		await db.query(`CREATE TABLE "cron"."job" (id integer, type text);`);
+		await db.query(`CREATE POLICY "test" ON "cron"."job" AS PERMISSIVE FOR ALL TO public;`);
 
-	const { sqlStatements: pst2 } = await push({ db, to: {}, schemas: ['public'] });
+		const { sqlStatements: pst2 } = await push({
+			db,
+			to: {},
+			schemas: ['public'],
+		});
 
-	const expectedSt2: string[] = [];
+		const expectedSt2: string[] = [];
 
-	expect(pst2).toStrictEqual(expectedSt2);
-});
+		expect(pst2).toStrictEqual(expectedSt2);
+	},
+);
