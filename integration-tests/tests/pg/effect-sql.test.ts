@@ -3044,7 +3044,7 @@ it.layer(TestLive)((it) => {
 			yield* db.execute(sql`drop table if exists ${users2}`);
 
 			// create migration directory
-			const migrationDir = './migrations/postgres';
+			const migrationDir = './migrations/effect-sql';
 			if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
 			mkdirSync(migrationDir, { recursive: true });
 
