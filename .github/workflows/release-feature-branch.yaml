@@ -67,11 +67,7 @@ jobs:
           path: |
             drizzle-orm/package.tgz
             drizzle-kit/package.tgz
-            drizzle-zod/package.tgz
             drizzle-seed/package.tgz
-            drizzle-typebox/package.tgz
-            drizzle-valibot/package.tgz
-            drizzle-arktype/package.tgz
             eslint-plugin-drizzle/package.tgz
 
       # Tiny marker so other jobs can wait without failing
@@ -277,11 +273,8 @@ jobs:
             kit:postgres16) cd ../drizzle-kit && PG_VERSION=16 pnpm --stream run test:postgres ;;
             kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
             kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
-            validators) 
-              (cd ../drizzle-zod && pnpm --stream test --reporter=verbose --silent=false)
-              (cd ../drizzle-valibot && pnpm --stream test --reporter=verbose --silent=false)
-              (cd ../drizzle-arktype && pnpm --stream test --reporter=verbose --silent=false)
-              (cd ../drizzle-typebox && pnpm --stream test --reporter=verbose --silent=false)
+            validators)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/validators
             ;;
             orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
@@ -298,7 +291,8 @@ jobs:
                 --exclude ./tests/mssql/ \
                 --exclude ./tests/pg/ \
                 --exclude ./tests/sqlite/ \
-                --exclude ./tests/bun/
+                --exclude ./tests/bun/ \
+                --exclude tests/validators
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
@@ -324,11 +318,7 @@ jobs:
       - name: Run @arethetypeswrong/cli
         run: |
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-typebox/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-valibot/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-arktype/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
         env:
           ATTW_FORMAT: concise
@@ -373,7 +363,7 @@ jobs:
       NPM_TOKEN: ""
     strategy:
       matrix:
-        package: [drizzle-orm, drizzle-kit, drizzle-zod, drizzle-seed, drizzle-typebox, drizzle-valibot, drizzle-arktype, eslint-plugin-drizzle]
+        package: [drizzle-orm, drizzle-kit, drizzle-seed, eslint-plugin-drizzle]
     steps:
       - uses: actions/checkout@v5
 
