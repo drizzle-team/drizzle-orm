@@ -2284,6 +2284,37 @@ export function tests(test: Test) {
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
 
+		test.concurrent('sql.Aliased with identical alias in cte', async ({ db, push }) => {
+			const users = singlestoreTable('users_109_sqla', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+			await db.insert(users).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq1').as((qb) =>
+				qb.select({
+					aliased: sql`count(*)`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+			const sq2 = db.$with('sq2').as((qb) =>
+				qb.select({
+					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+
+			const result = await db.with(sq1, sq2).select({
+				count: sq1.aliased,
+				sum: sq2.aliased,
+			}).from(sq1).crossJoin(sq2);
+
+			expect(result).toEqual([{ count: 2, sum: 3 }]);
+		});
+
 		test.concurrent('cross join', async ({ db }) => {
 			await db
 				.insert(usersTable)

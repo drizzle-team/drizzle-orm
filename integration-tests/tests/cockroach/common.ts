@@ -2021,6 +2021,43 @@ export function tests() {
 			expect(() => db.select().from(sq).prepare('query')).toThrowError();
 		});
 
+		test('sql.Aliased with identical alias in cte', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			const users = cockroachTable('users_109_sqla', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${users}`);
+			await db.execute(sql`CREATE TABLE ${users} (
+				id INT4 PRIMARY KEY,
+				name TEXT NOT NULL
+			)`);
+			await db.insert(users).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq1').as((qb) =>
+				qb.select({
+					aliased: sql`count(*)`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+			const sq2 = db.$with('sq2').as((qb) =>
+				qb.select({
+					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+
+			const result = await db.with(sq1, sq2).select({
+				count: sq1.aliased,
+				sum: sq2.aliased,
+			}).from(sq1).crossJoin(sq2);
+
+			expect(result).toEqual([{ count: 2, sum: 3 }]);
+		});
+
 		test('select count()', async (ctx) => {
 			const { db } = ctx.cockroach;
 

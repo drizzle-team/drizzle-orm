@@ -2546,6 +2546,33 @@ describe('some', async () => {
 		).resolves.not.toThrowError();
 	});
 
+	test.concurrent('sql.Aliased with identical alias in cte', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(usersTable).values([
+			{ id1: 1, name: 'John' },
+			{ id1: 2, name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq1').as((qb) =>
+			qb.select({
+				aliased: sql`count(*)`.as('alias'),
+			}).from(usersTable)
+		);
+		const sq2 = db.$with('sq2').as((qb) =>
+			qb.select({
+				aliased: sql`sum(${usersTable.id1})`.as('alias'),
+			}).from(usersTable)
+		);
+
+		const result = await db.with(sq1, sq2).select({
+			count: sq1.aliased,
+			sum: sq2.aliased,
+		}).from(sq1).crossJoin(sq2);
+
+		expect(result).toEqual([{ count: 2, sum: 3 }]);
+	});
+
 	test('transaction', async (ctx) => {
 		const { db } = ctx.gel;
 
