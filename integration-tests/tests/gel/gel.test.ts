@@ -2546,7 +2546,7 @@ describe('some', async () => {
 		).resolves.not.toThrowError();
 	});
 
-	test.concurrent('sql.Aliased with identical alias in cte', async (ctx) => {
+	test.concurrent('sql.Aliased in cte', async (ctx) => {
 		const { db } = ctx.gel;
 
 		await db.insert(usersTable).values([
@@ -2571,6 +2571,12 @@ describe('some', async () => {
 		}).from(sq1).crossJoin(sq2);
 
 		expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+		const result2 = await db.with(sq1).select({
+			count: sq1.aliased,
+		}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+		expect(result2).toEqual([{ count: 2 }]);
 	});
 
 	test('transaction', async (ctx) => {

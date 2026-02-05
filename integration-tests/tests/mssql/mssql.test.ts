@@ -1412,7 +1412,7 @@ test('select all fields from subquery without alias', ({ db }) => {
 	expect(() => db.select().from(sq).prepare()).toThrowError();
 });
 
-test('sql.Aliased with identical alias in cte', async ({ db }) => {
+test('sql.Aliased in cte', async ({ db }) => {
 	const users = mssqlTable('users_109_sqla', {
 		id: int('id').primaryKey(),
 		name: text('name').notNull(),
@@ -1445,6 +1445,12 @@ test('sql.Aliased with identical alias in cte', async ({ db }) => {
 	}).from(sq1).innerJoin(sq2, sql`1 = 1`);
 
 	expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+	const result2 = await db.with(sq1).select({
+		count: sq1.aliased,
+	}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+	expect(result2).toEqual([{ count: 2 }]);
 });
 
 test('select count()', async ({ db }) => {

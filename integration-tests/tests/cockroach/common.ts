@@ -2021,7 +2021,7 @@ export function tests() {
 			expect(() => db.select().from(sq).prepare('query')).toThrowError();
 		});
 
-		test('sql.Aliased with identical alias in cte', async (ctx) => {
+		test('sql.Aliased in cte', async (ctx) => {
 			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_109_sqla', {
@@ -2056,6 +2056,12 @@ export function tests() {
 			}).from(sq1).crossJoin(sq2);
 
 			expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+			const result2 = await db.with(sq1).select({
+				count: sq1.aliased,
+			}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+			expect(result2).toEqual([{ count: 2 }]);
 		});
 
 		test('select count()', async (ctx) => {

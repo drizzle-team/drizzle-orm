@@ -88,7 +88,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "cte"."name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -100,7 +100,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "cte"."name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);

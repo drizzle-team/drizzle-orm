@@ -208,7 +208,7 @@ const skip = [
 	'select from a one subquery',
 	// CROSS JOIN is not supported
 	'cross join',
-	'sql.Aliased with identical alias in cte',
+	'sql.Aliased in cte',
 	// ORDER BY is not supported for compound SELECTs yet
 	'set operations (union) from query builder with subquery',
 	'set operations (union) as function',
