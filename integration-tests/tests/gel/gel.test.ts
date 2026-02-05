@@ -1347,6 +1347,23 @@ describe('some', async () => {
 		expect(result).toEqual([{ name: 'John' }]);
 	});
 
+	test('nameless prepared statement', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+		const statement = db
+			.select({
+				name: usersTable.name,
+			})
+			.from(usersTable)
+			.prepare();
+		const result1 = await statement.execute();
+		const result2 = await statement.execute();
+
+		expect(result1).toEqual([{ name: 'John' }]);
+		expect(result2).toEqual([{ name: 'John' }]);
+	});
+
 	test('insert: placeholders on columns with encoder', async (ctx) => {
 		const { db } = ctx.gel;
 
@@ -2544,6 +2561,39 @@ describe('some', async () => {
 				func();
 			})(),
 		).resolves.not.toThrowError();
+	});
+
+	test.concurrent('sql.Aliased in cte', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(usersTable).values([
+			{ id1: 1, name: 'John' },
+			{ id1: 2, name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq1').as((qb) =>
+			qb.select({
+				aliased: sql`count(*)`.as('alias'),
+			}).from(usersTable)
+		);
+		const sq2 = db.$with('sq2').as((qb) =>
+			qb.select({
+				aliased: sql`sum(${usersTable.id1})`.as('alias'),
+			}).from(usersTable)
+		);
+
+		const result = await db.with(sq1, sq2).select({
+			count: sq1.aliased,
+			sum: sq2.aliased,
+		}).from(sq1).crossJoin(sq2);
+
+		expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+		const result2 = await db.with(sq1).select({
+			count: sq1.aliased,
+		}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+		expect(result2).toEqual([{ count: 2 }]);
 	});
 
 	test('transaction', async (ctx) => {

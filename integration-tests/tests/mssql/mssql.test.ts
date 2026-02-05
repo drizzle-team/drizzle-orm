@@ -1412,6 +1412,47 @@ test('select all fields from subquery without alias', ({ db }) => {
 	expect(() => db.select().from(sq).prepare()).toThrowError();
 });
 
+test('sql.Aliased in cte', async ({ db }) => {
+	const users = mssqlTable('users_109_sqla', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`DROP TABLE IF EXISTS ${users}`);
+	await db.execute(sql`CREATE TABLE ${users} (
+		id INT PRIMARY KEY,
+		name TEXT NOT NULL
+	)`);
+	await db.insert(users).values([
+		{ id: 1, name: 'John' },
+		{ id: 2, name: 'Jane' },
+	]);
+
+	const sq1 = db.$with('sq1').as((qb) =>
+		qb.select({
+			aliased: sql`count(*)`.mapWith(Number).as('alias'),
+		}).from(users)
+	);
+	const sq2 = db.$with('sq2').as((qb) =>
+		qb.select({
+			aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+		}).from(users)
+	);
+
+	const result = await db.with(sq1, sq2).select({
+		count: sq1.aliased,
+		sum: sq2.aliased,
+	}).from(sq1).innerJoin(sq2, sql`1 = 1`);
+
+	expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+	const result2 = await db.with(sq1).select({
+		count: sq1.aliased,
+	}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+	expect(result2).toEqual([{ count: 2 }]);
+});
+
 test('select count()', async ({ db }) => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 

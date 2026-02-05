@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import { createSelectSchema } from 'drizzle-zod';
+import { createSelectSchema } from 'drizzle-orm/zod';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './pgSchema.ts';
@@ -512,7 +512,7 @@ test('seeding table with sequences', async () => {
 	});
 });
 
-test('uuid with drizzle-zod check', async () => {
+test('uuid with drizzle-validations/zod check', async () => {
 	await seed(db, { uuidTest: schema.uuidTest }, { count: 1 }).refine((funcs) => ({
 		uuidTest: {
 			columns: {

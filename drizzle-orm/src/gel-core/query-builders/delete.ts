@@ -9,6 +9,7 @@ import type {
 } from '~/gel-core/session.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -219,21 +220,29 @@ export class GelDeleteBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelDeletePrepare<this> {
+	_prepare(name?: string, generateName = false): GelDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			});
+			>(
+				query,
+				this.config.returning,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'delete',
+					tables: extractUsedTable(this.config.table),
+				},
+			);
 		});
 	}
 
-	prepare(name: string): GelDeletePrepare<this> {
-		return this._prepare(name);
+	prepare(name?: string): GelDeletePrepare<this> {
+		return this._prepare(name, true);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

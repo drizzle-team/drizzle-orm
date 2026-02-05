@@ -3,7 +3,7 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
-import type { SelectedFieldsOrdered } from './operations.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
@@ -375,3 +375,63 @@ export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextD
 export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
 }
+
+export function isWithEnum(column: Column<any>): column is typeof column & { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): value is { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): boolean {
+	return ((typeof value === 'object' && value !== null) || typeof value === 'function') && 'enumValues' in value
+		&& Array.isArray(value.enumValues)
+		&& value.enumValues.length > 0;
+}
+
+export type Literal = string | number | boolean | null;
+export type Json = Literal | { [key: string]: any } | any[];
+
+export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column<any>
+	? TColumn['_']['identity'] extends 'always' ? true
+	: TColumn['_'] extends { generated: undefined } ? false
+	: TColumn['_']['generated'] extends { type: 'byDefault' } ? false
+	: true
+	: false;
+
+export type GetSelection<T extends SelectedFieldsFlat<Column<any>> | Table<any> | View> = T extends Table<any>
+	? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T;
+
+export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...infer Rest]
+	? IsNever<First> extends true ? RemoveNeverElements<Rest>
+	: [First, ...RemoveNeverElements<Rest>]
+	: [];
+
+export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
+	? IsNever<TColumn['_']['baseColumn']> extends false ? true
+	: false
+	: false;
+
+export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
+
+export type EnumValuesToReadonlyEnum<TEnumValues extends [string, ...string[]]> = {
+	readonly [K in TEnumValues[number]]: K;
+};
+
+export const CONSTANTS = {
+	INT8_MIN: -128,
+	INT8_MAX: 127,
+	INT8_UNSIGNED_MAX: 255,
+	INT16_MIN: -32768,
+	INT16_MAX: 32767,
+	INT16_UNSIGNED_MAX: 65535,
+	INT24_MIN: -8388608,
+	INT24_MAX: 8388607,
+	INT24_UNSIGNED_MAX: 16777215,
+	INT32_MIN: -2147483648,
+	INT32_MAX: 2147483647,
+	INT32_UNSIGNED_MAX: 4294967295,
+	INT48_MIN: -140737488355328,
+	INT48_MAX: 140737488355327,
+	INT48_UNSIGNED_MAX: 281474976710655,
+	INT64_MIN: -9223372036854775808n,
+	INT64_MAX: 9223372036854775807n,
+	INT64_UNSIGNED_MAX: 18446744073709551615n,
+};

@@ -2,11 +2,12 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { applyMixins, type Assume } from '~/utils.ts';
+import { applyMixins, type Assume, type NeonAuthToken } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -100,19 +101,36 @@ export class PgAsyncUpdateBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string): PgAsyncUpdatePrepare<this> {
-		const query = this.session.prepareQuery<
+	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-			type: 'insert',
-			tables: extractUsedTable(this.config.table),
-		}, this.cacheConfig);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		>(
+			query,
+			this.config.returning,
+			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
+		);
+		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		return preparedQuery.setToken(this.authToken);
 	}
 
-	prepare(name: string): PgAsyncUpdatePrepare<this> {
-		return this._prepare(name);
+	prepare(name?: string): PgAsyncUpdatePrepare<this> {
+		return this._prepare(name, true);
+	}
+
+	/** @internal */
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {

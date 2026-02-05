@@ -1,6 +1,7 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
@@ -27,13 +28,16 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
+	_prepare(
+		name?: string,
+		generateName = false,
+	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
 		const { query, builtQuery } = this._toSQL();
 
 		return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
 			builtQuery,
 			undefined,
-			name,
+			name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
 			(rawRows, mapColumnValue) => {
 				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
 				if (this.mode === 'first') {
@@ -44,8 +48,8 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 		);
 	}
 
-	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
-		return this._prepare(name);
+	prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
+		return this._prepare(name, true);
 	}
 
 	execute(placeholderValues?: Record<string, unknown>) {

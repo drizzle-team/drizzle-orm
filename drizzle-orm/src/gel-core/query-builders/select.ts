@@ -17,6 +17,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -30,7 +31,6 @@ import {
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
@@ -89,13 +89,6 @@ export class GelSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	/**
@@ -1060,22 +1053,31 @@ export class GelSelectBase<
 	static override readonly [entityKind]: string = 'GelSelect';
 
 	/** @internal */
-	_prepare(name?: string): GelSelectPrepare<this> {
+	_prepare(name?: string, generateName = false): GelSelectPrepare<this> {
 		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = orderSelectedFields<GelColumn>(config.fields);
-			const query = session.prepareQuery<
+			const query = dialect.sqlToQuery(this.getSQL());
+			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-				type: 'select',
-				tables: [...usedTables],
-			}, cacheConfig);
-			query.joinsNotNullableMap = joinsNotNullableMap;
+			>(
+				query,
+				fieldsList,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'select',
+					tables: [...usedTables],
+				},
+				cacheConfig,
+			);
+			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 
-			return query;
+			return preparedQuery;
 		});
 	}
 
@@ -1095,8 +1097,8 @@ export class GelSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): GelSelectPrepare<this> {
-		return this._prepare(name);
+	prepare(name?: string): GelSelectPrepare<this> {
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

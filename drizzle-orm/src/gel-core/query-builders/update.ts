@@ -19,20 +19,14 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
-import {
-	type Assume,
-	getTableLikeName,
-	mapUpdateSet,
-	type NeonAuthToken,
-	orderSelectedFields,
-	type UpdateSet,
-} from '~/utils.ts';
+import { type Assume, getTableLikeName, mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { GelColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -76,12 +70,6 @@ export class GelUpdateBuilder<TTable extends GelTable, TQueryResult extends GelQ
 		private dialect: GelDialect,
 		private withList?: Subquery[],
 	) {}
-
-	private authToken?: NeonAuthToken;
-	setToken(token: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
 
 	set(
 		values: GelUpdateSetSource<TTable>,
@@ -541,19 +529,27 @@ export class GelUpdateBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelUpdatePrepare<this> {
-		const query = this.session.prepareQuery<
+	_prepare(name?: string, generateName = false): GelUpdatePrepare<this> {
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-			type: 'update',
-			tables: extractUsedTable(this.config.table),
-		});
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query;
+		>(
+			query,
+			this.config.returning,
+			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			true,
+			undefined,
+			{
+				type: 'update',
+				tables: extractUsedTable(this.config.table),
+			},
+		);
+		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		return preparedQuery;
 	}
 
-	prepare(name: string): GelUpdatePrepare<this> {
-		return this._prepare(name);
+	prepare(name?: string): GelUpdatePrepare<this> {
+		return this._prepare(name, true);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

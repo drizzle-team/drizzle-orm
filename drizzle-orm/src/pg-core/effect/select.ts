@@ -7,6 +7,7 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
@@ -108,20 +109,29 @@ export class PgEffectSelectBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectSelectPrepare<this, TEffectHKT> {
+	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
 		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
+		const query = dialect.sqlToQuery(this.getSQL());
 		const fieldsList = orderSelectedFields<PgColumn>(fields);
-		const query = session.prepareQuery<
+		const preparedQUery = session.prepareQuery<
 			PreparedQueryConfig & { execute: TResult }
-		>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-			type: 'select',
-			tables: [...usedTables],
-		}, cacheConfig);
-		query.joinsNotNullableMap = joinsNotNullableMap;
+		>(
+			query,
+			fieldsList,
+			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			true,
+			undefined,
+			{
+				type: 'select',
+				tables: [...usedTables],
+			},
+			cacheConfig,
+		);
+		preparedQUery.joinsNotNullableMap = joinsNotNullableMap;
 
-		return query;
+		return preparedQUery;
 	}
 
 	/**
@@ -131,8 +141,8 @@ export class PgEffectSelectBase<
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
-	prepare(name: string): PgEffectSelectPrepare<this, TEffectHKT> {
-		return this._prepare(name);
+	prepare(name?: string): PgEffectSelectPrepare<this, TEffectHKT> {
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
