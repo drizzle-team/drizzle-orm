@@ -83,7 +83,64 @@
 		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
-		"mysql2": {
+		"@aws-sdk/client-rds-data": {
+			"optional": true
+		},
+		"@cloudflare/workers-types": {
+			"optional": true
+		},
+		"@electric-sql/pglite": {
+			"optional": true
+		},
+		"@libsql/client": {
+			"optional": true
+		},
+		"@libsql/client-wasm": {
+			"optional": true
+		},
+		"@neondatabase/serverless": {
+			"optional": true
+		},
+		"@op-engineering/op-sqlite": {
+			"optional": true
+		},
+		"@opentelemetry/api": {
+			"optional": true
+		},
+		"@planetscale/database": {
+			"optional": true
+		},
+		"@prisma/client": {
+			"optional": true
+		},
+		"@sqlitecloud/drivers": {
+			"optional": true
+		},
+		"@tidbcloud/serverless": {
+			"optional": true
+		},
+		"@tursodatabase/database": {
+			"optional": true
+		},
+		"@tursodatabase/database-common": {
+			"optional": true
+		},
+		"@tursodatabase/database-wasm": {
+			"optional": true
+		},
+		"@types/better-sqlite3": {
+			"optional": true
+		},
+		"@types/mssql": {
+			"optional": true
+		},
+		"@types/pg": {
+			"optional": true
+		},
+		"@types/sql.js": {
+			"optional": true
+		},
+		"@upstash/redis": {
 			"optional": true
 		},
 		"@vercel/postgres": {
@@ -95,49 +152,7 @@
 		"better-sqlite3": {
 			"optional": true
 		},
-		"@types/better-sqlite3": {
-			"optional": true
-		},
-		"sqlite3": {
-			"optional": true
-		},
-		"sql.js": {
-			"optional": true
-		},
-		"@types/sql.js": {
-			"optional": true
-		},
-		"@cloudflare/workers-types": {
-			"optional": true
-		},
-		"pg": {
-			"optional": true
-		},
-		"@types/pg": {
-			"optional": true
-		},
-		"postgres": {
-			"optional": true
-		},
-		"@neondatabase/serverless": {
-			"optional": true
-		},
 		"bun-types": {
-			"optional": true
-		},
-		"@aws-sdk/client-rds-data": {
-			"optional": true
-		},
-		"@planetscale/database": {
-			"optional": true
-		},
-		"@libsql/client": {
-			"optional": true
-		},
-		"@libsql/client-wasm": {
-			"optional": true
-		},
-		"@opentelemetry/api": {
 			"optional": true
 		},
 		"expo-sqlite": {
@@ -146,34 +161,25 @@
 		"gel": {
 			"optional": true
 		},
-		"@op-engineering/op-sqlite": {
+		"mssql": {
 			"optional": true
 		},
-		"@electric-sql/pglite": {
+		"mysql2": {
 			"optional": true
 		},
-		"@sqlitecloud/drivers": {
+		"pg": {
 			"optional": true
 		},
-		"@tidbcloud/serverless": {
+		"postgres": {
 			"optional": true
 		},
 		"prisma": {
 			"optional": true
 		},
-		"@prisma/client": {
+		"sql.js": {
 			"optional": true
 		},
-		"@tursodatabase/database": {
-			"optional": true
-		},
-		"@tursodatabase/database-wasm": {
-			"optional": true
-		},
-		"@tursodatabase/database-common": {
-			"optional": true
-		},
-		"@upstash/redis": {
+		"sqlite3": {
 			"optional": true
 		},
 		"@effect/sql": {
