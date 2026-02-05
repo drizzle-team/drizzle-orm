@@ -8,6 +8,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/gel-core/session.ts';
 import type { GelMaterializedView } from '~/gel-core/view.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -74,22 +75,28 @@ export class GelRefreshMaterializedView<TQueryResult extends GelQueryResultHKT>
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelPreparedQuery<
+	_prepare(name?: string, generateName = false): GelPreparedQuery<
 		PreparedQueryConfig & {
 			execute: GelQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
+			const query = this.dialect.sqlToQuery(this.getSQL());
+			return this.session.prepareQuery(
+				query,
+				undefined,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+			);
 		});
 	}
 
-	prepare(name: string): GelPreparedQuery<
+	prepare(name?: string): GelPreparedQuery<
 		PreparedQueryConfig & {
 			execute: GelQueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

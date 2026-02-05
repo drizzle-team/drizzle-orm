@@ -1347,6 +1347,23 @@ describe('some', async () => {
 		expect(result).toEqual([{ name: 'John' }]);
 	});
 
+	test('nameless prepared statement', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+		const statement = db
+			.select({
+				name: usersTable.name,
+			})
+			.from(usersTable)
+			.prepare();
+		const result1 = await statement.execute();
+		const result2 = await statement.execute();
+
+		expect(result1).toEqual([{ name: 'John' }]);
+		expect(result2).toEqual([{ name: 'John' }]);
+	});
+
 	test('insert: placeholders on columns with encoder', async (ctx) => {
 		const { db } = ctx.gel;
 

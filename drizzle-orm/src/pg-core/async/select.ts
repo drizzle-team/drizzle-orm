@@ -5,6 +5,7 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -103,22 +104,32 @@ export class PgAsyncSelectBase<
 	/** @internal */
 	_prepare(
 		name?: string,
+		generateName = false,
 	): PgAsyncSelectPrepare<this> {
 		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = dialect.sqlToQuery(this.getSQL());
 			const fieldsList = orderSelectedFields<PgColumn>(fields);
-			const query = session.prepareQuery<
+			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: any }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-				type: 'select',
-				tables: [...usedTables],
-			}, cacheConfig);
-			query.joinsNotNullableMap = joinsNotNullableMap;
+			>(
+				query,
+				fieldsList,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'select',
+					tables: [...usedTables],
+				},
+				cacheConfig,
+			);
+			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 
-			return query.setToken(authToken);
-		}) as any;
+			return preparedQuery.setToken(authToken);
+		});
 	}
 
 	/**
@@ -129,9 +140,9 @@ export class PgAsyncSelectBase<
 	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
 	 */
 	prepare(
-		name: string,
+		name?: string,
 	): PgAsyncSelectPrepare<this> {
-		return this._prepare(name);
+		return this._prepare(name, true);
 	}
 
 	/** @internal */
