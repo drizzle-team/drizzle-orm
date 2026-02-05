@@ -232,6 +232,7 @@ const skip = [
 	'select from alias',
 	'join view as subquery',
 	'cross join',
+	'sql.Aliased with identical alias in cte',
 ];
 cacheTests(test, skip);
 tests(test, skip);

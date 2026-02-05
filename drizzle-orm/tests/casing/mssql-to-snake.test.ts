@@ -94,7 +94,8 @@ describe('mssql to snake case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
+			sql:
+				"with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [cte].[name] from [cte]",
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -105,7 +106,8 @@ describe('mssql to snake case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
+			sql:
+				"with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [cte].[name] from [cte]",
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);

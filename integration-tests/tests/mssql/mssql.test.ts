@@ -1442,7 +1442,7 @@ test('sql.Aliased with identical alias in cte', async ({ db }) => {
 	const result = await db.with(sq1, sq2).select({
 		count: sq1.aliased,
 		sum: sq2.aliased,
-	}).from(sq1).innerJoin(sq2, sql`true`);
+	}).from(sq1).innerJoin(sq2, sql`1 = 1`);
 
 	expect(result).toEqual([{ count: 2, sum: 3 }]);
 });

@@ -2212,12 +2212,12 @@ export function tests(test: Test) {
 
 			const sq1 = db.$with('sq1').as((qb) =>
 				qb.select({
-					aliased: sql`count(*)`.as('alias'),
+					aliased: sql`count(*)`.mapWith(Number).as('alias'),
 				}).from(users)
 			);
 			const sq2 = db.$with('sq2').as((qb) =>
 				qb.select({
-					aliased: sql`sum(${users.id})`.as('alias'),
+					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
 				}).from(users)
 			);
 

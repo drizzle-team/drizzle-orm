@@ -1514,6 +1514,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				name: text('name').notNull(),
 			});
 
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 			await push({ users });
 			await db.insert(users).values([
 				{ id: 1, name: 'John' },
