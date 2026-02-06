@@ -115,7 +115,7 @@ export abstract class AbstractGenerator<T = {}> {
 		return;
 	}
 
-	replaceIfArray() {
+	replaceIfArray(): AbstractGenerator<any> | undefined {
 		this.updateProperties();
 		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
 			const uniqueGen = this.replaceIfUnique();
@@ -3329,6 +3329,14 @@ export class WeightedRandomGenerator extends AbstractGenerator<{ weight: number;
 		rng: prand.RandomGenerator;
 		weightedIndices: number[];
 	} | undefined;
+
+	override replaceIfArray() {
+		for (const param of this.params) {
+			const arrayGen = param.value.replaceIfArray();
+			if (arrayGen) param.value = arrayGen;
+		}
+		return this;
+	}
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		const weights = this.params.map((weightedGen) => weightedGen.weight);

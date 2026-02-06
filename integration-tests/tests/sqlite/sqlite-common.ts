@@ -18,6 +18,7 @@ import {
 	min,
 	Name,
 	notInArray,
+	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -27,6 +28,7 @@ import {
 	alias,
 	type BaseSQLiteDatabase,
 	blob,
+	customType,
 	except,
 	foreignKey,
 	getTableConfig,
@@ -201,6 +203,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			await db.run(sql`drop table if exists user_notifications_insert_into`);
 			await db.run(sql`drop table if exists users_insert_into`);
 			await db.run(sql`drop table if exists notifications_insert_into`);
+			await db.run(sql`drop table if exists table1`);
 
 			await db.run(sql`
 				create table ${usersTable} (
@@ -963,6 +966,65 @@ export function tests(test: Test, exclude: string[] = []) {
 				{ id: 1, verified: true },
 				{ id: 2, verified: false },
 			]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/976
+		test.concurrent('insert; prepared statement with placeholder in .values', async ({ db, push }) => {
+			const textArray = customType({
+				dataType() {
+					return 'text';
+				},
+				fromDriver(value) {
+					return JSON.parse(value as string);
+				},
+				toDriver(value) {
+					return JSON.stringify(value);
+				},
+			});
+
+			const schema = {
+				table1: sqliteTable('table1', {
+					list: textArray('list'),
+					col2: blob({ mode: 'json' }),
+					col3: blob({ mode: 'bigint' }),
+					col4: integer({ mode: 'timestamp' }),
+					col5: integer({ mode: 'timestamp_ms' }),
+				}),
+			};
+
+			await push(schema);
+
+			const stmt = db
+				.insert(schema.table1)
+				.values({
+					list: sql.placeholder('list'),
+					col2: sql.placeholder('col2'),
+					col3: sql.placeholder('col3'),
+					col4: sql.placeholder('col4'),
+					col5: sql.placeholder('col5'),
+				})
+				.prepare();
+
+			const date1 = new Date('2026-02-06T18:42:21');
+			const date2 = new Date('2026-02-06T18:42:21.123');
+			await stmt.run({ list: ['a', 'b'], col2: { a: 1 }, col3: 123n, col4: date1, col5: date2 });
+			const result = await db.select().from(schema.table1).get();
+			expect(result).toStrictEqual({ list: ['a', 'b'], col2: { a: 1 }, col3: 123n, col4: date1, col5: date2 });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/2872
+		test.concurrent('prepared statement with placeholder in .inArray', async ({ db, push }) => {
+			const table1 = sqliteTable('table1', {
+				name: text(),
+			});
+
+			await push({ table1 });
+
+			await db.insert(table1).values([{ name: 'John' }, { name: 'John1' }]);
+
+			const prepared = db.select().from(table1).where(inArray(table1.name, sql.placeholder('names'))).prepare();
+			const result = await prepared.execute({ names: ['John', 'John1'] });
+			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
 		});
 
 		test.concurrent('prepared statement with placeholder in .where', async ({ db }) => {

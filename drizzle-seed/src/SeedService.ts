@@ -14,6 +14,7 @@ import type {
 	GenerateCompositeUniqueKey,
 	GenerateHashFromString,
 	GenerateWeightedCount,
+	WeightedRandomGenerator,
 } from './generators/Generators.ts';
 import type {
 	DbType,
@@ -423,6 +424,12 @@ export class SeedService {
 			newBaseColumnGen.typeParams = oldBaseColumnGen.typeParams;
 
 			(generator as GenerateArray).params.baseColumnGen = newBaseColumnGen;
+		}
+
+		if (entityKind === 'WeightedRandomGenerator') {
+			for (const param of (generator as WeightedRandomGenerator).params) {
+				param.value = this.selectVersionOfGenerator(param.value);
+			}
 		}
 
 		const possibleGeneratorConstructors = generatorsMap[entityKind as keyof typeof generatorsMap];
