@@ -3,6 +3,18 @@ import { boolean, coerce, literal, object, string, undefined as zUndefined, unio
 import { error } from '../views';
 import { wrapParam } from './common';
 
+const postgresConnectionOptions = {
+	ssl: union([
+		literal('require'),
+		literal('allow'),
+		literal('prefer'),
+		literal('verify-full'),
+		boolean(),
+		object({}).passthrough(),
+	]).optional(),
+	max: coerce.number().min(1).optional(),
+}
+
 export const postgresCredentials = union([
 	object({
 		driver: zUndefined(),
@@ -11,14 +23,7 @@ export const postgresCredentials = union([
 		user: string().min(1).optional(),
 		password: string().min(1).optional(),
 		database: string().min(1),
-		ssl: union([
-			literal('require'),
-			literal('allow'),
-			literal('prefer'),
-			literal('verify-full'),
-			boolean(),
-			object({}).passthrough(),
-		]).optional(),
+		...postgresConnectionOptions
 	}).transform((o) => {
 		delete o.driver;
 		return o as Omit<typeof o, 'driver'>;
@@ -26,7 +31,8 @@ export const postgresCredentials = union([
 	object({
 		driver: zUndefined(),
 		url: string().min(1),
-	}).transform<{ url: string }>((o) => {
+		...postgresConnectionOptions
+	}).transform((o) => {
 		delete o.driver;
 		return o;
 	}),
