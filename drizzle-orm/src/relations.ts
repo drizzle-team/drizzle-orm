@@ -920,10 +920,19 @@ export interface RelationFieldsFilterInternals<T> {
 	AND?: RelationsFieldFilter<T>[] | undefined;
 }
 
+type Primitive = 
+	| null
+    | undefined
+    | string
+    | number
+    | boolean
+    | symbol
+    | bigint
+
 export type RelationsFieldFilter<T = unknown> =
 	| RelationFieldsFilterInternals<T>
 	| (
-		unknown extends T ? never : T extends object ? never : T
+		unknown extends T ? never : T extends Primitive ? T : never
 	)
 	// Bleeds into filters - discuss removal
 	| Placeholder;
