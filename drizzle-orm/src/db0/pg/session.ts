@@ -84,6 +84,16 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 			const rows = await stmt.all(...params) as Record<string, unknown>[];
 			const arrayRows = rows.map((row) => (fields ? mapDb0RowToArray(row, fields, this.dialect) : Object.values(row)));
 
+			// db0 doesn't expose values/array mode in its public API, so fall back to mapping object rows.
+			// For selections where db0 collapses duplicate column names, fail instead of returning wrong data.
+			if (fields) {
+				if (arrayRows.some((r) => r.length !== fields.length)) {
+					throw new Error(
+						'db0 pg connector returned object rows with duplicate column names; use db0/connectors/pglite for correct join/alias results.',
+					);
+				}
+			}
+
 			if (customResultMapper) {
 				return customResultMapper(arrayRows);
 			}
