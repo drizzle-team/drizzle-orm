@@ -1,0 +1,148 @@
+import { PGlite } from '@electric-sql/pglite';
+import { createDatabase } from 'db0';
+import pglite from 'db0/connectors/pglite';
+import { sql } from 'drizzle-orm';
+import type { Db0PgDatabase } from 'drizzle-orm/db0';
+import { drizzle } from 'drizzle-orm/db0';
+import { afterAll, beforeAll, expect, test } from 'vitest';
+
+const ENABLE_LOGGING = false;
+
+let db: Db0PgDatabase;
+let client: PGlite;
+
+beforeAll(async () => {
+	client = new PGlite();
+	const db0 = createDatabase(pglite(client));
+	db = drizzle(db0, { logger: ENABLE_LOGGING }) as Db0PgDatabase;
+});
+
+afterAll(async () => {
+	await client?.close();
+});
+
+test('db0 dialect detection', async () => {
+	const pgClient = new PGlite();
+	const db0 = createDatabase(pglite(pgClient));
+	expect(db0.dialect).toBe('postgresql');
+
+	const drizzleDb = drizzle(db0);
+	expect(drizzleDb).toBeDefined();
+	await pgClient.close();
+});
+
+test('basic CRUD operations', async () => {
+	await db.execute(sql`drop table if exists db0_test`);
+	await db.execute(sql`create table db0_test (id serial primary key, name text)`);
+
+	await db.execute(sql`insert into db0_test (name) values ('Alice')`);
+	const result = await db.execute(sql`select * from db0_test`);
+	expect(result.rows).toEqual([{ id: 1, name: 'Alice' }]);
+
+	await db.execute(sql`update db0_test set name = 'Bob' where id = 1`);
+	const updated = await db.execute(sql`select * from db0_test where id = 1`);
+	expect(updated.rows).toEqual([{ id: 1, name: 'Bob' }]);
+
+	await db.execute(sql`delete from db0_test where id = 1`);
+	const deleted = await db.execute(sql`select * from db0_test`);
+	expect(deleted.rows).toEqual([]);
+
+	await db.execute(sql`drop table db0_test`);
+});
+
+test('transaction commit', async () => {
+	await db.execute(sql`drop table if exists db0_tx_test`);
+	await db.execute(sql`create table db0_tx_test (id serial primary key, name text)`);
+
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`insert into db0_tx_test (name) values ('Alice')`);
+		await tx.execute(sql`insert into db0_tx_test (name) values ('Bob')`);
+	});
+
+	const result = await db.execute(sql`select * from db0_tx_test order by id`);
+	expect(result.rows).toEqual([
+		{ id: 1, name: 'Alice' },
+		{ id: 2, name: 'Bob' },
+	]);
+
+	await db.execute(sql`drop table db0_tx_test`);
+});
+
+test('transaction rollback', async () => {
+	await db.execute(sql`drop table if exists db0_rollback_test`);
+	await db.execute(sql`create table db0_rollback_test (id serial primary key, name text)`);
+
+	await db.execute(sql`insert into db0_rollback_test (name) values ('Existing')`);
+
+	try {
+		await db.transaction(async (tx) => {
+			await tx.execute(sql`insert into db0_rollback_test (name) values ('ShouldRollback')`);
+			throw new Error('Rollback test');
+		});
+	} catch {
+		// Expected
+	}
+
+	const result = await db.execute(sql`select * from db0_rollback_test`);
+	expect(result.rows).toEqual([{ id: 1, name: 'Existing' }]);
+
+	await db.execute(sql`drop table db0_rollback_test`);
+});
+
+test('nested transaction with savepoint', async () => {
+	await db.execute(sql`drop table if exists db0_nested_test`);
+	await db.execute(sql`create table db0_nested_test (id serial primary key, name text)`);
+
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`insert into db0_nested_test (name) values ('Outer')`);
+
+		await tx.transaction(async (nestedTx) => {
+			await nestedTx.execute(sql`insert into db0_nested_test (name) values ('Inner')`);
+		});
+	});
+
+	const result = await db.execute(sql`select * from db0_nested_test order by id`);
+	expect(result.rows).toEqual([
+		{ id: 1, name: 'Outer' },
+		{ id: 2, name: 'Inner' },
+	]);
+
+	await db.execute(sql`drop table db0_nested_test`);
+});
+
+test('nested transaction rollback', async () => {
+	await db.execute(sql`drop table if exists db0_nested_rollback_test`);
+	await db.execute(sql`create table db0_nested_rollback_test (id serial primary key, name text)`);
+
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`insert into db0_nested_rollback_test (name) values ('OuterOK')`);
+
+		try {
+			await tx.transaction(async (nestedTx) => {
+				await nestedTx.execute(sql`insert into db0_nested_rollback_test (name) values ('InnerFail')`);
+				throw new Error('Inner rollback test');
+			});
+		} catch {
+			// Expected - inner transaction rolled back
+		}
+	});
+
+	const result = await db.execute(sql`select * from db0_nested_rollback_test order by id`);
+	expect(result.rows).toEqual([{ id: 1, name: 'OuterOK' }]);
+
+	await db.execute(sql`drop table db0_nested_rollback_test`);
+});
+
+test('transaction with isolation level', async () => {
+	await db.execute(sql`drop table if exists db0_isolation_test`);
+	await db.execute(sql`create table db0_isolation_test (id serial primary key, name text)`);
+
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`insert into db0_isolation_test (name) values ('Test')`);
+	}, { isolationLevel: 'serializable' });
+
+	const result = await db.execute(sql`select * from db0_isolation_test`);
+	expect(result.rows).toEqual([{ id: 1, name: 'Test' }]);
+
+	await db.execute(sql`drop table db0_isolation_test`);
+});

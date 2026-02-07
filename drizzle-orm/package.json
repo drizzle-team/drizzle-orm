@@ -83,6 +83,7 @@
 		"postgres": ">=3",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
+		"db0": ">=0.3.4",
 		"typebox": ">=1.0.0",
 		"valibot": ">=1.0.0-beta.7",
 		"zod": "^3.25.0 || ^4.0.0"
@@ -193,6 +194,9 @@
 		"@effect/sql-pg": {
 			"optional": true
 		},
+		"db0": {
+			"optional": true
+		},
 		"typebox": {
 			"optional": true
 		},
@@ -238,6 +242,7 @@
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
+		"db0": "^0.3.4",
 		"effect": "^3.19.8",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
