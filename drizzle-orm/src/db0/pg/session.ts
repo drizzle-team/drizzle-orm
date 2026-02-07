@@ -1,16 +1,16 @@
 import type { Database, Primitive } from 'db0';
+import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 import { mapDb0RowToArray } from '../_row-mapping.ts';
 
@@ -24,7 +24,10 @@ export interface Db0PgQueryResult {
 	rowCount: number;
 }
 
-export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PgPreparedQuery<T> {
+export class Db0PgPreparedQuery<
+	T extends PreparedQueryConfig = PreparedQueryConfig,
+	TIsRqbV2 extends boolean = false,
+> extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'Db0PgPreparedQuery';
 
 	constructor(
@@ -39,12 +42,18 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => T['execute'],
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.params, placeholderValues) as Primitive[];
 		this.logger.logQuery(this.queryString, params);
 
@@ -70,7 +79,7 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 						if (result?.rows && (result.rows.length === 0 || Array.isArray(result.rows[0]))) {
 							const arrayRows = result.rows as unknown[][];
 							if (customResultMapper) {
-								return customResultMapper(arrayRows);
+								return (customResultMapper as (rows: unknown[][]) => T['execute'])(arrayRows);
 							}
 							return arrayRows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 						}
@@ -95,19 +104,33 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 			}
 
 			if (customResultMapper) {
-				return customResultMapper(arrayRows);
+				return (customResultMapper as (rows: unknown[][]) => T['execute'])(arrayRows);
 			}
 
 			return arrayRows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
 		});
 	}
 
-	async all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues) as Primitive[];
 		this.logger.logQuery(this.queryString, params);
-		return await this.queryWithCache(this.queryString, params, async () => {
+
+		const { client, customResultMapper, queryString } = this;
+
+		const rows = await this.queryWithCache(queryString, params, async () => {
+			const stmt = client.prepare(queryString);
+			return await stmt.all(...params) as Record<string, unknown>[];
+		});
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
+	}
+
+	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+		const params = fillPlaceholders(this.params, placeholderValues) as Primitive[];
+		this.logger.logQuery(this.queryString, params);
+		return this.queryWithCache(this.queryString, params, async () => {
 			const stmt = this.client.prepare(this.queryString);
-			return stmt.all(...params) as Promise<T['all']>;
+			return await stmt.all(...params) as T['all'];
 		});
 	}
 
@@ -119,8 +142,9 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 
 export class Db0PgSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<Db0PgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgAsyncSession<Db0PgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'Db0PgSession';
 
 	private logger: Logger;
@@ -129,7 +153,8 @@ export class Db0PgSession<
 	constructor(
 		private client: Database,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: Db0PgSessionOptions = {},
 	) {
 		super(dialect);
@@ -145,7 +170,7 @@ export class Db0PgSession<
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
 		cacheConfig?: WithCacheConfig,
-	): PgPreparedQuery<T> {
+	): Db0PgPreparedQuery<T> {
 		return new Db0PgPreparedQuery(
 			this.client,
 			this.dialect,
@@ -162,57 +187,69 @@ export class Db0PgSession<
 		);
 	}
 
-	override async transaction<T>(
-		transaction: (tx: Db0PgTransaction<TFullSchema, TSchema>) => Promise<T>,
-		config?: PgTransactionConfig,
-	): Promise<T> {
-		const tx = new Db0PgTransaction<TFullSchema, TSchema>(this.dialect, this, this.schema);
-
-		let beginSql = 'begin';
-		if (config) {
-			const chunks: string[] = [];
-			if (config.isolationLevel) {
-				chunks.push(`isolation level ${config.isolationLevel}`);
-			}
-			if (config.accessMode) {
-				chunks.push(config.accessMode);
-			}
-			if (typeof config.deferrable === 'boolean') {
-				chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
-			}
-			if (chunks.length > 0) {
-				beginSql = `begin ${chunks.join(' ')}`;
-			}
-		}
-
-		await this.execute(sql.raw(beginSql));
-		try {
-			const result = await transaction(tx);
-			await this.execute(sql`commit`);
-			return result;
-		} catch (err) {
-			await this.execute(sql`rollback`);
-			throw err;
-		}
+	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		name: string | undefined,
+		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+	): Db0PgPreparedQuery<T, true> {
+		return new Db0PgPreparedQuery(
+			this.client,
+			this.dialect,
+			query.sql,
+			query.params,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			name,
+			false,
+			customResultMapper,
+			true,
+		);
 	}
 
-	override async count(countSql: SQL): Promise<number> {
-		const res = await this.execute<Db0PgQueryResult>(countSql);
-		return Number((res.rows[0] as Record<string, unknown>)['count']);
+	override async transaction<T>(
+		transaction: (tx: Db0PgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		config?: PgTransactionConfig,
+	): Promise<T> {
+		const tx = new Db0PgTransaction<TFullSchema, TRelations, TSchema>(
+			this.dialect,
+			this,
+			this.relations,
+			this.schema,
+		);
+		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		try {
+			const result = await transaction(tx);
+			await tx.execute(sql`commit`);
+			return result;
+		} catch (error) {
+			await tx.execute(sql`rollback`);
+			throw error;
+		}
 	}
 }
 
 export class Db0PgTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<Db0PgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends PgAsyncTransaction<Db0PgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'Db0PgTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: Db0PgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: Db0PgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new Db0PgTransaction<TFullSchema, TSchema>(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new Db0PgTransaction<TFullSchema, TRelations, TSchema>(
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

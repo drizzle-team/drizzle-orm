@@ -1,10 +1,11 @@
 import type { Database, Primitive } from 'db0';
+import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -29,8 +30,9 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class Db0SQLiteSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', Db0RunResult, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<'async', Db0RunResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'Db0SQLiteSession';
 
 	private logger: Logger;
@@ -39,7 +41,8 @@ export class Db0SQLiteSession<
 	constructor(
 		private client: Database,
 		dialect: SQLiteAsyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: Db0SQLiteSessionOptions = {},
 	) {
 		super(dialect);
@@ -52,7 +55,7 @@ export class Db0SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
 		cacheConfig?: WithCacheConfig,
 	): Db0SQLitePreparedQuery {
@@ -71,11 +74,33 @@ export class Db0SQLiteSession<
 		);
 	}
 
+	prepareRelationalQuery(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+	): Db0SQLitePreparedQuery<PreparedQueryConfig, true> {
+		return new Db0SQLitePreparedQuery(
+			this.client,
+			this.dialect,
+			query,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
 	override async transaction<T>(
-		transaction: (tx: Db0SQLiteTransaction<TFullSchema, TSchema>) => T | Promise<T>,
+		transaction: (tx: Db0SQLiteTransaction<TFullSchema, TRelations, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new Db0SQLiteTransaction('async', this.dialect, this, this.schema);
+		const tx = new Db0SQLiteTransaction('async', this.dialect, this, this.relations, this.schema);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -90,15 +115,23 @@ export class Db0SQLiteSession<
 
 export class Db0SQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', Db0RunResult, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<'async', Db0RunResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'Db0SQLiteTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: Db0SQLiteTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: Db0SQLiteTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new Db0SQLiteTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new Db0SQLiteTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -111,16 +144,13 @@ export class Db0SQLiteTransaction<
 	}
 }
 
-export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
+export class Db0SQLitePreparedQuery<
+	T extends PreparedQueryConfig = PreparedQueryConfig,
+	TIsRqbV2 extends boolean = false,
+> extends SQLitePreparedQuery<
 	{ type: 'async'; run: Db0RunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'Db0SQLitePreparedQuery';
-
-	/** @internal */
-	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
-
-	/** @internal */
-	fields?: SelectedFieldsOrdered;
 
 	constructor(
 		private client: Database,
@@ -130,14 +160,16 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		cache: Cache,
 		queryMetadata: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] } | undefined,
 		cacheConfig: WithCacheConfig | undefined,
-		fields: SelectedFieldsOrdered | undefined,
+		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			mapColumnValue?: (value: unknown) => unknown,
+		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
-		this.customResultMapper = customResultMapper;
-		this.fields = fields;
 	}
 
 	async run(placeholderValues?: Record<string, unknown>): Promise<Db0RunResult> {
@@ -150,6 +182,8 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+
 		const { fields, query, logger, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {}) as Primitive[];
@@ -161,7 +195,19 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		}
 
 		const rows = await this.values(placeholderValues);
-		return this.mapAllResult(rows);
+		return this.mapAllResult(rows) as T['all'];
+	}
+
+	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {}) as Primitive[];
+		this.logger.logQuery(this.query.sql, params);
+
+		const rows = await this.queryWithCache(this.query.sql, params, async () => {
+			const stmt = this.client.prepare(this.query.sql);
+			return await stmt.all(...params) as Record<string, unknown>[];
+		});
+
+		return (this.customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
 	}
 
 	override mapAllResult(rows: unknown): unknown {
@@ -170,13 +216,15 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		}
 
 		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][]);
+			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 		}
 
 		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+
 		const { fields, query, logger, client, customResultMapper, joinsNotNullableMap } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {}) as Primitive[];
@@ -194,13 +242,27 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		}
 
 		if (customResultMapper) {
-			return customResultMapper([rows[0] as unknown[]]) as T['get'];
+			return (customResultMapper as (rows: unknown[][]) => unknown)([rows[0] as unknown[]]) as T['get'];
 		}
 
 		return mapResultRow(fields!, rows[0] as unknown[], joinsNotNullableMap);
 	}
 
-	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+	private async getRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {}) as Primitive[];
+		this.logger.logQuery(this.query.sql, params);
+
+		const row = await this.queryWithCache(this.query.sql, params, async () => {
+			const stmt = this.client.prepare(this.query.sql);
+			return await stmt.get(...params) as Record<string, unknown> | undefined;
+		});
+
+		if (!row) return undefined;
+
+		return (this.customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
+	}
+
+	async values<TValues extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<TValues[]> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {}) as Primitive[];
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
@@ -212,7 +274,7 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 			if (typeof rawStmtFactory === 'function') {
 				const rawStmt = rawStmtFactory();
 				if (rawStmt && typeof rawStmt.raw === 'function') {
-					return rawStmt.raw(true).all(...(params as any[])) as T[];
+					return rawStmt.raw(true).all(...(params as any[])) as TValues[];
 				}
 			}
 
@@ -226,9 +288,9 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 						'db0 sqlite connector returned object rows with duplicate column names; use db0/connectors/better-sqlite3 for correct join/alias results.',
 					);
 				}
-				return mapped as T[];
+				return mapped as TValues[];
 			}
-			return rows.map((row) => Object.values(row)) as T[];
+			return rows.map((row) => Object.values(row)) as TValues[];
 		});
 	}
 
