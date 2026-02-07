@@ -16,6 +16,7 @@ import type {
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
+import { mapDb0RowToArray } from '../_row-mapping.ts';
 
 export interface Db0SQLiteSessionOptions {
 	logger?: Logger;
@@ -57,6 +58,7 @@ export class Db0SQLiteSession<
 	): Db0SQLitePreparedQuery {
 		return new Db0SQLitePreparedQuery(
 			this.client,
+			this.dialect,
 			query,
 			this.logger,
 			this.cache,
@@ -122,6 +124,7 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 
 	constructor(
 		private client: Database,
+		private dialect: SQLiteAsyncDialect,
 		query: Query,
 		private logger: Logger,
 		cache: Cache,
@@ -191,7 +194,7 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		}
 
 		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
+			return customResultMapper([rows[0] as unknown[]]) as T['get'];
 		}
 
 		return mapResultRow(fields!, rows[0] as unknown[], joinsNotNullableMap);
@@ -202,8 +205,29 @@ export class Db0SQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuer
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
 			const stmt = this.client.prepare(this.query.sql);
-			// db0 doesn't have a raw/values method, so we need to get all and convert to arrays
+
+			// db0's better-sqlite3 connector wraps a better-sqlite3 statement, which can return arrays via raw(true).
+			// We prefer this for correctness with joins/aliases (object rows can lose duplicate column names).
+			const rawStmtFactory = (stmt as any)?._statement;
+			if (typeof rawStmtFactory === 'function') {
+				const rawStmt = rawStmtFactory();
+				if (rawStmt && typeof rawStmt.raw === 'function') {
+					return rawStmt.raw(true).all(...(params as any[])) as T[];
+				}
+			}
+
 			const rows = await stmt.all(...params) as Record<string, unknown>[];
+			// db0 doesn't expose values/array mode in its public API, so fall back to mapping object rows.
+			// For selections where db0 collapses duplicate column names, fail instead of returning wrong data.
+			if (this.fields) {
+				const mapped = rows.map((row) => mapDb0RowToArray(row, this.fields!, this.dialect));
+				if (mapped.some((r) => r.length !== this.fields!.length)) {
+					throw new Error(
+						'db0 sqlite connector returned object rows with duplicate column names; use db0/connectors/better-sqlite3 for correct join/alias results.',
+					);
+				}
+				return mapped as T[];
+			}
 			return rows.map((row) => Object.values(row)) as T[];
 		});
 	}

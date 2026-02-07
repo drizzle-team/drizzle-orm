@@ -12,6 +12,7 @@ import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
+import { mapDb0RowToArray } from '../_row-mapping.ts';
 
 export interface Db0PgSessionOptions {
 	logger?: Logger;
@@ -28,6 +29,7 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 
 	constructor(
 		private client: Database,
+		private dialect: PgDialect,
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
@@ -56,11 +58,31 @@ export class Db0PgPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCon
 			});
 		}
 
-		// db0 doesn't have array mode, so we get objects and convert to arrays
+		// db0 doesn't have array mode, so we get objects and map them into arrays in selection order.
 		return await this.queryWithCache(queryString, params, async () => {
+			// Prefer querying in array mode when the underlying driver supports it (e.g. pglite),
+			// otherwise joined tables with duplicate column names can be collapsed in object mode.
+			if (fields || customResultMapper) {
+				try {
+					const instance = await (client as any).getInstance?.();
+					if (instance && typeof instance.query === 'function') {
+						const result = await instance.query(queryString, params, { rowMode: 'array' });
+						if (result?.rows && (result.rows.length === 0 || Array.isArray(result.rows[0]))) {
+							const arrayRows = result.rows as unknown[][];
+							if (customResultMapper) {
+								return customResultMapper(arrayRows);
+							}
+							return arrayRows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+						}
+					}
+				} catch {
+					// Fall back to object mode mapping below.
+				}
+			}
+
 			const stmt = client.prepare(queryString);
 			const rows = await stmt.all(...params) as Record<string, unknown>[];
-			const arrayRows = rows.map((row) => Object.values(row));
+			const arrayRows = rows.map((row) => (fields ? mapDb0RowToArray(row, fields, this.dialect) : Object.values(row)));
 
 			if (customResultMapper) {
 				return customResultMapper(arrayRows);
@@ -116,6 +138,7 @@ export class Db0PgSession<
 	): PgPreparedQuery<T> {
 		return new Db0PgPreparedQuery(
 			this.client,
+			this.dialect,
 			query.sql,
 			query.params,
 			this.logger,

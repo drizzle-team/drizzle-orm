@@ -83,10 +83,16 @@
 		"postgres": ">=3",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
+<<<<<<< HEAD
 		"db0": ">=0.3.4",
 		"typebox": ">=1.0.0",
 		"valibot": ">=1.0.0-beta.7",
 		"zod": "^3.25.0 || ^4.0.0"
+=======
+		"gel": ">=2",
+		"@upstash/redis": ">=1.34.7",
+		"db0": ">=0.3.4"
+>>>>>>> d8ca6bcb (fix(db0): prefer array results)
 	},
 	"peerDependenciesMeta": {
 		"arktype": {
@@ -243,7 +249,10 @@
 		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
 		"db0": "^0.3.4",
+<<<<<<< HEAD
 		"effect": "^3.19.8",
+=======
+>>>>>>> d8ca6bcb (fix(db0): prefer array results)
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
 		"glob": "^11.0.1",

@@ -1,5 +1,4 @@
 export { constructSqlite, Db0SQLiteDatabase } from './driver.ts';
-export * from './migrator.ts';
 export {
 	Db0SQLitePreparedQuery,
 	Db0SQLiteSession,

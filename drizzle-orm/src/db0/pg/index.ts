@@ -1,5 +1,4 @@
 export { constructPg, Db0PgDatabase } from './driver.ts';
-export * from './migrator.ts';
 export {
 	Db0PgPreparedQuery,
 	type Db0PgQueryResult,
