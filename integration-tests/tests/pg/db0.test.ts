@@ -165,31 +165,10 @@ skipTests([
 	'nested transaction with savepoint',
 	'nested transaction rollback',
 	'transaction with isolation level',
-	// db0 doesn't support transaction rollback method
-	'transaction rollback',
-	'nested transaction rollback',
 	// Row ordering issues - db0/pglite may return rows in different order
 	'select with group by as sql + column',
 	'select with group by as column + sql',
 	'mySchema :: select with group by as column + sql',
-	// Join/alias field mapping issues - db0 object mode vs array mode conversion
-	'partial join with alias',
-	'full join with alias',
-	'select from alias',
-	'left join (flat object fields)',
-	'left join (grouped fields)',
-	'left join (all fields)',
-	'with ... select',
-	'select from raw sql with joins',
-	'join on aliased sql from select',
-	'join view as subquery',
-	'mySchema :: partial join with alias',
-	'mySchema :: select from tables with same name from different schema using alias',
-	// Lateral joins have field mapping issues
-	'left join (lateral)',
-	'inner join (lateral)',
-	'cross join (lateral)',
-	'cross join',
 	// Type conversion differences
 	'select count()',
 	// Timezone handling differences
@@ -206,9 +185,5 @@ skipTests([
 	'set json/jsonb fields with strings and retrieve with the ->> operator',
 	'set json/jsonb fields with objects and retrieve with the -> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
-	// UPDATE ... FROM has field mapping issues
-	'update ... from',
-	'update ... from with alias',
-	'update ... from with join',
 ]);
 tests();
