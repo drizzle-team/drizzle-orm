@@ -4,9 +4,7 @@ import pglite from 'db0/connectors/pglite';
 import { sql } from 'drizzle-orm';
 import type { Db0PgDatabase } from 'drizzle-orm/db0';
 import { drizzle } from 'drizzle-orm/db0';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { skipTests } from '~/common';
-import { tests, usersTable } from './pg-common';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
@@ -21,12 +19,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.close();
-});
-
-beforeEach((ctx) => {
-	ctx.pg = {
-		db,
-	};
 });
 
 test('db0 dialect detection', async () => {
@@ -154,36 +146,3 @@ test('transaction with isolation level', async () => {
 
 	await db.execute(sql`drop table db0_isolation_test`);
 });
-
-// Skip tests that are specific to db0 (already run above) or have known db0 limitations
-skipTests([
-	// Already tested above
-	'db0 dialect detection',
-	'basic CRUD operations',
-	'transaction commit',
-	'transaction rollback',
-	'nested transaction with savepoint',
-	'nested transaction rollback',
-	'transaction with isolation level',
-	// Row ordering issues - db0/pglite may return rows in different order
-	'select with group by as sql + column',
-	'select with group by as column + sql',
-	'mySchema :: select with group by as column + sql',
-	// Type conversion differences
-	'select count()',
-	// Timezone handling differences
-	'all date and time columns',
-	'timestamp timezone',
-	// $onUpdate timing differences
-	'test $onUpdateFn and $onUpdate works as $default',
-	'test $onUpdateFn and $onUpdate works updating',
-	'test $onUpdateFn and $onUpdate works with sql value',
-	// All types has timezone differences
-	'all types',
-	// JSON operators have type conversion issues with db0
-	'set json/jsonb fields with objects and retrieve with the ->> operator',
-	'set json/jsonb fields with strings and retrieve with the ->> operator',
-	'set json/jsonb fields with objects and retrieve with the -> operator',
-	'set json/jsonb fields with strings and retrieve with the -> operator',
-]);
-tests();

@@ -4,8 +4,6 @@ import { sql } from 'drizzle-orm';
 import type { Db0SQLiteDatabase } from 'drizzle-orm/db0';
 import { drizzle } from 'drizzle-orm/db0';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { skipTests } from '~/common';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
@@ -155,9 +153,3 @@ test('nested transaction rollback', async () => {
 
 	await db.run(sql`drop table db0_nested_rollback_test`);
 });
-
-skipTests([
-	// db0 doesn't support bigint blobs in the same way
-	'insert bigint values',
-]);
-tests();
