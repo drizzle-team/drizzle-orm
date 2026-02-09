@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
@@ -74,21 +75,30 @@ export class PgAsyncInsertBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string): PgInsertPrepare<this> {
+	_prepare(name?: string, generateName = false): PgInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig).setToken(this.authToken);
+			>(
+				query,
+				this.config.returning,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+				undefined,
+				{
+					type: 'insert',
+					tables: extractUsedTable(this.config.table),
+				},
+				this.cacheConfig,
+			).setToken(this.authToken);
 		});
 	}
 
-	prepare(name: string): PgInsertPrepare<this> {
-		return this._prepare(name);
+	prepare(name?: string): PgInsertPrepare<this> {
+		return this._prepare(name, true);
 	}
 
 	/** @internal */

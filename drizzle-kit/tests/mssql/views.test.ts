@@ -961,7 +961,7 @@ test('view with "with"', async () => {
 );\n`,
 		'CREATE VIEW [ebay_status_latest] AS with [statuslog_latest] as '
 		+ '(select [ebay_case_id], [status_id], [created], [created_by], (ROW_NUMBER() OVER (PARTITION BY [ebay_case_id] ORDER BY [created] DESC)) as [row] '
-		+ 'from [ebay_status_log]) select [ebay_case_id], [status_id], [created], [created_by], [row] from [statuslog_latest] where [row] = 1;',
+		+ 'from [ebay_status_log]) select [ebay_case_id], [status_id], [created], [created_by], [row] from [statuslog_latest] where [statuslog_latest].[row] = 1;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

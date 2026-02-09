@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-beta.14",
+	"version": "1.0.0-beta.15",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -60,6 +60,7 @@
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
 		"@prisma/client": "*",
+		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
 		"@tursodatabase/database": ">=0.2.1",
@@ -72,6 +73,7 @@
 		"@upstash/redis": ">=1.34.7",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
+		"arktype": ">=2.0.0",
 		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
@@ -81,10 +83,16 @@
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
-		"sqlite3": ">=5"
+		"sqlite3": ">=5",
+		"typebox": ">=1.0.0",
+		"valibot": ">=1.0.0-beta.7",
+		"zod": "^3.25.0 || ^4.0.0"
 	},
 	"peerDependenciesMeta": {
 		"@aws/aurora-dsql-node-postgres-connector": {
+      "optional": true
+    },
+		"arktype": {
 			"optional": true
 		},
 		"mysql2": {
@@ -168,6 +176,9 @@
 		"@prisma/client": {
 			"optional": true
 		},
+		"@sinclair/typebox": {
+			"optional": true
+		},
 		"@tursodatabase/database": {
 			"optional": true
 		},
@@ -184,6 +195,15 @@
 			"optional": true
 		},
 		"@effect/sql-pg": {
+			"optional": true
+		},
+		"typebox": {
+			"optional": true
+		},
+		"valibot": {
+			"optional": true
+		},
+		"zod": {
 			"optional": true
 		}
 	},
@@ -204,6 +224,7 @@
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
+		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
 		"@tursodatabase/database": "0.2.1",
@@ -217,6 +238,7 @@
 		"@upstash/redis": "^1.34.3",
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
+		"arktype": "^2.1.10",
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
@@ -236,6 +258,8 @@
 		"tsdown": "^0.18.3",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
+		"typebox": "^1.0.80",
+		"valibot": "1.0.0-beta.7",
 		"zod": "^3.20.2"
 	}
 }

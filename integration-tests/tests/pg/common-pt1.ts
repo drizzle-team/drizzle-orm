@@ -853,6 +853,29 @@ export function tests(test: Test) {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test.concurrent('nameless prepared statement', async ({ db, push }) => {
+			const usersTable = pgTable('users_33_nmls', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const statement = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.prepare();
+			const result1 = await statement.execute();
+			const result2 = await statement.execute();
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ id: 1, name: 'John' }]);
+		});
+
 		test.concurrent('insert: placeholders on columns with encoder', async ({ db, push }) => {
 			const usersTable = pgTable('users_34', {
 				id: serial('id').primaryKey(),

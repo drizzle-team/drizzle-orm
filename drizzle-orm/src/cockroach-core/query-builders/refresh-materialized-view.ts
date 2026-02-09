@@ -8,11 +8,11 @@ import type {
 } from '~/cockroach-core/session.ts';
 import type { CockroachMaterializedView } from '~/cockroach-core/view.ts';
 import { entityKind } from '~/entity.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface CockroachRefreshMaterializedView<TQueryResult extends CockroachQueryResultHKT>
@@ -75,34 +75,33 @@ export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQuer
 	}
 
 	/** @internal */
-	_prepare(name?: string): CockroachPreparedQuery<
+	_prepare(name?: string, generateName = false): CockroachPreparedQuery<
 		PreparedQueryConfig & {
 			execute: CockroachQueryResultKind<TQueryResult, never>;
 		}
 	> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), undefined, name, true);
+			const query = this.dialect.sqlToQuery(this.getSQL());
+			return this.session.prepareQuery(
+				query,
+				undefined,
+				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				true,
+			);
 		});
 	}
 
-	prepare(name: string): CockroachPreparedQuery<
+	prepare(name?: string): CockroachPreparedQuery<
 		PreparedQueryConfig & {
 			execute: CockroachQueryResultKind<TQueryResult, never>;
 		}
 	> {
-		return this._prepare(name);
-	}
-
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+		return this._prepare(name, true);
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues, this.authToken);
+			return this._prepare().execute(placeholderValues);
 		});
 	};
 }
