@@ -462,10 +462,12 @@ export abstract class SQLiteDialect {
 		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
 			!col.shouldDisableInsert()
 		);
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+
+		let insertOrder: SQL[];
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
+			insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 
 			if (is(select, SQL)) {
 				valuesSqlList.push(select);
@@ -476,9 +478,26 @@ export abstract class SQLiteDialect {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
 			valuesSqlList.push(sql.raw('values '));
 
+			// FIX for #5001: Determine which columns to actually insert
+			// Only include columns that have explicit values OR defaults that should be evaluated
+			const columnsToInsert = colEntries.filter(([fieldName, col]) => {
+				// Check if ANY of the value rows has this column explicitly set
+				const hasValueInAnyRow = values.some((value) => {
+					const colValue = value[fieldName];
+					return colValue !== undefined && !(is(colValue, Param) && colValue.value === undefined);
+				});
+				// Include column if it has a value OR has a default/defaultFn/onUpdateFn
+				const hasDefault = col.default !== null && col.default !== undefined;
+				const hasDefaultFn = col.defaultFn !== undefined;
+				const hasOnUpdateFn = col.onUpdateFn !== undefined;
+				return hasValueInAnyRow || hasDefault || hasDefaultFn || hasOnUpdateFn;
+			});
+
+			insertOrder = columnsToInsert.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of columnsToInsert) {
 					const colValue = value[fieldName];
 					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 						let defaultValue;
