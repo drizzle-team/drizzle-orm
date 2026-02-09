@@ -74,10 +74,11 @@ export class PgDialect {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsTableIdType = (typeof config === 'object' && config.migrationsTableIdType) ?? 'SERIAL';
 		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
+				id ${migrationsTableIdType} PRIMARY KEY,
 				hash text NOT NULL,
 				created_at bigint
 			)
