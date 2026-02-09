@@ -643,7 +643,7 @@ export abstract class SQLiteDialect {
 				for (const [tsKey, value] of Object.entries(extras)) {
 					fieldsSelection.push({
 						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
+						value: mapColumnsInAliasedSQLToAlias(value, tableAlias, table),
 					});
 				}
 			}
