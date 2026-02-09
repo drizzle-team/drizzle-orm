@@ -67,7 +67,7 @@ function construct<
 ): SingleStoreDriverDatabase<TSchema> & {
 	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
-	const dialect = new SingleStoreDialect({ casing: config.casing });
+	const dialect = new SingleStoreDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
