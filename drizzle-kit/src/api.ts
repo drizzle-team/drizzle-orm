@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import type { PGlite } from '@electric-sql/pglite';
 import { randomUUID } from 'crypto';
 import { is } from 'drizzle-orm';
@@ -327,7 +328,10 @@ export const pushSQLiteSchema = async (
 
 export const startStudioSQLiteServer = async (
 	imports: Record<string, unknown>,
-	credentials: SqliteCredentials,
+	credentials: SqliteCredentials | {
+		driver: 'd1';
+		binding: D1Database;
+	},
 	options?: {
 		host?: string;
 		port?: number;
