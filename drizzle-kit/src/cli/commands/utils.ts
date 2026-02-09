@@ -290,6 +290,7 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		strict: boolean;
 		force: boolean;
+		safe: boolean;
 		tablesFilter: string[];
 		schemasFilter: string[];
 		casing?: CasingType;
@@ -352,6 +353,7 @@ export const preparePushConfig = async (
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
+			safe: (options.safe as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			tablesFilter,
@@ -372,6 +374,7 @@ export const preparePushConfig = async (
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
+			safe: (options.safe as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			tablesFilter,
@@ -392,6 +395,7 @@ export const preparePushConfig = async (
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
+			safe: (options.safe as boolean) ?? false,
 			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
@@ -410,6 +414,7 @@ export const preparePushConfig = async (
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
+			safe: (options.safe as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			tablesFilter,
@@ -429,6 +434,7 @@ export const preparePushConfig = async (
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
+			safe: (options.safe as boolean) ?? false,
 			credentials: parsed.data,
 			casing: config.casing,
 			tablesFilter,
