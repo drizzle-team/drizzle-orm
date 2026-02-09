@@ -166,6 +166,12 @@ const users2Table = mysqlTable('users2', {
 	cityId: int('city_id').references(() => citiesTable.id),
 });
 
+const users3Table = mysqlTable('users3', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	cityId: int('city_id').references(() => citiesTable.id, {}, "users3_city_id_fk"),
+});
+
 const citiesTable = mysqlTable('cities', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
@@ -4556,6 +4562,20 @@ export function tests(driver?: string) {
 
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
+		});
+
+		test('column builder: generated foreign key', (ctx) => {
+			const tableConfig = getTableConfig(users2Table);
+
+			expect(tableConfig.foreignKeys).toHaveLength(1);
+			expect(tableConfig.foreignKeys[0]!.getName()).toBe('users2_city_id_cities_id_fk');
+		});
+
+		test('column builder: provided foreign key', (ctx) => {
+			const tableConfig = getTableConfig(users3Table);
+
+			expect(tableConfig.foreignKeys).toHaveLength(1);
+			expect(tableConfig.foreignKeys[0]!.getName()).toBe('users3_city_id_fk');
 		});
 	});
 
