@@ -129,7 +129,7 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				for (const tName of targetColumnTableNames) {
 					if (tName !== targetTableName) {
 						throw new Error(
-							`${relationPrintName}: all "to" columns must belong to table "${targetTable}", found column of table "${tName}"`,
+							`${relationPrintName}: all "to" columns must belong to table "${targetTableName}", found column of table "${tName}"`,
 						);
 					}
 				}
