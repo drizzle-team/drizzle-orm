@@ -47,6 +47,7 @@
 		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
 	},
 	"peerDependencies": {
+		"@aws/aurora-dsql-node-postgres-connector": ">=0.1.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
 		"@effect/sql": "^0.48.5",
@@ -88,6 +89,9 @@
 		"zod": "^3.25.0 || ^4.0.0"
 	},
 	"peerDependenciesMeta": {
+		"@aws/aurora-dsql-node-postgres-connector": {
+      "optional": true
+    },
 		"arktype": {
 			"optional": true
 		},

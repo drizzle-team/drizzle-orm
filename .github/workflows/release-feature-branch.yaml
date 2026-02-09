@@ -23,6 +23,8 @@ on:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
+      DSQL_CLUSTER_ENDPOINT:
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -106,6 +108,8 @@ jobs:
           - shard: int:other
             dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
+            dbs: []
+          - shard: int:dsql
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
@@ -228,6 +232,7 @@ jobs:
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          DSQL_CLUSTER_ENDPOINT: ${{ secrets.DSQL_CLUSTER_ENDPOINT }}
         working-directory: integration-tests
         shell: bash
         run: |
@@ -262,6 +267,11 @@ jobs:
                 pnpm --stream test:planetscale
               fi
             ;;
+            int:dsql)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/dsql
+              fi
+            ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
@@ -292,6 +302,7 @@ jobs:
                 --exclude ./tests/pg/ \
                 --exclude ./tests/sqlite/ \
                 --exclude ./tests/bun/ \
+                --exclude ./tests/dsql/
                 --exclude tests/validators
             ;;
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
