@@ -6,9 +6,11 @@ const index = object({
 	name: string(),
 	columns: string().array(),
 	isUnique: boolean(),
+	vector: boolean().optional(),
 	using: enumType(['btree', 'hash']).optional(),
 	algorithm: enumType(['default', 'inplace', 'copy']).optional(),
 	lock: enumType(['default', 'none', 'shared', 'exclusive']).optional(),
+	secondaryEngineAttribute: string().optional(),
 }).strict();
 
 const fk = object({
@@ -222,19 +224,19 @@ export type ViewSquashed = TypeOf<typeof viewSquashed>;
 export const MySqlSquasher = {
 	squashIdx: (idx: Index) => {
 		index.parse(idx);
-		return `${idx.name};${idx.columns.join(',')};${idx.isUnique};${idx.using ?? ''};${idx.algorithm ?? ''};${
-			idx.lock ?? ''
-		}`;
+		return `${idx.name};${idx.columns.join(',')};${idx.isUnique};${idx.vector};${idx.using ?? ''};${idx.algorithm ?? ''};${idx.lock ?? ''};${idx.secondaryEngineAttribute ?? ''}`;
 	},
 	unsquashIdx: (input: string): Index => {
-		const [name, columnsString, isUnique, using, algorithm, lock] = input.split(';');
+		const [name, columnsString, isUnique, vector, using, algorithm, lock, secondaryEngineAttribute] = input.split(';');
 		const destructed = {
 			name,
 			columns: columnsString.split(','),
 			isUnique: isUnique === 'true',
+			vector: vector === 'true',
 			using: using ? using : undefined,
 			algorithm: algorithm ? algorithm : undefined,
 			lock: lock ? lock : undefined,
+			secondaryEngineAttribute: secondaryEngineAttribute ? secondaryEngineAttribute : undefined,
 		};
 		return index.parse(destructed);
 	},
