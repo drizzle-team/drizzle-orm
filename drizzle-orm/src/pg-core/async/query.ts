@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -23,14 +24,14 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string, generateName = false): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
 			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
-				name,
+				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
 				(rawRows, mapColumnValue) => {
 					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
 					if (this.mode === 'first') {
@@ -42,8 +43,8 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 		});
 	}
 
-	prepare(name: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name);
+	prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+		return this._prepare(name, true);
 	}
 
 	/** @internal */

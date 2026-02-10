@@ -83,94 +83,6 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"drizzle-zod#build": {
-			"dependsOn": [
-				"drizzle-orm#build"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-typebox#build": {
-			"dependsOn": [
-				"drizzle-orm#build"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-valibot#build": {
-			"dependsOn": [
-				"drizzle-orm#build"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-arktype#build": {
-			"dependsOn": [
-				"drizzle-orm#build"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
 		"eslint-plugin-drizzle#build": {
 			"dependsOn": [
 				"drizzle-orm#build"
@@ -195,8 +107,7 @@
 		},
 		"drizzle-seed#build": {
 			"dependsOn": [
-				"drizzle-orm#build",
-				"drizzle-zod#build"
+				"drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -290,94 +201,6 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"drizzle-zod#build:artifact": {
-			"dependsOn": [
-				"drizzle-orm#build:artifact"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-typebox#build:artifact": {
-			"dependsOn": [
-				"drizzle-orm#build:artifact"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-valibot#build:artifact": {
-			"dependsOn": [
-				"drizzle-orm#build:artifact"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
-		"drizzle-arktype#build:artifact": {
-			"dependsOn": [
-				"drizzle-orm#build:artifact"
-			],
-			"inputs": [
-				"src/**/*.ts",
-				"package.json",
-				"README.md",
-				"../README.md",
-				"tsconfig.json",
-				"tsconfig.*.json",
-				"tsup.config.ts",
-				"scripts/build.ts",
-				"scripts/fix-imports.ts",
-				"../tsconfig.json"
-			],
-			"outputs": [
-				"dist/**",
-				"dist-dts/**"
-			],
-			"outputLogs": "new-only"
-		},
 		"eslint-plugin-drizzle#build:artifact": {
 			"dependsOn": [
 				"drizzle-orm#build:artifact"
@@ -402,8 +225,7 @@
 		},
 		"drizzle-seed#build:artifact": {
 			"dependsOn": [
-				"drizzle-orm#build:artifact",
-				"drizzle-zod#build:artifact"
+				"drizzle-orm#build:artifact"
 			],
 			"inputs": [
 				"src/**/*.ts",

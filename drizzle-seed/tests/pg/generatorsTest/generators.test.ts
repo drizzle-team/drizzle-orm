@@ -1,748 +1,33 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import type { PgliteDatabase } from 'drizzle-orm/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import { expect } from 'vitest';
+import { pgliteTest as test } from '../instrumentation.ts';
 
 import { reset, seed } from '../../../src/index.ts';
 import * as schema from './pgSchema.ts';
 
-import { sql } from 'drizzle-orm';
+import { pgTable, text } from 'drizzle-orm/pg-core';
 import cities from '../../../src/datasets/cityNames.ts';
 import countries from '../../../src/datasets/countries.ts';
 import firstNames from '../../../src/datasets/firstNames.ts';
 import lastNames from '../../../src/datasets/lastNames.ts';
 
-let client: PGlite;
-let db: PgliteDatabase;
-
-beforeAll(async () => {
-	client = new PGlite({ extensions: { vector } });
-
-	await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
-
-	db = drizzle({ client });
-
-	await db.execute(sql`CREATE SCHEMA "seeder_lib_pg";`);
-
-	await db.execute(
-		sql`
-			    DO $$ BEGIN
-			 CREATE TYPE "seeder_lib_pg"."enum" AS ENUM('sad', 'ok', 'happy');
-			EXCEPTION
-			 WHEN duplicate_object THEN null;
-			END $$;  
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_table" (
-				"default_string" text
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."default_array_table" (
-				"default_string" text[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_table" (
-				"boolean" boolean
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."boolean_array_table" (
-				"boolean" boolean[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_table" (
-				"city" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_unique_table" (
-				"city_unique" varchar(256),
-				CONSTRAINT "city_unique_table_city_unique_unique" UNIQUE("city_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."city_array_table" (
-				"city" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_table" (
-				"company_name" text
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_unique_table" (
-				"company_name_unique" varchar(256),
-				CONSTRAINT "company_name_unique_table_company_name_unique_unique" UNIQUE("company_name_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."company_name_array_table" (
-				"company_name" text[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_table" (
-				"country" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_unique_table" (
-				"country_unique" varchar(256),
-				CONSTRAINT "country_unique_table_country_unique_unique" UNIQUE("country_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."country_array_table" (
-				"country" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_table" (
-				"date" date
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."date_array_table" (
-				"date" date[],
-				"date_string" date[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_table" (
-				"email" varchar(256),
-				CONSTRAINT "email_table_email_unique" UNIQUE("email")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."email_array_table" (
-				"email" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."enum_table" (
-				"mood_enum" "seeder_lib_pg"."enum"
-			);  
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_table" (
-				"first_name" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_unique_table" (
-				"first_name_unique" varchar(256),
-				CONSTRAINT "first_name_unique_table_first_name_unique_unique" UNIQUE("first_name_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."first_name_array_table" (
-				"first_name" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name__table" (
-				"full_name_" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_unique_table" (
-				"full_name_unique" varchar(256),
-				CONSTRAINT "full_name_unique_table_full_name_unique_unique" UNIQUE("full_name_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."full_name_array_table" (
-				"full_name" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_primary_key_table" (
-				"int_primary_key" integer,
-				CONSTRAINT "int_primary_key_table_int_primary_key_unique" UNIQUE("int_primary_key")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_table" (
-				"int" integer
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_unique_table" (
-				"int_unique" integer,
-				CONSTRAINT "int_unique_table_int_unique_unique" UNIQUE("int_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."int_array_table" (
-				"int" integer[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_table" (
-				"interval" interval
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_unique_table" (
-				"interval_unique" interval,
-				CONSTRAINT "interval_unique_table_interval_unique_unique" UNIQUE("interval_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."interval_array_table" (
-				"interval" interval[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_Title_table" (
-				"job_title" text
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."job_title_array_table" (
-				"job_title" text[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_table" (
-				"json" json
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."json_array_table" (
-				"json" json[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_table" (
-				"last_name" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_unique_table" (
-				"last_name_unique" varchar(256),
-				CONSTRAINT "last_name_unique_table_last_name_unique_unique" UNIQUE("last_name_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."last_name_array_table" (
-				"last_name" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_table" (
-				"line" "line"
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."line_array_table" (
-				"line" "line"[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_table" (
-				"lorem_ipsum" text
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."lorem_ipsum_array_table" (
-				"lorem_ipsum" text[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_table" (
-				"number" real
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_unique_table" (
-				"number_unique" real,
-				CONSTRAINT "number_unique_table_number_unique_unique" UNIQUE("number_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."number_array_table" (
-				"number" real[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."phone_number_table" (
-				"phoneNumber" varchar(256),
-				"phone_number_template" varchar(256),
-				"phone_number_prefixes" varchar(256),
-				CONSTRAINT "phone_number_table_phoneNumber_unique" UNIQUE("phoneNumber"),
-				CONSTRAINT "phone_number_table_phone_number_template_unique" UNIQUE("phone_number_template"),
-				CONSTRAINT "phone_number_table_phone_number_prefixes_unique" UNIQUE("phone_number_prefixes")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."phone_number_array_table" (
-				"phoneNumber" varchar(256)[],
-				"phone_number_template" varchar(256)[],
-				"phone_number_prefixes" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_table" (
-				"point" "point"
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."point_array_table" (
-				"point" "point"[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_table" (
-				"postcode" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_unique_table" (
-				"postcode_unique" varchar(256),
-				CONSTRAINT "postcode_unique_table_postcode_unique_unique" UNIQUE("postcode_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."postcode_array_table" (
-				"postcode" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_table" (
-				"state" text
-			);   
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."state_array_table" (
-				"state" text[]
-			);   
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_table" (
-				"street_address" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_unique_table" (
-				"street_address_unique" varchar(256),
-				CONSTRAINT "street_address_unique_table_street_address_unique_unique" UNIQUE("street_address_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."street_address_array_table" (
-				"street_address" varchar(256)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_table" (
-				"string" text
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_unique_table" (
-				"string_unique" varchar(256),
-				CONSTRAINT "string_unique_table_string_unique_unique" UNIQUE("string_unique")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."string_array_table" (
-				"string" text[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_table" (
-				"time" time
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."time_array_table" (
-				"time" time[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_table" (
-				"timestamp" timestamp
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."timestamp_array_table" (
-				"timestamp" timestamp[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_table" (
-				"values_from_array_not_null" varchar(256) NOT NULL,
-				"values_from_array_weighted_not_null" varchar(256) NOT NULL
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_unique_table" (
-				"values_from_array" varchar(256),
-				"values_from_array_not_null" varchar(256) NOT NULL,
-				"values_from_array_weighted" varchar(256),
-				"values_from_array_weighted_not_null" varchar(256) NOT NULL,
-				CONSTRAINT "values_from_array_unique_table_values_from_array_unique" UNIQUE("values_from_array"),
-				CONSTRAINT "values_from_array_unique_table_values_from_array_not_null_unique" UNIQUE("values_from_array_not_null"),
-				CONSTRAINT "values_from_array_unique_table_values_from_array_weighted_unique" UNIQUE("values_from_array_weighted"),
-				CONSTRAINT "values_from_array_unique_table_values_from_array_weighted_not_null_unique" UNIQUE("values_from_array_weighted_not_null")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_array_table" (
-				"values_from_array" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."weighted_random_table" (
-				"weighted_random" varchar(256)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."weighted_random_with_unique_gens_table" (
-				"weighted_random_with_unique_gens" varchar(256),
-				CONSTRAINT "weighted_random_with_unique_gens_table_weighted_random_with_unique_gens_unique" UNIQUE("weighted_random_with_unique_gens")
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_table" (
-				"uuid" uuid
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_array_table" (
-				"uuid" uuid[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_table" (
-				"bit" bit(12)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_unique_table" (
-				"bit" bit(12) unique
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_array_table" (
-				"bit" bit(12)[]
-			);    
-		`,
-	);
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_table" (
-				"inet" inet
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_unique_table" (
-				"inet" inet unique
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_array_table" (
-				"inet" inet[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_table" (
-				"vector" vector(12)
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_unique_table" (
-				"vector" vector(12) unique
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_array_table" (
-				"vector" vector(12)[]
-			);    
-		`,
-	);
-
-	await db.execute(
-		sql`
-			CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."composite_unique_key_table" (
-			"number" real,
-			"int" integer,
-			"interval" interval,
-			"string" varchar(256),
-			"first_name" varchar(256),
-			"last_name" varchar(256),
-			"full_name" varchar(256),
-			"country" varchar(256),
-			"city" varchar(256),
-			"street_address" varchar(256),
-			"postcode" varchar(256),
-			"company_name" varchar(256),
-			"phone_number" varchar(256),
-			"email" varchar(256),
-			"uuid" uuid,
-			"bit" bit(12),
-			"inet" inet,
-			"vector" vector(12),
-			"values_from_array" varchar(256),
-			-- "point" "point",
-			-- "line" "line",
-			CONSTRAINT "custom_name" UNIQUE("number","int","interval","string","first_name","last_name","full_name","country","city","street_address","postcode","company_name","phone_number","email","uuid","bit","inet","vector","values_from_array")
-			);
-		`,
-	);
+let firstTime = true;
+let resolveFunc: (val: any) => void;
+const promise = new Promise((resolve) => {
+	resolveFunc = resolve;
 });
 
-afterAll(async () => {
-	await client.close();
+test.beforeEach(async ({ push }) => {
+	if (firstTime) {
+		firstTime = false;
+		await push(schema);
+		resolveFunc('');
+	}
+	await promise;
 });
 
 const count = 1000;
 
-test('enum generator test', async () => {
+test('enum generator test', async ({ db }) => {
 	await seed(db, { enumTable: schema.enumTable }).refine(() => ({
 		enumTable: {
 			count,
@@ -756,7 +41,7 @@ test('enum generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('default generator test', async () => {
+test('default generator test', async ({ db }) => {
 	await seed(db, { defaultTable: schema.defaultTable }).refine((funcs) => ({
 		defaultTable: {
 			count,
@@ -773,7 +58,7 @@ test('default generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('default array generator test', async () => {
+test('default array generator test', async ({ db }) => {
 	await seed(db, { defaultTable: schema.defaultArrayTable }).refine((funcs) => ({
 		defaultTable: {
 			count,
@@ -790,7 +75,7 @@ test('default array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('valuesFromArray generator test', async () => {
+test('valuesFromArray generator test', async ({ db }) => {
 	await seed(db, { valuesFromArrayTable: schema.valuesFromArrayTable }).refine((funcs) => ({
 		valuesFromArrayTable: {
 			count,
@@ -813,7 +98,7 @@ test('valuesFromArray generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('valuesFromArray unique generator test', async () => {
+test('valuesFromArray unique generator test', async ({ db }) => {
 	// valuesFromArrayUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { valuesFromArrayUniqueTable: schema.valuesFromArrayUniqueTable }, { seed: 1 }).refine((funcs) => ({
 		valuesFromArrayUniqueTable: {
@@ -902,7 +187,7 @@ test('valuesFromArray unique generator test', async () => {
 	).rejects.toThrow('There are no enough values to fill unique column.');
 });
 
-test('valuesFromArray array generator test', async () => {
+test('valuesFromArray array generator test', async ({ db }) => {
 	await seed(db, { valuesFromArrayTable: schema.valuesFromArrayArrayTable }).refine((funcs) => ({
 		valuesFromArrayTable: {
 			count,
@@ -919,7 +204,7 @@ test('valuesFromArray array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('intPrimaryKey generator test', async () => {
+test('intPrimaryKey generator test', async ({ db }) => {
 	await seed(db, { intPrimaryKeyTable: schema.intPrimaryKeyTable }).refine((funcs) => ({
 		intPrimaryKeyTable: {
 			count,
@@ -936,7 +221,7 @@ test('intPrimaryKey generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('number generator test', async () => {
+test('number generator test', async ({ db }) => {
 	await seed(db, { numberTable: schema.numberTable }).refine((funcs) => ({
 		numberTable: {
 			count,
@@ -953,7 +238,7 @@ test('number generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('number unique generator test', async () => {
+test('number unique generator test', async ({ db }) => {
 	// numberUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { numberUniqueTable: schema.numberUniqueTable }).refine((funcs) => ({
 		numberUniqueTable: {
@@ -983,7 +268,7 @@ test('number unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique integers in given range(min, max), try to make range wider.');
 });
 
-test('number array generator test', async () => {
+test('number array generator test', async ({ db }) => {
 	await seed(db, { numberTable: schema.numberArrayTable }).refine((funcs) => ({
 		numberTable: {
 			count,
@@ -1000,7 +285,7 @@ test('number array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('int generator test', async () => {
+test('int generator test', async ({ db }) => {
 	await seed(db, { intTable: schema.intTable }).refine((funcs) => ({
 		intTable: {
 			count,
@@ -1017,7 +302,7 @@ test('int generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('int unique generator test', async () => {
+test('int unique generator test', async ({ db }) => {
 	// intUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { intUniqueTable: schema.intUniqueTable }).refine((funcs) => ({
 		intUniqueTable: {
@@ -1045,7 +330,7 @@ test('int unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique integers in given range(min, max), try to make range wider.');
 });
 
-test('int array generator test', async () => {
+test('int array generator test', async ({ db }) => {
 	await seed(db, { intTable: schema.intArrayTable }).refine((funcs) => ({
 		intTable: {
 			count,
@@ -1062,7 +347,7 @@ test('int array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('boolean generator test', async () => {
+test('boolean generator test', async ({ db }) => {
 	await seed(db, { booleanTable: schema.booleanTable }).refine((funcs) => ({
 		booleanTable: {
 			count,
@@ -1079,7 +364,7 @@ test('boolean generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('boolean array generator test', async () => {
+test('boolean array generator test', async ({ db }) => {
 	await seed(db, { booleanTable: schema.booleanArrayTable }).refine((funcs) => ({
 		booleanTable: {
 			count,
@@ -1096,7 +381,7 @@ test('boolean array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('date generator test', async () => {
+test('date generator test', async ({ db }) => {
 	await seed(db, { dateTable: schema.dateTable }).refine((funcs) => ({
 		dateTable: {
 			count,
@@ -1180,7 +465,7 @@ test('date generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('date array generator test', async () => {
+test('date array generator test', async ({ db }) => {
 	await seed(db, { dateTable: schema.dateArrayTable }).refine((funcs) => ({
 		dateTable: {
 			count,
@@ -1200,7 +485,7 @@ test('date array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('time generator test', async () => {
+test('time generator test', async ({ db }) => {
 	await seed(db, { timeTable: schema.timeTable }).refine((funcs) => ({
 		timeTable: {
 			count,
@@ -1293,7 +578,7 @@ test('time generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('time array generator test', async () => {
+test('time array generator test', async ({ db }) => {
 	await seed(db, { timeTable: schema.timeArrayTable }).refine((funcs) => ({
 		timeTable: {
 			count,
@@ -1310,7 +595,7 @@ test('time array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('timestamp generator test', async () => {
+test('timestamp generator test', async ({ db }) => {
 	await seed(db, { timestampTable: schema.timestampTable }).refine((funcs) => ({
 		timestampTable: {
 			count,
@@ -1399,7 +684,7 @@ test('timestamp generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('timestamp array generator test', async () => {
+test('timestamp array generator test', async ({ db }) => {
 	await seed(db, { timestampTable: schema.timestampArrayTable }).refine((funcs) => ({
 		timestampTable: {
 			count,
@@ -1416,7 +701,7 @@ test('timestamp array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('json generator test', async () => {
+test('json generator test', async ({ db }) => {
 	await seed(db, { jsonTable: schema.jsonTable }).refine((funcs) => ({
 		jsonTable: {
 			count,
@@ -1433,7 +718,7 @@ test('json generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('json array generator test', async () => {
+test('json array generator test', async ({ db }) => {
 	await seed(db, { jsonTable: schema.jsonArrayTable }).refine((funcs) => ({
 		jsonTable: {
 			count,
@@ -1450,7 +735,7 @@ test('json array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('interval generator test', async () => {
+test('interval generator test', async ({ db }) => {
 	await seed(db, { intervalTable: schema.intervalTable }).refine((funcs) => ({
 		intervalTable: {
 			count,
@@ -1467,7 +752,7 @@ test('interval generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('interval unique generator test', async () => {
+test('interval unique generator test', async ({ db }) => {
 	// intervalUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { intervalUniqueTable: schema.intervalUniqueTable }).refine((funcs) => ({
 		intervalUniqueTable: {
@@ -1484,7 +769,7 @@ test('interval unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('interval array generator test', async () => {
+test('interval array generator test', async ({ db }) => {
 	await seed(db, { intervalTable: schema.intervalArrayTable }).refine((funcs) => ({
 		intervalTable: {
 			count,
@@ -1501,7 +786,7 @@ test('interval array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('string generator test', async () => {
+test('string generator test', async ({ db }) => {
 	await seed(db, { stringTable: schema.stringTable }).refine((funcs) => ({
 		stringTable: {
 			count,
@@ -1518,7 +803,7 @@ test('string generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('string unique generator test', async () => {
+test('string unique generator test', async ({ db }) => {
 	await seed(db, { stringUniqueTable: schema.stringUniqueTable }).refine((funcs) => ({
 		stringUniqueTable: {
 			count,
@@ -1534,7 +819,7 @@ test('string unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('string array generator test', async () => {
+test('string array generator test', async ({ db }) => {
 	await seed(db, { stringTable: schema.stringArrayTable }).refine((funcs) => ({
 		stringTable: {
 			count,
@@ -1551,7 +836,7 @@ test('string array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('email generator test', async () => {
+test('email generator test', async ({ db }) => {
 	await seed(db, { emailTable: schema.emailTable }).refine((funcs) => ({
 		emailTable: {
 			count,
@@ -1568,7 +853,7 @@ test('email generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('email array generator test', async () => {
+test('email array generator test', async ({ db }) => {
 	await seed(db, { emailTable: schema.emailArrayTable }).refine((funcs) => ({
 		emailTable: {
 			count,
@@ -1585,7 +870,7 @@ test('email array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('firstName generator test', async () => {
+test('firstName generator test', async ({ db }) => {
 	await seed(db, { firstNameTable: schema.firstNameTable }).refine((funcs) => ({
 		firstNameTable: {
 			count,
@@ -1602,7 +887,7 @@ test('firstName generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('firstName unique generator test', async () => {
+test('firstName unique generator test', async ({ db }) => {
 	// firstNameUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { firstNameUniqueTable: schema.firstNameUniqueTable }).refine((funcs) => ({
 		firstNameUniqueTable: {
@@ -1630,7 +915,7 @@ test('firstName unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique first names.');
 });
 
-test('firstName array generator test', async () => {
+test('firstName array generator test', async ({ db }) => {
 	await seed(db, { firstNameTable: schema.firstNameArrayTable }).refine((funcs) => ({
 		firstNameTable: {
 			count,
@@ -1647,7 +932,7 @@ test('firstName array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('lastName generator test', async () => {
+test('lastName generator test', async ({ db }) => {
 	await seed(db, { lastNameTable: schema.lastNameTable }).refine((funcs) => ({
 		lastNameTable: {
 			count,
@@ -1664,7 +949,7 @@ test('lastName generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('lastName unique generator test', async () => {
+test('lastName unique generator test', async ({ db }) => {
 	// lastNameUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { lastNameUniqueTable: schema.lastNameUniqueTable }).refine((funcs) => ({
 		lastNameUniqueTable: {
@@ -1692,7 +977,7 @@ test('lastName unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique last names.');
 });
 
-test('lastName array generator test', async () => {
+test('lastName array generator test', async ({ db }) => {
 	await seed(db, { lastNameTable: schema.lastNameArrayTable }).refine((funcs) => ({
 		lastNameTable: {
 			count,
@@ -1709,7 +994,7 @@ test('lastName array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('fullName generator test', async () => {
+test('fullName generator test', async ({ db }) => {
 	await seed(db, { fullNameTable: schema.fullNameTable }).refine((funcs) => ({
 		fullNameTable: {
 			count,
@@ -1726,7 +1011,7 @@ test('fullName generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('fullName unique generator test', async () => {
+test('fullName unique generator test', async ({ db }) => {
 	// fullNameUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { fullNameUniqueTable: schema.fullNameUniqueTable }).refine((funcs) => ({
 		fullNameUniqueTable: {
@@ -1744,7 +1029,7 @@ test('fullName unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('fullName array generator test', async () => {
+test('fullName array generator test', async ({ db }) => {
 	await seed(db, { fullNameTable: schema.fullNameArrayTable }).refine((funcs) => ({
 		fullNameTable: {
 			count,
@@ -1761,7 +1046,7 @@ test('fullName array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('country generator test', async () => {
+test('country generator test', async ({ db }) => {
 	await seed(db, { countryTable: schema.countryTable }).refine((funcs) => ({
 		countryTable: {
 			count,
@@ -1778,7 +1063,7 @@ test('country generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('country unique generator test', async () => {
+test('country unique generator test', async ({ db }) => {
 	// countryUniqueTable-----------------------------------------------------------------------------------
 	await seed(db, { countryUniqueTable: schema.countryUniqueTable }).refine((funcs) => ({
 		countryUniqueTable: {
@@ -1806,7 +1091,7 @@ test('country unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique countries.');
 });
 
-test('country array generator test', async () => {
+test('country array generator test', async ({ db }) => {
 	await seed(db, { countryTable: schema.countryArrayTable }).refine((funcs) => ({
 		countryTable: {
 			count,
@@ -1823,7 +1108,7 @@ test('country array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('city generator test', async () => {
+test('city generator test', async ({ db }) => {
 	await seed(db, { cityTable: schema.cityTable }).refine((funcs) => ({
 		cityTable: {
 			count,
@@ -1840,7 +1125,7 @@ test('city generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('city unique generator test', async () => {
+test('city unique generator test', async ({ db }) => {
 	// cityUniqueTable-----------------------------------------------------------------------------------
 	await reset(db, { cityUniqueTable: schema.cityUniqueTable });
 	await seed(db, { cityUniqueTable: schema.cityUniqueTable }).refine((funcs) => ({
@@ -1869,7 +1154,7 @@ test('city unique generator test', async () => {
 	).rejects.toThrow('count exceeds max number of unique cities.');
 });
 
-test('city array generator test', async () => {
+test('city array generator test', async ({ db }) => {
 	await seed(db, { cityTable: schema.cityArrayTable }).refine((funcs) => ({
 		cityTable: {
 			count,
@@ -1886,7 +1171,7 @@ test('city array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('streetAddress generator test', async () => {
+test('streetAddress generator test', async ({ db }) => {
 	await seed(db, { streetAddressTable: schema.streetAddressTable }).refine((funcs) => ({
 		streetAddressTable: {
 			count,
@@ -1903,7 +1188,7 @@ test('streetAddress generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('streetAddress unique generator test', async () => {
+test('streetAddress unique generator test', async ({ db }) => {
 	await seed(db, { streetAddressUniqueTable: schema.streetAddressUniqueTable }).refine((funcs) => ({
 		streetAddressUniqueTable: {
 			count,
@@ -1920,7 +1205,7 @@ test('streetAddress unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('streetAddress array generator test', async () => {
+test('streetAddress array generator test', async ({ db }) => {
 	await seed(db, { streetAddressTable: schema.streetAddressArrayTable }).refine((funcs) => ({
 		streetAddressTable: {
 			count,
@@ -1937,7 +1222,7 @@ test('streetAddress array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('jobTitle generator test', async () => {
+test('jobTitle generator test', async ({ db }) => {
 	await seed(db, { jobTitleTable: schema.jobTitleTable }).refine((funcs) => ({
 		jobTitleTable: {
 			count,
@@ -1954,7 +1239,7 @@ test('jobTitle generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('jobTitle array generator test', async () => {
+test('jobTitle array generator test', async ({ db }) => {
 	await seed(db, { jobTitleTable: schema.jobTitleArrayTable }).refine((funcs) => ({
 		jobTitleTable: {
 			count,
@@ -1971,7 +1256,7 @@ test('jobTitle array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('postcode generator test', async () => {
+test('postcode generator test', async ({ db }) => {
 	await seed(db, { postcodeTable: schema.postcodeTable }).refine((funcs) => ({
 		postcodeTable: {
 			count,
@@ -1988,7 +1273,7 @@ test('postcode generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('postcode unique generator test', async () => {
+test('postcode unique generator test', async ({ db }) => {
 	await seed(db, { postcodeUniqueTable: schema.postcodeUniqueTable }).refine((funcs) => ({
 		postcodeUniqueTable: {
 			count,
@@ -2005,7 +1290,7 @@ test('postcode unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('postcode array generator test', async () => {
+test('postcode array generator test', async ({ db }) => {
 	await seed(db, { postcodeTable: schema.postcodeArrayTable }).refine((funcs) => ({
 		postcodeTable: {
 			count,
@@ -2022,7 +1307,7 @@ test('postcode array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('state generator test', async () => {
+test('state generator test', async ({ db }) => {
 	await seed(db, { stateTable: schema.stateTable }).refine((funcs) => ({
 		stateTable: {
 			count,
@@ -2039,7 +1324,7 @@ test('state generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('state array generator test', async () => {
+test('state array generator test', async ({ db }) => {
 	await seed(db, { stateTable: schema.stateArrayTable }).refine((funcs) => ({
 		stateTable: {
 			count,
@@ -2056,7 +1341,7 @@ test('state array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('companyName generator test', async () => {
+test('companyName generator test', async ({ db }) => {
 	await seed(db, { companyNameTable: schema.companyNameTable }).refine((funcs) => ({
 		companyNameTable: {
 			count,
@@ -2073,7 +1358,7 @@ test('companyName generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('companyName unique generator test', async () => {
+test('companyName unique generator test', async ({ db }) => {
 	await seed(db, { companyNameUniqueTable: schema.companyNameUniqueTable }).refine((funcs) => ({
 		companyNameUniqueTable: {
 			count,
@@ -2090,7 +1375,7 @@ test('companyName unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('companyName array generator test', async () => {
+test('companyName array generator test', async ({ db }) => {
 	await seed(db, { companyNameTable: schema.companyNameArrayTable }).refine((funcs) => ({
 		companyNameTable: {
 			count,
@@ -2107,7 +1392,7 @@ test('companyName array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('loremIpsum generator test', async () => {
+test('loremIpsum generator test', async ({ db }) => {
 	await seed(db, { loremIpsumTable: schema.loremIpsumTable }).refine((funcs) => ({
 		loremIpsumTable: {
 			count,
@@ -2124,7 +1409,7 @@ test('loremIpsum generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('loremIpsum array generator test', async () => {
+test('loremIpsum array generator test', async ({ db }) => {
 	await seed(db, { loremIpsumTable: schema.loremIpsumArrayTable }).refine((funcs) => ({
 		loremIpsumTable: {
 			count,
@@ -2141,7 +1426,7 @@ test('loremIpsum array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('point generator test', async () => {
+test('point generator test', async ({ db }) => {
 	await seed(db, { pointTable: schema.pointTable }).refine((funcs) => ({
 		pointTable: {
 			count,
@@ -2158,7 +1443,7 @@ test('point generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('point unique generator test', async () => {
+test('point unique generator test', async ({ db }) => {
 	await reset(db, { pointTable: schema.pointTable });
 	await seed(db, { pointTable: schema.pointTable }).refine((funcs) => ({
 		pointTable: {
@@ -2181,7 +1466,7 @@ test('point unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('point array generator test', async () => {
+test('point array generator test', async ({ db }) => {
 	await seed(db, { pointTable: schema.pointArrayTable }).refine((funcs) => ({
 		pointTable: {
 			count,
@@ -2198,7 +1483,7 @@ test('point array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('line generator test', async () => {
+test('line generator test', async ({ db }) => {
 	await seed(db, { lineTable: schema.lineTable }).refine((funcs) => ({
 		lineTable: {
 			count,
@@ -2215,7 +1500,7 @@ test('line generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('line unique generator test', async () => {
+test('line unique generator test', async ({ db }) => {
 	await reset(db, { lineTable: schema.lineTable });
 	await seed(db, { lineTable: schema.lineTable }).refine((funcs) => ({
 		lineTable: {
@@ -2238,7 +1523,7 @@ test('line unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('line array generator test', async () => {
+test('line array generator test', async ({ db }) => {
 	await seed(db, { lineTable: schema.lineArrayTable }).refine((funcs) => ({
 		lineTable: {
 			count,
@@ -2255,7 +1540,7 @@ test('line array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('phoneNumber generator test', async () => {
+test('phoneNumber generator test', async ({ db }) => {
 	await seed(db, { phoneNumberTable: schema.phoneNumberTable }).refine((funcs) => ({
 		phoneNumberTable: {
 			count,
@@ -2277,7 +1562,7 @@ test('phoneNumber generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('phoneNumber array generator test', async () => {
+test('phoneNumber array generator test', async ({ db }) => {
 	await seed(db, { phoneNumberTable: schema.phoneNumberArrayTable }).refine((funcs) => ({
 		phoneNumberTable: {
 			count,
@@ -2305,7 +1590,7 @@ test('phoneNumber array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('weightedRandom generator test', async () => {
+test('weightedRandom generator test', async ({ db }) => {
 	await seed(db, { weightedRandomTable: schema.weightedRandomTable }).refine((funcs) => ({
 		weightedRandomTable: {
 			count,
@@ -2325,7 +1610,7 @@ test('weightedRandom generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('weightedRandom with unique gens generator test', async () => {
+test('weightedRandom with unique gens generator test', async ({ db }) => {
 	await seed(db, { weightedRandomWithUniqueGensTable: schema.weightedRandomWithUniqueGensTable }).refine((funcs) => ({
 		weightedRandomWithUniqueGensTable: {
 			count: 10000,
@@ -2374,7 +1659,70 @@ test('weightedRandom with unique gens generator test', async () => {
 	);
 });
 
-test('uuid generator test', async () => {
+test('weightedRandom with array generators', async ({ db, push }) => {
+	const schema = {
+		lead: pgTable('lead', {
+			branch: text(),
+			fields: text().array(),
+		}),
+	};
+
+	const alphaFields = Array.from({ length: 20 }, (val, idx) => `alpha_field_${idx}`);
+	const betaFields = Array.from({ length: 20 }, (val, idx) => `beta_field_${idx}`);
+	const gammaFields = Array.from({ length: 20 }, (val, idx) => `gamma_field_${idx}`);
+
+	await push(schema);
+	await reset(db, schema);
+	await seed(db, schema).refine((f) => ({
+		lead: {
+			columns: {
+				branch: f.weightedRandom([
+					{
+						weight: 0.4,
+						value: f.default({ defaultValue: 'branch_a' }),
+					},
+					{
+						weight: 0.4,
+						value: f.default({ defaultValue: 'branch_b' }),
+					},
+					{
+						weight: 0.1,
+						value: f.default({ defaultValue: 'branch_c' }),
+					},
+					{
+						weight: 0.1,
+						value: f.default({ defaultValue: undefined }),
+					},
+				]),
+				fields: f.weightedRandom([
+					{
+						weight: 0.4,
+						value: f.valuesFromArray({ values: alphaFields, arraySize: 20 }),
+					},
+					{
+						weight: 0.4,
+						value: f.valuesFromArray({ values: betaFields, arraySize: 20 }),
+					},
+					{
+						weight: 0.1,
+						value: f.valuesFromArray({ values: gammaFields, arraySize: 20 }),
+					},
+					{
+						weight: 0.1,
+						value: f.default({ defaultValue: undefined }),
+					},
+				]),
+			},
+			count: 40,
+		},
+	}));
+
+	const result = await db.select().from(schema.lead);
+
+	expect(result.length).toEqual(40);
+});
+
+test('uuid generator test', async ({ db }) => {
 	await reset(db, { uuidTable: schema.uuidTable });
 	await seed(db, { uuidTable: schema.uuidTable }).refine((funcs) => ({
 		uuidTable: {
@@ -2396,7 +1744,7 @@ test('uuid generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('uuid array generator test', async () => {
+test('uuid array generator test', async ({ db }) => {
 	await reset(db, { uuidArrayTable: schema.uuidArrayTable });
 	await seed(db, { uuidArrayTable: schema.uuidArrayTable }).refine((funcs) => ({
 		uuidArrayTable: {
@@ -2414,7 +1762,7 @@ test('uuid array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('bitString generator test', async () => {
+test('bitString generator test', async ({ db }) => {
 	await reset(db, { bitStringTable: schema.bitStringTable });
 	await seed(db, { bitStringTable: schema.bitStringTable }).refine((funcs) => ({
 		bitStringTable: {
@@ -2434,7 +1782,7 @@ test('bitString generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('bitString unique generator test', async () => {
+test('bitString unique generator test', async ({ db }) => {
 	await reset(db, { bitStringUniqueTable: schema.bitStringUniqueTable });
 	await seed(db, { bitStringUniqueTable: schema.bitStringUniqueTable }).refine((funcs) => ({
 		bitStringUniqueTable: {
@@ -2455,7 +1803,7 @@ test('bitString unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('bitString array generator test', async () => {
+test('bitString array generator test', async ({ db }) => {
 	await reset(db, { bitStringArrayTable: schema.bitStringArrayTable });
 	await seed(db, { bitStringArrayTable: schema.bitStringArrayTable }).refine((funcs) => ({
 		bitStringArrayTable: {
@@ -2476,7 +1824,7 @@ test('bitString array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('inet generator test', async () => {
+test('inet generator test', async ({ db }) => {
 	await reset(db, { inetTable: schema.inetTable });
 	await seed(db, { inetTable: schema.inetTable }).refine((funcs) => ({
 		inetTable: {
@@ -2497,7 +1845,7 @@ test('inet generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('inet unique generator test', async () => {
+test('inet unique generator test', async ({ db }) => {
 	await reset(db, { inetUniqueTable: schema.inetUniqueTable });
 	await seed(db, { inetUniqueTable: schema.inetUniqueTable }).refine((funcs) => ({
 		inetUniqueTable: {
@@ -2519,7 +1867,7 @@ test('inet unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('inet array generator test', async () => {
+test('inet array generator test', async ({ db }) => {
 	await reset(db, { inetArrayTable: schema.inetArrayTable });
 	await seed(db, { inetArrayTable: schema.inetArrayTable }).refine((funcs) => ({
 		inetArrayTable: {
@@ -2541,7 +1889,7 @@ test('inet array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('vector generator test', async () => {
+test('vector generator test', async ({ db }) => {
 	await reset(db, { vectorTable: schema.vectorTable });
 	await seed(db, { vectorTable: schema.vectorTable }).refine((funcs) => ({
 		vectorTable: {
@@ -2564,7 +1912,7 @@ test('vector generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('vector unique generator test', async () => {
+test('vector unique generator test', async ({ db }) => {
 	await reset(db, { vectorUniqueTable: schema.vectorUniqueTable });
 	await seed(db, { vectorUniqueTable: schema.vectorUniqueTable }).refine((funcs) => ({
 		vectorUniqueTable: {
@@ -2588,7 +1936,7 @@ test('vector unique generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('vector array generator test', async () => {
+test('vector array generator test', async ({ db }) => {
 	await reset(db, { vectorArrayTable: schema.vectorArrayTable });
 	await seed(db, { vectorArrayTable: schema.vectorArrayTable }).refine((funcs) => ({
 		vectorArrayTable: {
@@ -2612,7 +1960,7 @@ test('vector array generator test', async () => {
 	expect(predicate).toBe(true);
 });
 
-test('composite unique key generator test', async () => {
+test('composite unique key generator test', async ({ db }) => {
 	await reset(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable });
 	await seed(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable }, { count: 10000 }).refine((funcs) => ({
 		compositeUniqueKeyTable: {

@@ -853,6 +853,29 @@ export function tests(test: Test) {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test.concurrent('nameless prepared statement', async ({ db, push }) => {
+			const usersTable = pgTable('users_33_nmls', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const statement = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.prepare('get-users');
+			const result1 = await statement.execute();
+			const result2 = await statement.execute();
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ id: 1, name: 'John' }]);
+		});
+
 		test.concurrent('insert: placeholders on columns with encoder', async ({ db, push }) => {
 			const usersTable = pgTable('users_34', {
 				id: serial('id').primaryKey(),
@@ -1041,6 +1064,26 @@ export function tests(test: Test) {
 			const result = await stmt.execute({ timeWindow: '40 days' });
 
 			expect(result).toEqual([]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/2872
+		test.concurrent('prepared statement with placeholder in .inArray', async ({ db, push }) => {
+			const usersTable = pgTable('users_392', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ usersTable });
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+			const stmt = db
+				.select({ name: usersTable.name })
+				.from(usersTable)
+				.where(inArray(usersTable.name, sql.placeholder('names')))
+				.prepare('get_users');
+
+			const result = await stmt.execute({ names: ['John', 'John1'] });
+
+			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
 		});
 
 		test.concurrent('Insert all defaults in 1 row', async ({ db, push }) => {

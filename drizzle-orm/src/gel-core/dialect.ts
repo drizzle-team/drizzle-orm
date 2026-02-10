@@ -242,6 +242,7 @@ export class GelDialect {
 				const chunk: SQLChunk[] = [];
 
 				if (is(field, SQL.Aliased) && field.isSelectionField) {
+					if (field.origin !== undefined) chunk.push(sql.identifier(field.origin), sql.raw('.'));
 					chunk.push(sql.identifier(field.fieldAlias));
 				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 					const query = is(field, SQL.Aliased) ? field.sql : field;

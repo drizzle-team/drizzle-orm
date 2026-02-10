@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-seed",
-	"version": "1.0.0-beta.14",
+	"version": "1.0.0-beta.15",
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
@@ -93,7 +93,6 @@
 		"dotenv": "^16.4.5",
 		"drizzle-kit": "workspace:../drizzle-kit/dist",
 		"drizzle-orm": "workspace:../drizzle-orm/dist",
-		"drizzle-zod": "workspace:../drizzle-zod/dist",
 		"get-port": "^7.1.0",
 		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",

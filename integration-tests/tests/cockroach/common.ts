@@ -1253,6 +1253,24 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
+		test('nameless prepared statement', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			await db.insert(usersTable).values({ name: 'John' });
+			const statement = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
+				.prepare();
+			const result1 = await statement.execute();
+			const result2 = await statement.execute();
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ id: 1, name: 'John' }]);
+		});
+
 		test('insert: placeholders on columns with encoder', async (ctx) => {
 			const { db } = ctx.cockroach;
 
@@ -2019,6 +2037,49 @@ export function tests() {
 			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 			expect(() => db.select().from(sq).prepare('query')).toThrowError();
+		});
+
+		test('sql.Aliased in cte', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			const users = cockroachTable('users_109_sqla', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${users}`);
+			await db.execute(sql`CREATE TABLE ${users} (
+				id INT4 PRIMARY KEY,
+				name TEXT NOT NULL
+			)`);
+			await db.insert(users).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq1').as((qb) =>
+				qb.select({
+					aliased: sql`count(*)`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+			const sq2 = db.$with('sq2').as((qb) =>
+				qb.select({
+					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+
+			const result = await db.with(sq1, sq2).select({
+				count: sq1.aliased,
+				sum: sq2.aliased,
+			}).from(sq1).crossJoin(sq2);
+
+			expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+			const result2 = await db.with(sq1).select({
+				count: sq1.aliased,
+			}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+			expect(result2).toEqual([{ count: 2 }]);
 		});
 
 		test('select count()', async (ctx) => {

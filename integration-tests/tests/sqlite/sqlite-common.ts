@@ -18,6 +18,7 @@ import {
 	min,
 	Name,
 	notInArray,
+	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -27,6 +28,7 @@ import {
 	alias,
 	type BaseSQLiteDatabase,
 	blob,
+	customType,
 	except,
 	foreignKey,
 	getTableConfig,
@@ -201,6 +203,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			await db.run(sql`drop table if exists user_notifications_insert_into`);
 			await db.run(sql`drop table if exists users_insert_into`);
 			await db.run(sql`drop table if exists notifications_insert_into`);
+			await db.run(sql`drop table if exists table1`);
 
 			await db.run(sql`
 				create table ${usersTable} (
@@ -965,6 +968,65 @@ export function tests(test: Test, exclude: string[] = []) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/976
+		test.concurrent('insert; prepared statement with placeholder in .values', async ({ db, push }) => {
+			const textArray = customType({
+				dataType() {
+					return 'text';
+				},
+				fromDriver(value) {
+					return JSON.parse(value as string);
+				},
+				toDriver(value) {
+					return JSON.stringify(value);
+				},
+			});
+
+			const schema = {
+				table1: sqliteTable('table1', {
+					list: textArray('list'),
+					col2: blob({ mode: 'json' }),
+					col3: blob({ mode: 'bigint' }),
+					col4: integer({ mode: 'timestamp' }),
+					col5: integer({ mode: 'timestamp_ms' }),
+				}),
+			};
+
+			await push(schema);
+
+			const stmt = db
+				.insert(schema.table1)
+				.values({
+					list: sql.placeholder('list'),
+					col2: sql.placeholder('col2'),
+					col3: sql.placeholder('col3'),
+					col4: sql.placeholder('col4'),
+					col5: sql.placeholder('col5'),
+				})
+				.prepare();
+
+			const date1 = new Date('2026-02-06T18:42:21');
+			const date2 = new Date('2026-02-06T18:42:21.123');
+			await stmt.run({ list: ['a', 'b'], col2: { a: 1 }, col3: 123n, col4: date1, col5: date2 });
+			const result = await db.select().from(schema.table1).get();
+			expect(result).toStrictEqual({ list: ['a', 'b'], col2: { a: 1 }, col3: 123n, col4: date1, col5: date2 });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/2872
+		test.concurrent('prepared statement with placeholder in .inArray', async ({ db, push }) => {
+			const table1 = sqliteTable('table1', {
+				name: text(),
+			});
+
+			await push({ table1 });
+
+			await db.insert(table1).values([{ name: 'John' }, { name: 'John1' }]);
+
+			const prepared = db.select().from(table1).where(inArray(table1.name, sql.placeholder('names'))).prepare();
+			const result = await prepared.execute({ names: ['John', 'John1'] });
+			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
+		});
+
 		test.concurrent('prepared statement with placeholder in .where', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();
 			const stmt = db.select({
@@ -1506,6 +1568,44 @@ export function tests(test: Test, exclude: string[] = []) {
 			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
 			expect(() => db.select().from(sq).prepare()).toThrowError();
+		});
+
+		test.concurrent('sql.Aliased in cte', async ({ db, push }) => {
+			const users = sqliteTable('users_109_sqla', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+			await push({ users });
+			await db.insert(users).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq1').as((qb) =>
+				qb.select({
+					aliased: sql`count(*)`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+			const sq2 = db.$with('sq2').as((qb) =>
+				qb.select({
+					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+				}).from(users)
+			);
+
+			const result = await db.with(sq1, sq2).select({
+				count: sq1.aliased,
+				sum: sq2.aliased,
+			}).from(sq1).crossJoin(sq2);
+
+			expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+			const result2 = await db.with(sq1).select({
+				count: sq1.aliased,
+			}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+			expect(result2).toEqual([{ count: 2 }]);
 		});
 
 		test.concurrent('select count()', async ({ db }) => {
