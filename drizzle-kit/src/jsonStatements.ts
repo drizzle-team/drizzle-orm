@@ -72,6 +72,7 @@ export interface JsonRecreateTableStatement {
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
 	checkConstraints: string[];
+	addedColumns?: string[];
 }
 
 export interface JsonRecreateSingleStoreTableStatement {
