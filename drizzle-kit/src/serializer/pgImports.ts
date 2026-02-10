@@ -102,13 +102,13 @@ export const prepareFromPgImports = async (imports: string[]) => {
 
 	return {
 		tables: Array.from(new Set(tables)),
-		enums,
-		schemas,
-		sequences,
-		views,
-		matViews,
-		roles,
-		policies,
-		relations,
+		enums: Array.from(new Set(enums)),
+		schemas: Array.from(new Set(schemas)),
+		sequences: Array.from(new Set(sequences)),
+		views: Array.from(new Set(views)),
+		matViews: Array.from(new Set(matViews)),
+		roles: Array.from(new Set(roles)),
+		policies: Array.from(new Set(policies)),
+		relations: Array.from(new Set(relations)),
 	};
 };

@@ -37,5 +37,5 @@ export const prepareFromSqliteImports = async (imports: string[]) => {
 
 	unregister();
 
-	return { tables: Array.from(new Set(tables)), views };
+	return { tables: Array.from(new Set(tables)), views: Array.from(new Set(views)) };
 };
