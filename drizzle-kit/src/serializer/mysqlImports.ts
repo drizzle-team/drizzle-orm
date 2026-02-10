@@ -34,5 +34,5 @@ export const prepareFromMySqlImports = async (imports: string[]) => {
 		views.push(...prepared.views);
 	}
 	unregister();
-	return { tables: Array.from(new Set(tables)), views };
+	return { tables: Array.from(new Set(tables)), views: Array.from(new Set(views)) };
 };
