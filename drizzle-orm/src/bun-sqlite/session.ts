@@ -137,7 +137,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 			return customResultMapper(rows) as T['all'];
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return rows.map((row) => {
+		    return mapResultRow(fields!, row.map(item => {
+			if(ArrayBuffer.isView(item)) return Buffer.from(item)
+		        return item
+		    }), joinsNotNullableMap)
+		});
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
