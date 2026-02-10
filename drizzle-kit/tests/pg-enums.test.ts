@@ -1388,6 +1388,7 @@ test('column is enum type without default value. add default to column', async (
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		columnAutoIncrement: undefined,
+		columnComment: undefined,
 		columnName: 'column',
 		columnNotNull: false,
 		columnOnUpdate: undefined,

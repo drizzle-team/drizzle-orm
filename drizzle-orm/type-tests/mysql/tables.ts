@@ -83,7 +83,7 @@ export const users = mysqlTable(
 
 export const cities = mysqlTable('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name_db').notNull(),
+	name: text('name_db').notNull().comment('The name of the city'),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -109,6 +109,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -130,6 +131,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: 'The name of the city';
 				},
 				{},
 				{}
@@ -151,6 +153,7 @@ Expect<
 					identity: undefined;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -180,7 +183,7 @@ export const customSchema = mysqlSchema('custom_schema');
 
 export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name_db').notNull(),
+	name: text('name_db').notNull().comment('The name of the city'),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -234,6 +237,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			}>;
 			cityId: MySqlColumn<{
 				name: 'id';
@@ -251,6 +255,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: true;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -292,6 +297,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'id';
@@ -309,6 +315,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -348,6 +355,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -365,6 +373,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -404,6 +413,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -421,6 +431,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -453,6 +464,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -470,6 +482,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -502,6 +515,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 				cityId: MySqlColumn<{
 					name: 'city_id';
@@ -519,6 +533,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -554,6 +569,7 @@ Expect<
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>

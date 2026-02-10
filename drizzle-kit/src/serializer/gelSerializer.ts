@@ -156,6 +156,7 @@ const generateGelSnapshot = (
 			// const typeSchema = is(column, GelEnumColumn) ? column.enum.schema || 'public' : undefined;
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
+			const comment = column.comment || undefined;
 
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
@@ -195,6 +196,7 @@ const generateGelSnapshot = (
 						cycle: identity?.sequenceOptions?.cycle ?? false,
 					}
 					: undefined,
+				comment,
 			};
 
 			// 	if (column.isUnique) {
@@ -1199,6 +1201,7 @@ WHERE
 						let columnType: string = columnResponse.data_type;
 						// const typeSchema = columnResponse.type_schema;
 						const defaultValueRes: string = columnResponse.column_default;
+						const columnComment = columnResponse.comment || undefined;
 
 						const isGenerated = columnResponse.is_generated === 'ALWAYS';
 						const generationExpression = columnResponse.generation_expression;
@@ -1349,6 +1352,7 @@ WHERE
 									schema: tableSchema,
 								}
 								: undefined,
+							comment: columnComment,
 						};
 
 						if (identityName && typeof identityName === 'string') {
@@ -1595,7 +1599,7 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
 	return db.query(
 		`SELECT 
     a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
-    a.attname::text AS column_name,   -- Column name
+    a.attname AS column_name,   -- Column name
     CASE 
         WHEN NOT a.attisdropped THEN 
             CASE 
@@ -1634,7 +1638,8 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_maximum::text,  -- Maximum value for identity column
     c.identity_minimum::text,  -- Minimum value for identity column
     c.identity_cycle::text,  -- Does the identity column cycle?
-    ns.nspname::text AS type_schema  -- Schema of the enum type
+    ns.nspname::text AS type_schema,  -- Schema of the enum type
+    d.description AS comment  -- Column comment
 FROM 
     pg_attribute a
 JOIN 
@@ -1649,6 +1654,8 @@ LEFT JOIN
     pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
 LEFT JOIN 
     pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
+LEFT JOIN 
+    pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum  -- Join to get column comment
 WHERE 
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns

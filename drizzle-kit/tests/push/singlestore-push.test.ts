@@ -462,6 +462,7 @@ test('drop not null, add not null', async (t) => {
 		columns: [
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'id',
 				notNull: true,
@@ -471,6 +472,7 @@ test('drop not null, add not null', async (t) => {
 			},
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'name',
 				notNull: true,
@@ -480,6 +482,7 @@ test('drop not null, add not null', async (t) => {
 			},
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'user_id',
 				notNull: false,
@@ -499,6 +502,7 @@ test('drop not null, add not null', async (t) => {
 		columns: [
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'id',
 				notNull: true,
@@ -508,6 +512,7 @@ test('drop not null, add not null', async (t) => {
 			},
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'name',
 				notNull: false,
@@ -668,6 +673,7 @@ test('change data type. db has indexes. table does not have values', async (t) =
 		columns: [
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'id',
 				notNull: true,
@@ -677,6 +683,7 @@ test('change data type. db has indexes. table does not have values', async (t) =
 			},
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'name',
 				notNull: true,
@@ -762,6 +769,7 @@ test('change data type. db has indexes. table has values', async (t) => {
 		columns: [
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'id',
 				notNull: true,
@@ -771,6 +779,7 @@ test('change data type. db has indexes. table has values', async (t) => {
 			},
 			{
 				autoincrement: false,
+				comment: undefined,
 				generated: undefined,
 				name: 'name',
 				notNull: false,
@@ -859,6 +868,7 @@ test('add column. add default to column without not null', async (t) => {
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnName: 'name',
 		columnNotNull: false,
 		columnOnUpdate: undefined,

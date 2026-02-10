@@ -5,6 +5,7 @@ import {
 	bigint,
 	char,
 	check,
+	comment,
 	decimal,
 	double,
 	float,
@@ -316,4 +317,25 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements.length).toBe(0);
 
 	await client.query(`drop table columns;`);
+});
+
+test('introspect column comments', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: int('id').comment('Primary key'),
+			name: varchar('name', { length: 255 }).comment('User full name'),
+			email: varchar('email', { length: 255 }).comment('User email address'),
+			age: int('age').comment('User age in years'),
+		}, () => [comment('User Table')]),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-column-comments',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });

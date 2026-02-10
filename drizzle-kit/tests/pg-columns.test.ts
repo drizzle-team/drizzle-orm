@@ -482,3 +482,87 @@ test('varchar and text default values escape single quotes', async (t) => {
 		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
 	);
 });
+
+test('add table with column comments', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE "users" ADD COLUMN "name" text;',
+	);
+	expect(sqlStatements[1]).toBe(
+		'ALTER TABLE "users" ADD COLUMN "email" text NOT NULL;',
+	);
+});
+
+test('modify column comments', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey().comment('Updated primary key comment'),
+			name: text('name').comment('Updated user name comment'),
+			email: text('email').notNull(), // Remove comment
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	console.log('Actual SQL statements for modify column comments:', sqlStatements);
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toBe(
+		'COMMENT ON COLUMN "users"."id" IS \'Updated primary key comment\';',
+	);
+	expect(sqlStatements[1]).toBe(
+		'COMMENT ON COLUMN "users"."name" IS \'Updated user name comment\';',
+	);
+	expect(sqlStatements[2]).toBe(
+		'COMMENT ON COLUMN "users"."email" IS NULL;',
+	);
+});
+
+test('create table with column comments', async (t) => {
+	const schema = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas({}, schema, []);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" text,\n\t"email" text NOT NULL\n);\n',
+	);
+	expect(sqlStatements[1]).toBe(
+		'COMMENT ON COLUMN "users"."id" IS \'Primary key\';',
+	);
+	expect(sqlStatements[2]).toBe(
+		'COMMENT ON COLUMN "users"."name" IS \'User name\';',
+	);
+	expect(sqlStatements[3]).toBe(
+		'COMMENT ON COLUMN "users"."email" IS \'User email address\';',
+	);
+});

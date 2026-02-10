@@ -42,6 +42,7 @@ export const generateSingleStoreSnapshot = (
 	for (const table of tables) {
 		const {
 			name: tableName,
+			comment,
 			columns,
 			indexes,
 			schema,
@@ -61,6 +62,7 @@ export const generateSingleStoreSnapshot = (
 				: (column as any).autoIncrement;
 
 			const generated = column.generated;
+			const comment = column.comment;
 
 			const columnToSet: Column = {
 				name: column.name,
@@ -81,6 +83,7 @@ export const generateSingleStoreSnapshot = (
 						type: generated.mode ?? 'stored',
 					}
 					: undefined,
+				comment,
 			};
 
 			if (column.primary) {
@@ -283,6 +286,7 @@ export const generateSingleStoreSnapshot = (
 		if (!schema) {
 			result[tableName] = {
 				name: tableName,
+				comment,
 				columns: columnsObject,
 				indexes: indexesObject,
 				compositePrimaryKeys: primaryKeysObject,
@@ -461,6 +465,12 @@ export const fromDatabase = async (
 		`select * from INFORMATION_SCHEMA.STATISTICS
 	WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${inputSchema}' and INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY';`,
 	);
+	const comments = await db.query(
+		`select TABLE_NAME, TABLE_COMMENT from INFORMATION_SCHEMA.TABLES
+	WHERE INFORMATION_SCHEMA.TABLES.TABLE_SCHEMA = '${inputSchema}';`,
+	).then((res) =>
+		Object.fromEntries(res.map((it) => [it.TABLE_NAME, it.TABLE_COMMENT])) as Partial<Record<string, string>>
+	);
 
 	const idxRows = idxs as RowDataPacket[];
 
@@ -487,6 +497,7 @@ export const fromDatabase = async (
 		let columnDefault: string | null = column['COLUMN_DEFAULT'];
 		const collation: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
+		const comment = column['COLUMN_COMMENT'] || undefined;
 
 		let columnExtra = column['EXTRA'];
 		let isAutoincrement = false; // 'auto_increment', ''
@@ -582,6 +593,7 @@ export const fromDatabase = async (
 					type: columnExtra === 'VIRTUAL GENERATED' ? 'virtual' : 'stored',
 				}
 				: undefined,
+			comment,
 		};
 
 		// Set default to internal object
@@ -619,6 +631,7 @@ export const fromDatabase = async (
 				compositePrimaryKeys: {},
 				indexes: {},
 				uniqueConstraints: {},
+				comment: comments[tableName],
 			};
 		} else {
 			result[tableName]!.columns[columnName] = newColumn;

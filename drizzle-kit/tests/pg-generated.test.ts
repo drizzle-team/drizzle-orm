@@ -73,6 +73,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
 			columnName: 'gen_name',
@@ -116,6 +117,7 @@ test('generated as callback: drop generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -160,6 +162,7 @@ test('generated as callback: change generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
 			columnName: 'gen_name',
@@ -248,6 +251,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
 			columnName: 'gen_name',
@@ -291,6 +295,7 @@ test('generated as sql: drop generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -335,6 +340,7 @@ test('generated as sql: change generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
 			columnName: 'gen_name',
@@ -423,6 +429,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
 			columnName: 'gen_name',
@@ -466,6 +473,7 @@ test('generated as string: drop generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -510,6 +518,7 @@ test('generated as string: change generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: undefined,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
 			columnName: 'gen_name',

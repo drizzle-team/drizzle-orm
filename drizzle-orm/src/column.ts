@@ -20,6 +20,7 @@ export interface ColumnBaseConfig<
 	isPrimaryKey: boolean;
 	isAutoincrement: boolean;
 	hasRuntimeDefault: boolean;
+	comment: string | undefined;
 }
 
 export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
@@ -80,6 +81,7 @@ export abstract class Column<
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
+	readonly comment: string | undefined;
 	readonly dataType: T['dataType'];
 	readonly columnType: T['columnType'];
 	readonly enumValues: T['enumValues'] = undefined;
@@ -104,6 +106,7 @@ export abstract class Column<
 		this.isUnique = config.isUnique;
 		this.uniqueName = config.uniqueName;
 		this.uniqueType = config.uniqueType;
+		this.comment = config.comment;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
 		this.generated = config.generated;

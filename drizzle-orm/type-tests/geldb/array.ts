@@ -25,6 +25,7 @@ import { gelTable, integer } from '~/gel-core/index.ts';
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				},
 				{},
 				{}

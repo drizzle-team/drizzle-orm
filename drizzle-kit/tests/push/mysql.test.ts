@@ -444,6 +444,7 @@ const mysqlSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: "`users`.`name` || 'hello'",
@@ -460,6 +461,7 @@ const mysqlSuite: DialectSuite = {
 			},
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: "`users`.`name` || 'hello'",
@@ -534,6 +536,7 @@ const mysqlSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name',
@@ -543,6 +546,7 @@ const mysqlSuite: DialectSuite = {
 				newDataType: 'text',
 				oldColumn: {
 					autoincrement: false,
+					comment: undefined,
 					default: undefined,
 					generated: {
 						as: '`name`',
@@ -560,6 +564,7 @@ const mysqlSuite: DialectSuite = {
 			},
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name1',
@@ -569,6 +574,7 @@ const mysqlSuite: DialectSuite = {
 				newDataType: 'text',
 				oldColumn: {
 					autoincrement: false,
+					comment: undefined,
 					default: undefined,
 					generated: {
 						as: '`name`',
@@ -696,6 +702,7 @@ const mysqlSuite: DialectSuite = {
 					indexes: {},
 					tables: {},
 				},
+				comment: undefined,
 				compositePKs: ['table_col1_col2_pk;col1,col2'],
 				compositePkName: 'table_col1_col2_pk',
 				uniqueConstraints: [],

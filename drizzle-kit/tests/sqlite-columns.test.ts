@@ -918,6 +918,7 @@ test('alter column drop generated', async (t) => {
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnDefault: undefined,
 		columnGenerated: undefined,
 		columnName: 'name',

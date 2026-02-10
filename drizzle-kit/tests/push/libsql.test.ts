@@ -570,6 +570,7 @@ test('drop not null, add not null', async (t) => {
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnDefault: undefined,
 		columnName: 'name',
 		columnNotNull: false,
@@ -582,6 +583,7 @@ test('drop not null, add not null', async (t) => {
 	});
 	expect(statements![1]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnDefault: undefined,
 		columnName: 'name',
 		columnNotNull: true,
@@ -936,6 +938,7 @@ test('set not null with index', async (t) => {
 	expect(statements!.length).toBe(1);
 	expect(statements![0]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnDefault: undefined,
 		columnName: 'name',
 		columnNotNull: true,
@@ -959,6 +962,7 @@ test('set not null with index', async (t) => {
 		columnNotNull: true,
 		columnAutoIncrement: false,
 		columnPk: false,
+		columnComment: undefined,
 	});
 
 	expect(sqlStatements.length).toBe(3);
@@ -1026,6 +1030,7 @@ test('drop not null with two indexes', async (t) => {
 		columnName: 'name',
 		schema: '',
 		newDataType: 'text',
+		columnComment: undefined,
 		columnDefault: undefined,
 		columnOnUpdate: undefined,
 		columnNotNull: false,

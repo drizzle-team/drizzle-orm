@@ -397,6 +397,7 @@ const pgSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: undefined,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: '"users"."name"',
@@ -447,6 +448,7 @@ const pgSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: undefined,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name',
@@ -535,6 +537,7 @@ const pgSuite: DialectSuite = {
 						type: 'text',
 					},
 				],
+				comment: undefined,
 				compositePKs: [],
 				compositePkName: '',
 				isRLSEnabled: false,
@@ -945,6 +948,7 @@ const pgSuite: DialectSuite = {
 				type: 'create_table',
 				tableName: 'table',
 				schema: '',
+				comment: undefined,
 				compositePKs: ['col1,col2;table_col1_col2_pk'],
 				compositePkName: 'table_col1_col2_pk',
 				isRLSEnabled: false,
@@ -1292,6 +1296,7 @@ test('create table: identity always/by default - no params', async () => {
 					type: 'smallint',
 				},
 			],
+			comment: undefined,
 			compositePKs: [],
 			compositePkName: '',
 			schema: '',
@@ -1355,6 +1360,7 @@ test('create table: identity always/by default - few params', async () => {
 					type: 'smallint',
 				},
 			],
+			comment: undefined,
 			compositePKs: [],
 			compositePkName: '',
 			policies: [],
@@ -1424,6 +1430,7 @@ test('create table: identity always/by default - all params', async () => {
 					type: 'smallint',
 				},
 			],
+			comment: undefined,
 			compositePKs: [],
 			compositePkName: '',
 			schema: '',
@@ -2225,6 +2232,7 @@ test('Column with same name as enum', async () => {
 			type: 'create_table',
 			tableName: 'table2',
 			schema: '',
+			comment: undefined,
 			compositePKs: [],
 			compositePkName: '',
 			isRLSEnabled: false,
@@ -3676,6 +3684,7 @@ test('create table with a policy', async (t) => {
 					type: 'integer',
 				},
 			],
+			comment: undefined,
 			checkConstraints: [],
 			compositePKs: [],
 			isRLSEnabled: false,

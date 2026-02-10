@@ -189,6 +189,7 @@ const column = object({
 	identity: sequenceSchema
 		.merge(object({ type: enumType(['always', 'byDefault']) }))
 		.optional(),
+	comment: string().optional(),
 }).strict();
 
 const checkConstraint = object({
@@ -211,6 +212,7 @@ const columnSquashed = object({
 		as: string(),
 	}).optional(),
 	identity: string().optional(),
+	comment: string().optional(),
 }).strict();
 
 const tableV3 = object({
@@ -338,6 +340,7 @@ const table = object({
 	policies: record(string(), policy).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
 	isRLSEnabled: boolean().default(false),
+	comment: string().optional(),
 }).strict();
 
 const schemaHash = object({
@@ -813,6 +816,7 @@ export const squashPgScheme = (
 				it[0],
 				{
 					name: it[1].name,
+					comment: it[1].comment,
 					schema: it[1].schema,
 					columns: mappedColumns,
 					indexes: squashedIndexes,

@@ -130,6 +130,7 @@ export const generatePgSnapshot = (
 
 		const {
 			name: tableName,
+			comment,
 			columns,
 			indexes,
 			foreignKeys,
@@ -169,6 +170,7 @@ export const generatePgSnapshot = (
 
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
+			const comment = column.comment || undefined;
 
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
@@ -208,6 +210,7 @@ export const generatePgSnapshot = (
 						cycle: identity?.sequenceOptions?.cycle ?? false,
 					}
 					: undefined,
+				comment,
 			};
 
 			if (column.isUnique) {
@@ -576,6 +579,7 @@ export const generatePgSnapshot = (
 		result[tableKey] = {
 			name: tableName,
 			schema: schema ?? '',
+			comment,
 			columns: columnsObject,
 			indexes: indexesObject,
 			foreignKeys: foreignKeysObject,
@@ -990,7 +994,9 @@ export const fromDatabase = async (
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
+	const allTables = await db.query<
+		{ table_schema: string; table_name: string; type: string; rls_enabled: boolean; table_comment: string }
+	>(
 		`SELECT 
     n.nspname AS table_schema, 
     c.relname AS table_name, 
@@ -999,11 +1005,14 @@ export const fromDatabase = async (
         WHEN c.relkind = 'v' THEN 'view'
         WHEN c.relkind = 'm' THEN 'materialized_view'
     END AS type,
-	c.relrowsecurity AS rls_enabled
+	c.relrowsecurity AS rls_enabled,
+	d.description AS table_comment
 FROM 
     pg_catalog.pg_class c
 JOIN 
     pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN 
+    pg_catalog.pg_description d ON d.objoid = c.oid AND d.objsubid = 0
 WHERE 
 	c.relkind IN ('r', 'v', 'm') 
     ${where === '' ? '' : ` AND ${where}`};`,
@@ -1216,6 +1225,7 @@ WHERE
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
 				const tableSchema = row.table_schema;
+				const tableComment = row.table_comment ?? undefined;
 
 				try {
 					const columnToReturn: Record<string, Column> = {};
@@ -1386,6 +1396,7 @@ WHERE
 						let columnType: string = columnResponse.data_type;
 						const typeSchema = columnResponse.type_schema;
 						const defaultValueRes: string = columnResponse.column_default;
+						const columnComment = columnResponse.comment || undefined;
 
 						const isGenerated = columnResponse.is_generated === 'ALWAYS';
 						const generationExpression = columnResponse.generation_expression;
@@ -1522,6 +1533,7 @@ WHERE
 									schema: tableSchema,
 								}
 								: undefined,
+							comment: columnComment,
 						};
 
 						if (identityName && typeof identityName === 'string') {
@@ -1652,6 +1664,7 @@ WHERE
 					}
 					result[`${tableSchema}.${tableName}`] = {
 						name: tableName,
+						comment: tableComment,
 						schema: tableSchema !== 'public' ? tableSchema : '',
 						columns: columnToReturn,
 						indexes: indexToReturn,
@@ -1711,6 +1724,7 @@ WHERE
 						const identityCycle = viewResponse.identity_cycle === 'YES';
 						const identityName = viewResponse.seq_name;
 						const defaultValueRes = viewResponse.column_default;
+						const columnComment = viewResponse.comment || undefined;
 
 						const primaryKey = viewResponse.constraint_type === 'PRIMARY KEY';
 
@@ -1814,6 +1828,7 @@ WHERE
 									schema: viewSchema,
 								}
 								: undefined,
+							comment: columnComment,
 						};
 
 						if (identityName) {
@@ -2070,7 +2085,8 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_maximum,  -- Maximum value for identity column
     c.identity_minimum,  -- Minimum value for identity column
     c.identity_cycle,  -- Does the identity column cycle?
-    enum_ns.nspname AS type_schema  -- Schema of the enum type
+    enum_ns.nspname AS type_schema,  -- Schema of the enum type
+    d.description AS comment  -- Column comment
 FROM 
     pg_attribute a
 JOIN 
@@ -2085,6 +2101,8 @@ LEFT JOIN
     pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
 LEFT JOIN 
     pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
+LEFT JOIN 
+    pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum  -- Join to get column comment
 WHERE 
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns

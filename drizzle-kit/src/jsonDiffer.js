@@ -546,10 +546,20 @@ const findAlternationsInTable = (table) => {
 
 	const mappedAltered = altered.map((it) => alternationsInColumn(it)).filter(Boolean);
 
+	let alteredComment = undefined;
+	if ('comment__added' in table) {
+		alteredComment = table.comment__added;
+	} else if ('comment__deleted' in table) {
+		alteredComment = undefined;
+	} else if ('comment' in table && typeof table.comment === 'object' && '__new' in table.comment) {
+		alteredComment = table.comment.__new;
+	}
+
 	return {
 		name: table.name,
 		schema: table.schema || '',
 		altered: mappedAltered,
+		alteredComment,
 		addedIndexes,
 		deletedIndexes,
 		alteredIndexes,
@@ -860,6 +870,29 @@ const alternationsInColumn = (column) => {
 				return {
 					...others,
 					autoincrement: { type: 'deleted', value: it.autoincrement__deleted },
+				};
+			}
+			return it;
+		})
+		.map((it) => {
+			if ('comment' in it) {
+				return {
+					...it,
+					comment: { type: 'changed', old: it.comment.__old, new: it.comment.__new },
+				};
+			}
+			if ('comment__added' in it) {
+				const { comment__added, ...others } = it;
+				return {
+					...others,
+					comment: { type: 'added', value: it.comment__added },
+				};
+			}
+			if ('comment__deleted' in it) {
+				const { comment__deleted, ...others } = it;
+				return {
+					...others,
+					comment: { type: 'deleted', value: it.comment__deleted },
 				};
 			}
 			return it;

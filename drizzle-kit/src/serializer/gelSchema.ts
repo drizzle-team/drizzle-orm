@@ -85,6 +85,7 @@ const column = object({
 	identity: sequenceSchema
 		.merge(object({ type: enumType(['always', 'byDefault']) }))
 		.optional(),
+	comment: string().optional(),
 }).strict();
 
 const checkConstraint = object({

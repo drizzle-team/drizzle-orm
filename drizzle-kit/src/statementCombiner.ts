@@ -484,6 +484,8 @@ export const singleStoreCombineStatements = (
 			|| statement.type === 'alter_table_alter_column_set_autoincrement'
 			|| statement.type === 'alter_table_alter_column_drop_pk'
 			|| statement.type === 'alter_table_alter_column_set_pk'
+			|| statement.type === 'alter_table_alter_column_set_comment'
+			|| statement.type === 'alter_table_alter_column_drop_comment'
 			|| statement.type === 'create_composite_pk'
 			|| statement.type === 'alter_composite_pk'
 			|| statement.type === 'delete_composite_pk'

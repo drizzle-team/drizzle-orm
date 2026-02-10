@@ -601,6 +601,7 @@ test('create table with a policy', async (t) => {
 					type: 'integer',
 				},
 			],
+			comment: undefined,
 			compositePKs: [],
 			checkConstraints: [],
 			compositePkName: '',

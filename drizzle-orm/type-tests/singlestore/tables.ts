@@ -74,7 +74,7 @@ export const users = singlestoreTable(
 
 export const cities = singlestoreTable('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name_db').notNull(),
+	name: text('name_db').notNull().comment('The name of the city'),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -100,6 +100,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -121,6 +122,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: 'The name of the city';
 				},
 				{},
 				{}
@@ -142,6 +144,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -171,7 +174,7 @@ export const customSchema = singlestoreSchema('custom_schema');
 
 export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
-	name: text('name_db').notNull(),
+	name: text('name_db').notNull().comment('The name of the city'),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -534,6 +537,7 @@ Expect<
 				generated: undefined;
 				brand: 'Column';
 				dialect: 'singlestore';
+				comment: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
 		>
