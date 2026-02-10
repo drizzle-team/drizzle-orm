@@ -909,8 +909,19 @@ export const drizzleConfigFromFile = async (
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
 	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
-	const content = required.default ?? required;
+
+	let content: any;
+	try {
+		// Try dynamic import first to support top-level await
+		const imported = await import(path);
+		content = imported.default ?? imported;
+	} catch (e: any) {
+		// If dynamic import fails (e.g., in some environments), fall back to require
+		// This handles cases where the module format might cause issues
+		const required = require(`${path}`);
+		content = required.default ?? required;
+	}
+
 	unregister();
 
 	// --- get response and then check by each dialect independently
