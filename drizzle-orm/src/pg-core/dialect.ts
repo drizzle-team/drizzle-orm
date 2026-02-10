@@ -1353,18 +1353,28 @@ export class PgDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_build_array(${
-				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
-					sql`, `,
-				)
-			})`;
+			const fieldChunks: SQL[] = [];
+
+			for (let i = 0; i < selection.length; i += 100) {
+				const chunk = selection.slice(i, i + 100);
+				const chunkSql = sql`json_build_array(${
+					sql.join(
+						chunk.map(({ field, tsKey, isJson }) =>
+							isJson
+								? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+								: is(field, SQL.Aliased)
+								? field.sql
+								: field
+						),
+						sql`, `,
+					)
+				})`;
+				fieldChunks.push(chunkSql);
+			}
+
+			let field = fieldChunks.reduce((acc, chunk, idx) =>
+				idx === 0 ? chunk : sql`${acc}::jsonb || ${chunk}::jsonb`
+			);
 			if (is(nestedQueryRelation, Many)) {
 				field = sql`coalesce(json_agg(${field}${
 					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
