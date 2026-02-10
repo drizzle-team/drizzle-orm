@@ -134,6 +134,59 @@ export class SQL<T = unknown> implements SQLWrapper {
 		return this;
 	}
 
+	/**
+	 * Creates a deep clone of this SQL expression, including all queryChunks.
+	 * Use this when you need to reuse SQL expressions across multiple query contexts
+	 * to avoid mutation issues.
+	 *
+	 * @example
+	 * ```ts
+	 * const baseQuery = sql`SELECT * FROM users`;
+	 * const query1 = baseQuery.clone().append(sql` WHERE active = true`);
+	 * const query2 = baseQuery.clone().append(sql` WHERE role = 'admin'`);
+	 * // baseQuery remains unchanged
+	 * ```
+	 */
+	clone(): SQL<T> {
+		// Deep clone the queryChunks array
+		const clonedChunks = this.queryChunks.map(chunk => {
+			// Recursively clone nested SQL objects
+			if (is(chunk, SQL)) {
+				return chunk.clone();
+			}
+			// Clone SQL.Aliased using its existing clone method
+			if (is(chunk, SQL.Aliased)) {
+				return chunk.clone();
+			}
+			// Arrays of chunks need to be cloned recursively
+			if (Array.isArray(chunk)) {
+				return chunk.map(item => {
+					if (is(item, SQL)) {
+						return item.clone();
+					}
+					if (is(item, SQL.Aliased)) {
+						return item.clone();
+					}
+					return item;
+				});
+			}
+			// Other chunks (StringChunk, Name, Param, Column, Table, etc.) can be shared
+			// as they are either immutable or their mutation doesn't affect query building
+			return chunk;
+		});
+
+		// Create new SQL instance with cloned chunks
+		const cloned = new SQL<T>(clonedChunks);
+
+		// Preserve decoder and shouldInlineParams
+		cloned.decoder = this.decoder;
+		(cloned as any).shouldInlineParams = this.shouldInlineParams;
+		// usedTables is populated in constructor, but we preserve the original to avoid redundant work
+		cloned.usedTables = [...this.usedTables];
+
+		return cloned;
+	}
+
 	toQuery(config: BuildQueryConfig): QueryWithTypings {
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
