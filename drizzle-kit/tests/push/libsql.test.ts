@@ -10,6 +10,7 @@ import {
 	int,
 	integer,
 	numeric,
+	primaryKey,
 	real,
 	sqliteTable,
 	sqliteView,
@@ -1397,4 +1398,79 @@ test('alter view ".as"', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+// Regression test for duplicate CREATE INDEX on table recreation
+// Bug: When a recreate_table occurs, CREATE INDEX statements were emitted twice:
+//   CREATE UNIQUE INDEX `UserSlug_userSlug` ...
+//   PRAGMA foreign_keys=ON;
+//   CREATE UNIQUE INDEX `UserSlug_userSlug` ...  <-- duplicate!
+test('recreate table with composite pk, unique index and regular index should not duplicate CREATE INDEX', async (t) => {
+	// Schema with composite PK, uniqueIndex, and regular index (matches UserSlugBindings)
+	const schema = {
+		UserSlugBindings: sqliteTable(
+			'UserSlugBindings',
+			{
+				userId: text('userId').notNull(),
+				userSlug: text('userSlug').notNull(),
+				created: text('created').notNull(),
+			},
+			(table) => [
+				primaryKey({ columns: [table.userSlug, table.userId] }),
+				uniqueIndex('UserSlug_userSlug').on(table.userSlug),
+				index('UserSlug_created').on(table.created),
+			],
+		),
+	};
+
+	const turso = createClient({ url: ':memory:' });
+
+	// ==================== FIRST PUSH: empty DB -> schema ====================
+	// This simulates the initial `drizzle-kit push` to an empty database
+	const {
+		sqlStatements: firstPushStatements,
+	} = await diffTestSchemasPushLibSQL(turso, {}, schema, [], false);
+
+	// First push should have clean CREATE statements, no ALTER/recreate
+	expect(firstPushStatements.some((s) => s.includes('CREATE TABLE `UserSlugBindings`'))).toBe(true);
+	expect(firstPushStatements.some((s) => s.includes('CREATE UNIQUE INDEX `UserSlug_userSlug`'))).toBe(true);
+	expect(firstPushStatements.some((s) => s.includes('CREATE INDEX `UserSlug_created`'))).toBe(true);
+
+	// No ALTER TABLE or __new_ (recreate) statements on first push
+	expect(firstPushStatements.some((s) => s.includes('ALTER TABLE'))).toBe(false);
+	expect(firstPushStatements.some((s) => s.includes('__new_'))).toBe(false);
+
+	// Each index should appear exactly once
+	const firstPushUniqueIndexCount = firstPushStatements.filter(
+		(s) => s.includes('CREATE UNIQUE INDEX') && s.includes('UserSlug_userSlug'),
+	).length;
+	const firstPushRegularIndexCount = firstPushStatements.filter(
+		(s) => s.includes('CREATE INDEX') && s.includes('UserSlug_created'),
+	).length;
+	expect(firstPushUniqueIndexCount).toBe(1);
+	expect(firstPushRegularIndexCount).toBe(1);
+
+	// ==================== SECOND PUSH: schema -> schema ====================
+	// This simulates running `drizzle-kit push` again on the same DB
+	const {
+		sqlStatements: secondPushStatements,
+		columnsToRemove,
+		tablesToRemove,
+	} = await diffTestSchemasPushLibSQL(turso, schema, schema, [], false);
+
+	// Count CREATE INDEX occurrences in second push output
+	const secondPushUniqueIndexCount = secondPushStatements.filter(
+		(s) => s.includes('CREATE UNIQUE INDEX') && s.includes('UserSlug_userSlug'),
+	).length;
+	const secondPushRegularIndexCount = secondPushStatements.filter(
+		(s) => s.includes('CREATE INDEX') && s.includes('UserSlug_created'),
+	).length;
+
+	// CRITICAL: Each index should appear at most ONCE, not twice
+	// Bug was: _moveDataStatements created indexes, then create_index statements added duplicates
+	expect(secondPushUniqueIndexCount).toBeLessThanOrEqual(1);
+	expect(secondPushRegularIndexCount).toBeLessThanOrEqual(1);
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(tablesToRemove!.length).toBe(0);
 });
