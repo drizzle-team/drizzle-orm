@@ -1582,6 +1582,7 @@ test('jsonb default with boolean literals', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5356
 // https://github.com/drizzle-team/drizzle-orm/issues/5294
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
 test('single quote default', async () => {
