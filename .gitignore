@@ -1,5 +1,6 @@
 node_modules
 .vscode
+.idea
 dist
 dist.new
 *.tsbuildinfo
