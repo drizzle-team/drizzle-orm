@@ -521,7 +521,7 @@ export const preparePullConfig = async (
 		}
 	}
 
-	const schemasFilterConfig = config.schemaFilter; // TODO: consistent naming
+	const schemasFilterConfig = config.schemaFilter;
 	const schemasFilter = schemasFilterConfig
 		? typeof schemasFilterConfig === 'string'
 			? [schemasFilterConfig]
