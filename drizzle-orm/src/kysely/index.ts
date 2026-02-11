@@ -22,3 +22,17 @@ export type Kyselify<T extends Table> = Simplify<
 		>;
 	}
 >;
+
+// test
+
+export type KyselifyTableName<Schema, K extends keyof Schema> = Schema[K] extends Table
+  ? Schema[K]['_']['schema'] extends string
+    ? `${Schema[K]['_']['schema']}.${Schema[K]['_']['name']}`
+    : K
+  : never;
+
+export type KyselifySchema<Schema> = {
+  [K in keyof Schema as KyselifyTableName<Schema, K>]: Schema[K] extends Table
+    ? Kyselify<Schema[K]>
+    : never;
+};
