@@ -12,9 +12,38 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type QueryTypingsValue, type QueryWithTypings } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
+
+function normalizeJsonParamsForBunSql(
+	params: unknown[],
+	typings: QueryTypingsValue[] | undefined,
+): unknown[] {
+	if (!typings?.length) {
+		return params;
+	}
+
+	let hasJsonParam = false;
+	for (const typing of typings) {
+		if (typing === 'json') {
+			hasJsonParam = true;
+			break;
+		}
+	}
+
+	if (!hasJsonParam) {
+		return params;
+	}
+
+	return params.map((param, index) => {
+		if (typings[index] !== 'json' || typeof param !== 'string') {
+			return param;
+		}
+
+		return JSON.parse(param);
+	});
+}
 
 export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'BunSQLPreparedQuery';
@@ -23,6 +52,7 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private client: SQL,
 		private queryString: string,
 		private params: unknown[],
+		private typings: QueryTypingsValue[] | undefined,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -39,7 +69,8 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const placeholderParams = fillPlaceholders(this.params, placeholderValues);
+			const params = normalizeJsonParamsForBunSql(placeholderParams, this.typings);
 
 			span?.setAttributes({
 				'drizzle.query.text': this.queryString,
@@ -78,7 +109,8 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const placeholderParams = fillPlaceholders(this.params, placeholderValues);
+			const params = normalizeJsonParamsForBunSql(placeholderParams, this.typings);
 			span?.setAttributes({
 				'drizzle.query.text': this.queryString,
 				'drizzle.query.params': JSON.stringify(params),
@@ -130,7 +162,7 @@ export class BunSQLSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
+		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
@@ -145,6 +177,7 @@ export class BunSQLSession<
 			this.client,
 			query.sql,
 			query.params,
+			query.typings,
 			this.logger,
 			this.cache,
 			queryMetadata,
