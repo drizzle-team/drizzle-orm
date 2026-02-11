@@ -700,6 +700,13 @@ export class SeedService {
 				return generator;
 			}
 
+			// ULID
+			if (col.columnType === 'ulid') {
+				const generator = new generatorsMap.GenerateULID[0]();
+
+				return generator;
+			}
+
 			// BOOLEAN
 			if (col.columnType === 'boolean') {
 				const generator = new generatorsMap.GenerateBoolean[0]();
