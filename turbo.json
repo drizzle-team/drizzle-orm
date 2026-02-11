@@ -23,6 +23,7 @@
 			"inputs": [
 				"src/**/*.ts",
 				"tests/**/*.ts",
+				"type-tests/**/*.ts",
 				"tsconfig.json",
 				"tests/tsconfig.json",
 				"../tsconfig.json"
