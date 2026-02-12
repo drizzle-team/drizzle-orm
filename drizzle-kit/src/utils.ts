@@ -1,7 +1,7 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
@@ -307,10 +307,18 @@ export const kloudMeta = () => {
 	};
 };
 
+const mkdirSQLiteUrl = (it: string) => {
+	if (it.startsWith('file:')) {
+		it = it.substring(5);
+	}
+	mkdirSync(dirname(it), { recursive: true });
+};
+
 export const normaliseSQLiteUrl = (
 	it: string,
 	type: 'libsql' | 'better-sqlite',
 ) => {
+	mkdirSQLiteUrl(it);
 	if (type === 'libsql') {
 		if (it.startsWith('file:')) {
 			return it;
