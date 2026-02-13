@@ -21,6 +21,7 @@ export interface MigrationMeta {
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
+	name?: string;
 }
 
 export interface MigrationFromJournalConfig {
@@ -103,7 +104,6 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 	for (const migration of migrations) {
 		const migrationPath = migration.path;
 		const migrationDate = migration.name.slice(0, 14);
-
 		const query = fs.readFileSync(migrationPath).toString();
 
 		const result = query.split('--> statement-breakpoint').map((it) => {
@@ -117,6 +117,7 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 			bps: true,
 			folderMillis: millis,
 			hash: crypto.createHash('sha256').update(query).digest('hex'),
+			name: migration.name,
 		});
 	}
 
