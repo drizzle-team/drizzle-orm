@@ -1,7 +1,10 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
+import type { SQLiteD1Session } from '~/d1';
+import type { LibSQLSession } from '~/libsql';
 import type { MigrationMeta } from '~/migrator';
 import type { AnyRelations } from '~/relations';
 import { sql } from '~/sql';
+import type { SQLiteCloudSession } from '~/sqlite-cloud';
 import type { SQLiteSession } from '~/sqlite-core';
 import type { SQLiteRemoteSession } from '~/sqlite-proxy';
 
@@ -84,7 +87,10 @@ export async function upgradeAsyncIfNeeded(
 			AnyRelations,
 			TablesRelationalConfig
 		>
-		| SQLiteRemoteSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+		| SQLiteRemoteSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
+		| SQLiteD1Session<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
+		| LibSQLSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
+		| SQLiteCloudSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all

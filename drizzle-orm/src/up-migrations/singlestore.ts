@@ -1,10 +1,6 @@
-import type { TablesRelationalConfig } from '~/_relations';
 import type { MigrationMeta } from '~/migrator';
-import type { NeonHttpSession } from '~/neon-http';
-import type { PgAsyncSession } from '~/pg-core';
-import type { AnyRelations } from '~/relations';
+import type { SingleStoreSession } from '~/singlestore-core';
 import { sql } from '~/sql';
-import type { XataHttpSession } from '~/xata-http';
 
 export const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -21,30 +17,26 @@ interface UpgradeResult {
  * Version 1: Extended schema (id, hash, created_at, name, applied_at, version)
  */
 export async function upgradeIfNeeded(
-	migrationsSchema: string,
 	migrationsTable: string,
-	session:
-		| PgAsyncSession
-		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	session: SingleStoreSession,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: boolean }>(
+	const tableExists = await session.all<{ exists: number }>(
 		sql`SELECT EXISTS (
-			SELECT FROM information_schema.tables
-			WHERE table_schema = ${migrationsSchema}
-			AND table_name = ${migrationsTable}
-		)`,
+            SELECT 1 
+            FROM information_schema.tables 
+            WHERE table_name = ${migrationsTable}
+        ) as \`exists\``,
 	);
 
-	if (!tableExists[0]?.exists) {
+	if (tableExists[0]?.exists === 0) {
 		return { newDb: true };
 	}
 
 	// Table exists, check if there are any rows
 	const rows = await session.all<{ id: number; hash: string; created_at: string; version: number | undefined }>(
-		sql`SELECT * FROM ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ORDER BY id ASC LIMIT 1`,
+		sql`SELECT * FROM ${sql.identifier(migrationsTable)} ORDER BY id ASC LIMIT 1`,
 	);
 
 	let prevVersion;
@@ -52,12 +44,12 @@ export async function upgradeIfNeeded(
 	if (rows.length === 0) {
 		// Empty table - check if it has a version column
 		const hasVersionColumn = await session.all<{ exists: boolean }>(
-			sql`SELECT EXISTS (
-				SELECT FROM information_schema.columns
-				WHERE table_schema = ${migrationsSchema}
-				AND table_name = ${migrationsTable}
-				AND column_name = 'version'
-			)`,
+			sql`SELECT EXISTS(
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = ${migrationsTable}
+            AND column_name = 'version'
+        ) AS \`exists\``,
 		);
 
 		prevVersion = hasVersionColumn[0]?.exists ? 1 : 0;
@@ -66,7 +58,7 @@ export async function upgradeIfNeeded(
 	}
 
 	if (prevVersion < CURRENT_MIGRATION_TABLE_VERSION) {
-		await runUpgrades(migrationsSchema, migrationsTable, session, prevVersion, localMigrations);
+		await runUpgrades(migrationsTable, session, prevVersion, localMigrations);
 	}
 
 	return { prevVersion, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
@@ -79,12 +71,8 @@ export async function upgradeIfNeeded(
 const upgradeFunctions: Record<
 	number,
 	(
-		migrationsSchema: string,
 		migrationsTable: string,
-		session:
-			| PgAsyncSession
-			| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-			| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+		session: SingleStoreSession,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
 > = {
@@ -98,15 +86,15 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> 6. If hash matching fails, fall back to serial id ordering
 	 * 7. Set `version` to 1 on all rows
 	 */
-	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
-		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+	0: async (migrationsTable, session, localMigrations) => {
+		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Add new columns
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
+		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN \`name\` text`);
 		await session.execute(
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
+			sql`ALTER TABLE ${table} ADD COLUMN \`applied_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
 		);
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "version" integer`);
+		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN \`version\` INT`);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
@@ -162,12 +150,8 @@ const upgradeFunctions: Record<
  * Runs all upgrade functions sequentially from `fromVersion` to CURRENT_MIGRATION_TABLE_VERSION.
  */
 async function runUpgrades(
-	migrationsSchema: string,
 	migrationsTable: string,
-	session:
-		| PgAsyncSession
-		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	session: SingleStoreSession,
 	fromVersion: number,
 	localMigrations: MigrationMeta[],
 ): Promise<void> {
@@ -176,6 +160,6 @@ async function runUpgrades(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsTable, session, localMigrations);
 	}
 }

@@ -90,11 +90,11 @@ const upgradeFunctions: Record<
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Add new columns
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN \`name\` text`);
+		await session.execute(sql`ALTER TABLE ${table} ADD \`name\` text`);
 		await session.execute(
-			sql`ALTER TABLE ${table} ADD COLUMN \`applied_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+			sql`ALTER TABLE ${table} ADD \`applied_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
 		);
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS \`version\` INT`);
+		await session.execute(sql`ALTER TABLE ${table} ADD \`version\` INT`);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)

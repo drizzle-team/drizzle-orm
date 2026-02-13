@@ -3,6 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { SQLiteCloudDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
@@ -18,14 +19,22 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
-	const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id INTEGER PRIMARY KEY,
-			hash text NOT NULL,
-			created_at numeric
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id INTEGER PRIMARY KEY,
+				hash text NOT NULL,
+				created_at numeric,
+				name text,
+				version integer,
+				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
-	`;
-	await session.run(migrationTableCreate);
+		`;
+		await session.run(migrationTableCreate);
+	}
 
 	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
 		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
@@ -47,7 +56,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await session.run(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+				.inlineParams(),
 		);
 
 		return;
@@ -63,7 +73,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 						sql.raw(migration.sql.join('')),
 						sql`INSERT INTO ${
 							sql.identifier(migrationsTable)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis});\n`,
+						} ("hash", "created_at", "name", "version") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION});\n`
+							.inlineParams(),
 					);
 
 					return statements;

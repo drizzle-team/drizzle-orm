@@ -3,7 +3,10 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
+import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleD1Database } from './driver.ts';
+
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: DrizzleD1Database<TSchema, TRelations>,
@@ -12,14 +15,21 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
-	const migrationTableCreate = sql`
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db.session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
-			created_at numeric
+			created_at numeric,
+			name text,
+			version integer,
+			applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`;
-	await db.session.run(migrationTableCreate);
+		await db.session.run(migrationTableCreate);
+	}
 
 	const dbMigrations = await db.all<{ id: number; hash: string; created_at: string }>(
 		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
@@ -41,7 +51,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.run(
 			sql`INSERT INTO ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") VALUES(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			} ("hash", "created_at", "name", "version") VALUES(${migration.hash}, '${migration.folderMillis}', ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+				.inlineParams(),
 		);
 		return;
 	}
@@ -57,7 +68,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.run(
 				sql`INSERT INTO ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") VALUES(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				} ("hash", "created_at", "name", "version") VALUES(${migration.hash}, '${migration.folderMillis}', ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+					.inlineParams(),
 			),
 		);
 	}

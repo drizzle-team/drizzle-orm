@@ -2,6 +2,7 @@ import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
+import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -42,27 +43,36 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 	return migrationQueries;
 }
 
-export async function migrate<
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
+
+export function migrate<
 	TSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 >(
 	db: DrizzleSqliteDODatabase<TSchema, TRelations>,
 	config: MigrationConfig,
-): Promise<void | MigratorInitFailResponse> {
+): void | MigratorInitFailResponse {
 	const migrations = readMigrationFiles(config);
 
 	return db.transaction((tx) => {
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
-			const migrationTableCreate = sql`
+			const { newDb } = upgradeSyncIfNeeded(migrationsTable, db.session, migrations);
+
+			if (newDb) {
+				const migrationTableCreate = sql`
 				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 					id SERIAL PRIMARY KEY,
 					hash text NOT NULL,
-					created_at numeric
+					created_at numeric,
+					name text,
+					version integer,
+					applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 				)
 			`;
-			db.run(migrationTableCreate);
+				db.run(migrationTableCreate);
+			}
 
 			const dbMigrations = (db.values<[number, string, string]>(
 				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
@@ -84,7 +94,7 @@ export async function migrate<
 				db.run(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 				);
 
 				return;
