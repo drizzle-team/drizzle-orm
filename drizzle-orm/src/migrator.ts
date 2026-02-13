@@ -44,51 +44,14 @@ export interface MigratorInitFailResponse {
 	exitCode: 'databaseMigrations' | 'localMigrations';
 }
 
-function readMigrationFilesOLD(config: MigrationConfig): MigrationMeta[] {
-	const migrationFolderTo = config.migrationsFolder;
-
-	const migrationQueries: MigrationMeta[] = [];
-
-	const journalPath = `${migrationFolderTo}/meta/_journal.json`;
-
-	const journalAsString = fs.readFileSync(journalPath).toString();
-
-	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
-
-	for (const journalEntry of journal.entries) {
-		const migrationPath = `${migrationFolderTo}/${journalEntry.tag}.sql`;
-
-		try {
-			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
-
-			const result = query.split('--> statement-breakpoint').map((it) => {
-				return it;
-			});
-
-			migrationQueries.push({
-				sql: result,
-				bps: journalEntry.breakpoints,
-				folderMillis: journalEntry.when,
-				hash: crypto.createHash('sha256').update(query).digest('hex'),
-			});
-		} catch {
-			throw new Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
-		}
-	}
-
-	return migrationQueries;
-}
-
 export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 	if (fs.existsSync(`${config.migrationsFolder}/meta/_journal.json`)) {
 		// it means user has folders V2
-		// we need to warn to up the folders version but still apply migrations
-		console.log(
-			'\nWarning: We detected that you have old drizzle-kit migration folders. We suggest to upgrade drizzle-kit and run "drizzle-kit up"\n',
+		// we need to warn to up the folders
+		console.error(
+			'\nError: We detected that you have old drizzle-kit migration folders. You must upgrade drizzle-kit and run "drizzle-kit up"\n',
 		);
-		return readMigrationFilesOLD(config);
+		process.exit(0);
 	}
 
 	const migrationFolderTo = config.migrationsFolder;

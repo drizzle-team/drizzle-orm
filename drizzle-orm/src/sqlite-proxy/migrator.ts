@@ -3,6 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { SqliteRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -18,15 +19,22 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
-	const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id SERIAL PRIMARY KEY,
-			hash text NOT NULL,
-			created_at numeric
-		)
-	`;
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db.session, migrations);
 
-	await db.run(migrationTableCreate);
+	if (newDb) {
+		const migrationTableCreate = sql`
+		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+			id INTEGER PRIMARY KEY,
+			hash text NOT NULL,
+			created_at numeric,
+			name text,
+			version integer,
+			applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`;
+
+		await db.run(migrationTableCreate);
+	}
 
 	const dbMigrations = (await db.values<[number, string, string]>(
 		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
@@ -50,7 +58,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 				db.dialect.sqlToQuery(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`.inlineParams(),
+					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+						.inlineParams(),
 				).sql,
 			],
 		);
@@ -66,7 +75,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`.inlineParams(),
+				} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 			).sql,
 		);
 	}

@@ -11,16 +11,6 @@ export function formatToMillis(dateStr: string): number {
 	return Date.UTC(year, month, day, hour, minute, second);
 }
 
-// export function millisToFolderDate(millis: string): string {
-// 	const d = new Date(millis);
-// 	const pad = (n: number) => n.toString().padStart(2, '0');
-// 	return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}${
-// 		pad(d.getUTCMinutes())
-// 	}${pad(d.getUTCSeconds())}`;
-// }
-
-// postgres - string
-// mysql - bigint
 export function getMigrationsToRun(params: {
 	localMigrations: MigrationMeta[];
 	dbMigrations: { id: number; hash: string; created_at: string; name?: string }[];

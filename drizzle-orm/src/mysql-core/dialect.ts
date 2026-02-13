@@ -36,6 +36,7 @@ import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -79,14 +80,23 @@ export class MySqlDialect {
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-		const migrationTableCreate = sql`
-			create table if not exists ${sql.identifier(migrationsTable)} (
-				id serial primary key,
-				hash text not null,
-				created_at bigint
+
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeIfNeeded(migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id SERIAL PRIMARY KEY,
+				hash TEXT NOT NULL,
+				created_at BIGINT,
+				name TEXT,
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				version INT
 			)
 		`;
-		await session.execute(migrationTableCreate);
+			await session.execute(migrationTableCreate);
+		}
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
@@ -108,23 +118,22 @@ export class MySqlDialect {
 			await session.execute(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+				} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 			);
 
 			return;
 		}
 
 		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-
 		await session.transaction(async (tx) => {
 			for (const migration of migrationsToRun) {
 				for (const stmt of migration.sql) {
 					await tx.execute(sql.raw(stmt));
 				}
-				await tx.execute(
+				await session.execute(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+					} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 				);
 			}
 		});

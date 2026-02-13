@@ -14,6 +14,7 @@ import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
@@ -43,21 +44,7 @@ export class MsSqlDialect {
 		session: MsSqlSession,
 		config: MigrationConfig,
 	): Promise<void | MigratorInitFailResponse> {
-		const migrationsTable = typeof config === 'string'
-			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
 		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-		const migrationTableCreate = sql`
-			IF NOT EXISTS (
-				SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
-				WHERE TABLE_NAME = ${migrationsTable} AND TABLE_SCHEMA = ${migrationsSchema}
-			)
-			CREATE TABLE ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id bigint identity PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint
-			)
-		`;
 
 		const migrationSchemaCreate = sql`
 			IF NOT EXISTS (
@@ -67,7 +54,32 @@ export class MsSqlDialect {
 		`;
 
 		await session.execute(migrationSchemaCreate);
-		await session.execute(migrationTableCreate);
+
+		const migrationsTable = typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
+			IF NOT EXISTS (
+				SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+				WHERE TABLE_NAME = ${migrationsTable} AND TABLE_SCHEMA = ${migrationsSchema}
+			)
+			CREATE TABLE ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
+				id bigint identity PRIMARY KEY,
+				hash text NOT NULL,
+				created_at bigint,
+				name text,
+				version int,
+				applied_at datetime2 NOT NULL DEFAULT GETUTCDATE()
+			)
+		`;
+
+			await session.execute(migrationTableCreate);
+		}
 
 		const dbMigrations = (await session.execute<{ recordset: { id: number; hash: string; created_at: string }[] }>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
@@ -89,7 +101,7 @@ export class MsSqlDialect {
 			await session.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
+				} ([hash], [created_at], [name], [version]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 			);
 
 			return;
@@ -104,7 +116,7 @@ export class MsSqlDialect {
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
+					} ([hash], [created_at], [name], [version]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 				);
 			}
 		});
