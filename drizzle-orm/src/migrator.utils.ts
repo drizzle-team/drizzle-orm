@@ -13,7 +13,7 @@ export function formatToMillis(dateStr: string): number {
 
 export function getMigrationsToRun(params: {
 	localMigrations: MigrationMeta[];
-	dbMigrations: { id: number; hash: string; created_at: string; name?: string }[];
+	dbMigrations: { id: number; hash: string; created_at: string; name: string | null }[];
 }): MigrationMeta[] {
 	const { localMigrations, dbMigrations } = params;
 

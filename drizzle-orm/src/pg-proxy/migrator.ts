@@ -41,8 +41,8 @@ export async function migrate<
 		await db.session.execute(migrationTableCreate);
 	}
 
-	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {

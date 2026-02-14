@@ -50,8 +50,9 @@ export interface MigrationConfig {
 		id: number;
 		hash: string;
 		created_at: string;
+		name: string | null;
 	}>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {

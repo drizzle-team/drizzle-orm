@@ -72,9 +72,9 @@ export function migrate<
 				db.run(migrationTableCreate);
 			}
 
-			const dbMigrations = (db.values<[number, string, string]>(
-				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
-			)).map(([id, hash, created_at]) => ({ id, hash, created_at }));
+			const dbMigrations = (db.values<[number, string, string, string | null]>(
+				sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+			)).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
 
 			if (config.init) {
 				if (dbMigrations.length) {

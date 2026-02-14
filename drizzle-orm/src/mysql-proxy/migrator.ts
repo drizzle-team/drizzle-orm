@@ -38,7 +38,13 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		id: sql.raw('id'),
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
-	}).from(sql.identifier(migrationsTable).getSQL()) as { id: number; hash: string; created_at: string }[];
+		name: sql.raw('name'),
+	}).from(sql.identifier(migrationsTable).getSQL()) as {
+		id: number;
+		hash: string;
+		created_at: string;
+		name: string | null;
+	}[];
 
 	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {

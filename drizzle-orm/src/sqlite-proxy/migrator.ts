@@ -36,9 +36,9 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.run(migrationTableCreate);
 	}
 
-	const dbMigrations = (await db.values<[number, string, string]>(
-		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
-	)).map(([id, hash, created_at]) => ({ id, hash, created_at }));
+	const dbMigrations = (await db.values<[number, string, string, string | null]>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+	)).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
 
 	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {

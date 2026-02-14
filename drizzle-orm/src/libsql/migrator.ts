@@ -29,8 +29,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.session.run(migrationTableCreate);
 	}
 
-	const dbMigrations = await db.all<{ id: number; hash: string; created_at: string }>(
-		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
+	const dbMigrations = await db.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
 	);
 
 	if (config.init) {

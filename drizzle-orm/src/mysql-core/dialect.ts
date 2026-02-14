@@ -98,8 +98,8 @@ export class MySqlDialect {
 			await session.execute(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {

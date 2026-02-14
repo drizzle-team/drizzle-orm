@@ -81,9 +81,12 @@ export class MsSqlDialect {
 			await session.execute(migrationTableCreate);
 		}
 
-		const dbMigrations = (await session.execute<{ recordset: { id: number; hash: string; created_at: string }[] }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-		)).recordset;
+		const dbMigrations =
+			(await session.execute<{ recordset: { id: number; hash: string; created_at: string; name: string | null }[] }>(
+				sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				}`,
+			)).recordset;
 
 		if (typeof config === 'object' && config.init) {
 			if (dbMigrations.length > 0) {

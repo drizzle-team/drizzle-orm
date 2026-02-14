@@ -1172,13 +1172,13 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 				created_at numeric,
 				name text,
 				version integer,
-				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+				applied_at TEXT
 			)`;
 			session.run(migrationTableCreate);
 		}
 
-		const dbMigrations = session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
+		const dbMigrations = session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1197,7 +1197,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+					new Date().toISOString()
+				})`,
 			);
 
 			return;
@@ -1214,7 +1216,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 				session.run(
 					sql`INSERT INTO ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 
@@ -1257,14 +1261,14 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 				created_at numeric,
 				name text,
 				version integer,
-				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+				applied_at TEXT
 		)
 		`;
 			await session.run(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)};`,
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)};`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1283,7 +1287,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			await session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+					new Date().toISOString()
+				})`,
 			);
 
 			return;
@@ -1298,7 +1304,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 				await tx.run(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 		});

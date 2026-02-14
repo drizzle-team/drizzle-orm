@@ -249,13 +249,14 @@ const upgradeSyncFunctions: Record<
 		// 1. Add new columns
 		session.run(sql`ALTER TABLE ${table} ADD COLUMN "name" text`);
 		session.run(
-			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TEXT`,
 		);
-		session.run(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "version" INT`);
+		session.run(sql`ALTER TABLE ${table} ADD COLUMN "version" INT`);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = session.all<{ id: number; hash: string; created_at: string }>(
+		// this can be null from legacy implementation where id was serial
+		const dbRows = session.all<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -281,24 +282,33 @@ const upgradeSyncFunctions: Record<
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
 		for (const dbRow of dbRows) {
-			const millis = Number(dbRow.created_at);
+			const stringified = String(dbRow.created_at);
+			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
 
 			let matched: MigrationMeta | undefined;
-
+			let matchedBy: 'hash' | 'millis' | null = null;
 			if (candidates && candidates.length === 1) {
 				matched = candidates[0];
+				matchedBy = 'millis';
 			} else if (candidates && candidates.length > 1) {
 				matched = candidates.find((c) => c.hash === dbRow.hash);
+				matchedBy = 'hash';
 			} else {
 				matched = byHash.get(dbRow.hash);
+				matchedBy = 'hash';
 			}
 
-			session.run(
-				sql`UPDATE ${table} SET name = ${
-					matched?.name ?? null
-				}, version = ${1}, applied_at = NULL WHERE id = ${dbRow.id}`,
-			);
+			const updateQuery = sql`UPDATE ${table} SET name = ${
+				matched?.name ?? null
+			}, version = ${1}, applied_at = NULL WHERE`;
+
+			if (dbRow.id) updateQuery.append(sql` id = ${dbRow.id}`);
+			else if (matchedBy === 'millis') updateQuery.append(sql` created_at = ${dbRow.created_at}`);
+			else if (matchedBy === 'hash') updateQuery.append(sql` hash = ${dbRow.hash}`);
+			else continue; // do not update anything
+
+			session.run(updateQuery);
 		}
 	},
 };
