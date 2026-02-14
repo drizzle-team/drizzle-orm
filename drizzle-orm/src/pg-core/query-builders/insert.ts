@@ -369,7 +369,11 @@ export class PgInsertBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertReturningAll<this, TDynamic> | PgInsertReturning<this, TDynamic, SelectedFieldsFlat> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(this.config.returningFields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			this.config.returningFields,
+			undefined,
+			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+		);
 		return this as any;
 	}
 

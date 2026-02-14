@@ -1,4 +1,5 @@
 import type { Cache } from './cache/core/cache.ts';
+import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -22,7 +23,7 @@ export function mapResultRow<TResult>(
 	const nullifyMap: Record<string, string | false> = {};
 
 	const result = columns.reduce<Record<string, any>>(
-		(result, { path, field }, columnIndex) => {
+		(result, { path, field, codec, arrayDimensions }, columnIndex) => {
 			let decoder: DriverValueDecoder<unknown, unknown>;
 			if (is(field, Column)) {
 				decoder = field;
@@ -42,7 +43,9 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					const value = node[pathChunk] = rawValue === null
+						? null
+						: decoder.mapFromDriverValue(codec ? codec(rawValue, arrayDimensions!) : rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
@@ -77,6 +80,7 @@ export function mapResultRow<TResult>(
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
+	getCodec?: (column: Column) => NormalizeCodec | NormalizeArrayCodec | undefined,
 ): SelectedFieldsOrdered<TColumn> {
 	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
 		if (typeof name !== 'string') {
@@ -84,12 +88,19 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
+		if (is(field, Column)) {
+			result.push({
+				path: newPath,
+				field,
+				codec: getCodec?.(field),
+				arrayDimensions: field.sqlTypeMeta.arrayDimensions,
+			});
+		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
-			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
+			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, getCodec));
 		} else {
-			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
+			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath, getCodec));
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;

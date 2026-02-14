@@ -1,6 +1,7 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CasingCache } from './casing.ts';
+import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -723,9 +724,13 @@ export interface BuildRelationalQueryResult {
 	selection: {
 		key: string;
 		field: Column<any> | Table | View | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
+		/** For array type relations */
 		isArray?: boolean;
 		selection?: BuildRelationalQueryResult['selection'];
 		isOptional?: boolean;
+		codec?: NormalizeCodec | NormalizeArrayCodec;
+		/** For array type columns */
+		arrayDimensions?: number;
 	}[];
 	sql: SQL;
 }
@@ -733,7 +738,7 @@ export interface BuildRelationalQueryResult {
 export function mapRelationalRow(
 	row: Record<string, unknown>,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue: (value: unknown) => unknown = (value) => value,
+	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -782,7 +787,8 @@ export function mapRelationalRow(
 		}
 
 		const field = selectionItem.field!;
-		const value = mapColumnValue(row[selectionItem.key]);
+		const value = mapColumnValue ? mapColumnValue(row[selectionItem.key]) : row[selectionItem.key];
+
 		if (value === null) continue;
 
 		let decoder;
@@ -798,9 +804,11 @@ export function mapRelationalRow(
 			decoder = field.getSQL().decoder;
 		}
 
-		row[selectionItem.key] = 'mapFromJsonValue' in decoder
-			? (<(value: unknown) => unknown> decoder.mapFromJsonValue)(value)
-			: decoder.mapFromDriverValue(value);
+		row[selectionItem.key] = (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)
+			? (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)(value)
+			: decoder.mapFromDriverValue(
+				selectionItem.codec ? selectionItem.codec(value, selectionItem.arrayDimensions!) : value,
+			);
 	}
 
 	return row;

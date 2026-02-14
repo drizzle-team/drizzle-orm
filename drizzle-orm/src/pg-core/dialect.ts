@@ -12,7 +12,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import {
 	PgColumn,
-	type PgCustomColumn,
+	PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -63,11 +63,13 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { type PgCodecs, PgCodecsCollection } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
 export interface PgDialectConfig {
 	casing?: Casing;
+	codecs?: PgCodecs;
 }
 
 export class PgDialect {
@@ -75,9 +77,11 @@ export class PgDialect {
 
 	/** @internal */
 	readonly casing: CasingCache;
+	readonly codecs: PgCodecsCollection;
 
 	constructor(config?: PgDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
+		this.codecs = new PgCodecsCollection(config?.codecs);
 	}
 
 	escapeName(name: string): string {
@@ -212,15 +216,17 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
+					let name: Name | Column;
 					if (isSingleTable) {
-						chunk.push(
-							field.isAlias
-								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-								: sql.identifier(this.casing.getColumnCasing(field)),
-						);
+						name = field.isAlias
+							? sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))
+							: sql.identifier(this.casing.getColumnCasing(field));
 					} else {
-						chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
+						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
+
+					const casted = this.codecs.apply(field, 'queryCast', name);
+					chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
@@ -338,7 +344,8 @@ export class PgDialect {
 			setOperators,
 		}: PgSelectConfig,
 	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
+		const fieldsList = fieldsFlat
+			?? orderSelectedFields<PgColumn>(fields, undefined, (column) => this.codecs.get(column, 'queryNormalize'));
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -907,38 +914,11 @@ export class PgDialect {
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			const targetType = column.columnType;
-			// Get dimension count directly from PgColumn.dimensions
-			const dimensionCnt = is(column, PgColumn) ? column.dimensions : 0;
+			const casted = is(column, PgCustomColumn) && column.jsonSelectIdentifier
+				? column.jsonSelectIdentifier(name, sql, column.dimensions)
+				: this.codecs.apply(column, 'jsonCast', name);
 
-			switch (targetType) {
-				case 'PgNumeric':
-				case 'PgNumericNumber':
-				case 'PgNumericBigInt':
-				case 'PgBigInt64':
-				case 'PgBigIntString':
-				case 'PgBigSerial64':
-				case 'PgTimestampString':
-				case 'PgGeometry':
-				case 'PgGeometryObject':
-				case 'PgBytea': {
-					const arrVal = '[]'.repeat(dimensionCnt);
-
-					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
-				}
-				case 'PgCustomColumn': {
-					return sql`${
-						(<PgCustomColumn<any>> column).jsonSelectIdentifier(
-							name,
-							sql,
-							dimensionCnt > 0 ? dimensionCnt : undefined,
-						)
-					} as ${sql.identifier(key)}`;
-				}
-				default: {
-					return sql`${name} as ${sql.identifier(key)}`;
-				}
-			}
+			return sql`${casted} as ${sql.identifier(key)}`;
 		}
 
 		return sql`${table}.${
@@ -953,10 +933,19 @@ export class PgDialect {
 	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push({
-					key: k,
-					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
-				});
+				selection.push(
+					is(v, Column)
+						? {
+							key: k,
+							codec: this.codecs.get(v, 'jsonNormalize'),
+							arrayDimensions: v.sqlTypeMeta.arrayDimensions,
+							field: v,
+						}
+						: {
+							key: k,
+							field: v as SQL | SQLWrapper | SQL.Aliased,
+						},
+				);
 
 				return this.buildRqbColumn(table, v, k);
 			}),
@@ -986,10 +975,19 @@ export class PgDialect {
 							this.buildRqbColumn(table, column, k),
 						);
 
-						selection.push({
-							key: k,
-							field: column as SQL | SQLWrapper | SQL.Aliased | Column,
-						});
+						selection.push(
+							is(column, Column)
+								? {
+									key: k,
+									codec: this.codecs.get(column, 'jsonNormalize'),
+									arrayDimensions: column.sqlTypeMeta.arrayDimensions,
+									field: column,
+								}
+								: {
+									key: k,
+									field: column as SQL | SQLWrapper | SQL.Aliased,
+								},
+						);
 					}
 				}
 
@@ -998,10 +996,19 @@ export class PgDialect {
 						if (config.columns[k] === false) continue;
 						columnIdentifiers.push(this.buildRqbColumn(table, v, k));
 
-						selection.push({
-							key: k,
-							field: v as SQL | SQLWrapper | SQL.Aliased | Column,
-						});
+						selection.push(
+							is(v, Column)
+								? {
+									key: k,
+									codec: this.codecs.get(v, 'jsonNormalize'),
+									arrayDimensions: v.sqlTypeMeta.arrayDimensions,
+									field: v,
+								}
+								: {
+									key: k,
+									field: v as SQL | SQLWrapper | SQL.Aliased,
+								},
+						);
 					}
 				}
 

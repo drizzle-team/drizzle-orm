@@ -56,6 +56,14 @@ export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string
 	getSQLType(): string {
 		return this.enum.enumName;
 	}
+
+	/** @internal */
+	override get sqlTypeMeta() {
+		const meta = super.sqlTypeMeta;
+		meta.type = 'enum';
+
+		return meta;
+	}
 }
 
 // Enum as string union
