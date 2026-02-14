@@ -255,7 +255,11 @@ export class PgDeleteBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> | PgDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			fields,
+			undefined,
+			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+		);
 		return this as any;
 	}
 

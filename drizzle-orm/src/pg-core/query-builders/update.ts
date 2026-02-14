@@ -656,7 +656,11 @@ export class PgUpdateBase<
 		}
 
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			fields,
+			undefined,
+			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+		);
 		return this as any;
 	}
 

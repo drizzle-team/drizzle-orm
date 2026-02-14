@@ -448,18 +448,40 @@ export abstract class PgColumn<
 			const originalToDriver = this.mapToDriverValue.bind(this);
 
 			this.mapFromDriverValue = (value: unknown): unknown => {
-				if (value === null) return value;
-				// Parse string representation if needed (e.g., from node-postgres for enum arrays)
 				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
 				return this.mapArrayElements(arr, originalFromDriver, this.dimensions);
 			};
 
 			this.mapToDriverValue = (value: unknown): unknown => {
-				if (value === null) return value;
 				const mapped = this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
 				return makePgArray(mapped as any[]);
 			};
 		}
+	}
+
+	/** @internal */
+	override get sqlTypeMeta(): {
+		type: string;
+		arrayDimensions: number;
+		length: number | undefined;
+		isLengthExact: boolean | undefined;
+	} {
+		if (!this._sqlTypeMeta) {
+			let column = this as PgColumn;
+			const arrayDimensions = this.dimensions;
+
+			const rawType = column.getSQLType().toLowerCase() as string; // Typescript somehow can't infer it's string
+			const typeEndIdx = Math.min(...[rawType.indexOf('('), rawType.indexOf('[')].filter((e) => e !== -1));
+
+			this._sqlTypeMeta = {
+				type: typeEndIdx >= rawType.length ? rawType : rawType.slice(0, typeEndIdx),
+				arrayDimensions,
+				length: this.length,
+				isLengthExact: this.isLengthExact,
+			};
+		}
+
+		return this._sqlTypeMeta!;
 	}
 
 	/** @internal */
