@@ -38,6 +38,7 @@ import {
 import fs from 'fs';
 import { introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
+import { unescapeSingleQuotes } from 'src/utils';
 
 if (!fs.existsSync('tests/introspect/postgres')) {
 	fs.mkdirSync('tests/introspect/postgres');
@@ -309,6 +310,45 @@ test('instrospect all column types', async () => {
 		client,
 		schema,
 		'introspect-all-columns-types',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('unescapeSingleQuotes handles empty string default', () => {
+	// Empty string default: SQL representation is '' (two single quotes)
+	// Should produce valid JS empty string literal ''
+	expect(unescapeSingleQuotes("''", true)).toBe("''");
+
+	// Non-empty string: 'hello' should stay as 'hello'
+	expect(unescapeSingleQuotes("'hello'", true)).toBe("'hello'");
+
+	// String with escaped quote: 'it''s' should become 'it\'s'
+	expect(unescapeSingleQuotes("'it''s'", true)).toBe("'it\\'s'");
+
+	// Without ignoreFirstAndLastChar
+	expect(unescapeSingleQuotes("''", false)).toBe("\\'");
+	expect(unescapeSingleQuotes("hello", false)).toBe("hello");
+});
+
+test('introspect columns with empty string defaults', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		columns: pgTable('columns', {
+			text: text('text').default(''),
+			varchar: varchar('varchar', { length: 255 }).default(''),
+			char: char('char', { length: 3 }).default(''),
+			textNotNull: text('text_not_null').default('').notNull(),
+			varcharNotNull: varchar('varchar_not_null').default('').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-empty-string-defaults',
 	);
 
 	expect(statements.length).toBe(0);
