@@ -249,7 +249,7 @@ const upgradeSyncFunctions: Record<
 		// 1. Add new columns
 		session.run(sql`ALTER TABLE ${table} ADD COLUMN "name" text`);
 		session.run(
-			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`,
 		);
 		session.run(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "version" INT`);
 
