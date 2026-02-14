@@ -9,7 +9,7 @@ import { assertUnreachable } from '../global';
 import type { ProxyParams } from '../serializer/studio';
 import {
 	type DB,
-	LibSQLDB,
+	type LibSQLDB,
 	normalisePGliteUrl,
 	normaliseSQLiteUrl,
 	type Proxy,
@@ -18,7 +18,7 @@ import {
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
-import { LibSQLCredentials } from './validations/libsql';
+import type { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
@@ -1289,12 +1289,21 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 > => {
 	if (await checkPackage('@libsql/client')) {
 		const { createClient } = await import('@libsql/client');
+		const { fetch: libsqlFetch } = await import('@libsql/isomorphic-fetch');
 		const { drizzle } = await import('drizzle-orm/libsql');
 		const { migrate } = await import('drizzle-orm/libsql/migrator');
 
 		const client = createClient({
 			url: normaliseSQLiteUrl(credentials.url, 'libsql'),
 			authToken: credentials.authToken,
+			...(credentials.headers && {
+				fetch: async (request: Request) => {
+					for (const [key, value] of Object.entries(credentials.headers!)) {
+						request.headers.set(key, value);
+					}
+					return libsqlFetch(request);
+				},
+			}),
 		});
 		const drzl = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {
