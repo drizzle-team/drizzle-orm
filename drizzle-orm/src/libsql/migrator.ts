@@ -3,10 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { LibSQLDatabase } from './driver.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
 	db: LibSQLDatabase<TSchema, TRelations>,

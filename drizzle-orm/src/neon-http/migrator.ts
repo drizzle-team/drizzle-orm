@@ -3,10 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { NeonHttpDatabase } from './driver.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 /**
  * This function reads migrationFolder and execute each unapplied migration and mark it as executed in database

@@ -2,7 +2,7 @@ import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
-import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { CURRENT_MIGRATION_TABLE_VERSION, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -42,8 +42,6 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 
 	return migrationQueries;
 }
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 export function migrate<
 	TSchema extends Record<string, unknown>,
