@@ -124,7 +124,8 @@ const upgradeFunctions: Record<
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
 		for (const dbRow of dbRows) {
-			const millis = Number(dbRow.created_at);
+			const stringified = String(dbRow.created_at);
+			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
 
 			let matched: MigrationMeta | undefined;

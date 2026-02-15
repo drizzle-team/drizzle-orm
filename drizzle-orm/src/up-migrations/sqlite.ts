@@ -44,7 +44,7 @@ export function upgradeSyncIfNeeded(
 
 	// Table exists, check if there are any rows
 	const rows = session.all<{ id: number; hash: string; created_at: string; version: number | undefined }>(
-		sql`SELECT * FROM ${sql.identifier(migrationsTable)} ORDER BY id ASC LIMIT 1`,
+		sql`SELECT * FROM ${sql.identifier(migrationsTable)} ORDER BY created_at ASC LIMIT 1`,
 	);
 
 	let prevVersion;
@@ -54,7 +54,7 @@ export function upgradeSyncIfNeeded(
 		const hasVersionColumn = session.all<{ exists: boolean }>(
 			sql`SELECT EXISTS(
 				SELECT 1
-				FROM pragma_table_info(${sql.identifier(migrationsTable)})
+				FROM pragma_table_info(${migrationsTable})
 				WHERE name = 'version'
 			) AS "exists"`,
 		);
@@ -104,7 +104,7 @@ export async function upgradeAsyncIfNeeded(
 
 	// Table exists, check if there are any rows
 	const rows = await session.all<{ id: number; hash: string; created_at: string; version: number | undefined }>(
-		sql`SELECT * FROM ${sql.identifier(migrationsTable)} ORDER BY id ASC LIMIT 1`,
+		sql`SELECT * FROM ${sql.identifier(migrationsTable)} ORDER BY created_at ASC LIMIT 1`,
 	);
 
 	let prevVersion;
@@ -114,7 +114,7 @@ export async function upgradeAsyncIfNeeded(
 		const hasVersionColumn = await session.all<{ exists: boolean }>(
 			sql`SELECT EXISTS(
 				SELECT 1
-				FROM pragma_table_info(${sql.identifier(migrationsTable)})
+				FROM pragma_table_info(${migrationsTable})
 				WHERE name = 'version'
 			) AS "exists"`,
 		);
