@@ -446,3 +446,16 @@ export const CONSTANTS = {
 	INT64_MAX: 9223372036854775807n,
 	INT64_UNSIGNED_MAX: 18446744073709551615n,
 };
+
+export function base64ToUint8Array(base64: string): Uint8Array {
+	if (!base64) return new Uint8Array(0);
+	const binary = atob(base64);
+	const len = binary.length;
+	const bytes = new Uint8Array(len);
+
+	for (let i = 0; i < len; ++i) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+
+	return bytes;
+}

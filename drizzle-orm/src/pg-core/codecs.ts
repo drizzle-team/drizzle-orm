@@ -1,7 +1,8 @@
 import type { CastArrayCodec, CastCodec, NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
 import type { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { type Name, type SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
+import { parsePgArray } from './utils/array.ts';
 
 export type PostgresOriginalType =
 	// Numeric
@@ -213,28 +214,29 @@ export const arrayCompatCast = (cast: CastCodec) =>
 	if (!arrayDimensions) return cast(name);
 
 	const aliases: Name[] = [];
-	let aliasIdx = 1;
-	while (aliasIdx <= arrayDimensions) {
-		aliases.push(sql.identifier(`s${aliasIdx++}`));
+	for (let i = 0; i < arrayDimensions; i++) {
+		aliases.push(sql.identifier(`s${i}`));
 	}
 
-	let expression: SQL = sql`array(select ${
-		cast(sql`${name}[${sql.join(aliases, sql`, `)}]`)
-	} from generate_subscripts(${name}, ${arrayDimensions}) ${aliases[arrayDimensions]} order by ${
-		aliases[arrayDimensions]
-	})`;
+	let indexed: SQLChunk = name;
+	for (const alias of aliases) {
+		indexed = sql`${indexed}[${alias}]`;
+	}
 
-	for (let dim = arrayDimensions - 1; dim >= 1; --dim) {
-		expression = sql`array(select ${expression} from generate_subscripts(${name}, ${dim}) ${aliases[dim]} order by ${
-			aliases[dim]
-		})`;
+	let expression: SQLChunk = sql`array(\
+select ${cast(indexed)} \
+from generate_subscripts(${name}, ${sql.raw(arrayDimensions.toString())}) ${aliases[arrayDimensions - 1]} \
+order by ${aliases[arrayDimensions - 1]})`;
+
+	for (let dim = arrayDimensions - 1; dim > 0; dim--) {
+		expression = sql`array(\
+select ${expression} \
+from generate_subscripts(${name}, ${sql.raw(dim.toString())}) ${aliases[dim - 1]} \
+order by ${aliases[dim - 1]})`;
 	}
 
 	// Otherwise null returns as []
-	return `case \
-when ${name} is null then null \
-else ${expression} \
-end`;
+	return sql`case when ${name} is null then null else ${expression} end`;
 };
 
 /** Used to recursively apply value normalizer to array of unknown dimensions
@@ -266,7 +268,10 @@ export const genericPgCodecs: PgCodecs = {
 		},
 		bigint: { item: castToText, array: castToTextArr },
 		bigserial: { item: castToText, array: castToTextArr },
+		date: { array: castToTextArr },
+		enum: { array: castToTextArr },
 		geometry: { item: castToText, array: castToTextArr },
+		interval: { array: castToTextArr },
 		numeric: { item: castToText, array: castToTextArr },
 		timestamp: { item: castToText, array: castToTextArr },
 		timestamptz: { item: castToText, array: castToTextArr },
@@ -280,14 +285,32 @@ export const genericPgCodecs: PgCodecs = {
 		bigserial: { item: BigInt, array: arrayCompatNormalize(BigInt) },
 	},
 	queryCast: {},
-	queryNormalize: {},
+	queryNormalize: {
+		timestamp: {
+			array: parsePgArray,
+		},
+		timestamptz: {
+			array: parsePgArray,
+		},
+		date: {
+			array: parsePgArray,
+		},
+		numeric: {
+			array: parsePgArray,
+		},
+		enum: {
+			array: parsePgArray,
+		},
+		interval: {
+			array: parsePgArray,
+		},
+	},
 };
 
 export class PgCodecsCollection {
 	static readonly [entityKind]: string = 'PgCodecsCollection';
 
-	constructor(readonly codecs: PgCodecs = genericPgCodecs) {
-	}
+	constructor(readonly codecs: PgCodecs = noopPgCodecs) {}
 
 	get<TCodecType extends keyof PgCodecs>(
 		column: Column,
@@ -320,33 +343,72 @@ export class PgCodecsCollection {
 	}
 }
 
-export function definePgCodecs(codecs: Partial<PgCodecs>) {
-	const combined: PgCodecs = {
+export function definePgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
+	const result: PgCodecs = {
 		jsonCast: {},
 		jsonNormalize: {},
 		queryCast: {},
 		queryNormalize: {},
 	};
 
-	for (
-		const codecType of Object.keys(genericPgCodecs) as (keyof PgCodecs)[]
-	) {
-		if (!codecs[codecType]) {
-			combined[codecType] = genericPgCodecs[codecType];
+	const sections = Object.keys(noopPgCodecs) as (keyof PgCodecs)[];
+
+	for (const section of sections) {
+		const aSection = genericPgCodecs[section];
+		const bSection = codecs[section];
+
+		if (!bSection) {
+			result[section] = Object.fromEntries(
+				Object.entries(aSection).map(([k, v]) => [
+					k,
+					v
+						? {
+							array: v.array,
+							item: v.item,
+						}
+						: v,
+				]),
+			);
 			continue;
 		}
 
-		for (
-			const dbType of [
-				...Object.keys(genericPgCodecs[codecType]),
-				...(codecs[codecType] ? Object.keys(codecs[codecType]) : []),
-			] as (keyof PgCodecs[keyof PgCodecs])[]
-		) {
-			combined[codecType][dbType] = codecs[codecType][dbType]
-				? { ...(genericPgCodecs[codecType][dbType]), ...(codecs[codecType][dbType]) }
-				: genericPgCodecs[codecType][dbType];
+		const targetSection = result[section];
+
+		const keys = new Set([
+			...Object.keys(aSection) as PostgresOriginalType[],
+			...Object.keys(bSection) as PostgresOriginalType[],
+		]);
+
+		for (const key of keys) {
+			const aEntry = aSection[key];
+			const bEntry = bSection[key];
+
+			if (key in bSection) {
+				if (bEntry === undefined) {
+					targetSection[key] = undefined;
+					continue;
+				}
+
+				targetSection[key] = {
+					array: 'array' in bEntry
+						? bEntry.array
+						: aEntry?.array,
+					item: 'item' in bEntry
+						? bEntry.item
+						: aEntry?.item,
+				};
+
+				continue;
+			}
+
+			if (aEntry !== undefined) {
+				targetSection[key] = {
+					array: aEntry.array,
+					item: aEntry.item,
+				};
+			}
 		}
 	}
 
-	return combined;
+	return result;
 }

@@ -5,9 +5,10 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { arrayCompatNormalize, definePgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
@@ -44,6 +45,15 @@ export class PgliteDatabase<
 	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
+export const pgliteCodecs = definePgCodecs({
+	jsonNormalize: {
+		bytea: {
+			item: base64ToUint8Array,
+			array: arrayCompatNormalize(base64ToUint8Array),
+		},
+	},
+});
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -53,7 +63,7 @@ function construct<
 ): PgliteDatabase<TSchema, TRelations> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: pgliteCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

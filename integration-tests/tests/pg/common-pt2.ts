@@ -14,6 +14,7 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	isNull,
 	like,
 	lt,
@@ -68,6 +69,7 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -3356,7 +3358,7 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
-		test.only.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 			const en = pgEnum('en_48', ['enVal1', 'enVal2']);
 			const allTypesTable = pgTable('all_types_48_cdcs', {
 				serial: serial('serial'),
@@ -3409,7 +3411,7 @@ export function tests(test: Test) {
 				}).array(),
 				arrbool: boolean('arrbool').array(),
 				arrbytea: bytea('arrbytea').array(),
-				// mtxbytea: bytea('mtxbytea').array('[][]'),
+				mtxbytea: bytea('mtxbytea').array('[][]'),
 				arrchar: char('arrchar').array(),
 				arrcidr: cidr('arrcidr').array(),
 				arrdate: date('arrdate', {
@@ -3501,7 +3503,10 @@ export function tests(test: Test) {
 				arrbigint: [5044565289845416380n],
 				arrbool: [true],
 				arrbytea: [Buffer.from('BYTES')],
-				// mtxbytea: [[Buffer.from('BYTES')], [Buffer.from('OTHERBYTES'), Buffer.from('OTHERBYTES2')]],
+				mtxbytea: [[Buffer.from('BYTES'), Buffer.from('BYTES2')], [
+					Buffer.from('OTHERBYTES'),
+					Buffer.from('OTHERBYTES2'),
+				]],
 				arrchar: ['c'],
 				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 				arrinet: ['192.168.0.1/24'],
@@ -3540,13 +3545,17 @@ export function tests(test: Test) {
 				arrvarchar: ['C4-'],
 			});
 
+			const buff: (from: string) => Uint8Array | Buffer = is(db, PgliteDatabase)
+				? (s: string) => Uint8Array.from(Buffer.from(s))
+				: (s: string) => Buffer.from(s);
+
 			type ExpectedType = {
 				serial: number;
 				bigserial: bigint;
 				int: number | null;
 				bigint: bigint | null;
 				bool: boolean | null;
-				bytea: Buffer | null;
+				bytea: Buffer | Uint8Array | null;
 				char: string | null;
 				cidr: string | null;
 				date: string | null;
@@ -3556,19 +3565,11 @@ export function tests(test: Test) {
 				interval: string | null;
 				json: unknown;
 				jsonb: unknown;
-				line: {
-					a: number;
-					b: number;
-					c: number;
-				} | null;
-				lineTuple: [number, number, number] | null;
+				line: string | null;
 				macaddr: string | null;
 				macaddr8: string | null;
 				numeric: string | null;
-				point: {
-					x: number;
-					y: number;
-				} | null;
+				point: string | null;
 				real: number | null;
 				smallint: number | null;
 				smallserial: number;
@@ -3581,25 +3582,22 @@ export function tests(test: Test) {
 				arrint: number[] | null;
 				arrbigint: bigint[] | null;
 				arrbool: boolean[] | null;
-				arrbytea: Buffer[] | null;
+				arrbytea: (Buffer | Uint8Array)[] | null;
+				mtxbytea: (Buffer | Uint8Array)[][] | null;
 				arrchar: string[] | null;
 				arrcidr: string[] | null;
-				arrdate: Date[] | null;
+				arrdate: string[] | null;
 				arrdouble: number[] | null;
 				arrenum: ('enVal1' | 'enVal2')[] | null;
 				arrinet: string[] | null;
 				arrinterval: string[] | null;
 				arrjson: unknown[] | null;
 				arrjsonb: unknown[] | null;
-				arrline: {
-					a: number;
-					b: number;
-					c: number;
-				}[] | null;
+				arrline: string[] | null;
 				arrmacaddr: string[] | null;
 				arrmacaddr8: string[] | null;
 				arrnumeric: string[] | null;
-				arrpoint: { x: number; y: number }[] | null;
+				arrpoint: string[] | null;
 				arrreal: number[] | null;
 				arrsmallint: number[] | null;
 				arrtext: string[] | null;
@@ -3616,7 +3614,7 @@ export function tests(test: Test) {
 				int: 621,
 				bigint: 5044565289845416380n,
 				bool: true,
-				bytea: Buffer.from('BYTES'),
+				bytea: buff('BYTES'),
 				char: 'c',
 				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 				date: '2025-03-12',
@@ -3626,12 +3624,11 @@ export function tests(test: Test) {
 				interval: '-2 mons',
 				json: { str: 'strval', arr: ['str', 10] },
 				jsonb: { arr: ['strb', 11], str: 'strvalb' },
-				line: { a: 1, b: 2, c: 3 },
-				lineTuple: [1, 2, 3],
+				line: '{1,2,3}',
 				macaddr: '08:00:2b:01:02:03',
 				macaddr8: '08:00:2b:01:02:03:04:05',
 				numeric: '475452353476',
-				point: { x: 24.5, y: 49.6 },
+				point: '(24.5,49.6)',
 				real: 1.048596,
 				smallint: 10,
 				smallserial: 15,
@@ -3644,21 +3641,25 @@ export function tests(test: Test) {
 				arrint: [621],
 				arrbigint: [5044565289845416380n],
 				arrbool: [true],
-				arrbytea: [Buffer.from('BYTES')],
+				arrbytea: [buff('BYTES')],
+				mtxbytea: [[buff('BYTES'), buff('BYTES2')], [
+					buff('OTHERBYTES'),
+					buff('OTHERBYTES2'),
+				]],
 				arrchar: ['c'],
 				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-				arrdate: [new Date('2025-03-12T00:00:00.000Z')],
+				arrdate: ['2025-03-12'],
 				arrdouble: [15.35325689124218],
 				arrenum: ['enVal1'],
 				arrinet: ['192.168.0.1/24'],
 				arrinterval: ['-2 mons'],
 				arrjson: [{ str: 'strval', arr: ['str', 10] }],
 				arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
-				arrline: [{ a: 1, b: 2, c: 3 }],
+				arrline: ['{1,2,3}'],
 				arrmacaddr: ['08:00:2b:01:02:03'],
 				arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
 				arrnumeric: ['475452353476'],
-				arrpoint: [{ x: 24.5, y: 49.6 }],
+				arrpoint: ['(24.5,49.6)'],
 				arrreal: [1.048596],
 				arrsmallint: [10],
 				arrtext: ['TEXT STRING'],
@@ -3690,14 +3691,14 @@ export function tests(test: Test) {
 						db,
 						columns: getColumns(allTypesTable),
 						data: relationRaw,
-						mode: 'queryNormalize',
-					}),
+						mode: 'jsonNormalize',
+					})[0]!,
 					rootRes: normalizeDataWithDbCodecs({
 						db,
 						columns: getColumns(allTypesTable),
 						data: [rootRaw],
-						mode: 'queryNormalize',
-					}),
+						mode: 'jsonNormalize',
+					})[0]!,
 				};
 			});
 
