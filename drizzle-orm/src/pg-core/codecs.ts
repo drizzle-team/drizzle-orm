@@ -218,12 +218,12 @@ export const arrayCompatCast = (cast: CastCodec) =>
 		aliases.push(sql.identifier(`s${i}`));
 	}
 
-	let indexed: SQLChunk = name;
+	let indexed = name;
 	for (const alias of aliases) {
 		indexed = sql`${indexed}[${alias}]`;
 	}
 
-	let expression: SQLChunk = sql`array(\
+	let expression = sql`array(\
 select ${cast(indexed)} \
 from generate_subscripts(${name}, ${sql.raw(arrayDimensions.toString())}) ${aliases[arrayDimensions - 1]} \
 order by ${aliases[arrayDimensions - 1]})`;
