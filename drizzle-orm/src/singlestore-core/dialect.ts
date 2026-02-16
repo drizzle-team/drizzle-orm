@@ -595,12 +595,16 @@ export class SingleStoreDialect {
 						continue;
 					}
 
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
+					if (!(field in tableConfig.columns)) {
+						throw new DrizzleError({
+							message: `Column "${field}" not found in table "${tableConfig.tsName}"`,
+						});
 					}
+
+					if (!isIncludeMode && value === true) {
+						isIncludeMode = true;
+					}
+					selectedColumns.push(field);
 				}
 
 				if (selectedColumns.length > 0) {
