@@ -279,7 +279,7 @@ export class CockroachDialect {
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
 				);
 			}
 		});

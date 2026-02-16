@@ -34,6 +34,7 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
+				name: key,
 			});
 		} catch {
 			throw new Error(`Failed to parse migration: ${key}`);
@@ -66,7 +67,7 @@ export function migrate<
 					created_at numeric,
 					name text,
 					version integer,
-					applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+					applied_at TEXT
 				)
 			`;
 				db.run(migrationTableCreate);
@@ -92,7 +93,9 @@ export function migrate<
 				db.run(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+						new Date().toISOString()
+					})`,
 				);
 
 				return;
@@ -106,7 +109,9 @@ export function migrate<
 				db.run(
 					sql`INSERT INTO ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "version", "applied_at") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 

@@ -21,7 +21,7 @@ export interface MigrationMeta {
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
-	name?: string;
+	name: string;
 }
 
 export interface MigrationFromJournalConfig {
@@ -32,6 +32,7 @@ export interface MigrationFromJournalConfig {
 export type MigrationsJournal = {
 	sql: string;
 	timestamp: number;
+	name: string;
 }[];
 
 /** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/

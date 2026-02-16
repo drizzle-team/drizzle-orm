@@ -23,25 +23,27 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: 0 | 1 }>(
+	const tableExists = await session.execute<{ recordset: { exists: 0 | 1 }[] }>(
 		sql`IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ${migrationsSchema} AND TABLE_NAME = ${migrationsTable})
-		SELECT 1 AS TableExists
+		SELECT 1 AS [exists]
 	ELSE
-		SELECT 0 AS TableExists`,
+		SELECT 0 AS [exists]`,
 	);
 
-	if (!tableExists[0]?.exists) {
+	if (!tableExists.recordset[0]?.exists) {
 		return { newDb: true };
 	}
 
 	// Table exists, check if there are any rows
-	const rows = await session.all<{ id: number; hash: string; created_at: string; version: number | undefined }>(
+	const rows = await session.execute<
+		{ recordset: { id: number; hash: string; created_at: string; version: number | undefined }[] }
+	>(
 		sql`SELECT TOP 1 * FROM ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ORDER BY id ASC;`,
 	);
 
 	let prevVersion;
 
-	if (rows.length === 0) {
+	if (rows.recordset.length === 0) {
 		// Empty table - check if it has a version column
 		const hasVersionColumn = await session.all<{ exists: 0 | 1 }>(
 			sql`SELECT CASE WHEN EXISTS (
@@ -53,13 +55,12 @@ export async function upgradeIfNeeded(
 		)
 		THEN 1
 		ELSE 0
-		END AS ColumnExists
-			)`,
+		END AS [exists]`,
 		);
 
 		prevVersion = hasVersionColumn[0]?.exists ? 1 : 0;
 	} else {
-		prevVersion = rows[0]?.version ?? 0;
+		prevVersion = rows.recordset[0]?.version ?? 0;
 	}
 
 	if (prevVersion < CURRENT_MIGRATION_TABLE_VERSION) {
@@ -103,11 +104,11 @@ const upgradeFunctions: Record<
 		await session.execute(sql`ALTER TABLE ${table} ADD [version] int`);
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
+		const dbRows = await session.execute<{ recordset: { id: number; hash: string; created_at: string }[] }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
-		if (dbRows.length === 0) {
+		if (dbRows.recordset.length === 0) {
 			return;
 		}
 
@@ -128,7 +129,7 @@ const upgradeFunctions: Record<
 
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
-		for (const dbRow of dbRows) {
+		for (const dbRow of dbRows.recordset) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
