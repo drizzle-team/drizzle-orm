@@ -125,6 +125,14 @@ export class PgEnumColumn<TValues extends [string, ...string[]]> extends PgColum
 	getSQLType(): string {
 		return this.enum.enumName;
 	}
+
+	/** @internal */
+	override get sqlTypeMeta() {
+		const meta = super.sqlTypeMeta;
+		meta.type = 'enum';
+
+		return meta;
+	}
 }
 
 export function pgEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
