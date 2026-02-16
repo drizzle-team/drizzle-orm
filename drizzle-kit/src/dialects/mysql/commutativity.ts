@@ -66,11 +66,13 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	create_pk: ['drop_pk', 'create_pk'],
 
 	// Foreign key operations
-	create_fk: ['create_fk'],
+	create_fk: ['create_fk', 'drop_constraint'],
 
-	// TODO statements
-	drop_constraint: [],
-	create_check: [],
+	// Constraint operations (FK drops / check drops)
+	drop_constraint: ['drop_constraint', 'create_fk', 'create_check'],
+
+	// Check constraint operations
+	create_check: ['create_check', 'drop_constraint'],
 
 	// View operations
 	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view'],
@@ -176,6 +178,21 @@ export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [
 	const conflictingTypes = footprintMap[statement.type];
 
 	const statementFootprint = [formatFootprint(statement.type, info.objectName, info.columnName)];
+
+	// For column-level operations, also produce a table-level statement footprint.
+	// This allows table-level operations (e.g. drop_table) whose conflict footprints
+	// use an empty column name to match against any column operation on that table,
+	// including newly-added columns not present in the parent snapshot.
+	const columnOps: JsonStatement['type'][] = [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	];
+	if (columnOps.includes(statement.type) && info.columnName !== '') {
+		statementFootprint.push(formatFootprint(statement.type, info.objectName, ''));
+	}
 
 	let conflictFootprints = conflictingTypes.map((conflictType) =>
 		formatFootprint(conflictType, info.objectName, info.columnName)
@@ -298,17 +315,15 @@ function findFootprintIntersections(
 export const getReasonsFromStatements = async (
 	aStatements: JsonStatement[],
 	bStatements: JsonStatement[],
-	snapshotLeft?: MysqlSnapshot,
-	snapshotRight?: MysqlSnapshot,
+	parentSnapshot?: MysqlSnapshot,
 ) => {
-	// const parentSnapshot = snapshot ?? drySnapshot;
 	const branchAFootprints = generateLeafFootprints(
 		aStatements,
-		snapshotLeft,
+		parentSnapshot,
 	);
 	const branchBFootprints = generateLeafFootprints(
 		bStatements,
-		snapshotRight,
+		parentSnapshot,
 	);
 
 	return findFootprintIntersections(

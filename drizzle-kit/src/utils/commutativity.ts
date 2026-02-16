@@ -13,7 +13,4 @@ export const detectNonCommutative = async (
 	} else {
 		// assertUnreachable(dialect);
 	}
-
-	// temp
-	return {} as any;
 };
