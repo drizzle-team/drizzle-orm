@@ -273,3 +273,22 @@ test('handle unsigned numerical types', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect strings with empty string as default', async () => {
+	const schema = {
+		columns: singlestoreTable('columns', {
+			text: text('text').default(''),
+			varchar: varchar('varchar').default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectSingleStoreToFile(
+		client,
+		schema,
+		'introspect-strings-with-empty-string-as-default',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
