@@ -22,7 +22,7 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: number }>(
+	const tableExists = await session.all<{ exists: '0' | '1' }>(
 		sql`SELECT EXISTS (
             SELECT 1 
             FROM information_schema.tables 
@@ -30,7 +30,7 @@ export async function upgradeIfNeeded(
         ) as \`exists\``,
 	);
 
-	if (tableExists[0]?.exists === 0) {
+	if (Number(tableExists[0]?.exists) === 0) {
 		return { newDb: true };
 	}
 
@@ -43,7 +43,7 @@ export async function upgradeIfNeeded(
 
 	if (rows.length === 0) {
 		// Empty table - check if it has a version column
-		const hasVersionColumn = await session.all<{ exists: boolean }>(
+		const hasVersionColumn = await session.all<{ exists: '0' | '1' }>(
 			sql`SELECT EXISTS(
         SELECT 1
         FROM information_schema.columns
@@ -52,7 +52,7 @@ export async function upgradeIfNeeded(
         ) AS \`exists\``,
 		);
 
-		prevVersion = hasVersionColumn[0]?.exists ? 1 : 0;
+		prevVersion = Number(hasVersionColumn[0]?.exists) ? 1 : 0;
 	} else {
 		prevVersion = rows[0]?.version ?? 0;
 	}

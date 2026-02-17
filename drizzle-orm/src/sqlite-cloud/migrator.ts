@@ -30,7 +30,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 				created_at numeric,
 				name text,
 				version integer,
-				applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+				applied_at TEXT
 		)
 		`;
 		await session.run(migrationTableCreate);
@@ -56,7 +56,9 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await session.run(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+			} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+				new Date().toISOString()
+			})`
 				.inlineParams(),
 		);
 
@@ -73,7 +75,9 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 						sql.raw(migration.sql.join('')),
 						sql`INSERT INTO ${
 							sql.identifier(migrationsTable)
-						} ("hash", "created_at", "name", "version") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION});\n`
+						} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+							new Date().toISOString()
+						})`
 							.inlineParams(),
 					);
 
