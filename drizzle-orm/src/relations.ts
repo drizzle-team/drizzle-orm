@@ -806,7 +806,7 @@ export function mapRelationalRow(
 			decoder = field.getSQL().decoder;
 		}
 
-		row[selectionItem.key] = useJsonMappers && (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)
+		row[selectionItem.key] = useJsonMappers && (<any> decoder).mapFromJsonValue
 			? (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)(value)
 			: decoder.mapFromDriverValue(
 				selectionItem.codec ? selectionItem.codec(value, selectionItem.arrayDimensions!) : value,

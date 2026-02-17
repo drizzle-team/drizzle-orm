@@ -67,28 +67,12 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
 
-		// Wrap mapFromJsonValue with array handling if this is an array column
-		if (this.dimensions) {
-			// Create a mapper function that handles a single element
-			// This uses the raw mapJson or mapFrom functions, not the wrapped mapFromDriverValue
-			const elementMapper = (value: unknown): unknown => {
-				if (this.mapFromJsonValue) {
-					return this.mapFromJsonValue(value);
-				}
-				if (this.mapFrom) {
-					return this.mapFrom(value as T['driverParam']);
-				}
-				return value;
+		if (this.dimensions && config.customTypeParams.fromJson) {
+			this.mapFromJsonValue = (value: unknown): unknown => {
+				if (value === null) return value;
+				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
+				return this.mapJsonArrayElements(arr, config.customTypeParams.fromJson!, this.dimensions);
 			};
-
-			this.mapFromJsonValue = this.mapFromJsonValue
-				? (value: unknown): unknown => {
-					if (value === null) return value;
-					// Parse string representation if needed
-					const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
-					return this.mapJsonArrayElements(arr, elementMapper, this.dimensions);
-				}
-				: undefined;
 		}
 	}
 
