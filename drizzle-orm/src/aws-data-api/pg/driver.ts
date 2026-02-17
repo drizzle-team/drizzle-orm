@@ -93,7 +93,16 @@ export class AwsPgDialect extends PgDialect {
 	}
 }
 
-export const awsDataApiPgCodecs = extendGenericPgCodecs({});
+export const awsDataApiPgCodecs = extendGenericPgCodecs({
+	queryNormalize: {
+		json: {
+			item: (v) => JSON.parse(v),
+		},
+		jsonb: {
+			item: (v) => JSON.parse(v),
+		},
+	},
+});
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,

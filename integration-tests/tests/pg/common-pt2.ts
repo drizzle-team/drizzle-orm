@@ -3679,8 +3679,6 @@ export function tests(test: Test) {
 				})[0]
 			);
 
-			console.log(db.select().from(allTypesTable).toSQL());
-
 			const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
 				with: {
 					self: true,
