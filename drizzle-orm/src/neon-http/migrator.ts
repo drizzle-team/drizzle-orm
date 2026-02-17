@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/pg.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { NeonHttpDatabase } from './driver.ts';
 
 /**
@@ -33,8 +33,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			hash text NOT NULL,
 			created_at bigint,
 			name text,
-			applied_at timestamp with time zone DEFAULT now(),
-			version integer
+			applied_at timestamp with time zone DEFAULT now()
 		)
 	`;
 
@@ -61,7 +60,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.session.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 
 		return;
@@ -77,7 +76,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		rowsToInsert.push(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 	}
 

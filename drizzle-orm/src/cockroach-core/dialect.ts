@@ -44,59 +44,9 @@ interface UpgradeResult {
 	currentVersion?: number;
 }
 
-/**
- * Detects the current version of the migrations table schema and upgrades it if needed.
- *
- * Version 0: Original schema (id, hash, created_at)
- * Version 1: Extended schema (id, hash, created_at, name, applied_at, version)
- */
-async function upgradeIfNeeded(
-	migrationsSchema: string,
-	migrationsTable: string,
-	session: CockroachSession,
-	localMigrations: MigrationMeta[],
-): Promise<UpgradeResult> {
-	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: boolean }>(
-		sql`SELECT EXISTS (
-			SELECT FROM information_schema.tables
-			WHERE table_schema = ${migrationsSchema}
-			AND table_name = ${migrationsTable}
-		)`,
-	);
-
-	if (!tableExists[0]?.exists) {
-		return { newDb: true };
-	}
-
-	// Table exists, check if there are any rows
-	const rows = await session.all<{ id: number; hash: string; created_at: string; version: number | undefined }>(
-		sql`SELECT * FROM ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ORDER BY id ASC LIMIT 1`,
-	);
-
-	let prevVersion;
-
-	if (rows.length === 0) {
-		// Empty table - check if it has a version column
-		const hasVersionColumn = await session.all<{ exists: boolean }>(
-			sql`SELECT EXISTS (
-				SELECT FROM information_schema.columns
-				WHERE table_schema = ${migrationsSchema}
-				AND table_name = ${migrationsTable}
-				AND column_name = 'version'
-			)`,
-		);
-
-		prevVersion = hasVersionColumn[0]?.exists ? 1 : 0;
-	} else {
-		prevVersion = rows[0]?.version ?? 0;
-	}
-
-	if (prevVersion < CURRENT_MIGRATION_TABLE_VERSION) {
-		await runUpgrades(migrationsSchema, migrationsTable, session, prevVersion, localMigrations);
-	}
-
-	return { prevVersion, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+function getVersion(columns: string[]) {
+	if (columns.includes('name')) return 1;
+	return 0;
 }
 
 /**
@@ -116,11 +66,9 @@ const upgradeFunctions: Record<
 	 * Upgrade from version 0 to version 1:
 	 * 1. Add `name` column (text)
 	 * 2. Add `applied_at` column (timestamp with time zone, defaults to now())
-	 * 3. Add `version` column (integer)
-	 * 4. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 5. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 6. If hash matching fails, fall back to serial id ordering
-	 * 7. Set `version` to 1 on all rows
+	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
+	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
 	 */
 	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
@@ -130,7 +78,6 @@ const upgradeFunctions: Record<
 		await session.execute(
 			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
 		);
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "version" integer`);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
@@ -175,31 +122,67 @@ const upgradeFunctions: Record<
 			}
 
 			await session.execute(
-				sql`UPDATE ${table} SET name = ${
-					matched?.name ?? null
-				}, version = ${1}, applied_at = NULL WHERE id = ${dbRow.id}`,
+				sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE id = ${dbRow.id}`,
 			);
 		}
 	},
 };
 
 /**
- * Runs all upgrade functions sequentially from `fromVersion` to CURRENT_MIGRATION_TABLE_VERSION.
+ * Detects the current version of the migrations table schema and upgrades it if needed.
+ *
+ * Version 0: Original schema (id, hash, created_at)
+ * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
-async function runUpgrades(
+async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
 	session: CockroachSession,
-	fromVersion: number,
 	localMigrations: MigrationMeta[],
-): Promise<void> {
-	for (let v = fromVersion; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+): Promise<UpgradeResult> {
+	// Check if the table exists at all
+	const tableExists = await session.all<{ exists: boolean }>(
+		sql`SELECT EXISTS (
+			SELECT FROM information_schema.tables
+			WHERE table_schema = ${migrationsSchema}
+			AND table_name = ${migrationsTable}
+		)`,
+	);
+
+	if (!tableExists[0]?.exists) {
+		return { newDb: true };
+	}
+
+	// Table exists, check table shape
+	const rows = await session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
+		sql`SELECT
+			n.nspname AS "schema",
+			c.relname AS "table_name",
+			a.attname AS "column_name",
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS "type"
+		FROM
+			pg_catalog.pg_attribute a
+			JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+			JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		WHERE
+			a.attnum > 0
+			AND NOT a.attisdropped
+			AND n.nspname = ${migrationsSchema}
+			AND c.relname = ${migrationsTable}
+		ORDER BY a.attnum;`,
+	);
+
+	let version = getVersion(rows.map((r) => r.column_name));
+
+	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
 		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 	}
+
+	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
 }
 
 export class CockroachDialect {
@@ -233,8 +216,7 @@ export class CockroachDialect {
 				hash text NOT NULL,
 				created_at bigint,
 				name text,
-				applied_at timestamp with time zone DEFAULT now(),
-				version int4
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
 
@@ -263,8 +245,8 @@ export class CockroachDialect {
 			await session.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version") 
-				values (${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} ("hash", "created_at", "name") 
+				values (${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
 
 			return;
@@ -279,7 +261,7 @@ export class CockroachDialect {
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		});

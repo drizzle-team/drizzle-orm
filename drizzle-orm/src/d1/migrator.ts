@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleD1Database } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
@@ -22,7 +22,6 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			hash text NOT NULL,
 			created_at numeric,
 			name text,
-			version integer,
 			applied_at TEXT
 		)
 	`;
@@ -49,7 +48,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.run(
 			sql`INSERT INTO ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 				new Date().toISOString()
 			})`
 				.inlineParams(),
@@ -68,7 +67,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.run(
 				sql`INSERT INTO ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 					new Date().toISOString()
 				})`
 					.inlineParams(),

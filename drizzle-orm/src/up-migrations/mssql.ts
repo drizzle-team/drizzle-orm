@@ -10,64 +10,9 @@ interface UpgradeResult {
 	currentVersion?: number;
 }
 
-/**
- * Detects the current version of the migrations table schema and upgrades it if needed.
- *
- * Version 0: Original schema (id, hash, created_at)
- * Version 1: Extended schema (id, hash, created_at, name, applied_at, version)
- */
-export async function upgradeIfNeeded(
-	migrationsSchema: string,
-	migrationsTable: string,
-	session: MsSqlSession,
-	localMigrations: MigrationMeta[],
-): Promise<UpgradeResult> {
-	// Check if the table exists at all
-	const tableExists = await session.execute<{ recordset: { exists: 0 | 1 }[] }>(
-		sql`IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ${migrationsSchema} AND TABLE_NAME = ${migrationsTable})
-		SELECT 1 AS [exists]
-	ELSE
-		SELECT 0 AS [exists]`,
-	);
-
-	if (!tableExists.recordset[0]?.exists) {
-		return { newDb: true };
-	}
-
-	// Table exists, check if there are any rows
-	const rows = await session.execute<
-		{ recordset: { id: number; hash: string; created_at: string; version: number | undefined }[] }
-	>(
-		sql`SELECT TOP 1 * FROM ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} ORDER BY id ASC;`,
-	);
-
-	let prevVersion;
-
-	if (rows.recordset.length === 0) {
-		// Empty table - check if it has a version column
-		const hasVersionColumn = await session.all<{ exists: 0 | 1 }>(
-			sql`SELECT CASE WHEN EXISTS (
-			SELECT 1
-			FROM INFORMATION_SCHEMA.COLUMNS
-			WHERE TABLE_SCHEMA = ${migrationsSchema}
-      		AND TABLE_NAME = ${migrationsTable}
-      		AND COLUMN_NAME = 'version'
-		)
-		THEN 1
-		ELSE 0
-		END AS [exists]`,
-		);
-
-		prevVersion = hasVersionColumn[0]?.exists ? 1 : 0;
-	} else {
-		prevVersion = rows.recordset[0]?.version ?? 0;
-	}
-
-	if (prevVersion < CURRENT_MIGRATION_TABLE_VERSION) {
-		await runUpgrades(migrationsSchema, migrationsTable, session, prevVersion, localMigrations);
-	}
-
-	return { prevVersion, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+function getVersion(columns: string[]) {
+	if (columns.includes('name')) return 1;
+	return 0;
 }
 
 /**
@@ -86,12 +31,10 @@ const upgradeFunctions: Record<
 	/**
 	 * Upgrade from version 0 to version 1:
 	 * 1. Add `name` column (text)
-	 * 2. Add `applied_at` column (timestamp with time zone, defaults to now())
-	 * 3. Add `version` column (integer)
-	 * 4. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 5. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 6. If hash matching fails, fall back to serial id ordering
-	 * 7. Set `version` to 1 on all rows
+	 * 2. Add `applied_at` column (datetime2, defaults to now())
+	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
+	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
 	 */
 	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
@@ -101,7 +44,6 @@ const upgradeFunctions: Record<
 		await session.execute(
 			sql`ALTER TABLE ${table} ADD [applied_at] datetime2 DEFAULT GETUTCDATE()`,
 		);
-		await session.execute(sql`ALTER TABLE ${table} ADD [version] int`);
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		const dbRows = await session.execute<{ recordset: { id: number; hash: string; created_at: string }[] }>(
@@ -145,29 +87,54 @@ const upgradeFunctions: Record<
 			}
 
 			await session.execute(
-				sql`UPDATE ${table} SET name = ${
-					matched?.name ?? null
-				}, version = ${1}, applied_at = NULL WHERE id = ${dbRow.id}`,
+				sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE id = ${dbRow.id}`,
 			);
 		}
 	},
 };
 
 /**
- * Runs all upgrade functions sequentially from `fromVersion` to CURRENT_MIGRATION_TABLE_VERSION.
+ * Detects the current version of the migrations table schema and upgrades it if needed.
+ *
+ * Version 0: Original schema (id, hash, created_at)
+ * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
-async function runUpgrades(
+export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
 	session: MsSqlSession,
-	fromVersion: number,
 	localMigrations: MigrationMeta[],
-): Promise<void> {
-	for (let v = fromVersion; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+): Promise<UpgradeResult> {
+	// Check if the table exists at all
+	const tableExists = await session.execute<{ recordset: { exists: 0 | 1 }[] }>(
+		sql`IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ${migrationsSchema} AND TABLE_NAME = ${migrationsTable})
+		SELECT 1 AS [exists]
+	ELSE
+		SELECT 0 AS [exists]`,
+	);
+
+	if (!tableExists.recordset[0]?.exists) {
+		return { newDb: true };
+	}
+
+	// Table exists, check table shape
+	const rows = await session.all<{ column_name: string }>(
+		sql`SELECT COLUMN_NAME as [column_name]
+		FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = ${migrationsSchema}
+		AND TABLE_NAME = ${migrationsTable}
+		ORDER BY ORDINAL_POSITION`,
+	);
+
+	const version = getVersion(rows.map((r) => r.column_name));
+
+	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
 		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 	}
+
+	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
 }

@@ -44,7 +44,7 @@ import type {
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -1171,7 +1171,6 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 				hash text NOT NULL,
 				created_at numeric,
 				name text,
-				version integer,
 				applied_at TEXT
 			)`;
 			session.run(migrationTableCreate);
@@ -1197,7 +1196,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 					new Date().toISOString()
 				})`,
 			);
@@ -1216,7 +1215,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 				session.run(
 					sql`INSERT INTO ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 						new Date().toISOString()
 					})`,
 				);
@@ -1260,7 +1259,6 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 				hash text NOT NULL,
 				created_at numeric,
 				name text,
-				version integer,
 				applied_at TEXT
 		)
 		`;
@@ -1287,7 +1285,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			await session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 					new Date().toISOString()
 				})`,
 			);
@@ -1304,7 +1302,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 				await tx.run(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION}, ${
+					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 						new Date().toISOString()
 					})`,
 				);

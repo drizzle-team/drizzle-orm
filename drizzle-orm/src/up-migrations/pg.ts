@@ -39,11 +39,9 @@ const upgradeFunctions: Record<
 	 * Upgrade from version 0 to version 1:
 	 * 1. Add `name` column (text)
 	 * 2. Add `applied_at` column (timestamp with time zone, defaults to now())
-	 * 3. Add `version` column (integer)
-	 * 4. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 5. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 6. If hash matching fails, fall back to serial id ordering
-	 * 7. Set `version` to 1 on all rows
+	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
+	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
 	 */
 	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
@@ -107,7 +105,7 @@ const upgradeFunctions: Record<
  * Detects the current version of the migrations table schema and upgrades it if needed.
  *
  * Version 0: Original schema (id, hash, created_at)
- * Version 1: Extended schema (id, hash, created_at, name, applied_at, version)
+ * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
 export async function upgradeIfNeeded(
 	migrationsSchema: string,

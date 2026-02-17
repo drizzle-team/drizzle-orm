@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/pg.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { PgRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -35,8 +35,7 @@ export async function migrate<
 			hash text NOT NULL,
 			created_at bigint,
 			name text,
-			applied_at timestamp with time zone DEFAULT now(),
-			version integer
+			applied_at timestamp with time zone DEFAULT now()
 		)`;
 		await db.session.execute(migrationTableCreate);
 	}
@@ -63,7 +62,7 @@ export async function migrate<
 				db.dialect.sqlToQuery(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`
 						.inlineParams(),
 				).sql,
 			],
@@ -80,7 +79,8 @@ export async function migrate<
 			db.dialect.sqlToQuery(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`
+					.inlineParams(),
 			).sql,
 		);
 	}

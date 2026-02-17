@@ -2,7 +2,7 @@ import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/pg.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { XataHttpDatabase } from './driver.ts';
 
 export interface MigrationConfig {
@@ -39,8 +39,7 @@ export interface MigrationConfig {
 			hash text NOT NULL,
 			created_at bigint,
 			name text,
-			applied_at timestamp with time zone DEFAULT now(),
-			version integer
+			applied_at timestamp with time zone DEFAULT now()
 		)
 	`;
 		await db.session.execute(migrationTableCreate);
@@ -71,7 +70,7 @@ export interface MigrationConfig {
 		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 
 		return;
@@ -86,7 +85,7 @@ export interface MigrationConfig {
 		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 	}
 }

@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/mysql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -27,8 +27,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 				hash TEXT NOT NULL,
 				created_at BIGINT,
 				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				version INT
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		`;
 		await db.session.execute(migrationTableCreate);
@@ -63,7 +62,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name})`
 					.inlineParams(),
 			).sql,
 		]);
@@ -79,7 +78,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name})`
 					.inlineParams(),
 			).sql,
 		);
