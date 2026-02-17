@@ -255,6 +255,9 @@ export abstract class MySqlTransaction<
 		super(dialect, session, schema, mode);
 	}
 
+	/**
+	 * @throws {TransactionRollbackError}
+	 */
 	rollback(): never {
 		throw new TransactionRollbackError();
 	}
