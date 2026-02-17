@@ -34,15 +34,6 @@ export const nodePgCodecs = extendGenericPgCodecs({
 			item: BigInt,
 			array: arrayCompatNormalize(BigInt),
 		},
-		// line: {
-		// 	array: parsePgArray,
-		// },
-		// point: {
-		// 	array: parsePgArray,
-		// },
-		// macaddr8: {
-		// 	array: parsePgArray,
-		// },
 	},
 	jsonCast: {
 		point: {

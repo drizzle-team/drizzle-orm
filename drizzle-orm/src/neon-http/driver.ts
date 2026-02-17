@@ -7,7 +7,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { arrayCompatNormalize, castToText, castToTextArr, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -135,7 +135,44 @@ export class NeonHttpDatabase<
 	}
 }
 
-export const neonHttpCodecs = extendGenericPgCodecs({});
+export const neonHttpCodecs = extendGenericPgCodecs({
+	queryNormalize: {
+		bigint: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+		bigserial: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+	},
+	jsonCast: {
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
+	},
+	queryCast: {
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
+	},
+});
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
