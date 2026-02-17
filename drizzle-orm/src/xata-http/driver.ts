@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -55,6 +56,8 @@ export class XataHttpDatabase<
 	>;
 }
 
+export const xataHttpCodecs = extendGenericPgCodecs({});
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -64,7 +67,7 @@ export function drizzle<
 ): XataHttpDatabase<TSchema, TRelations> & {
 	$client: XataHttpClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: xataHttpCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -5,6 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/index.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -43,6 +44,8 @@ export class VercelPgDatabase<
 	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
+export const vercelPgCodecs = extendGenericPgCodecs({});
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -52,7 +55,7 @@ function construct<
 ): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: vercelPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

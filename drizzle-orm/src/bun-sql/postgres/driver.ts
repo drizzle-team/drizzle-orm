@@ -5,11 +5,14 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { BunSQLQueryResultHKT } from './session.ts';
 import { BunSQLSession } from './session.ts';
+
+export const bunSqlPgCodecs = extendGenericPgCodecs({});
 
 export class BunSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -27,7 +30,7 @@ function construct<
 ): BunSQLDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: bunSqlPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
