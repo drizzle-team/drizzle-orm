@@ -39,11 +39,11 @@ export function upgradeSyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): UpgradeResult {
 	// Check if the table exists at all
-	const tableExists = session.all(
+	const result = session.all(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
-	if (tableExists.length === 0) {
+	if (result.length === 0) {
 		return { newDb: true };
 	}
 
