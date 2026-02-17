@@ -39,11 +39,11 @@ export function upgradeSyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): UpgradeResult {
 	// Check if the table exists at all
-	const tableExists = session.all<{ exists: number }>(
-		sql`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}) AS "exists"`,
+	const tableExists = session.all(
+		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
-	if (tableExists[0]?.exists === 0) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
@@ -177,11 +177,11 @@ export async function upgradeAsyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: number }>(
-		sql`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}) AS "exists"`,
+	const tableExists = await session.all(
+		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
-	if (tableExists[0]?.exists === 0) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 

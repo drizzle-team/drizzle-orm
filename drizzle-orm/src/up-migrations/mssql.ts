@@ -106,14 +106,13 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.execute<{ recordset: { exists: 0 | 1 }[] }>(
-		sql`IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ${migrationsSchema} AND TABLE_NAME = ${migrationsTable})
-		SELECT 1 AS [exists]
-	ELSE
-		SELECT 0 AS [exists]`,
+	const tableExists = await session.all(
+		sql`SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+			WHERE TABLE_SCHEMA = ${migrationsSchema} 
+			AND TABLE_NAME = ${migrationsTable}`,
 	);
 
-	if (!tableExists.recordset[0]?.exists) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
