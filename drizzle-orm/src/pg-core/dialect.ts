@@ -911,12 +911,12 @@ export class PgDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			const casted = is(column, PgCustomColumn) && column.jsonSelectIdentifier
+			const casted = inJson && is(column, PgCustomColumn) && column.jsonSelectIdentifier
 				? column.jsonSelectIdentifier(name, sql, column.dimensions)
-				: this.codecs.apply(column, 'jsonCast', name);
+				: this.codecs.apply(column, inJson ? 'jsonCast' : 'queryCast', name);
 
 			return sql`${casted} as ${sql.identifier(key)}`;
 		}
@@ -930,14 +930,18 @@ export class PgDialect {
 		} as ${sql.identifier(key)}`;
 	}
 
-	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
+	private unwrapAllColumns = (
+		table: Table | View,
+		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
+	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push(
 					is(v, Column)
 						? {
 							key: k,
-							codec: this.codecs.get(v, 'jsonNormalize'),
+							codec: this.codecs.get(v, inJson ? 'jsonNormalize' : 'queryNormalize'),
 							arrayDimensions: v.sqlTypeMeta.arrayDimensions,
 							field: v,
 						}
@@ -947,7 +951,7 @@ export class PgDialect {
 						},
 				);
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, inJson);
 			}),
 			sql`, `,
 		);
@@ -956,6 +960,7 @@ export class PgDialect {
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 		config?: DBQueryConfig<'many'>,
 	) =>
 		config?.columns
@@ -972,14 +977,14 @@ export class PgDialect {
 					if (v) {
 						const column = columnContainer[k];
 						columnIdentifiers.push(
-							this.buildRqbColumn(table, column, k),
+							this.buildRqbColumn(table, column, k, inJson),
 						);
 
 						selection.push(
 							is(column, Column)
 								? {
 									key: k,
-									codec: this.codecs.get(column, 'jsonNormalize'),
+									codec: this.codecs.get(column, inJson ? 'jsonNormalize' : 'queryNormalize'),
 									arrayDimensions: column.sqlTypeMeta.arrayDimensions,
 									field: column,
 								}
@@ -994,13 +999,13 @@ export class PgDialect {
 				if (colSelectionMode === false) {
 					for (const [k, v] of Object.entries(columnContainer)) {
 						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(this.buildRqbColumn(table, v, k));
+						columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
 
 						selection.push(
 							is(v, Column)
 								? {
 									key: k,
-									codec: this.codecs.get(v, 'jsonNormalize'),
+									codec: this.codecs.get(v, inJson ? 'jsonNormalize' : 'queryNormalize'),
 									arrayDimensions: v.sqlTypeMeta.arrayDimensions,
 									field: v,
 								}
@@ -1016,7 +1021,7 @@ export class PgDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, inJson);
 
 	buildRelationalQuery({
 		schema,
@@ -1028,6 +1033,7 @@ export class PgDialect {
 		errorPath,
 		depth,
 		throughJoin,
+		nested,
 	}: {
 		schema: TablesRelationalConfig;
 		table: PgTable | PgView;
@@ -1038,6 +1044,7 @@ export class PgDialect {
 		errorPath?: string;
 		depth?: number;
 		throughJoin?: SQL;
+		nested?: boolean;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
@@ -1059,7 +1066,7 @@ export class PgDialect {
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, !!nested, params);
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
@@ -1121,6 +1128,7 @@ export class PgDialect {
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
 							throughJoin,
+							nested: true,
 						});
 
 						selection.push({

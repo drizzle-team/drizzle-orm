@@ -6,16 +6,19 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/index.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { Casing, DrizzleConfig } from '~/utils.ts';
 import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
+
+export const prismaPgCodecs = extendGenericPgCodecs({});
 
 export class PrismaPgDatabase extends PgAsyncDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
 	static override readonly [entityKind]: string = 'PrismaPgDatabase';
 
-	constructor(client: PrismaClient, logger: Logger | undefined) {
-		const dialect = new PgDialect();
+	constructor(client: PrismaClient, logger: Logger | undefined, casing: Casing | undefined) {
+		const dialect = new PgDialect({ codecs: prismaPgCodecs, casing });
 		super(dialect, new PrismaPgSession(dialect, client, { logger }), {}, undefined);
 	}
 }
@@ -34,7 +37,7 @@ export function drizzle(config: PrismaPgConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new PrismaPgDatabase(client, logger),
+				$drizzle: new PrismaPgDatabase(client, logger, config.casing),
 			},
 		});
 	});

@@ -2,7 +2,6 @@ import type { CastArrayCodec, CastCodec, NormalizeArrayCodec, NormalizeCodec } f
 import type { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
-import { parsePgArray } from './utils/array.ts';
 
 export type PostgresOriginalType =
 	// Numeric
@@ -195,8 +194,8 @@ export const noopPgCodecs: PgCodecs = {
 	queryNormalize: {},
 };
 
-const castToText: CastCodec = (name) => sql`${name}::text`;
-const castToTextArr: CastArrayCodec = (name, arrayDimensions) =>
+export const castToText: CastCodec = (name) => sql`${name}::text`;
+export const castToTextArr: CastArrayCodec = (name, arrayDimensions) =>
 	sql`${name}::text${sql.raw('[]'.repeat(arrayDimensions))}`;
 
 /** Used for cases when casting requires to unwrap and rebuild arrays
@@ -268,8 +267,6 @@ export const genericPgCodecs: PgCodecs = {
 		},
 		bigint: { item: castToText, array: castToTextArr },
 		bigserial: { item: castToText, array: castToTextArr },
-		date: { array: castToTextArr },
-		enum: { array: castToTextArr },
 		geometry: { item: castToText, array: castToTextArr },
 		interval: { array: castToTextArr },
 		numeric: { item: castToText, array: castToTextArr },
@@ -284,27 +281,27 @@ export const genericPgCodecs: PgCodecs = {
 		bigint: { item: BigInt, array: arrayCompatNormalize(BigInt) },
 		bigserial: { item: BigInt, array: arrayCompatNormalize(BigInt) },
 	},
-	queryCast: {},
-	queryNormalize: {
+	queryCast: {
 		timestamp: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 		timestamptz: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 		date: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 		numeric: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 		enum: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 		interval: {
-			array: parsePgArray,
+			array: castToTextArr,
 		},
 	},
+	queryNormalize: {},
 };
 
 export class PgCodecsCollection {
@@ -343,7 +340,7 @@ export class PgCodecsCollection {
 	}
 }
 
-export function definePgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
+export function extendGenericPgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
 	const result: PgCodecs = {
 		jsonCast: {},
 		jsonNormalize: {},

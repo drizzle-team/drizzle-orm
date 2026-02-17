@@ -5,7 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { arrayCompatNormalize, definePgCodecs } from '~/pg-core/codecs.ts';
+import { arrayCompatNormalize, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
@@ -45,7 +45,7 @@ export class PgliteDatabase<
 	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
-export const pgliteCodecs = definePgCodecs({
+export const pgliteCodecs = extendGenericPgCodecs({
 	jsonNormalize: {
 		bytea: {
 			item: base64ToUint8Array,

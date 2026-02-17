@@ -744,6 +744,8 @@ export function mapRelationalRow(
 	/** Needed for SingleStore as it returns JSON arrays as strings */
 	parseJsonIfString: boolean = false,
 	path?: string,
+	/** Root level data of query is usually not nested in JSON */
+	useJsonMappers: boolean = true,
 ): Record<string, unknown> {
 	for (const selectionItem of buildQueryResultSelection) {
 		if (selectionItem.selection) {
@@ -804,7 +806,7 @@ export function mapRelationalRow(
 			decoder = field.getSQL().decoder;
 		}
 
-		row[selectionItem.key] = (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)
+		row[selectionItem.key] = useJsonMappers && (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)
 			? (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)(value)
 			: decoder.mapFromDriverValue(
 				selectionItem.codec ? selectionItem.codec(value, selectionItem.arrayDimensions!) : value,
