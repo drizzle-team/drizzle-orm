@@ -85,14 +85,6 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					if (typeId as number === 1182) {
 						return (val: any) => val;
 					}
-					// point
-					if (typeId as number === 600) {
-						return (val: any) => val;
-					}
-					// point[]
-					if (typeId as number === 1017) {
-						return (val: any) => val;
-					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
