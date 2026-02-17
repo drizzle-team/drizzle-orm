@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BigQueryColumn } from './bigquery-core/index.ts';
 import type { Column } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
@@ -25,7 +26,7 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel' | 'bigquery';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
@@ -368,6 +369,11 @@ export type BuildColumn<
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 		>
+	: TDialect extends 'bigquery' ? BigQueryColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
 	: never;
 
 export type BuildIndexColumn<
@@ -413,4 +419,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'bigquery' ? BigQueryColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;
