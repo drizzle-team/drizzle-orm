@@ -260,7 +260,7 @@ export async function migrate(
 				hash text NOT NULL,
 				created_at bigint,
 				name text,
-				applied_at timestamp with time zone DEFAULT now(),
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
 		await session.execute(migrationTableCreate);

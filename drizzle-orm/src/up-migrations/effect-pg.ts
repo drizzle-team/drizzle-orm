@@ -3,7 +3,7 @@ import type { MigrationMeta } from '~/migrator';
 import type { PgEffectSession } from '~/pg-core/effect';
 import { sql } from '~/sql';
 
-export const CURRENT_MIGRATION_TABLE_VERSION = 1;
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 interface UpgradeResult {
 	newDb?: boolean;

@@ -243,7 +243,9 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
-				created_at bigint
+				created_at bigint,
+				name text,
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
 

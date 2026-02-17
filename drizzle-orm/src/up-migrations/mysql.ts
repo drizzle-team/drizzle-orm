@@ -2,7 +2,7 @@ import type { MigrationMeta } from '~/migrator';
 import type { MySqlSession } from '~/mysql-core';
 import { sql } from '~/sql';
 
-export const CURRENT_MIGRATION_TABLE_VERSION = 1;
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 interface UpgradeResult {
 	newDb?: boolean;

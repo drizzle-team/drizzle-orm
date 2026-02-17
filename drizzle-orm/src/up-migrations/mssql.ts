@@ -2,7 +2,7 @@ import type { MigrationMeta } from '~/migrator';
 import type { MsSqlSession } from '~/mssql-core';
 import { sql } from '~/sql';
 
-export const CURRENT_MIGRATION_TABLE_VERSION = 1;
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 interface UpgradeResult {
 	newDb?: boolean;
@@ -106,18 +106,18 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await session.all(
+	const result = await session.execute<{ recordset: { [key: string]: unknown }[] }>(
 		sql`SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
 			WHERE TABLE_SCHEMA = ${migrationsSchema} 
 			AND TABLE_NAME = ${migrationsTable}`,
 	);
 
-	if (result.length === 0) {
+	if (result.recordset.length === 0) {
 		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	const rows = await session.all<{ column_name: string }>(
+	const rows = await session.execute<{ recordset: { column_name: string }[] }>(
 		sql`SELECT COLUMN_NAME as [column_name]
 		FROM INFORMATION_SCHEMA.COLUMNS
 		WHERE TABLE_SCHEMA = ${migrationsSchema}
@@ -125,7 +125,7 @@ export async function upgradeIfNeeded(
 		ORDER BY ORDINAL_POSITION`,
 	);
 
-	const version = getVersion(rows.map((r) => r.column_name));
+	const version = getVersion(rows.recordset.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeFunctions[v];

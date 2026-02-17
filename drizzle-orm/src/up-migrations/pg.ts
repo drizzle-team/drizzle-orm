@@ -6,7 +6,7 @@ import type { AnyRelations } from '~/relations';
 import { sql } from '~/sql';
 import type { XataHttpSession } from '~/xata-http';
 
-export const CURRENT_MIGRATION_TABLE_VERSION = 1;
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 interface UpgradeResult {
 	newDb?: boolean;

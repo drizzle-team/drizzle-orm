@@ -8,7 +8,7 @@ import type { SQLiteCloudSession } from '~/sqlite-cloud';
 import type { SQLiteSession } from '~/sqlite-core';
 import type { SQLiteRemoteSession } from '~/sqlite-proxy';
 
-export const CURRENT_MIGRATION_TABLE_VERSION = 1;
+const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
 interface UpgradeResult {
 	newDb?: boolean;
