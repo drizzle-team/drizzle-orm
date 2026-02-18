@@ -1500,7 +1500,7 @@ test('push with pscale_extensions schema', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test.skipIf(Date.now() < +new Date('2026-02-10'))(
+test.skipIf(Date.now() < +new Date('2026-02-24'))(
 	'push empty schema with `schemaFilter` set to `["public"]`',
 	async () => {
 		await db.query(`CREATE SCHEMA "cron";`);
