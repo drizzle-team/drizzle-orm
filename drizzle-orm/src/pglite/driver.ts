@@ -52,6 +52,24 @@ export const pgliteCodecs = extendGenericPgCodecs({
 			array: arrayCompatNormalize(base64ToUint8Array),
 		},
 	},
+	jsonCast: {
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	queryCast: {
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	queryNormalize: {
+		bigint: undefined,
+		bigserial: undefined,
+	},
 });
 
 function construct<

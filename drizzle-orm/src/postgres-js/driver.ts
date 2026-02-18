@@ -3,7 +3,7 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { arrayCompatNormalize, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -18,18 +18,20 @@ export class PostgresJsDatabase<
 }
 
 export const postgresJsCodecs = extendGenericPgCodecs({
-	queryNormalize: {
-		bigint: {
-			item: BigInt,
-			array: arrayCompatNormalize(BigInt),
-		},
-		bigserial: {
-			item: BigInt,
-			array: arrayCompatNormalize(BigInt),
-		},
-	},
 	queryCast: {
 		interval: {
+			array: undefined,
+		},
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	jsonCast: {
+		point: undefined,
+		line: undefined,
+		macaddr8: {
 			array: undefined,
 		},
 	},
