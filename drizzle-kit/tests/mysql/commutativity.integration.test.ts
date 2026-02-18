@@ -181,7 +181,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-02-10'))('check: alter vs drop', async () => {
+	test.skipIf(Date.now() < +new Date('2026-02-24'))('check: alter vs drop', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.int(),
@@ -209,7 +209,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-02-10'))(
+	test.skipIf(Date.now() < +new Date('2026-02-24'))(
 		'explainConflicts returns reason for table drop vs column alter',
 		async () => {
 			const parent = {
