@@ -12,7 +12,7 @@ import type { Casing, DrizzleConfig } from '~/utils.ts';
 import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
 
-export const prismaPgCodecs = extendGenericPgCodecs({});
+export const prismaPgCodecs = extendGenericPgCodecs();
 
 export class PrismaPgDatabase extends PgAsyncDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
 	static override readonly [entityKind]: string = 'PrismaPgDatabase';

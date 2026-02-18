@@ -272,6 +272,17 @@ export const genericPgCodecs: PgCodecs = {
 		numeric: { item: castToText, array: castToTextArr },
 		timestamp: { item: castToText, array: castToTextArr },
 		timestamptz: { item: castToText, array: castToTextArr },
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
 	},
 	jsonNormalize: {
 		bytea: {
@@ -300,8 +311,28 @@ export const genericPgCodecs: PgCodecs = {
 		interval: {
 			array: castToTextArr,
 		},
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
 	},
-	queryNormalize: {},
+	queryNormalize: {
+		bigint: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+		bigserial: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+	},
 };
 
 export class PgCodecsCollection {
@@ -340,7 +371,7 @@ export class PgCodecsCollection {
 	}
 }
 
-export function extendGenericPgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
+export function extendGenericPgCodecs(codecs: Partial<PgCodecs> = {}): PgCodecs {
 	const result: PgCodecs = {
 		jsonCast: {},
 		jsonNormalize: {},
@@ -352,9 +383,8 @@ export function extendGenericPgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
 
 	for (const section of sections) {
 		const aSection = genericPgCodecs[section];
-		const bSection = codecs[section];
 
-		if (!bSection) {
+		if (!(section in codecs)) {
 			result[section] = Object.fromEntries(
 				Object.entries(aSection).map(([k, v]) => [
 					k,
@@ -366,6 +396,12 @@ export function extendGenericPgCodecs(codecs: Partial<PgCodecs>): PgCodecs {
 						: v,
 				]),
 			);
+			continue;
+		}
+
+		const bSection = codecs[section];
+		if (bSection === undefined) {
+			result[section] = {};
 			continue;
 		}
 

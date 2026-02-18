@@ -56,7 +56,7 @@ export class XataHttpDatabase<
 	>;
 }
 
-export const xataHttpCodecs = extendGenericPgCodecs({});
+export const xataHttpCodecs = extendGenericPgCodecs();
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
