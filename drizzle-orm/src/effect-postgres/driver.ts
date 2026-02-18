@@ -5,7 +5,7 @@ import * as V1 from '~/_relations.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
-import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { arrayCompatNormalize, castToText, castToTextArr, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
@@ -30,7 +30,56 @@ export const DefaultServices = Layer.merge(
 	EffectLogger.Default,
 );
 
-export const effectPgCodecs = extendGenericPgCodecs({});
+export const effectPgCodecs = extendGenericPgCodecs({
+	queryNormalize: {
+		bigint: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+		bigserial: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+	},
+	jsonCast: {
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
+	},
+	queryCast: {
+		date: {
+			item: castToText,
+		},
+		interval: {
+			item: castToText,
+		},
+		point: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		line: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		macaddr8: {
+			array: castToTextArr,
+		},
+		timestamp: {
+			item: castToText,
+		},
+		timestamptz: {
+			item: castToText,
+		},
+	},
+});
 
 /**
  * Creates an EffectPgDatabase instance.
