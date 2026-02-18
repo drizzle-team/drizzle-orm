@@ -34,7 +34,7 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-			Strict: Strict as typeof Strict,
+		Strict: Strict as typeof Strict,
 	});
 
 	/** @internal */

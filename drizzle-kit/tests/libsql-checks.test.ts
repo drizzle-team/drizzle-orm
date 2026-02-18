@@ -157,7 +157,6 @@ test('drop check contraint to existing table', async (t) => {
 		uniqueConstraints: [],
 		isStrict: false,
 		checkConstraints: [],
-		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(6);

@@ -914,7 +914,6 @@ export const preparePgCreateTableJson = (
 		uniqueConstraints: Object.values(uniqueConstraints),
 		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
-		isStrict,
 		isRLSEnabled: isRLSEnabled ?? false,
 	};
 };
@@ -945,7 +944,6 @@ export const prepareMySqlCreateTableJson = (
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
 		checkConstraints: Object.values(checkConstraints),
-		isStrict,
 	};
 };
 
