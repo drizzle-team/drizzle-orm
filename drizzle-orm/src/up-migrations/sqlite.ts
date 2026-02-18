@@ -3,7 +3,7 @@ import type { SQLiteD1Session } from '~/d1';
 import type { LibSQLSession } from '~/libsql';
 import type { MigrationMeta } from '~/migrator';
 import type { AnyRelations } from '~/relations';
-import { sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteCloudSession } from '~/sqlite-cloud';
 import type { SQLiteSession } from '~/sqlite-core';
 import type { SQLiteRemoteSession } from '~/sqlite-proxy';
@@ -19,6 +19,54 @@ interface UpgradeResult {
 function getVersion(columns: string[]) {
 	if (columns.includes('name')) return 1;
 	return 0;
+}
+
+// sqlite-proxy returns [ [string] ]
+// sqlite returns [{ column_name: string }]
+function allSync<T>(
+	session: SQLiteSession<
+		'sync',
+		unknown,
+		Record<string, unknown>,
+		AnyRelations,
+		TablesRelationalConfig
+	>,
+	sqlQuery: SQL,
+	resultMapper: (row: any[]) => T = () => [] as T,
+): T[] {
+	const result = session.all(sqlQuery) as any[] | any[][];
+
+	if (result.length === 0) return [];
+
+	if (Array.isArray(result[0])) {
+		return (result as any[][]).map((row) => resultMapper(row));
+	}
+
+	return result as T[];
+}
+
+// sqlite-proxy returns [ [string] ]
+// sqlite returns [{ column_name: string }]
+async function allAsync<T>(
+	session: SQLiteSession<
+		'async',
+		unknown,
+		Record<string, unknown>,
+		AnyRelations,
+		TablesRelationalConfig
+	>,
+	sqlQuery: SQL,
+	resultMapper: (row: any[]) => T = () => [] as T,
+): Promise<T[]> {
+	const result = await session.all(sqlQuery) as any[] | any[][];
+
+	if (result.length === 0) return [];
+
+	if (Array.isArray(result[0])) {
+		return (result as any[][]).map((row) => resultMapper(row));
+	}
+
+	return result as T[];
 }
 
 /**
@@ -41,26 +89,24 @@ export function upgradeSyncIfNeeded(
 	// Check if the table exists at all
 	// sqlite-proxy returns [ [1] ]
 	// sqlite returns [{ '1': 1 }]
-	let tableExists = session.all(
+	let tableExists = allSync(
+		session,
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-	) as { '1': 1 }[] | [1][];
+		(row) => ({ '1': row[0] }),
+	);
 
 	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	// sqlite-proxy returns [ [string] ]
-	// sqlite returns [{ column_name: string }]
-	const rows = session.all(
+	const rows = allSync<{ column_name: string }>(
+		session,
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-	) as { column_name: string }[] | [string][];
+		(row) => ({ column_name: row[0] }),
+	);
 
-	const columnNames = Array.isArray(rows[0])
-		? (rows as [string][]).map((r) => r[0])
-		: (rows as { column_name: string }[]).map((r) => r.column_name);
-
-	const version = getVersion(columnNames);
+	const version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeSyncFunctions[v];
@@ -109,19 +155,17 @@ const upgradeSyncFunctions: Record<
 		// this can be null from legacy implementation where id was serial
 
 		// sqlite returns array of objects for .all, but sqlite-proxy -> array of arrays
-		const dbRows = session.all(
+		const dbRows = allSync<{ id: number | null; hash: string; created_at: number }>(
+			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		) as { id: number | null; hash: string; created_at: number }[] | [number | null, string, number][];
+			(row) => ({
+				id: row[0],
+				hash: row[1],
+				created_at: row[2],
+			}),
+		);
 
-		const normalizedDbRows = Array.isArray(dbRows[0])
-			? (dbRows as [number | null, string, number][]).map((r) => ({
-				id: r[0],
-				hash: r[1],
-				created_at: r[2],
-			}))
-			: (dbRows as { id: number | null; hash: string; created_at: number }[]);
-
-		if (normalizedDbRows.length === 0) {
+		if (dbRows.length === 0) {
 			return;
 		}
 
@@ -142,7 +186,7 @@ const upgradeSyncFunctions: Record<
 
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
-		for (const dbRow of normalizedDbRows) {
+		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
@@ -195,11 +239,11 @@ export async function upgradeAsyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	// sqlite-proxy returns [ [1] ]
-	// sqlite returns [{ '1': 1 }]
-	let tableExists = await session.all(
+	let tableExists = await allAsync(
+		session,
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-	) as { '1': 1 }[] | [1][];
+		(row) => ({ '1': row[0] }),
+	);
 
 	if (tableExists.length === 0) {
 		return { newDb: true };
@@ -208,15 +252,13 @@ export async function upgradeAsyncIfNeeded(
 	// Table exists, check table shape
 	// sqlite-proxy returns [ [string] ]
 	// sqlite returns [{ column_name: string }]
-	const rows = await session.all(
+	const rows = await allAsync(
+		session,
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-	) as { column_name: string }[] | [string][];
+		(row) => ({ column_name: row[0] }),
+	);
 
-	const columnNames = Array.isArray(rows[0])
-		? (rows as [string][]).map((r) => r[0])
-		: (rows as { column_name: string }[]).map((r) => r.column_name);
-
-	const version = getVersion(columnNames);
+	const version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeAsyncFunctions[v];
@@ -263,21 +305,13 @@ const upgradeAsyncFunctions: Record<
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-
-		// sqlite returns array of objects for .all, but sqlite-proxy -> array of arrays
-		const dbRows = await session.all(
+		const dbRows = await allAsync<{ id: number | null; hash: string; created_at: number }>(
+			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		) as { id: number | null; hash: string; created_at: number }[] | [number | null, string, number][];
+			(row) => ({ id: row[0], hash: row[1], created_at: row[2] }),
+		);
 
-		const normalizedDbRows = Array.isArray(dbRows[0])
-			? (dbRows as [number | null, string, number][]).map((r) => ({
-				id: r[0],
-				hash: r[1],
-				created_at: r[2],
-			}))
-			: (dbRows as { id: number | null; hash: string; created_at: number }[]);
-
-		if (normalizedDbRows.length === 0) {
+		if (dbRows.length === 0) {
 			return;
 		}
 
@@ -298,7 +332,7 @@ const upgradeAsyncFunctions: Record<
 
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
-		for (const dbRow of normalizedDbRows) {
+		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);

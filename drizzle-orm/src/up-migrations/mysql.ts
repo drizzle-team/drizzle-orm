@@ -1,6 +1,6 @@
 import type { MigrationMeta } from '~/migrator';
 import type { MySqlSession } from '~/mysql-core';
-import { sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -13,6 +13,23 @@ interface UpgradeResult {
 function getVersion(columns: string[]) {
 	if (columns.includes('name')) return 1;
 	return 0;
+}
+
+// mysql returns array of objects for .all, but mysql-proxy -> array of arrays
+async function all<T>(
+	session: MySqlSession,
+	sqlQuery: SQL,
+	resultMapper: (row: any[]) => T = () => [] as T,
+): Promise<T[]> {
+	const result = await session.all(sqlQuery) as any[] | any[][];
+
+	if (result.length === 0) return [];
+
+	if (Array.isArray(result[0])) {
+		return (result as any[][]).map((row) => resultMapper(row));
+	}
+
+	return result as T[];
 }
 
 /**
@@ -48,19 +65,17 @@ const upgradeFunctions: Record<
 		// Sort them by ids asc (order how they were applied)
 		// mysql returns array of objects for .all, but mysql-proxy -> array of arrays
 		// .execute returns [ [ { key: value } ], [ <smth here> ] ] for both
-		const dbRows = await session.all(
+		const dbRows = await all<{ id: number; hash: string; created_at: string }>(
+			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		) as { id: number; hash: string; created_at: string }[] | [number, string, string][];
+			(row) => ({
+				id: row[0],
+				hash: row[1],
+				created_at: row[2],
+			}),
+		);
 
-		const normalizedDbRows = Array.isArray(dbRows[0])
-			? (dbRows as [number, string, string][]).map((r) => ({
-				id: r[0],
-				hash: r[1],
-				created_at: r[2],
-			}))
-			: (dbRows as { id: number; hash: string; created_at: string }[]);
-
-		if (normalizedDbRows.length === 0) {
+		if (dbRows.length === 0) {
 			return;
 		}
 
@@ -81,7 +96,7 @@ const upgradeFunctions: Record<
 
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
-		for (const dbRow of normalizedDbRows) {
+		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
@@ -117,10 +132,12 @@ export async function upgradeIfNeeded(
 	// Check if the table exists at all
 	// mysql returns [{'1': 1}] for .all, but mysql-proxy -> [ [1] ]
 	// .execute returns [ [ { '1': 1 } ], [ `1` BIGINT(2) NOT NULL ] ] for both
-	const result = await session.all(
+	const result = await all<{ '1': 1 }>(
+		session,
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}`,
-	) as { '1': 1 }[] | [1][];
+		(row) => ({ '1': row[0] }),
+	);
 
 	if (result.length === 0) {
 		return { newDb: true };
@@ -129,18 +146,16 @@ export async function upgradeIfNeeded(
 	// Table exists, check table shape
 	// mysql returns [{column_name: string}] for .all, but mysql-proxy -> [ [string] ]
 	// .execute returns [ [ { column_name: string } ], [ <smth here> ] ] for both
-	const rows = await session.all(
+	const rows = await all<{ column_name: string }>(
+		session,
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
 		ORDER BY ordinal_position`,
-	) as { column_name: string }[] | [string][];
+		(row) => ({ column_name: row[0] }),
+	);
 
-	const columnNames = Array.isArray(rows[0])
-		? (rows as [string][]).map((r) => r[0])
-		: (rows as { column_name: string }[]).map((r) => r.column_name);
-
-	const version = getVersion(columnNames);
+	const version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeFunctions[v];
