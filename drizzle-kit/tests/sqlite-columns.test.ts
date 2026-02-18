@@ -38,6 +38,7 @@ test('create table with id', async (t) => {
 		referenceData: [],
 		compositePKs: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -365,6 +366,7 @@ test('add foreign key #1', async (t) => {
 			tableName: 'users',
 			uniqueConstraints: [],
 			checkConstraints: [],
+		isStrict: false,
 		} as JsonRecreateTableStatement,
 	);
 });
@@ -429,6 +431,7 @@ test('add foreign key #2', async (t) => {
 		tableName: 'users',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	} as JsonRecreateTableStatement);
 });
 
@@ -588,6 +591,7 @@ test('alter table add composite pk', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -626,6 +630,7 @@ test('alter column drop not null', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -664,6 +669,7 @@ test('alter column add not null', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -703,6 +709,7 @@ test('alter column add default', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -741,6 +748,7 @@ test('alter column drop default', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -780,6 +788,7 @@ test('alter column add default not null', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 });
 
@@ -823,6 +832,7 @@ test('alter column add default not null with indexes', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		data: 'index_name;name;false;',
@@ -880,6 +890,7 @@ test('alter column drop default not null', async (t) => {
 		tableName: 'table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
@@ -1009,6 +1020,7 @@ test('recreate table with nested references', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(6);

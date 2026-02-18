@@ -39,6 +39,7 @@ test('create table with check', async (t) => {
 		checkConstraints: ['some_check_name;"users"."age" > 21'],
 		referenceData: [],
 		uniqueConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(1);
@@ -93,6 +94,7 @@ test('add check contraint to existing table', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		isStrict: false,
 		checkConstraints: ['some_check_name;"users"."age" > 21'],
 	});
 
@@ -153,7 +155,9 @@ test('drop check contraint to existing table', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		isStrict: false,
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -214,6 +218,7 @@ test('rename check constraint', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		isStrict: false,
 		checkConstraints: [`new_some_check_name;"users"."age" > 21`],
 	});
 
@@ -276,6 +281,7 @@ test('rename check constraint', async (t) => {
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
+		isStrict: false,
 		checkConstraints: [`some_check_name;"users"."age" > 10`],
 	});
 
