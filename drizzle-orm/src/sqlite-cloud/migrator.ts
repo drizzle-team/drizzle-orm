@@ -76,7 +76,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 							sql.identifier(migrationsTable)
 						} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 							new Date().toISOString()
-						})`
+						});`
 							.inlineParams(),
 					);
 

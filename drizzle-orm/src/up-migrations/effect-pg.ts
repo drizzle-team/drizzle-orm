@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import type { MigrationMeta } from '~/migrator';
 import type { PgEffectSession } from '~/pg-core/effect';
-import { sql } from '~/sql';
+import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 

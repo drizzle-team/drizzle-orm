@@ -3,7 +3,7 @@ import type { MigrationMeta } from '~/migrator';
 import type { NeonHttpSession } from '~/neon-http';
 import type { PgAsyncSession } from '~/pg-core';
 import type { AnyRelations } from '~/relations';
-import { sql } from '~/sql';
+import { sql } from '~/sql/sql.ts';
 import type { XataHttpSession } from '~/xata-http';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;

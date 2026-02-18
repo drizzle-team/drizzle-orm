@@ -1,6 +1,6 @@
 import type { MigrationMeta } from '~/migrator';
 import type { SingleStoreSession } from '~/singlestore-core';
-import { sql } from '~/sql';
+import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
