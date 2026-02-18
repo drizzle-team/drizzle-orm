@@ -12,7 +12,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import {
 	PgColumn,
-	PgCustomColumn,
+	type PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -914,8 +914,8 @@ export class PgDialect {
 	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			const casted = inJson && is(column, PgCustomColumn) && column.jsonSelectIdentifier
-				? column.jsonSelectIdentifier(name, sql, column.dimensions)
+			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
+				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
 				: this.codecs.apply(column, inJson ? 'jsonCast' : 'queryCast', name);
 
 			return sql`${casted} as ${sql.identifier(key)}`;
