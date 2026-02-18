@@ -3,7 +3,7 @@ import type { MigrationMeta } from '~/migrator';
 import type { NeonHttpSession } from '~/neon-http';
 import type { PgAsyncSession } from '~/pg-core';
 import type { AnyRelations } from '~/relations';
-import { sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 import type { XataHttpSession } from '~/xata-http';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
@@ -17,6 +17,21 @@ interface UpgradeResult {
 function getVersion(columns: string[]) {
 	if (columns.includes('name')) return 1;
 	return 0;
+}
+
+// postgres.js returns array of objects
+// pg-proxy returns arrays of objects
+// node-postgres returns { rows: array of objects }
+async function execute<T extends any[]>(
+	session:
+		| PgAsyncSession
+		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
+		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	sql: SQL,
+): Promise<T> {
+	const result: { rows: T } | T = await session.execute(sql);
+	if ('rows' in result) return result.rows;
+	return result;
 }
 
 /**
@@ -47,14 +62,16 @@ const upgradeFunctions: Record<
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Add new columns
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
-		await session.execute(
+		await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
+		await execute(
+			session,
 			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
 		);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const { rows: dbRows } = await session.execute<{ rows: { id: number; hash: string; created_at: string }[] }>(
+		const dbRows = await execute<{ id: number; hash: string; created_at: string }[]>(
+			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -94,7 +111,8 @@ const upgradeFunctions: Record<
 				matched = byHash.get(dbRow.hash);
 			}
 
-			await session.execute(
+			await execute(
+				session,
 				sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE id = ${dbRow.id}`,
 			);
 		}
@@ -117,7 +135,8 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const { rows: result } = await session.execute<{ rows: { '1': 1 }[] }>(
+	const result = await execute<{ '1': 1 }[]>(
+		session,
 		sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -128,9 +147,10 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const { rows } = await session.execute<
-		{ rows: { schema: string; table_name: string; column_name: string; type: string }[] }
+	const rows = await execute<
+		{ schema: string; table_name: string; column_name: string; type: string }[]
 	>(
+		session,
 		sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",
