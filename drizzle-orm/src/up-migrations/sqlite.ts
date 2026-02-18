@@ -39,20 +39,28 @@ export function upgradeSyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): UpgradeResult {
 	// Check if the table exists at all
-	const result = session.all(
+	// sqlite-proxy returns [ [1] ]
+	// sqlite returns [{ '1': 1 }]
+	let tableExists = session.all(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-	);
+	) as { '1': 1 }[] | [1][];
 
-	if (result.length === 0) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	const rows = session.all<{ name: string }>(
-		sql`SELECT name FROM pragma_table_info(${migrationsTable})`,
-	);
+	// sqlite-proxy returns [ [string] ]
+	// sqlite returns [{ column_name: string }]
+	const rows = session.all(
+		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
+	) as { column_name: string }[] | [string][];
 
-	const version = getVersion(rows.map((r) => r.name));
+	const columnNames = Array.isArray(rows[0])
+		? (rows as [string][]).map((r) => r[0])
+		: (rows as { column_name: string }[]).map((r) => r.column_name);
+
+	const version = getVersion(columnNames);
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeSyncFunctions[v];
@@ -99,11 +107,21 @@ const upgradeSyncFunctions: Record<
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = session.all<{ id: number | null; hash: string; created_at: number }>(
-			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		);
 
-		if (dbRows.length === 0) {
+		// sqlite returns array of objects for .all, but sqlite-proxy -> array of arrays
+		const dbRows = session.all(
+			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
+		) as { id: number | null; hash: string; created_at: number }[] | [number | null, string, number][];
+
+		const normalizedDbRows = Array.isArray(dbRows[0])
+			? (dbRows as [number | null, string, number][]).map((r) => ({
+				id: r[0],
+				hash: r[1],
+				created_at: r[2],
+			}))
+			: (dbRows as { id: number | null; hash: string; created_at: number }[]);
+
+		if (normalizedDbRows.length === 0) {
 			return;
 		}
 
@@ -124,7 +142,7 @@ const upgradeSyncFunctions: Record<
 
 		// 4. Match each DB row to a local migration and backfill name
 		//    Priority: millis -> hash -> serial position
-		for (const dbRow of dbRows) {
+		for (const dbRow of normalizedDbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
 			const candidates = byMillis.get(millis);
@@ -135,7 +153,7 @@ const upgradeSyncFunctions: Record<
 				matched = candidates[0];
 				matchedBy = 'millis';
 			} else if (candidates && candidates.length > 1) {
-				matched = candidates.find((c) => c.hash && dbRow.hash && c.hash === dbRow.hash); // for bun-sqlite cases (journal had empty hash);
+				matched = candidates.find((c) => c.hash && dbRow.hash && c.hash === dbRow.hash); // for bun-sqlite cases (journal had empty hash)
 				if (matched) matchedBy = 'hash';
 			} else {
 				matched = byHash.get(dbRow.hash);
@@ -191,7 +209,7 @@ export async function upgradeAsyncIfNeeded(
 	// sqlite-proxy returns [ [string] ]
 	// sqlite returns [{ column_name: string }]
 	const rows = await session.all(
-		sql`SELECT name FROM pragma_table_info(${migrationsTable})`,
+		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 	) as { column_name: string }[] | [string][];
 
 	const columnNames = Array.isArray(rows[0])
