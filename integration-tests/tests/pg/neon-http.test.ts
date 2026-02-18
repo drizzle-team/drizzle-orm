@@ -560,7 +560,7 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('all types - neon-http', async ({ db, push }) => {
+	test.only('all types - neon-http', async ({ db, push }) => {
 		const en = pgEnum('en2', ['enVal1', 'enVal2']);
 
 		const allTypesTable = pgTable('all_types', {
@@ -1297,14 +1297,17 @@ describe('migrator', () => {
 			arrvarchar: ['C4-'],
 		};
 
-		const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) =>
-			normalizeDataWithDbCodecs({
+		const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) => {
+			console.log('Query res');
+			console.dir(e, { colors: true, depth: null });
+
+			return normalizeDataWithDbCodecs({
 				db,
 				columns: getColumns(allTypesTable),
 				data: e.rows ?? e,
 				mode: 'queryNormalize',
-			})[0]
-		);
+			})[0];
+		});
 
 		const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
 			with: {
@@ -1312,6 +1315,9 @@ describe('migrator', () => {
 			},
 		})).then((e) => {
 			const [{ self: relationRaw, ...rootRaw }] = e.rows ?? e;
+
+			console.log('RQB res');
+			console.dir(e, { colors: true, depth: null });
 
 			return {
 				relationRes: normalizeDataWithDbCodecs({
