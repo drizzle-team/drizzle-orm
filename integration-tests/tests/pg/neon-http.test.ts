@@ -560,7 +560,7 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test.only('all types - neon-http', async ({ db, push }) => {
+	test('all types - neon-http', async ({ db, push }) => {
 		const en = pgEnum('en2', ['enVal1', 'enVal2']);
 
 		const allTypesTable = pgTable('all_types', {
@@ -985,7 +985,7 @@ describe('migrator', () => {
 		expect(rawRes).toStrictEqual(expectedRes);
 	});
 
-	test.concurrent('all types ~codecs~ - neon-http', async ({ createDB, push }) => {
+	test('all types ~codecs~ - neon-http', async ({ createDB, push }) => {
 		const en = pgEnum('en_48', ['enVal1', 'enVal2']);
 		const allTypesTable = pgTable('all_types_48_cdcs', {
 			serial: serial('serial'),
@@ -1297,17 +1297,19 @@ describe('migrator', () => {
 			arrvarchar: ['C4-'],
 		};
 
-		const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) => {
-			console.log('Query res');
-			console.dir(e, { colors: true, depth: null });
-
-			return normalizeDataWithDbCodecs({
+		const queryRes = await db.execute<ExpectedType>(
+			db.select({
+				...getColumns(allTypesTable),
+				bytea: allTypesTable.bytea.as('bytea'),
+			}).from(allTypesTable),
+		).then((e) =>
+			normalizeDataWithDbCodecs({
 				db,
 				columns: getColumns(allTypesTable),
 				data: e.rows ?? e,
 				mode: 'queryNormalize',
-			})[0];
-		});
+			})[0]!
+		);
 
 		const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
 			with: {
@@ -1315,9 +1317,6 @@ describe('migrator', () => {
 			},
 		})).then((e) => {
 			const [{ self: relationRaw, ...rootRaw }] = e.rows ?? e;
-
-			console.log('RQB res');
-			console.dir(e, { colors: true, depth: null });
 
 			return {
 				relationRes: normalizeDataWithDbCodecs({
