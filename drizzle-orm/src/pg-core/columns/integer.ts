@@ -26,14 +26,8 @@ export class PgInteger extends PgColumn<'number int32'> {
 	getSQLType(): string {
 		return 'integer';
 	}
-
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'string') {
-			return Number.parseInt(value);
-		}
-		return value;
-	}
 }
+
 export function integer(name?: string): PgIntegerBuilder {
 	return new PgIntegerBuilder(name ?? '');
 }
