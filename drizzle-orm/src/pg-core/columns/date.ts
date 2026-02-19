@@ -64,6 +64,11 @@ export class PgDateString extends PgColumn<'string date'> {
 	getSQLType(): string {
 		return 'date';
 	}
+
+	override mapToDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+		return value.toISOString();
+	}
 }
 
 export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {
