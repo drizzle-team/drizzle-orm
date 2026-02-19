@@ -33,13 +33,6 @@ export class PgReal extends PgColumn<'number float'> {
 	getSQLType(): string {
 		return 'real';
 	}
-
-	override mapFromDriverValue(value: string | number): number {
-		if (typeof value === 'string') {
-			return Number.parseFloat(value);
-		}
-		return value;
-	}
 }
 
 export function real(name?: string): PgRealBuilder {

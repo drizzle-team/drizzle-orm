@@ -28,13 +28,6 @@ export class PgDoublePrecision extends PgColumn<'number double'> {
 	getSQLType(): string {
 		return 'double precision';
 	}
-
-	override mapFromDriverValue(value: string | number): number {
-		if (typeof value === 'string') {
-			return Number.parseFloat(value);
-		}
-		return value;
-	}
 }
 
 export function doublePrecision(name?: string): PgDoublePrecisionBuilder {
