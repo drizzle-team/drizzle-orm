@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -12,7 +12,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	db: SingleStoreRemoteDatabase<TSchema, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';

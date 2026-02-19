@@ -1,6 +1,6 @@
 import type { MigrationMeta } from '~/migrator';
 import type { SingleStoreSession } from '~/singlestore-core';
-import { sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -13,6 +13,23 @@ interface UpgradeResult {
 function getVersion(columns: string[]) {
 	if (columns.includes('name')) return 1;
 	return 0;
+}
+
+// singlestore returns array of objects for .all, but singlestore-proxy -> array of arrays
+async function all<T>(
+	session: SingleStoreSession,
+	sqlQuery: SQL,
+	resultMapper: (row: any[]) => T = () => [] as T,
+): Promise<T[]> {
+	const result = await session.all(sqlQuery) as any[] | any[][];
+
+	if (result.length === 0) return [];
+
+	if (Array.isArray(result[0])) {
+		return (result as any[][]).map((row) => resultMapper(row));
+	}
+
+	return result as T[];
 }
 
 /**
@@ -39,15 +56,21 @@ const upgradeFunctions: Record<
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Add new columns
-		await session.execute(sql`ALTER TABLE ${table} ADD COLUMN \`name\` text`);
+		await session.execute(sql`ALTER TABLE ${table} ADD \`name\` text`);
 		await session.execute(
-			sql`ALTER TABLE ${table} ADD COLUMN \`applied_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+			sql`ALTER TABLE ${table} ADD \`applied_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
 		);
 
 		// 2. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
+		const dbRows = await all<{ id: number; hash: string; created_at: string }>(
+			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
+			(row) => ({
+				id: row[0],
+				hash: row[1],
+				created_at: row[2],
+			}),
 		);
 
 		if (dbRows.length === 0) {
@@ -105,9 +128,11 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await session.all(
+	const result = await all<{ '1': 1 }>(
+		session,
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}`,
+		(row) => ({ '1': row[0] }),
 	);
 
 	if (result.length === 0) {
@@ -115,11 +140,13 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await session.all<{ column_name: string }>(
+	const rows = await all<{ column_name: string }>(
+		session,
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
 		ORDER BY ordinal_position`,
+		(row) => ({ column_name: row[0] }),
 	);
 
 	const version = getVersion(rows.map((r) => r.column_name));
