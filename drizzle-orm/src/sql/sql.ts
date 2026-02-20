@@ -413,12 +413,24 @@ export function name(value: string): Name {
 	return new Name(value);
 }
 
+export interface DriverValueDecoderFn<TData, TDriverParam> {
+	(value: TDriverParam): TData;
+	/** @internal */
+	isNoop?: true | undefined;
+}
+
 export interface DriverValueDecoder<TData, TDriverParam> {
-	mapFromDriverValue(value: TDriverParam): TData;
+	mapFromDriverValue: DriverValueDecoderFn<TData, TDriverParam>;
+}
+
+export interface DriverValueEncoderFn<TData, TDriverParam> {
+	(value: TData): TDriverParam;
+	/** @internal */
+	isNoop?: true | undefined;
 }
 
 export interface DriverValueEncoder<TData, TDriverParam> {
-	mapToDriverValue(value: TData): TDriverParam | SQL;
+	mapToDriverValue: DriverValueEncoderFn<TData, TDriverParam>;
 }
 
 export function isDriverValueEncoder(value: unknown): value is DriverValueEncoder<any, any> {
@@ -430,13 +442,21 @@ export const noopDecoder: DriverValueDecoder<any, any> = {
 	mapFromDriverValue: (value) => value,
 };
 
+noopDecoder.mapFromDriverValue.isNoop = true;
+
 export const noopEncoder: DriverValueEncoder<any, any> = {
 	mapToDriverValue: (value) => value,
 };
 
+noopEncoder.mapToDriverValue.isNoop = true;
+
 export interface DriverValueMapper<TData, TDriverParam>
 	extends DriverValueDecoder<TData, TDriverParam>, DriverValueEncoder<TData, TDriverParam>
 {}
+
+export function isNoop(mapper: DriverValueEncoderFn<any, any> | DriverValueDecoderFn<any, any>) {
+	return mapper.isNoop;
+}
 
 export const noopMapper: DriverValueMapper<any, any> = {
 	...noopDecoder,

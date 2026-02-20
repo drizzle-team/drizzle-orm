@@ -8,7 +8,7 @@ import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import { makePgArray, parsePgArray } from '../utils/array.ts';
+import { makePgArray } from '../utils/array.ts';
 
 declare const PgColumnBuilderBrand: unique symbol;
 export type PgColumnBuilderBrand = typeof PgColumnBuilderBrand;
@@ -447,15 +447,18 @@ export abstract class PgColumn<
 			const originalFromDriver = this.mapFromDriverValue.bind(this);
 			const originalToDriver = this.mapToDriverValue.bind(this);
 
-			this.mapFromDriverValue = (value: unknown): unknown => {
-				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
-				return this.mapArrayElements(arr, originalFromDriver, this.dimensions);
-			};
+			this.mapFromDriverValue = this.mapFromDriverValue.isNoop
+				? this.mapFromDriverValue
+				: (value: unknown): unknown => {
+					return this.mapArrayElements(value, originalFromDriver, this.dimensions);
+				};
 
-			this.mapToDriverValue = (value: unknown): unknown => {
-				const mapped = this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
-				return makePgArray(mapped as any[]);
-			};
+			this.mapToDriverValue = this.mapToDriverValue.isNoop
+				? makePgArray as (value: unknown) => unknown
+				: (value: unknown): unknown => {
+					const mapped = this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
+					return makePgArray(mapped as any[]);
+				};
 		}
 	}
 

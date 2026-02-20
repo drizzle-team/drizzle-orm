@@ -6,7 +6,7 @@ import type {
 } from './column-builder.ts';
 import { OriginalColumn } from './column-common.ts';
 import { entityKind } from './entity.ts';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
+import type { DriverValueDecoderFn, DriverValueEncoderFn, DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -27,6 +27,9 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	generated: unknown;
 	identity: undefined | 'always' | 'byDefault';
 }
+
+const noop: DriverValueDecoderFn<unknown, unknown> | DriverValueEncoderFn<unknown, unknown> = (v) => v;
+noop.isNoop = true;
 
 export interface Column<
 	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
@@ -146,13 +149,9 @@ export abstract class Column<
 		return this._sqlTypeMeta!;
 	}
 
-	mapFromDriverValue(value: unknown): unknown {
-		return value;
-	}
+	mapFromDriverValue = noop;
 
-	mapToDriverValue(value: unknown): unknown {
-		return value;
-	}
+	mapToDriverValue = noop;
 
 	// ** @internal */
 	shouldDisableInsert(): boolean {
