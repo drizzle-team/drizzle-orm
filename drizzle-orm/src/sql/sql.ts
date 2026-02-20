@@ -464,7 +464,7 @@ export const noopMapper: DriverValueMapper<any, any> = {
 };
 
 /** Parameter value that is optionally bound to an encoder (for example, a column). */
-export class Param<TDataType = unknown, TDriverParamType = TDataType> implements SQLWrapper {
+export class Param<TDataType = any, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
 	protected brand!: 'BoundParamValue';

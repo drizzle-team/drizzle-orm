@@ -30,9 +30,9 @@ export class PgJsonb extends PgColumn<'object json'> {
 		return 'jsonb';
 	}
 
-	override mapToDriverValue(value: unknown): string {
+	override mapToDriverValue = (value: unknown): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export function jsonb(name?: string): PgJsonbBuilder {

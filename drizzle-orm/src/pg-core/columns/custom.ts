@@ -88,13 +88,13 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		return this.sqlName;
 	}
 
-	override mapFromDriverValue(value: T['driverParam']): T['data'] {
+	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
 		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	}
+	};
 
-	override mapToDriverValue(value: T['data']): T['driverParam'] {
+	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	}
+	};
 }
 
 export interface CustomTypeValues {

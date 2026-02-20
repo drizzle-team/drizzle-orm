@@ -32,11 +32,11 @@ export class SingleStoreYear<
 		return `year`;
 	}
 
-	override mapFromDriverValue(value: unknown): number {
+	override mapFromDriverValue = (value: unknown): number => {
 		if (typeof value !== 'number') return Number(value);
 
 		return value;
-	}
+	};
 }
 
 export function year(name?: string): SingleStoreYearBuilder {
