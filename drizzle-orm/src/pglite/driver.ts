@@ -5,7 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { arrayCompatNormalize, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { arrayCompatNormalize, extendGenericPgCodecs, genericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
@@ -48,8 +48,10 @@ export class PgliteDatabase<
 export const pgliteCodecs = extendGenericPgCodecs({
 	jsonNormalize: {
 		bytea: {
-			item: base64ToUint8Array,
-			array: arrayCompatNormalize(base64ToUint8Array),
+			item: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.jsonNormalize.bytea?.item,
+			array: typeof Buffer === 'undefined'
+				? arrayCompatNormalize(base64ToUint8Array)
+				: genericPgCodecs.jsonNormalize.bytea?.array,
 		},
 	},
 	jsonCast: {

@@ -69,7 +69,6 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -3545,9 +3544,7 @@ export function tests(test: Test) {
 				arrvarchar: ['C4-'],
 			});
 
-			const buff: (from: string) => Uint8Array | Buffer = is(db, PgliteDatabase)
-				? (s: string) => Uint8Array.from(Buffer.from(s))
-				: (s: string) => Buffer.from(s);
+			const buff: (from: string) => Buffer = (s: string) => Buffer.from(s);
 
 			type ExpectedType = {
 				serial: number;
