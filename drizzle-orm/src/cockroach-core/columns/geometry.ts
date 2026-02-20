@@ -38,15 +38,15 @@ export class CockroachGeometry<T extends ColumnBaseConfig<'array geometry'>>
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
-	override mapFromDriverValue(value: string | [number, number]): [number, number] {
+	override mapFromDriverValue = (value: string | [number, number]): [number, number] => {
 		if (typeof value !== 'string') return value as [number, number];
 
 		return parseEWKB(value).point;
-	}
+	};
 
-	override mapToDriverValue(value: [number, number]): string {
+	override mapToDriverValue = (value: [number, number]): string => {
 		return `point(${value[0]} ${value[1]})`;
-	}
+	};
 }
 
 export class CockroachGeometryObjectBuilder extends CockroachColumnWithArrayBuilder<{
@@ -82,14 +82,14 @@ export class CockroachGeometryObject<T extends ColumnBaseConfig<'object geometry
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
-	override mapFromDriverValue(value: string): { x: number; y: number } {
+	override mapFromDriverValue = (value: string): { x: number; y: number } => {
 		const parsed = parseEWKB(value);
 		return { x: parsed.point[0], y: parsed.point[1] };
-	}
+	};
 
-	override mapToDriverValue(value: { x: number; y: number }): string {
+	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `point(${value.x} ${value.y})`;
-	}
+	};
 }
 
 export interface CockroachGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {

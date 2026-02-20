@@ -28,7 +28,7 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	identity: undefined | 'always' | 'byDefault';
 }
 
-const noop: DriverValueDecoderFn<unknown, unknown> | DriverValueEncoderFn<unknown, unknown> = (v) => v;
+const noop: DriverValueDecoderFn<any, any> | DriverValueEncoderFn<any, any> = (v) => v;
 noop.isNoop = true;
 
 export interface Column<

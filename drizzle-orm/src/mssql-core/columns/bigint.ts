@@ -48,9 +48,9 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int
 		this.mode = config.mode;
 	}
 
-	override mapFromDriverValue(value: string): T['data'] {
+	override mapFromDriverValue = (value: string): T['data'] => {
 		return this.mode === 'string' ? value.toString() : this.mode === 'number' ? Number(value) : BigInt(value);
-	}
+	};
 }
 
 interface MsSqlBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {

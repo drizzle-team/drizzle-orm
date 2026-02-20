@@ -31,7 +31,7 @@ export class SingleStoreVarBinary<
 > extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinary';
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
+	override mapFromDriverValue = (value: string | Buffer | Uint8Array): string => {
 		if (typeof value === 'string') return value;
 		if (Buffer.isBuffer(value)) return value.toString();
 
@@ -41,7 +41,7 @@ export class SingleStoreVarBinary<
 		}
 
 		return str.join('');
-	}
+	};
 
 	getSQLType(): string {
 		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;

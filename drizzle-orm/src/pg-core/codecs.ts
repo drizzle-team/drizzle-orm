@@ -2,6 +2,7 @@ import type { CastArrayCodec, CastCodec, NormalizeArrayCodec, NormalizeCodec } f
 import type { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
+import type { PartialWithUndefined } from '~/utils.ts';
 
 export type PostgresOriginalType =
 	// Numeric
@@ -149,7 +150,7 @@ export function resolvePgType(type: string) {
 }
 
 export interface PgCodecs {
-	jsonCast: Partial<
+	jsonCast: PartialWithUndefined<
 		Record<
 			PostgresOriginalType,
 			{
@@ -158,7 +159,7 @@ export interface PgCodecs {
 			}
 		>
 	>;
-	jsonNormalize: Partial<
+	jsonNormalize: PartialWithUndefined<
 		Record<
 			PostgresOriginalType,
 			{
@@ -167,7 +168,7 @@ export interface PgCodecs {
 			}
 		>
 	>;
-	queryCast: Partial<
+	queryCast: PartialWithUndefined<
 		Record<
 			PostgresOriginalType,
 			{
@@ -176,7 +177,7 @@ export interface PgCodecs {
 			}
 		>
 	>;
-	queryNormalize: Partial<
+	queryNormalize: PartialWithUndefined<
 		Record<
 			PostgresOriginalType,
 			{
@@ -371,7 +372,7 @@ export class PgCodecsCollection {
 	}
 }
 
-export function extendGenericPgCodecs(codecs: Partial<PgCodecs> = {}): PgCodecs {
+export function extendGenericPgCodecs(codecs: PartialWithUndefined<PgCodecs> = {}): PgCodecs {
 	const result: PgCodecs = {
 		jsonCast: {},
 		jsonNormalize: {},

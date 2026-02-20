@@ -40,7 +40,7 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer | string): bigint {
+	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): bigint => {
 		// For RQBv2
 		if (typeof value === 'string') {
 			return BigInt(hexToText(value));
@@ -59,11 +59,11 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 		}
 
 		return BigInt(textDecoder!.decode(value as ArrayBuffer));
-	}
+	};
 
-	override mapToDriverValue(value: bigint): Buffer {
+	override mapToDriverValue = (value: bigint): Buffer => {
 		return Buffer.from(value.toString());
-	}
+	};
 }
 
 export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
@@ -93,7 +93,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] {
+	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] => {
 		// For RQBv2
 		if (typeof value === 'string') {
 			return JSON.parse(hexToText(value));
@@ -112,11 +112,11 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 		}
 
 		return JSON.parse(textDecoder!.decode(value as ArrayBuffer));
-	}
+	};
 
-	override mapToDriverValue(value: T['data']): Buffer {
+	override mapToDriverValue = (value: T['data']): Buffer => {
 		return Buffer.from(JSON.stringify(value));
-	}
+	};
 }
 
 export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
@@ -139,7 +139,7 @@ export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'object buffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer): T['data'] => {
 		if (Buffer.isBuffer(value)) {
 			return value;
 		}
@@ -150,7 +150,7 @@ export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'object buffer'>> exten
 		}
 
 		return Buffer.from(value as Uint8Array);
-	}
+	};
 
 	getSQLType(): string {
 		return 'blob';

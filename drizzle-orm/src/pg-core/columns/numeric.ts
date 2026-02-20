@@ -91,13 +91,13 @@ export class PgNumericNumber extends PgColumn<'number'> {
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: string): number {
+	override mapFromDriverValue = (value: string): number => {
 		return Number(value);
-	}
+	};
 
-	override mapToDriverValue(value: number): string {
+	override mapToDriverValue = (value: number): string => {
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -150,13 +150,13 @@ export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue = (value: string): bigint => {
 		return BigInt(value);
-	}
+	};
 
-	override mapToDriverValue(value: bigint): string {
+	override mapToDriverValue = (value: bigint): string => {
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {

@@ -32,7 +32,7 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string binary'>> extends My
 > {
 	static override readonly [entityKind]: string = 'MySqlBinary';
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
+	override mapFromDriverValue = (value: string | Buffer | Uint8Array): string => {
 		if (typeof value === 'string') return value;
 		if (Buffer.isBuffer(value)) return value.toString();
 
@@ -42,7 +42,7 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string binary'>> extends My
 		}
 
 		return str.join('');
-	}
+	};
 
 	getSQLType(): string {
 		return this.config.setLength ? `binary(${this.length})` : `binary`;

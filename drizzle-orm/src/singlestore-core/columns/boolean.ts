@@ -30,12 +30,12 @@ export class SingleStoreBoolean<T extends ColumnBaseConfig<'boolean'>> extends S
 		return 'boolean';
 	}
 
-	override mapFromDriverValue(value: number | boolean): boolean {
+	override mapFromDriverValue = (value: number | boolean): boolean => {
 		if (typeof value === 'boolean') {
 			return value;
 		}
 		return value === 1;
-	}
+	};
 }
 
 export function boolean(name?: string): SingleStoreBooleanBuilder {

@@ -32,14 +32,14 @@ export class PgLineTuple extends PgColumn<'array line'> {
 		return 'line';
 	}
 
-	override mapFromDriverValue(value: string): [number, number, number] {
+	override mapFromDriverValue = (value: string): [number, number, number] => {
 		const [a, b, c] = value.slice(1, -1).split(',');
 		return [Number.parseFloat(a!), Number.parseFloat(b!), Number.parseFloat(c!)];
-	}
+	};
 
-	override mapToDriverValue(value: [number, number, number]): string {
+	override mapToDriverValue = (value: [number, number, number]): string => {
 		return `{${value[0]},${value[1]},${value[2]}}`;
-	}
+	};
 }
 
 export class PgLineABCBuilder extends PgColumnBuilder<{
@@ -71,14 +71,14 @@ export class PgLineABC extends PgColumn<'object line'> {
 		return 'line';
 	}
 
-	override mapFromDriverValue(value: string): { a: number; b: number; c: number } {
+	override mapFromDriverValue = (value: string): { a: number; b: number; c: number } => {
 		const [a, b, c] = value.slice(1, -1).split(',');
 		return { a: Number.parseFloat(a!), b: Number.parseFloat(b!), c: Number.parseFloat(c!) };
-	}
+	};
 
-	override mapToDriverValue(value: { a: number; b: number; c: number }): string {
+	override mapToDriverValue = (value: { a: number; b: number; c: number }): string => {
 		return `{${value.a},${value.b},${value.c}}`;
-	}
+	};
 }
 
 export interface PgLineTypeConfig<T extends 'tuple' | 'abc' = 'tuple' | 'abc'> {

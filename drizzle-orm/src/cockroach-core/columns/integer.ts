@@ -33,12 +33,12 @@ export class CockroachInteger<T extends ColumnBaseConfig<'number int32'>> extend
 		return 'int4';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number.parseInt(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function int4(name?: string) {

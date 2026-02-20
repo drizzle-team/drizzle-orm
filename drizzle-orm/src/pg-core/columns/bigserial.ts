@@ -34,9 +34,9 @@ export class PgBigSerial53 extends PgColumn<'number int53'> {
 		return 'bigserial';
 	}
 
-	override mapFromDriverValue(value: bigint): number {
+	override mapFromDriverValue = (value: bigint): number => {
 		return Number(value);
-	}
+	};
 }
 
 export class PgBigSerial64Builder extends PgColumnBuilder<{

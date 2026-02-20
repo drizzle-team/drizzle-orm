@@ -72,9 +72,9 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MyS
 		return this.sqlName;
 	}
 
-	override mapFromDriverValue(value: T['driverParam']): T['data'] {
+	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
 		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	}
+	};
 
 	mapFromJsonValue(value: unknown): T['data'] {
 		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
@@ -105,9 +105,9 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MyS
 		}
 	}
 
-	override mapToDriverValue(value: T['data']): T['driverParam'] {
+	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	}
+	};
 }
 
 export interface CustomTypeValues {

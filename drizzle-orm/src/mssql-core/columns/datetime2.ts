@@ -89,9 +89,9 @@ export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string datetime'>>
 		return `datetime2${precision}`;
 	}
 
-	override mapFromDriverValue(value: Date | string | null): string | null {
+	override mapFromDriverValue = (value: Date | string | null): string | null => {
 		return typeof value === 'string' ? value : value?.toISOString() ?? null;
-	}
+	};
 }
 export function datetime2<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	config?: MsSqlDatetimeConfig<TMode>,

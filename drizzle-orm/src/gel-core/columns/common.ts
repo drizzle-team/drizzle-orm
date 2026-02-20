@@ -305,9 +305,9 @@ export class GelArray<
 		super(table, config);
 	}
 
-	override mapFromDriverValue(value: unknown[]): T['data'] {
+	override mapFromDriverValue = (value: unknown[]): T['data'] => {
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
-	}
+	};
 
 	// Needed for arrays of custom types
 	mapFromJsonValue(value: unknown[]): T['data'] {
