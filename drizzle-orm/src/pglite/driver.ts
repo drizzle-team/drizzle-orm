@@ -71,6 +71,14 @@ export const pgliteCodecs = extendGenericPgCodecs({
 	queryNormalize: {
 		bigint: undefined,
 		bigserial: undefined,
+		bytea: {
+			item: typeof Buffer === 'undefined'
+				? genericPgCodecs.queryNormalize.bytea?.item
+				: (v: Uint8Array) => Buffer.from(v),
+			array: typeof Buffer === 'undefined'
+				? genericPgCodecs.queryNormalize.bytea?.array
+				: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
+		},
 	},
 });
 

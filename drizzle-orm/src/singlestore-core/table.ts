@@ -81,7 +81,7 @@ export function singlestoreTableWithSchema<
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as SingleStoreColumnBuilder;
 			colBuilder.setName(name);
-			const column = colBuilder.build(rawTable);
+			const column = colBuilder.build(rawTable).postBuild();
 			return [name, column];
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'singlestore'>;

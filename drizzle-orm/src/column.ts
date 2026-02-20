@@ -153,7 +153,12 @@ export abstract class Column<
 
 	mapToDriverValue = noop;
 
-	// ** @internal */
+	/** @internal  */
+	postBuild() {
+		return this;
+	}
+
+	/** @internal */
 	shouldDisableInsert(): boolean {
 		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}

@@ -51,8 +51,6 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
 	readonly mapFromJsonValue?: (value: unknown) => T['data'];
 	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
@@ -62,8 +60,8 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	) {
 		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
 
@@ -87,14 +85,6 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	getSQLType(): string {
 		return this.sqlName;
 	}
-
-	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	};
-
-	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	};
 }
 
 export interface CustomTypeValues {

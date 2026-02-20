@@ -60,27 +60,6 @@ export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 
 export type AnyPgTable<TPartial extends Partial<TableConfig> = {}> = PgTable<UpdateTableConfig<TableConfig, TPartial>>;
 
-// type InferInsertColumns<TColumns extends PgColumns> = Simplify<
-// 	& {
-// 		// Required keys: insertType does not include undefined or null
-// 		[
-// 			Key in keyof TColumns & string as TColumns[Key]['_']['insertType'] extends never ? never
-// 				// Check doesn't work properly with `"strictNullChecks": false`, to be reworked
-// 				: undefined extends TColumns[Key]['_']['insertType'] ? never
-// 				: Key
-// 		]: TColumns[Key]['_']['insertType'];
-// 	}
-// 	& {
-// 		// Optional keys: insertType includes undefined
-// 		[
-// 			Key in keyof TColumns & string as TColumns[Key]['_']['insertType'] extends never ? never
-// 				// Check doesn't work properly with `"strictNullChecks": false`, to be reworked
-// 				: undefined extends TColumns[Key]['_']['insertType'] ? Key
-// 				: never
-// 		]?: TColumns[Key]['_']['insertType'];
-// 	}
-// >;
-
 export type PgTableWithColumns<T extends TableConfig> =
 	& PgTable<T>
 	& T['columns']
@@ -128,7 +107,7 @@ export function pgTableWithSchema<
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as PgColumnBuilder;
 			colBuilder.setName(name);
-			const column = colBuilder.build(rawTable);
+			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),

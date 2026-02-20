@@ -107,7 +107,7 @@ export function gelTableWithSchema<
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as GelColumnBuilder;
 			colBuilder.setName(name);
-			const column = colBuilder.build(rawTable);
+			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
