@@ -1550,6 +1550,84 @@ export function tests() {
 			});
 		});
 
+		test('build query insert with onConflict do update with targetWhere', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const query = db
+				.insert(usersTable)
+				.values({ name: 'John', jsonb: ['foo', 'bar'] })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					targetWhere: sql`${usersTable.verified} = true`,
+					set: { name: 'John1' },
+				})
+				.toSQL();
+
+			expect(query).toEqual({
+				sql:
+					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") where "users"."verified" = true do update set "name" = $3',
+				params: ['John', '["foo","bar"]', 'John1'],
+			});
+		});
+
+		test('build query insert with onConflict do update with setWhere', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const query = db
+				.insert(usersTable)
+				.values({ name: 'John', jsonb: ['foo', 'bar'] })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					set: { name: 'John1' },
+					setWhere: sql`${usersTable.name} != 'Admin'`,
+				})
+				.toSQL();
+
+			expect(query).toEqual({
+				sql:
+					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3 where "users"."name" != \'Admin\'',
+				params: ['John', '["foo","bar"]', 'John1'],
+			});
+		});
+
+		test('build query insert with onConflict do update with targetWhere and setWhere', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const query = db
+				.insert(usersTable)
+				.values({ name: 'John', jsonb: ['foo', 'bar'] })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					targetWhere: sql`${usersTable.verified} = true`,
+					set: { name: 'John1' },
+					setWhere: sql`${usersTable.name} != 'Admin'`,
+				})
+				.toSQL();
+
+			expect(query).toEqual({
+				sql:
+					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") where "users"."verified" = true do update set "name" = $3 where "users"."name" != \'Admin\'',
+				params: ['John', '["foo","bar"]', 'John1'],
+			});
+		});
+
+		test('insert with onConflict do update with targetWhere and setWhere throws error when used with deprecated where', async (ctx) => {
+			const { db } = ctx.pg;
+
+			expect(() => {
+				db
+					.insert(usersTable)
+					.values({ name: 'John' })
+					.onConflictDoUpdate({
+						target: usersTable.id,
+						where: sql`${usersTable.verified} = true`,
+						targetWhere: sql`${usersTable.verified} = true`,
+						set: { name: 'John1' },
+					})
+					.toSQL();
+			}).toThrow('You cannot use both "where" and "targetWhere"/"setWhere" at the same time');
+		});
+
 		test('build query insert with onConflict do nothing', async (ctx) => {
 			const { db } = ctx.pg;
 
