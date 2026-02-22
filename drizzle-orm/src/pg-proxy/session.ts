@@ -72,7 +72,8 @@ export class PgRemoteSession<
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PreparedQuery<T, true> {
 		return new PreparedQuery(
 			this.client,
@@ -85,8 +86,9 @@ export class PgRemoteSession<
 			undefined,
 			fields,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 
@@ -132,9 +134,11 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use 'all' method for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -187,7 +191,7 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
-			const { client, queryString, customResultMapper, logger, typings } = this;
+			const { client, queryString, customResultMapper, logger, typings, useRqbArrayMode } = this;
 
 			span?.setAttributes({
 				'drizzle.query.text': queryString,
@@ -195,6 +199,17 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 			});
 
 			logger.logQuery(queryString, params);
+
+			if (useRqbArrayMode) {
+				const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
+					const { rows } = await client(queryString, params as any[], 'all', typings);
+					return rows;
+				});
+
+				return tracer.startActiveSpan('drizzle.mapResponse', () => {
+					return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
+				});
+			}
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
 				const { rows } = await client(queryString, params as any[], 'execute', typings);

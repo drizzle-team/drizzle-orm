@@ -35,9 +35,11 @@ export class PostgresJsPreparedQuery<
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use .values() for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -93,7 +95,7 @@ export class PostgresJsPreparedQuery<
 
 			this.logger.logQuery(this.queryString, params);
 
-			const { queryString: query, client, customResultMapper } = this;
+			const { queryString: query, client, customResultMapper, useRqbArrayMode } = this;
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
 				span?.setAttributes({
@@ -101,10 +103,16 @@ export class PostgresJsPreparedQuery<
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
+				if (useRqbArrayMode) {
+					return client.unsafe(query, params as any[]).values();
+				}
 				return client.unsafe(query, params as any[]);
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
+				if (useRqbArrayMode) {
+					return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
+				}
 				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(Object.values(rows));
 			});
 		});
@@ -195,7 +203,8 @@ export class PostgresJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
@@ -207,8 +216,9 @@ export class PostgresJsSession<
 			undefined,
 			fields,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 

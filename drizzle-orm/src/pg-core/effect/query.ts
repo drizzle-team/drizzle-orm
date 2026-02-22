@@ -22,7 +22,7 @@ export class PgEffectRelationalQuery<TResult> extends PgRelationalQuery<PgEffect
 	declare protected session: PgEffectSession;
 
 	/** @internal */
-	_prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	override _prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
@@ -41,7 +41,7 @@ export class PgEffectRelationalQuery<TResult> extends PgRelationalQuery<PgEffect
 		});
 	}
 
-	prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	override prepare(name: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 

@@ -175,6 +175,8 @@ function construct<
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
+		false,
+		config.rowMapperGenerator,
 	);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

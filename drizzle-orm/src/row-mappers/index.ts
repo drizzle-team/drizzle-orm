@@ -173,18 +173,44 @@ return rows;`;
 // Interpreted Row Mapper (works in all environments)
 // ============================================================================
 
+/**
+ * Pre-computed selection item with resolved decoder.
+ * Avoids repeated is() checks and decoder resolution for each row.
+ */
+interface PrecomputedSelectionItem {
+	key: string;
+	decoder: ((value: unknown) => unknown) | null;
+	/** Pre-computed nested selection (for relations) */
+	nestedSelection: PrecomputedSelectionItem[] | null;
+	isArray: boolean;
+}
+
+/**
+ * Pre-computes decoders for all selection items to avoid
+ * repeated is() checks and decoder resolution for each row.
+ */
+function precomputeSelection(selection: RowMapperSelection): PrecomputedSelectionItem[] {
+	return selection.map((item) => ({
+		key: item.key,
+		decoder: item.selection ? null : resolveDecoder(item.field),
+		nestedSelection: item.selection ? precomputeSelection(item.selection) : null,
+		isArray: item.isArray ?? false,
+	}));
+}
+
 function mapRowInterpreted(
 	row: Record<string, unknown>,
-	selection: RowMapperSelection,
+	selection: PrecomputedSelectionItem[],
 	parseJson: boolean,
 ): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 
-	for (const item of selection) {
+	for (let i = 0; i < selection.length; i++) {
+		const item = selection[i]!;
 		const key = item.key;
 		let value = row[key];
 
-		if (item.selection) {
+		if (item.nestedSelection) {
 			// Nested relation
 			if (value === null) {
 				result[key] = null;
@@ -200,12 +226,12 @@ function mapRowInterpreted(
 				if (item.isArray) {
 					const arr = value as Record<string, unknown>[];
 					const mapped: Record<string, unknown>[] = [];
-					for (let i = 0; i < arr.length; i++) {
-						mapped[i] = mapRowInterpreted(arr[i]!, item.selection, false);
+					for (let j = 0; j < arr.length; j++) {
+						mapped[j] = mapRowInterpreted(arr[j]!, item.nestedSelection, false);
 					}
 					result[key] = mapped;
 				} else {
-					result[key] = mapRowInterpreted(value as Record<string, unknown>, item.selection, false);
+					result[key] = mapRowInterpreted(value as Record<string, unknown>, item.nestedSelection, false);
 				}
 			}
 		} else {
@@ -213,7 +239,7 @@ function mapRowInterpreted(
 			if (value === null) {
 				result[key] = null;
 			} else {
-				const decoder = resolveDecoder(item.field);
+				const decoder = item.decoder; // Pre-computed!
 				result[key] = decoder ? decoder(value) : value;
 			}
 		}
@@ -248,11 +274,14 @@ export const interpretedRowMapper: RowMapperGenerator = (
 	selection: RowMapperSelection,
 	parseJson: boolean,
 ): RowMapperResult => {
+	// Pre-compute decoders once at prepare time, not per-row
+	const precomputed = precomputeSelection(selection);
+
 	return {
 		mapper: (rows: Record<string, unknown>[]) => {
 			const l = rows.length;
 			for (let i = 0; i < l; i++) {
-				rows[i] = mapRowInterpreted(rows[i]!, selection, parseJson);
+				rows[i] = mapRowInterpreted(rows[i]!, precomputed, parseJson);
 			}
 			return rows;
 		},

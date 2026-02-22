@@ -1,8 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { tracer } from '~/tracing.ts';
 import { applyMixins, type NeonAuthToken } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -23,26 +21,30 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
+	override _prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+		const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			).setToken(this.authToken);
-		});
+		const mapperResult = this.rowMapperGenerator(query.selection, this.parseJson);
+		const mapRows = mapperResult.mapper;
+		const isArrayMode = mapperResult.isArrayMode;
+		const mode = this.mode;
+
+		return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
+			builtQuery,
+			undefined,
+			name,
+			(rawRows: unknown[][] | Record<string, unknown>[]) => {
+				const rows = mapRows(rawRows as any) as TResult[];
+				if (mode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			},
+			isArrayMode,
+		).setToken(this.authToken);
 	}
 
-	prepare(name: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	override prepare(name: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name);
 	}
 
@@ -55,9 +57,7 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): Promise<TResult> {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
+		return this._prepare().execute(placeholderValues);
 	}
 }
 

@@ -22,6 +22,7 @@ type SpanName =
 
 /** @internal */
 export const tracer = {
+	enabled: false as boolean, // Set to true when otel is loaded
 	startActiveSpan<F extends (span?: Span) => unknown>(name: SpanName, fn: F): ReturnType<F> {
 		if (!otel) {
 			return fn() as ReturnType<F>;

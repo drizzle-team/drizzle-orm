@@ -26,9 +26,18 @@ export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): valu
 		);
 	}
 
-	let cls = Object.getPrototypeOf(value).constructor;
+	// Fast path: check the constructor's entityKind directly
+	// This avoids prototype chain traversal in the common case
+	const constructor = value.constructor;
+	if (constructor && entityKind in constructor && constructor[entityKind] === type[entityKind]) {
+		return true;
+	}
+
+	// Slow path: traverse the prototype chain for inherited entityKind
+	let cls = Object.getPrototypeOf(value)?.constructor;
 	if (cls) {
-		// Traverse the prototype chain to find the entityKind
+		// Skip the first constructor since we already checked it above
+		cls = Object.getPrototypeOf(cls);
 		while (cls) {
 			if (entityKind in cls && cls[entityKind] === type[entityKind]) {
 				return true;

@@ -40,9 +40,11 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use array mode for RQB V2 queries */
+		private useRqbArrayMode?: boolean,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
@@ -114,10 +116,14 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 
 		this.logger.logQuery(this.queryString, params);
 
-		const { rawQueryConfig, client, customResultMapper, queryString } = this;
+		const { rawQueryConfig, queryConfig, client, customResultMapper, queryString, useRqbArrayMode } = this;
+
+		if (useRqbArrayMode) {
+			const result = await client.query<unknown[]>(queryString, params, queryConfig);
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows as unknown[][]);
+		}
 
 		const result = await client.query<Record<string, unknown>>(queryString, params, rawQueryConfig);
-
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 	}
 
@@ -193,7 +199,8 @@ export class PgliteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
@@ -206,8 +213,9 @@ export class PgliteSession<
 			fields,
 			name,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 

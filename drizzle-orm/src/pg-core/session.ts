@@ -2,6 +2,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
+import type { NeonAuthToken } from '~/utils.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
@@ -43,6 +44,24 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 	): unknown;
 }
 
+/** @deprecated Use PgAsyncPreparedQuery or driver-specific prepared query class */
+export abstract class PgPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
+	static override readonly [entityKind]: string = 'PgPreparedQuery';
+
+	/** @internal */
+	protected authToken?: NeonAuthToken;
+
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
+	abstract override execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	/** @internal */
+	abstract override all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
+}
+
 export interface PgTransactionConfig {
 	isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
 	accessMode?: 'read only' | 'read write';
@@ -71,10 +90,9 @@ export abstract class PgSession {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		/** When true, the driver should use .values() mode and pass arrays to the mapper */
+		useArrayMode?: boolean,
 	): PgBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;

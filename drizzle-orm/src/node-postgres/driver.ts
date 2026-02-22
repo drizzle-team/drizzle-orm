@@ -65,6 +65,8 @@ function construct<
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
+		false,
+		config.rowMapperGenerator,
 	) as NodePgDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

@@ -6,6 +6,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
+import type { RowMapperGenerator } from './row-mappers/index.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
@@ -261,6 +262,7 @@ export interface DrizzleConfig<
 	casing?: Casing;
 	relations?: TRelationConfigs;
 	cache?: Cache;
+	rowMapperGenerator?: RowMapperGenerator;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

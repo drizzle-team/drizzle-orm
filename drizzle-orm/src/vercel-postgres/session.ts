@@ -47,9 +47,11 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use rowMode: 'array' for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
@@ -171,7 +173,12 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 		this.logger.logQuery(this.rawQuery.text, params);
 
-		const { rawQuery, client, customResultMapper } = this;
+		const { rawQuery, queryConfig: arrayQuery, client, customResultMapper, useRqbArrayMode } = this;
+
+		if (useRqbArrayMode) {
+			const { rows } = await client.query(arrayQuery, params);
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
+		}
 
 		const { rows } = await client.query(rawQuery, params);
 
@@ -258,7 +265,8 @@ export class VercelPgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
 			this.client,
@@ -271,8 +279,9 @@ export class VercelPgSession<
 			fields,
 			name,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 

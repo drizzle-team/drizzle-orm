@@ -46,9 +46,11 @@ export class NeonHttpPreparedQuery<
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use arrayMode for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super(query, cache, queryMetadata, cacheConfig);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
@@ -112,7 +114,24 @@ export class NeonHttpPreparedQuery<
 
 		this.logger.logQuery(this.query.sql, params);
 
-		const { clientQuery, query, customResultMapper } = this;
+		const { clientQuery, query, customResultMapper, useRqbArrayMode } = this;
+
+		if (useRqbArrayMode) {
+			const result = await clientQuery(
+				query.sql,
+				params,
+				token === undefined
+					? queryConfig
+					: {
+						...queryConfig,
+						authToken: token,
+					},
+			);
+
+			const rows = (result as FullQueryResults<true>).rows;
+
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
+		}
 
 		const result = await clientQuery(
 			query.sql,
@@ -236,7 +255,8 @@ export class NeonHttpSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
@@ -247,8 +267,9 @@ export class NeonHttpSession<
 			undefined,
 			fields,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 

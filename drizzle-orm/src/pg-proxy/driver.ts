@@ -57,6 +57,8 @@ export function drizzle<
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
+		false,
+		config.rowMapperGenerator,
 	) as PgRemoteDatabase<TSchema, TRelations>;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

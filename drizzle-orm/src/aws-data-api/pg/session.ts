@@ -263,7 +263,8 @@ export class AwsDataApiSession<
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 		transactionId?: string,
 	): PgAsyncPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -278,7 +279,7 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[]) => T['execute'],
 			true,
 		);
 	}

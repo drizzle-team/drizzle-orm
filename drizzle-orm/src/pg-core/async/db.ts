@@ -8,6 +8,7 @@ import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { RowMapperGenerator } from '~/row-mappers/index.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -69,6 +70,7 @@ export class PgAsyncDatabase<
 		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
+		rowMapperGenerator?: RowMapperGenerator,
 	) {
 		this._ = schema
 			? {
@@ -115,6 +117,7 @@ export class PgAsyncDatabase<
 				session,
 				parseRqbJson,
 				PgAsyncRelationalQuery,
+				rowMapperGenerator,
 			);
 		}
 

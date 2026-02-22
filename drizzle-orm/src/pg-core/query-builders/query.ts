@@ -6,10 +6,12 @@ import type {
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
+import { defaultRowMapper, type RowMapperGenerator } from '~/row-mappers/index.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgSession } from '../session.ts';
+import type { PgBasePreparedQuery, PgSession, PreparedQueryConfig } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export interface PgRelationalQueryConstructor {
@@ -22,6 +24,7 @@ export interface PgRelationalQueryConstructor {
 		config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		parseJson: boolean,
+		rowMapperGenerator?: RowMapperGenerator,
 	): AnyPgRelationalQuery;
 }
 
@@ -42,6 +45,7 @@ export class RelationalQueryBuilder<
 		private session: PgSession,
 		private parseJson: boolean,
 		private builder: PgRelationalQueryConstructor = PgRelationalQuery,
+		private rowMapperGenerator: RowMapperGenerator = defaultRowMapper,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
@@ -56,6 +60,7 @@ export class RelationalQueryBuilder<
 			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
 			this.parseJson,
+			this.rowMapperGenerator,
 		);
 	}
 
@@ -71,6 +76,7 @@ export class RelationalQueryBuilder<
 			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
 			this.parseJson,
+			this.rowMapperGenerator,
 		);
 	}
 }
@@ -109,31 +115,36 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		protected config: DBQueryConfig<'many' | 'one'> | true,
 		protected mode: 'many' | 'first',
 		protected parseJson: boolean,
+		protected rowMapperGenerator: RowMapperGenerator = defaultRowMapper,
 	) {}
 
 	/** @internal */
-	_prepare(name?: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string): PgBasePreparedQuery {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
+			const { builtQuery, query } = this._toSQL();
+
+			const mapperResult = this.rowMapperGenerator(query.selection, this.parseJson);
+			const mapRows = mapperResult.mapper;
+			const isArrayMode = mapperResult.isArrayMode;
+			const mode = this.mode;
 
 			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
 				name,
-				(rows, mapColumnValue) => {
-					for (const row of rows) {
-						mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson);
-					}
-					if (this.mode === 'first') {
+				(rawRows: unknown[][] | Record<string, unknown>[]) => {
+					const rows = mapRows(rawRows as any) as TResult[];
+					if (mode === 'first') {
 						return rows[0] as TResult;
 					}
 					return rows as TResult;
 				},
+				isArrayMode,
 			);
 		});
 	}
 
-	prepare(name: string): PgPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	prepare(name: string): PgBasePreparedQuery {
 		return this._prepare(name);
 	}
 

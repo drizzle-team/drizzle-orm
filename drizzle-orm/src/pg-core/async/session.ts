@@ -14,10 +14,10 @@ import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
-import { PgBasePreparedQuery, PgSession } from '../session.ts';
+import { PgPreparedQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
 
-export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
+export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
 	constructor(
@@ -42,9 +42,7 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extend
 	}
 
 	/** @internal */
-	protected authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
+	override setToken(token?: NeonAuthToken) {
 		this.authToken = token;
 		return this;
 	}
@@ -145,9 +143,9 @@ export abstract class PgAsyncSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
+			rows: Record<string, unknown>[] | unknown[][],
 		) => T['execute'],
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T>;
 
 	override execute<T>(query: SQL): Promise<T>;

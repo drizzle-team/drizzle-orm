@@ -893,12 +893,17 @@ export class PgDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, useAlias: boolean) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
 			const targetType = column.columnType;
 			// Get dimension count directly from PgColumn.dimensions
 			const dimensionCnt = is(column, PgColumn) ? column.dimensions : 0;
+
+			const columnName = this.casing.getColumnCasing(column);
+			const needsAlias = useAlias || columnName !== key;
+			const name = useAlias
+				? sql`${table}.${sql.identifier(columnName)}`
+				: sql`${sql.identifier(columnName)}`;
 
 			switch (targetType) {
 				case 'PgNumeric':
@@ -925,7 +930,7 @@ export class PgDialect {
 					} as ${sql.identifier(key)}`;
 				}
 				default: {
-					return sql`${name} as ${sql.identifier(key)}`;
+					return needsAlias ? sql`${name} as ${sql.identifier(key)}` : name;
 				}
 			}
 		}
@@ -939,7 +944,11 @@ export class PgDialect {
 		} as ${sql.identifier(key)}`;
 	}
 
-	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
+	private unwrapAllColumns = (
+		table: Table | View,
+		selection: BuildRelationalQueryResult['selection'],
+		useAlias: boolean,
+	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
@@ -947,7 +956,7 @@ export class PgDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, useAlias);
 			}),
 			sql`, `,
 		);
@@ -956,7 +965,8 @@ export class PgDialect {
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
-		config?: DBQueryConfig<'many'>,
+		config: DBQueryConfig<'many'> | undefined,
+		useAlias: boolean,
 	) =>
 		config?.columns
 			? (() => {
@@ -972,7 +982,7 @@ export class PgDialect {
 					if (v) {
 						const column = columnContainer[k];
 						columnIdentifiers.push(
-							this.buildRqbColumn(table, column, k),
+							this.buildRqbColumn(table, column, k, useAlias),
 						);
 
 						selection.push({
@@ -985,7 +995,7 @@ export class PgDialect {
 				if (colSelectionMode === false) {
 					for (const [k, v] of Object.entries(columnContainer)) {
 						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(this.buildRqbColumn(table, v, k));
+						columnIdentifiers.push(this.buildRqbColumn(table, v, k, useAlias));
 
 						selection.push({
 							key: k,
@@ -998,7 +1008,7 @@ export class PgDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, useAlias);
 
 	buildRelationalQuery({
 		schema,
@@ -1041,20 +1051,21 @@ export class PgDialect {
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
-		const columns = this.buildColumns(table, selection, params);
+
+		// Detect if we have joins before building columns
+		const withEntries = params
+			? Object.entries((params as WithContainer).with ?? {}).filter(([_, v]) => v)
+			: [];
+		const hasJoins = withEntries.length > 0 || currentDepth > 0 || throughJoin !== undefined;
+
+		const columns = this.buildColumns(table, selection, params, hasJoins);
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
 
-		const joins = params
+		const joins = withEntries.length
 			? (() => {
-				const { with: joins } = params as WithContainer;
-				if (!joins) return;
-
-				const withEntries = Object.entries(joins).filter(([_, v]) => v);
-				if (!withEntries.length) return;
-
 				return sql.join(
 					withEntries.map(([k, join]) => {
 						// if (is(tableConfig.relations[k]!, AggregatedField)) {

@@ -191,7 +191,7 @@ export class GelDbSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
 	): GelDbPreparedQuery<T, true> {
 		return new GelDbPreparedQuery(
 			this.client,

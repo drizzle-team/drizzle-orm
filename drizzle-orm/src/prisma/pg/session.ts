@@ -4,8 +4,13 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
-import type { PgDialect } from '~/pg-core/index.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type {
+	PgDialect,
+	PgQueryResultHKT,
+	PgTransactionConfig,
+	PreparedQueryConfig,
+	SelectedFieldsOrdered,
+} from '~/pg-core/index.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
@@ -63,10 +68,12 @@ export class PrismaPgSession extends PgAsyncSession {
 	}
 
 	override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		// query: Query,
+		_query: Query,
+		_fields: SelectedFieldsOrdered | undefined,
+		_name: string | undefined,
+		_customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
 	): PgAsyncPreparedQuery<T> {
 		throw new Error('Method not implemented.');
-		// return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
 	}
 
 	override transaction<T>(

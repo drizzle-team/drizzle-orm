@@ -42,9 +42,11 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use responseType: 'array' for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super(query, cache, queryMetadata, cacheConfig);
 	}
@@ -80,7 +82,18 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 		this.logger.logQuery(this.query.sql, params);
 
-		const { client, query, customResultMapper } = this;
+		const { client, query, customResultMapper, useRqbArrayMode } = this;
+
+		if (useRqbArrayMode) {
+			const { warning, rows } = await client.sql({
+				statement: query.sql,
+				params,
+				responseType: 'array',
+			});
+			if (warning) console.warn(warning);
+
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
+		}
 
 		const { warning, records } = await client.sql<Record<string, any>>({
 			statement: query.sql,
@@ -175,7 +188,8 @@ export class XataHttpSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
@@ -186,8 +200,9 @@ export class XataHttpSession<
 			undefined,
 			fields,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 

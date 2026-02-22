@@ -47,9 +47,11 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+			rows: TIsRqbV2 extends true ? (Record<string, unknown>[] | unknown[][]) : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		/** When true, use rowMode: 'array' for RQB V2 queries to get array-based rows */
+		private useRqbArrayMode?: boolean,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
@@ -170,11 +172,16 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 		this.logger.logQuery(this.rawQueryConfig.text, params);
 
-		const { client, rawQueryConfig: rawQuery, customResultMapper } = this;
+		const { client, rawQueryConfig: rawQuery, queryConfig: arrayQuery, customResultMapper, useRqbArrayMode } = this;
+
+		if (useRqbArrayMode) {
+			const result = await client.query(arrayQuery, params);
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows);
+		}
 
 		const result = await client.query(rawQuery, params);
 
-		return customResultMapper!(result.rows);
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -257,7 +264,8 @@ export class NeonSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: ((rows: Record<string, unknown>[]) => T['execute']) | ((rows: unknown[][]) => T['execute']),
+		useArrayMode?: boolean,
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
@@ -270,8 +278,9 @@ export class NeonSession<
 			fields,
 			name,
 			false,
-			customResultMapper,
+			customResultMapper as (rows: Record<string, unknown>[] | unknown[][]) => T['execute'],
 			true,
+			useArrayMode,
 		);
 	}
 
