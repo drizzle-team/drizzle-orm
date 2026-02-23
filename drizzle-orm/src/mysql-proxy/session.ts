@@ -136,12 +136,9 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		logger.logQuery(queryString, params);
 
 		if (!fields && !customResultMapper) {
-			const { rows: data } = await this.queryWithCache(queryString, params, async () => {
+			const { rows, insertId, affectedRows } = await this.queryWithCache(queryString, params, async () => {
 				return await client(queryString, params, 'execute');
 			});
-
-			const insertId = data[0].insertId as number;
-			const affectedRows = data[0].affectedRows;
 
 			if (returningIds) {
 				const returningResponse = [];
@@ -166,7 +163,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 				return returningResponse;
 			}
 
-			return data;
+			return rows;
 		}
 
 		const { rows } = await this.queryWithCache(queryString, params, async () => {
