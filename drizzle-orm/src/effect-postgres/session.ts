@@ -15,7 +15,7 @@ import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts
 import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
@@ -30,6 +30,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	extends PgEffectPreparedQuery<T, EffectPgQueryEffectHKT>
 {
 	static override readonly [entityKind]: string = 'EffectPgPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: PgClient,
@@ -79,7 +80,11 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 					}
 
-					return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
+					return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						rows as unknown[][],
+						fields!,
+						joinsNotNullableMap,
+					);
 				},
 			));
 		}).pipe(Effect.provideService(EffectLogger, this.logger));

@@ -18,7 +18,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import type { TursoDatabaseRunResult } from './driver-core.ts';
 
 export interface TursoDatabaseSessionOptions {
@@ -217,6 +217,7 @@ export class TursoDatabasePreparedQuery<
 	}
 > {
 	static override readonly [entityKind]: string = 'TursoDatabasePreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private stmt: ReturnType<DatabasePromise['prepare']>,
@@ -263,7 +264,11 @@ export class TursoDatabasePreparedQuery<
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -299,7 +304,11 @@ export class TursoDatabasePreparedQuery<
 
 		if (row === undefined) return row;
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			[row],
+			fields!,
+			joinsNotNullableMap,
+		)[0];
 	}
 
 	private async getRqbV2(placeholderValues?: Record<string, unknown>) {

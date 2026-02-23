@@ -13,7 +13,7 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
 
@@ -32,6 +32,7 @@ export class NeonHttpPreparedQuery<
 > extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -141,7 +142,11 @@ export class NeonHttpPreparedQuery<
 			return (this.customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			rows,
+			this.fields!,
+			this.joinsNotNullableMap,
+		);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {

@@ -11,7 +11,7 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryWithTypings } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
@@ -116,6 +116,7 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -177,9 +178,15 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? customResultMapper(rows)
-					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
+				}
+
+				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+					rows,
+					fields!,
+					joinsNotNullableMap,
+				);
 			});
 		});
 	}

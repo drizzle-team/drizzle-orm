@@ -19,7 +19,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
@@ -204,6 +204,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 	>
 {
 	static override readonly [entityKind]: string = 'D1PreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	/** @internal */
 	fields?: SelectedFieldsOrdered;
@@ -282,13 +283,17 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 		}
 
-		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			rows as unknown[][],
+			this.fields!,
+			this.joinsNotNullableMap,
+		);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
 
-		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
+		const { fields, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
@@ -307,7 +312,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
-		return mapResultRow(fields!, rows[0], joinsNotNullableMap);
+		return this.mapGetResult(rows[0]);
 	}
 
 	private async getRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -337,7 +342,11 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)([result as unknown[]]) as T['all'];
 		}
 
-		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			[result as unknown[]],
+			this.fields!,
+			this.joinsNotNullableMap,
+		)[0];
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {

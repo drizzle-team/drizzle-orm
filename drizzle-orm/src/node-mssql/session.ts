@@ -18,7 +18,7 @@ import {
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
@@ -29,6 +29,7 @@ export class NodeMsSqlPreparedQuery<
 	T extends PreparedQueryConfig,
 > extends PreparedQuery<T> {
 	static override readonly [entityKind]: string = 'NodeMsSqlPreparedQuery';
+	private jitMapper?: JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
 
 	private rawQuery: {
 		sql: string;
@@ -84,7 +85,11 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return rows.recordset.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows.recordset,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	async *iterator(
@@ -149,11 +154,11 @@ export class NodeMsSqlPreparedQuery<
 							const mappedRow = customResultMapper([row as unknown[]]);
 							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
 						} else {
-							yield mapResultRow(
+							yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+								[row as unknown[]],
 								fields!,
-								row as unknown[],
 								joinsNotNullableMap,
-							);
+							)[0] as T['execute'];
 						}
 					} else {
 						yield row as T['execute'];

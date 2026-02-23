@@ -14,7 +14,7 @@ import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 const { Pool, types } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
@@ -23,6 +23,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -179,9 +180,15 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
-					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+				}
+
+				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+					result.rows,
+					fields!,
+					joinsNotNullableMap,
+				);
 			});
 		});
 	}

@@ -8,7 +8,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
@@ -24,6 +24,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 
 	private rawQueryConfig: QueryOptions;
 	private queryConfig: QueryOptions;
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: PgliteClient | Transaction,
@@ -104,9 +105,15 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			return await client.query<any[]>(queryString, params, queryConfig);
 		});
 
-		return customResultMapper
-			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
-			: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+		}
+
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			result.rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

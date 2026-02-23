@@ -13,13 +13,14 @@ import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export class PostgresJsPreparedQuery<
 	T extends PreparedQueryConfig,
 	TIsRqbV2 extends boolean = false,
 > extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: Sql,
@@ -75,9 +76,15 @@ export class PostgresJsPreparedQuery<
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? (customResultMapper as (rows: unknown[][]) => T['execute'])(rows)
-					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
+				}
+
+				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+					rows,
+					fields!,
+					joinsNotNullableMap,
+				);
 			});
 		});
 	}

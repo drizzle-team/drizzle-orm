@@ -17,7 +17,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
@@ -29,6 +29,7 @@ export class AwsDataApiPreparedQuery<
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: AwsDataApiClient,
@@ -95,9 +96,15 @@ export class AwsDataApiPreparedQuery<
 			return Object.assign(result, { rows: mappedRows });
 		}
 
-		return customResultMapper
-			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows!)
-			: result.rows!.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+		}
+
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			result.rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

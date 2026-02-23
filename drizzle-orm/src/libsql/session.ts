@@ -18,7 +18,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
@@ -210,6 +210,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	>
 {
 	static override readonly [entityKind]: string = 'LibSQLPreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private client: Client,
@@ -292,13 +293,11 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['all'];
 		}
 
-		return (rows as unknown[]).map((row) => {
-			return mapResultRow(
-				this.fields!,
-				Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
-				this.joinsNotNullableMap,
-			);
-		});
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			(rows as unknown[][]).map((row) => Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))),
+			this.fields!,
+			this.joinsNotNullableMap,
+		);
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -359,11 +358,11 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['get'];
 		}
 
-		return mapResultRow(
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			[Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))],
 			this.fields!,
-			Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
 			this.joinsNotNullableMap,
-		);
+		)[0];
 	}
 
 	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
