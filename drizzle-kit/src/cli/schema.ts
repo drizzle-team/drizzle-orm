@@ -49,8 +49,8 @@ const optionCasing = string()
 	.enum('camelCase', 'snake_case')
 	.desc('Casing for serialization');
 const optionIgnoreConflicts = boolean('ignore-conflicts')
-	.desc('Skip commutativity conflict checks')
-	.default(false);
+	.desc('Skip commutativity conflict checks');
+// .default(false);
 
 export const generate = command({
 	name: 'generate',

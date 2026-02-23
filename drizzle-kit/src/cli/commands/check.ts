@@ -29,55 +29,38 @@ const headerBadge = (conflicts: UnifiedBranchConflict[]): string => {
 	);
 };
 
-const footer = (): string[] => {
-	return [
-		'',
-		chalk.gray('Please refer to our guide on how to resolve such conflicts:'),
-		chalk.bold.underline.blue('https://orm.drizzle.team/docs/migrations'),
-		'',
-	];
-};
-
-export const renderSuccess = (): string => {
-	return `\n[${chalk.green('✓')}] All migrations are commutative. No conflicts detected.\n`;
-};
-
 export const renderReportDirectory = (
 	report: NonCommutativityReport,
 ): string => {
 	const { conflicts } = report;
 	const lines: string[] = ['', headerBadge(conflicts), ''];
 
-	// Group conflicts by parentId so we can render N branches per parent
-	const byParent = new Map<string, UnifiedBranchConflict[]>();
+	// Group conflicts by parentId
+	const byParent: Record<string, UnifiedBranchConflict[]> = {};
 	for (const c of conflicts) {
-		const key = c.parentId;
-		if (!byParent.has(key)) byParent.set(key, []);
-		byParent.get(key)!.push(c);
+		(byParent[c.parentId] ??= []).push(c);
 	}
 
-	const parentEntries = [...byParent.entries()];
+	const parentEntries = Object.entries(byParent);
 
 	for (let p = 0; p < parentEntries.length; p++) {
 		const [parentId, parentConflicts] = parentEntries[p];
 		const parentLabel = parentConflicts[0].parentPath ?? parentId;
 
-		// Collect all unique branches (dedupe by leaf id)
+		// Collect unique branches, dedupe by leaf id
 		const branches: { chain: MigrationNode[]; descriptions: string[] }[] = [];
-		const seenLeafs = new Map<string, number>(); // leaf id -> index in branches
+		const seenLeafs: Record<string, number> = {};
 
 		for (const c of parentConflicts) {
 			for (const branch of [c.branchA, c.branchB]) {
 				const leafId = branch.chain[branch.chain.length - 1]?.id ?? '';
-				if (seenLeafs.has(leafId)) {
-					const idx = seenLeafs.get(leafId)!;
-					if (
-						!branches[idx].descriptions.includes(branch.statementDescription)
-					) {
-						branches[idx].descriptions.push(branch.statementDescription);
+				if (leafId in seenLeafs) {
+					const descs = branches[seenLeafs[leafId]].descriptions;
+					if (!descs.includes(branch.statementDescription)) {
+						descs.push(branch.statementDescription);
 					}
 				} else {
-					seenLeafs.set(leafId, branches.length);
+					seenLeafs[leafId] = branches.length;
 					branches.push({
 						chain: branch.chain,
 						descriptions: [branch.statementDescription],
@@ -86,57 +69,42 @@ export const renderReportDirectory = (
 			}
 		}
 
-		// Parent node (root of this group)
 		lines.push(`  ${chalk.white(parentLabel)}`);
 
 		for (let b = 0; b < branches.length; b++) {
-			const branch = branches[b];
-			const isLastBranch = b === branches.length - 1;
-			const branchPrefix = isLastBranch ? '    ' : '│   ';
+			const { chain, descriptions } = branches[b];
+			const isLast = b === branches.length - 1;
+			const prefix = isLast ? '    ' : '│   ';
 
-			// Render each migration in the chain on its own line
-			for (let m = 0; m < branch.chain.length; m++) {
-				const node = branch.chain[m];
-				const isFirstInChain = m === 0;
-				const isLeaf = m === branch.chain.length - 1;
+			for (let m = 0; m < chain.length; m++) {
+				const label = m === chain.length - 1
+					? chalk.red.bold(chain[m].path)
+					: chalk.green(chain[m].path);
 
-				const label = isLeaf
-					? chalk.red.bold(node.path)
-					: chalk.green(node.path);
-
-				if (isFirstInChain) {
-					// First migration gets the branch connector (├── or └──)
-					const connector = isLastBranch ? '└──' : '├──';
-					lines.push(`  ${chalk.gray(connector)} ${label}`);
-				} else {
-					// Subsequent migrations: plain text under the branch prefix, no connector
-					lines.push(`  ${chalk.gray(branchPrefix)}${label}`);
-				}
+				lines.push(
+					m === 0
+						? `  ${chalk.gray(isLast ? '└──' : '├──')} ${label}`
+						: `  ${chalk.gray(prefix)}${label}`,
+				);
 			}
 
-			// Conflict descriptions beneath the chain with single-dash connectors
-			for (let d = 0; d < branch.descriptions.length; d++) {
-				const isLastDesc = d === branch.descriptions.length - 1;
-				const descConnector = isLastDesc ? '└─' : '├─';
+			for (let d = 0; d < descriptions.length; d++) {
+				const connector = d === descriptions.length - 1 ? '└─' : '├─';
 				lines.push(
-					`  ${chalk.gray(branchPrefix)}${chalk.gray(descConnector)} ${chalk.yellow('⚠')} ${
-						chalk.yellow(
-							branch.descriptions[d],
-						)
-					}`,
+					`  ${chalk.gray(prefix)}${chalk.gray(connector)} ${chalk.yellow('⚠')} ${chalk.yellow(descriptions[d])}`,
 				);
 			}
 		}
 
-		// Add spacing between parent groups
 		if (p < parentEntries.length - 1) lines.push('');
 	}
 
-	lines.push(...footer());
+	lines.push(
+		chalk.gray('\nPlease refer to our guide on how to resolve such conflicts:'),
+		chalk.bold.underline.blue('https://orm.drizzle.team/docs/migrations'),
+	);
 	return lines.join('\n');
 };
-
-// ─── Handler ─────────────────────────────────────────────────────────────────
 
 export const checkHandler = async (
 	out: string,
@@ -178,7 +146,6 @@ export const checkHandler = async (
 	try {
 		const response = await detectNonCommutative(snapshots, dialect);
 		if (response.conflicts.length === 0) {
-			// render(renderSuccess());
 			return;
 		}
 
