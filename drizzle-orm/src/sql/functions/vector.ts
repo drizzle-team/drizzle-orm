@@ -69,7 +69,9 @@ export function l1Distance(
 }
 
 /**
- * Used in sorting and in querying, if used in sorting,
+ * Returns the negative inner product since Postgres only supports ASC order
+ * index scans on operators. See: https://neon.tech/docs/extensions/pgvector
+ * Used in sorting and in querying. If used in sorting,
  * this specifies that the given column or expression should be sorted in an order
  * that minimizes the inner product distance to the given value.
  * If used in querying, this specifies that it should return the inner product distance
