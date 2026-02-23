@@ -516,8 +516,8 @@ describe('commutativity integration (mysql)', () => {
 
 		const report = await detectNonCommutative(files, 'mysql');
 		expect(report.conflicts.length).toBe(1);
-		expect(report.conflicts[0].branchA.headId).toStrictEqual('a_drop');
-		expect(report.conflicts[0].branchB.headId).toStrictEqual('b_drop');
+		expect(report.conflicts[0].branchA.chain[report.conflicts[0].branchA.chain.length - 1].id).toStrictEqual('a_drop');
+		expect(report.conflicts[0].branchB.chain[report.conflicts[0].branchB.chain.length - 1].id).toStrictEqual('b_drop');
 	});
 
 	test('unique constraint same name on same table', async () => {

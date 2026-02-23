@@ -1,22 +1,11 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname } from 'path';
 import { assertUnreachable } from '../../utils';
+import type { NonCommutativityReport, UnifiedBranchConflict } from '../../utils/commutativity';
 import { createDDL, type MysqlDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySnapshot, type MysqlSnapshot } from './snapshot';
 import type { JsonStatement } from './statements';
-
-export type BranchConflict = {
-	parentId: string;
-	parentPath?: string;
-	branchA: { headId: string; path: string; statement: JsonStatement };
-	branchB: { headId: string; path: string; statement: JsonStatement };
-};
-
-export type MySQLNonCommutativityReport = {
-	conflicts: BranchConflict[];
-	leafNodes: string[]; // IDs of all leaf nodes (terminal nodes with no children)
-};
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
@@ -171,6 +160,36 @@ function extractStatementInfo(
 	}
 
 	return { action, schema, objectName, columnName };
+}
+
+// Actions that target schema-level entities (tables, views) — use "in <schema>"
+const schemaLevelActions = new Set([
+	'create_table',
+	'drop_table',
+	'rename_table',
+	'create_view',
+	'drop_view',
+	'alter_view',
+	'rename_view',
+]);
+
+function describeStatement(statement: JsonStatement): string {
+	const info = extractStatementInfo(statement);
+
+	if (schemaLevelActions.has(info.action)) {
+		// Schema-level entity: "create_table: <name> in <schema>"
+		const container = info.schema || 'database';
+		return `${info.action}: ${info.objectName} in ${container}`;
+	}
+
+	// Sub-table entity (column, index, pk, fk, check, constraint)
+	if (info.columnName) {
+		// Column-level: "add_column: <column> on <table> table"
+		return `${info.action}: ${info.columnName} on ${info.objectName} table`;
+	}
+
+	// Table-child without column name (index, pk, fk, check): "create_index on <table> table"
+	return `${info.action} on ${info.objectName} table`;
 }
 
 export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [string[], string[]] {
@@ -336,7 +355,7 @@ export const getReasonsFromStatements = async (
 
 export const detectNonCommutative = async (
 	snapshots: string[],
-): Promise<MySQLNonCommutativityReport> => {
+): Promise<NonCommutativityReport> => {
 	const nodes = buildSnapshotGraph<MysqlSnapshot>(snapshots);
 
 	// Build parent -> children mapping (a child can have multiple parents)
@@ -349,7 +368,7 @@ export const detectNonCommutative = async (
 		}
 	}
 
-	const conflicts: BranchConflict[] = [];
+	const conflicts: UnifiedBranchConflict[] = [];
 
 	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
 		if (childIds.length <= 1) continue;
@@ -386,12 +405,20 @@ export const detectNonCommutative = async (
 						const intersectedHashed = await getReasonsFromStatements(aStatements, bStatements, parentSnapshot);
 
 						if (intersectedHashed) {
-							// parentId and parentPath is a head of a branched leaves
+							const chainA = buildChain(nodes, prevToChildren, childIds[i], aId);
+							const chainB = buildChain(nodes, prevToChildren, childIds[j], bId);
+
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
-								branchA: { headId: aId, path: leafStatements[aId]!.path, statement: intersectedHashed.leftStatement },
-								branchB: { headId: bId, path: leafStatements[bId]!.path, statement: intersectedHashed.rightStatement },
+								branchA: {
+									chain: chainA,
+									statementDescription: describeStatement(intersectedHashed.leftStatement),
+								},
+								branchB: {
+									chain: chainB,
+									statementDescription: describeStatement(intersectedHashed.rightStatement),
+								},
 							});
 						}
 					}
@@ -454,6 +481,46 @@ function collectLeaves<TSnapshot extends { id: string; prevIds: string[] }>(
 		}
 	}
 	return leaves;
+}
+
+/**
+ * Build an ordered chain of migration nodes from `startId` to `targetId`
+ * by following the parent->children map. Returns the path as MigrationNode[].
+ */
+function buildChain<TSnapshot extends { id: string; prevIds: string[] }>(
+	graph: Record<string, SnapshotNode<TSnapshot>>,
+	prevToChildren: Record<string, string[]>,
+	startId: string,
+	targetId: string,
+): { id: string; path: string }[] {
+	const queue: string[][] = [[startId]];
+	const visited = new Set<string>();
+
+	while (queue.length > 0) {
+		const path = queue.shift()!;
+		const current = path[path.length - 1];
+
+		if (current === targetId) {
+			return path.map((id) => ({
+				id,
+				path: graph[id]?.folderPath ?? id,
+			}));
+		}
+
+		if (visited.has(current)) continue;
+		visited.add(current);
+
+		const children = prevToChildren[current] ?? [];
+		for (const child of children) {
+			if (!visited.has(child)) {
+				queue.push([...path, child]);
+			}
+		}
+	}
+
+	// Fallback: if no path found (shouldn't happen), return just the leaf
+	const leafNode = graph[targetId];
+	return [{ id: targetId, path: leafNode?.folderPath ?? targetId }];
 }
 
 async function diff(
