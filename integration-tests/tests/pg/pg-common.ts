@@ -3271,6 +3271,17 @@ export function tests() {
 				})()).rejects.toThrowError(TransactionRollbackError);
 			});
 
+			await db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 100 });
+
+				await expect((async () => {
+					await tx.transaction(async (tx) => {
+						await tx.update(users).set({ balance: 200 });
+						tx.rollback(new Error("my custom error"));
+					});
+				})()).rejects.toThrowError(new Error("my custom error"));
+			});
+
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([{ id: 1, balance: 100 }]);
