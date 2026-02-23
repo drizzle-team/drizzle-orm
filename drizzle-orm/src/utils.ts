@@ -77,6 +77,110 @@ export function mapResultRow<TResult>(
 }
 
 /** @internal */
+function makeJitQueryMapperInner(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
+): string {
+	let fn = [];
+	if (joinsNotNullableMap) fn.push(`const nullifyMap = {};`);
+
+	const initializedPaths = new Set<string>();
+
+	for (const [idx, { path: pathArr, field, codec }] of columns.entries()) {
+		const pathPrefix = pathArr.slice(0, -1);
+		const path = pathArr.map((e) => `[${JSON.stringify(e)}]`).join('');
+
+		let processedPath;
+		for (const p of pathPrefix) {
+			processedPath = processedPath ? `${p}[${JSON.stringify(p)}]` : JSON.stringify(p);
+			if (initializedPaths.has(processedPath)) continue;
+			fn.push(`res[${processedPath}] = {};`);
+			initializedPaths.add(processedPath);
+		}
+
+		let decoder: DriverValueDecoder<unknown, unknown>;
+		let decoderStr: string;
+		if (is(field, Column)) {
+			decoder = field;
+			decoderStr = `columns[${idx}].field.mapFromDriverValue`;
+		} else if (is(field, SQL)) {
+			decoder = field.decoder;
+			decoderStr = `columns[${idx}].field.decoder.mapFromDriverValue`;
+		} else if (is(field, Subquery)) {
+			decoder = field._.sql.decoder;
+			decoderStr = `columns[${idx}].field._.sql.decoder.mapFromDriverValue`;
+		} else {
+			decoder = field.sql.decoder;
+			decoderStr = `columns[${idx}].field.sql.decoder.mapFromDriverValue`;
+		}
+		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
+		const rowStr = `rows[i][${idx}]`;
+
+		fn.push(
+			`	res${path} = ${rowStr} === null ? ${rowStr} : ${
+				decoderStr
+					? `${decoderStr}(${codec ? `columns[${idx}].codec(${rowStr}, columns[${idx}].arrayDimensions)` : rowStr})`
+					: codec
+					? `columns[${idx}].codec(${rowStr}, columns[${idx}].arrayDimensions)`
+					: rowStr
+			};`,
+		);
+
+		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
+			const objectName = JSON.stringify(pathArr[0]!);
+			fn.push(
+				`if (!(${objectName} in nullifyMap)) {`,
+				`	nullifyMap[${objectName}] = res${path} === null ? this.getTableName(columns[${idx}].field.table) : false;`,
+				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== this.getTableName(columns[${idx}].field.table)) {`,
+				`	nullifyMap[${objectName}] = false;`,
+				`}`,
+			);
+		}
+	}
+
+	if (joinsNotNullableMap) {
+		fn.push(
+			`if(Object.keys(nullifyMap).length) {`,
+			`	for (const [objectName, tableName] of Object.entries(nullifyMap)) {`,
+			`		if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {`,
+			`			res[objectName] = null;`,
+			`		}`,
+			`	}`,
+			`}`,
+		);
+	}
+
+	return fn.join('\n');
+}
+
+export type JitMapper<TResult = Record<string, unknown>[]> = (
+	rows: unknown[][],
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
+) => TResult;
+
+/** @internal */
+export function makeJitQueryMapper<TResult>(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
+): JitMapper<TResult> {
+	return new Function(
+		'rows',
+		'columns',
+		'joinsNotNullableMap',
+		`const mapped = [];
+		for (let i = 0; i < rows.length; ++i) {
+			const res = {};
+			${makeJitQueryMapperInner(columns, joinsNotNullableMap)} 
+			mapped[i] = res;
+		}
+		return mapped;`,
+	).bind({
+		getTableName,
+	}) as any;
+}
+
+/** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
