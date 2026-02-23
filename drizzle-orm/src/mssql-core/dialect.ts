@@ -14,7 +14,7 @@ import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/mssql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
@@ -73,7 +73,6 @@ export class MsSqlDialect {
 				hash text NOT NULL,
 				created_at bigint,
 				name text,
-				version int,
 				applied_at datetime2 NOT NULL DEFAULT GETUTCDATE()
 			)
 		`;
@@ -104,7 +103,7 @@ export class MsSqlDialect {
 			await session.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ([hash], [created_at], [name], [version]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} ([hash], [created_at], [name]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
 
 			return;
@@ -119,7 +118,7 @@ export class MsSqlDialect {
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ([hash], [created_at], [name], [version]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ([hash], [created_at], [name]) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		});

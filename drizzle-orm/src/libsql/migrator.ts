@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { LibSQLDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
@@ -22,8 +22,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			hash text NOT NULL,
 			created_at numeric,
 			name text,
-			version integer,
-			applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			applied_at TEXT
 		)
 	`;
 		await db.session.run(migrationTableCreate);
@@ -49,7 +48,9 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.run(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+				new Date().toISOString()
+			})`,
 		);
 
 		return;
@@ -66,7 +67,9 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.run(
 				sql`INSERT INTO ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+					new Date().toISOString()
+				})`,
 			),
 		);
 	}

@@ -2,7 +2,7 @@ import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -34,6 +34,7 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
+				name: key,
 			});
 		} catch {
 			throw new Error(`Failed to parse migration: ${key}`);
@@ -65,8 +66,7 @@ export function migrate<
 					hash text NOT NULL,
 					created_at numeric,
 					name text,
-					version integer,
-					applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+					applied_at TEXT
 				)
 			`;
 				db.run(migrationTableCreate);
@@ -92,7 +92,9 @@ export function migrate<
 				db.run(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+						new Date().toISOString()
+					})`,
 				);
 
 				return;
@@ -106,7 +108,9 @@ export function migrate<
 				db.run(
 					sql`INSERT INTO ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "applied_at") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 

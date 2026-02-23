@@ -10,7 +10,7 @@ import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/pg.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -260,8 +260,7 @@ export async function migrate(
 				hash text NOT NULL,
 				created_at bigint,
 				name text,
-				applied_at timestamp with time zone DEFAULT now(),
-				version integer
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
 		await session.execute(migrationTableCreate);
@@ -287,9 +286,7 @@ export async function migrate(
 		await session.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${
-				migration.name ?? null
-			}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name ?? null})`,
 		);
 
 		return;
@@ -304,9 +301,9 @@ export async function migrate(
 			await tx.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "version") values(${migration.hash}, ${migration.folderMillis}, ${
+				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
 					migration.name ?? null
-				}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				})`,
 			);
 		}
 	});

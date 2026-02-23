@@ -36,7 +36,7 @@ import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { CURRENT_MIGRATION_TABLE_VERSION, upgradeIfNeeded } from '~/up-migrations/mysql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -91,8 +91,7 @@ export class MySqlDialect {
 				hash TEXT NOT NULL,
 				created_at BIGINT,
 				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				version INT
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		`;
 			await session.execute(migrationTableCreate);
@@ -118,7 +117,7 @@ export class MySqlDialect {
 			await session.execute(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
 
 			return;
@@ -133,7 +132,7 @@ export class MySqlDialect {
 				await session.execute(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} (\`hash\`, \`created_at\`, \`name\`, \`version\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${CURRENT_MIGRATION_TABLE_VERSION})`,
+					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		});
