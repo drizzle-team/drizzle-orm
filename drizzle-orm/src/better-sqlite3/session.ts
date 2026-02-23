@@ -17,7 +17,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
@@ -147,6 +147,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	>
 {
 	static override readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private stmt: Statement,
@@ -189,7 +190,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		if (customResultMapper) {
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -213,7 +219,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
 		}
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			[row],
+			fields!,
+			joinsNotNullableMap,
+		)[0];
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {

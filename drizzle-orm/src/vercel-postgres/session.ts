@@ -20,7 +20,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
@@ -31,6 +31,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 	private rawQuery: QueryConfig;
 	private queryConfig: QueryArrayConfig;
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: VercelPgClient,
@@ -163,7 +164,11 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

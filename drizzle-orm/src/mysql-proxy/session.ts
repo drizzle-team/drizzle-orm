@@ -20,7 +20,7 @@ import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-c
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
@@ -146,6 +146,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 	extends PreparedQueryBase<T>
 {
 	static override readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -223,7 +224,11 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

@@ -15,7 +15,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
@@ -139,6 +139,7 @@ export class ExpoSQLitePreparedQuery<
 	{ type: 'sync'; run: SQLiteRunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'ExpoSQLitePreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private stmt: SQLiteStatement,
@@ -179,7 +180,12 @@ export class ExpoSQLitePreparedQuery<
 		if (customResultMapper) {
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
@@ -213,7 +219,11 @@ export class ExpoSQLitePreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
 		}
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			[rows],
+			fields!,
+			joinsNotNullableMap,
+		)[0];
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {

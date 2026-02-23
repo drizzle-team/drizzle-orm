@@ -33,7 +33,7 @@ import {
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
 
@@ -50,6 +50,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
+	private jitMapper?: JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
 
 	constructor(
 		private client: MySql2Client,
@@ -147,7 +148,11 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -200,7 +205,11 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+							yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+								[row as unknown[]],
+								fields!,
+								joinsNotNullableMap,
+							)[0] as T['execute'];
 						}
 					} else {
 						yield row as T['execute'];

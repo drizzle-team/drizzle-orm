@@ -18,12 +18,13 @@ import {
 } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	private rawQuery = { as: 'object' } as const;
 	private query = { as: 'array' } as const;
@@ -110,7 +111,11 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows as unknown[][],
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

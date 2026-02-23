@@ -17,7 +17,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
@@ -181,6 +181,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
 	private method: SQLiteExecuteMethod;
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -231,13 +232,11 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) as T['all'];
 		}
 
-		return (rows as unknown[][]).map((row) => {
-			return mapResultRow(
-				this.fields!,
-				row,
-				this.joinsNotNullableMap,
-			);
-		});
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			rows as unknown[][],
+			this.fields!,
+			this.joinsNotNullableMap,
+		);
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -311,11 +310,11 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) as T['get'];
 		}
 
-		return mapResultRow(
+		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+			[row as unknown[]],
 			this.fields!,
-			row as unknown[],
 			this.joinsNotNullableMap,
-		);
+		)[0];
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {

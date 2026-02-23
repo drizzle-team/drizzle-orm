@@ -12,7 +12,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export type XataHttpClient = {
 	sql: SQLPluginResult;
@@ -28,6 +28,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'XataHttpPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: XataHttpClient,
@@ -70,9 +71,15 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 		if (warning) console.warn(warning);
 
-		return customResultMapper
-			? (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][])
-			: rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
+		}
+
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

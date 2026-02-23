@@ -19,7 +19,7 @@ import {
 } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
@@ -28,6 +28,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'TiDBPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: Tx | Connection,
@@ -101,7 +102,11 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

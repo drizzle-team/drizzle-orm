@@ -20,7 +20,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
 
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
@@ -185,6 +185,7 @@ export class BunSQLitePreparedQuery<
 	}
 > {
 	static override readonly [entityKind]: string = 'BunSQLitePreparedQuery';
+	private jitMapper?: JitMapper<unknown[]>;
 
 	constructor(
 		private client: BunSQL,
@@ -240,7 +241,11 @@ export class BunSQLitePreparedQuery<
 			) => unknown)(rows);
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			rows,
+			fields!,
+			joinsNotNullableMap,
+		);
 	}
 
 	private async allRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['all']> {
@@ -281,7 +286,11 @@ export class BunSQLitePreparedQuery<
 		}
 
 		if (row === undefined) return row;
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+			[row],
+			fields!,
+			joinsNotNullableMap,
+		)[0];
 	}
 
 	private async getRqbV2(placeholderValues: Record<string, unknown> = {}) {
