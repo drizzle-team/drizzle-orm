@@ -1,12 +1,12 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import type { SQLiteD1Session } from '~/d1';
-import type { LibSQLSession } from '~/libsql';
-import type { MigrationMeta } from '~/migrator';
-import type { AnyRelations } from '~/relations';
+import type { SQLiteD1Session } from '~/d1/session.ts';
+import type { LibSQLSession } from '~/libsql/session.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { SQLiteCloudSession } from '~/sqlite-cloud';
-import type { SQLiteSession } from '~/sqlite-core';
-import type { SQLiteRemoteSession } from '~/sqlite-proxy';
+import type { SQLiteCloudSession } from '~/sqlite-cloud/session.ts';
+import type { SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLiteRemoteSession } from '~/sqlite-proxy/session.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
