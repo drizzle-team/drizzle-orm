@@ -505,7 +505,7 @@ export const fromDatabase = async (
 						)
 					ELSE NULL
 				END AS "metadata",
-				tc.hidden AS "isHidden"
+				tc.is_hidden AS "isHidden"
 			FROM
 				pg_attribute attr
 				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
