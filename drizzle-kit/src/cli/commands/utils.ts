@@ -142,7 +142,7 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
-		ignoreConflicts: options.ignoreConflicts,
+		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 	};
 };
 
