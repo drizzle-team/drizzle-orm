@@ -50,7 +50,6 @@ const optionCasing = string()
 	.desc('Casing for serialization');
 const optionIgnoreConflicts = boolean('ignore-conflicts')
 	.desc('Skip commutativity conflict checks');
-// .default(false);
 
 export const generate = command({
 	name: 'generate',
@@ -128,7 +127,7 @@ export const migrate = command({
 	},
 	transform: async (opts) => {
 		const migrateConf = await prepareMigrateConfig(opts.config);
-		return { ...migrateConf, ignoreConflicts: opts.ignoreConflicts };
+		return { ...migrateConf, ...(opts.ignoreConflicts !== undefined && { ignoreConflicts: opts.ignoreConflicts }) };
 	},
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
