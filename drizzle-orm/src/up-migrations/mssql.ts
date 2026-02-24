@@ -1,5 +1,5 @@
-import type { MigrationMeta } from '~/migrator';
-import type { MsSqlSession } from '~/mssql-core';
+import type { MigrationMeta } from '~/migrator.ts';
+import type { MsSqlSession } from '~/mssql-core/session.ts';
 import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;

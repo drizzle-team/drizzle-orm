@@ -1,6 +1,6 @@
 import { mysqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
-import { prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
 import type { MysqlDDL, SchemaError } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -10,21 +10,21 @@ export const prepareSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
 	casing: CasingType | undefined,
-): Promise<
-	{
-		ddlPrev: MysqlDDL;
-		ddlCur: MysqlDDL;
-		snapshot: MysqlSnapshot;
-		snapshotPrev: MysqlSnapshot;
-		custom: MysqlSnapshot;
-		errors2: SchemaError[];
-	}
-> => {
+): Promise<{
+	ddlPrev: MysqlDDL;
+	ddlCur: MysqlDDL;
+	snapshot: MysqlSnapshot;
+	snapshotPrev: MysqlSnapshot;
+	custom: MysqlSnapshot;
+	errors2: SchemaError[];
+}> => {
 	const { readFileSync } = await import('fs');
 	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
-		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
+		: snapshotValidator.strict(
+			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
+		);
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
@@ -33,11 +33,7 @@ export const prepareSnapshot = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const interim = fromDrizzleSchema(
-		res.tables,
-		res.views,
-		casing,
-	);
+	const interim = fromDrizzleSchema(res.tables, res.views, casing);
 
 	// TODO: errors
 	// if (warnings.length > 0) {
@@ -57,7 +53,7 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevIds = [prevSnapshot.id];
+	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
 
 	const snapshot = {
 		version: '6',
@@ -68,7 +64,11 @@ export const prepareSnapshot = async (
 		renames: [],
 	} satisfies MysqlSnapshot;
 
-	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
+	const {
+		id: _ignoredId,
+		prevIds: _ignoredPrevIds,
+		...prevRest
+	} = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MysqlSnapshot = {
@@ -77,5 +77,12 @@ export const prepareSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom, errors2 };
+	return {
+		ddlPrev,
+		ddlCur,
+		snapshot,
+		snapshotPrev: prevSnapshot,
+		custom,
+		errors2,
+	};
 };

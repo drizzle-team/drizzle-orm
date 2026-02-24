@@ -1,5 +1,5 @@
-import type { MigrationMeta } from '~/migrator';
-import type { MySqlSession } from '~/mysql-core';
+import type { MigrationMeta } from '~/migrator.ts';
+import type { MySqlSession } from '~/mysql-core/session.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;

@@ -1,10 +1,10 @@
-import type { TablesRelationalConfig } from '~/_relations';
-import type { MigrationMeta } from '~/migrator';
-import type { NeonHttpSession } from '~/neon-http';
-import type { PgAsyncSession } from '~/pg-core';
-import type { AnyRelations } from '~/relations';
+import type { TablesRelationalConfig } from '~/_relations.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import type { NeonHttpSession } from '~/neon-http/session.ts';
+import type { PgAsyncSession } from '~/pg-core/async/session.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { XataHttpSession } from '~/xata-http';
+import type { XataHttpSession } from '~/xata-http/session.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
