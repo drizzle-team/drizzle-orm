@@ -38,6 +38,11 @@ export interface BuildQueryConfig {
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
+	/**
+	 * When set, duplicate parameter values will reuse existing placeholders instead of creating new ones.
+	 * Only useful for dialects with numbered placeholders (e.g. PostgreSQL's $1, $2, ...).
+	 */
+	paramDedupMap?: Map<unknown, { paramIndex: number; typing: QueryTypingsValue }>;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -160,6 +165,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			inlineParams,
 			paramStartIndex,
 			invokeSource,
+			paramDedupMap,
 		} = config;
 
 		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
@@ -261,6 +267,18 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
+				if (paramDedupMap) {
+					const existing = paramDedupMap.get(mappedValue);
+					if (existing !== undefined && existing.typing === typings[0]) {
+						return { sql: escapeParam(existing.paramIndex, mappedValue), params: [], typings: [] };
+					}
+					const idx = paramStartIndex.value++;
+					if (existing === undefined) {
+						paramDedupMap.set(mappedValue, { paramIndex: idx, typing: typings[0]! });
+					}
+					return { sql: escapeParam(idx, mappedValue), params: [mappedValue], typings };
+				}
+
 				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
 			}
 
@@ -307,6 +325,16 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 			if (inlineParams) {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
+			}
+
+			if (paramDedupMap) {
+				const existing = paramDedupMap.get(chunk);
+				if (existing !== undefined) {
+					return { sql: escapeParam(existing.paramIndex, chunk), params: [], typings: [] };
+				}
+				const idx = paramStartIndex.value++;
+				paramDedupMap.set(chunk, { paramIndex: idx, typing: 'none' });
+				return { sql: escapeParam(idx, chunk), params: [chunk], typings: ['none'] };
 			}
 
 			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
