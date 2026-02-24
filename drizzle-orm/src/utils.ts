@@ -92,9 +92,9 @@ function makeJitQueryMapperInner(
 
 		let processedPath;
 		for (const p of pathPrefix) {
-			processedPath = processedPath ? `${p}[${JSON.stringify(p)}]` : JSON.stringify(p);
+			processedPath = processedPath ? `${processedPath}[${JSON.stringify(p)}]` : `[${JSON.stringify(p)}]`;
 			if (initializedPaths.has(processedPath)) continue;
-			fn.push(`res[${processedPath}] = {};`);
+			fn.push(`res${processedPath} = {};`);
 			initializedPaths.add(processedPath);
 		}
 
@@ -174,7 +174,8 @@ export function makeJitQueryMapper<TResult>(
 			${makeJitQueryMapperInner(columns, joinsNotNullableMap)} 
 			mapped[i] = res;
 		}
-		return mapped;`,
+		return mapped;
+		//# sourceURL=drizzle:jit-query-mapper`,
 	).bind({
 		getTableName,
 	}) as any;
