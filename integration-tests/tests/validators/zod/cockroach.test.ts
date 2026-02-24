@@ -10,7 +10,13 @@ import {
 	text,
 } from 'drizzle-orm/cockroach-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
+import {
+	createInsertSchema,
+	createSchemaFactory,
+	createSelectSchema,
+	createUpdateSchema,
+	createUpsertSchema,
+} from 'drizzle-orm/zod';
 import { jsonSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -84,6 +90,19 @@ test('table - update', (t) => {
 		name: textOptionalSchema,
 		age: int4NullableOptionalSchema,
 	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table - upsert', (t) => {
+	const table = cockroachTable('test', {
+		id: int4().generatedAlwaysAsIdentity().primaryKey(),
+		name: text().notNull(),
+		age: int4(),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({ id: int4OptionalSchema, name: textSchema, age: int4NullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -239,6 +258,31 @@ test('nullability - update', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('nullability - upsert', (t) => {
+	const table = cockroachTable('test', {
+		c1: int4(),
+		c2: int4().notNull(),
+		c3: int4().default(1),
+		c4: int4().notNull().default(1),
+		c5: int4().generatedAlwaysAs(sql`1`),
+		c6: int4().generatedAlwaysAsIdentity(),
+		c7: int4().generatedByDefaultAsIdentity(),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({
+		c1: int4NullableOptionalSchema,
+		c2: int4Schema,
+		c3: int4NullableOptionalSchema,
+		c4: int4OptionalSchema,
+		c5: int4NullableOptionalSchema,
+		c6: int4OptionalSchema,
+		c7: int4OptionalSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 test('refine table - select', (t) => {
 	const table = cockroachTable('test', {
 		c1: int4(),
@@ -322,6 +366,28 @@ test('refine table - update', (t) => {
 		c1: int4NullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - upsert', (t) => {
+	const table = cockroachTable('test', {
+		c1: int4(),
+		c2: int4().notNull(),
+		c3: int4().notNull(),
+		c4: int4().generatedAlwaysAs(sql`1`),
+	});
+
+	const result = createUpsertSchema(table, {
+		c2: (schema) => schema.lte(1000),
+		c3: z.string().transform(Number),
+	});
+	const expected = z.object({
+		c1: int4NullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
+		c4: int4NullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -591,6 +657,12 @@ test('type coercion - mixed', (t) => {
 	const table = cockroachTable('test', { id: int4() });
 	// @ts-expect-error
 	createUpdateSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in table refinement - upsert */ {
+	const table = cockroachTable('test', { id: int4() });
+	// @ts-expect-error
+	createUpsertSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in view qb - select */ {
