@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
-import type { MigrationMeta } from '~/migrator';
-import type { PgEffectSession } from '~/pg-core/effect';
+import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
+import type { MigrationMeta } from '~/migrator.ts';
+import type { PgEffectSession } from '~/pg-core/effect/session.ts';
 import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
@@ -22,12 +23,12 @@ function getVersion(columns: string[]) {
  */
 const upgradeFunctions: Record<
 	number,
-	(
+	<TEffectHKT extends QueryEffectHKTBase>(
 		migrationsSchema: string,
 		migrationsTable: string,
-		session: PgEffectSession,
+		session: PgEffectSession<TEffectHKT>,
 		localMigrations: MigrationMeta[],
-	) => Effect.Effect<void, unknown, unknown>
+	) => Effect.Effect<void, TEffectHKT['error'], TEffectHKT['context']>
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
@@ -103,31 +104,32 @@ const upgradeFunctions: Record<
  * Version 0: Original schema (id, hash, created_at)
  * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
-export const upgradeIfNeeded: (
+export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 	migrationsSchema: string,
 	migrationsTable: string,
-	session: PgEffectSession,
+	session: PgEffectSession<TEffectHKT>,
 	localMigrations: MigrationMeta[],
-) => Effect.Effect<UpgradeResult, unknown, unknown> = Effect.fn('upgradeIfNeeded')(function*(
-	migrationsSchema: string,
-	migrationsTable: string,
-	session: PgEffectSession,
-	localMigrations: MigrationMeta[],
-) {
-	// Check if the table exists at all
-	const result = yield* session.all(
-		sql`SELECT 1 FROM information_schema.tables
+) => Effect.Effect<UpgradeResult, TEffectHKT['error'], TEffectHKT['context']> = Effect.fn('upgradeIfNeeded')(
+	function*<TEffectHKT extends QueryEffectHKTBase>(
+		migrationsSchema: string,
+		migrationsTable: string,
+		session: PgEffectSession<TEffectHKT>,
+		localMigrations: MigrationMeta[],
+	) {
+		// Check if the table exists at all
+		const result = yield* session.all(
+			sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
-	);
+		);
 
-	if (result.length === 0) {
-		return { newDb: true };
-	}
+		if (result.length === 0) {
+			return { newDb: true };
+		}
 
-	// Table exists, check table shape
-	const rows = yield* session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
-		sql`SELECT
+		// Table exists, check table shape
+		const rows = yield* session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
+			sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",
 			a.attname AS "column_name",
@@ -142,17 +144,18 @@ export const upgradeIfNeeded: (
 			AND n.nspname = ${migrationsSchema}
 			AND c.relname = ${migrationsTable}
 		ORDER BY a.attnum;`,
-	);
+		);
 
-	const version = getVersion(rows.map((r) => r.column_name));
+		const version = getVersion(rows.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
-		const upgradeFn = upgradeFunctions[v];
-		if (!upgradeFn) {
-			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
+		for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+			const upgradeFn = upgradeFunctions[v];
+			if (!upgradeFn) {
+				throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
+			}
+			yield* upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 		}
-		yield* upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
-	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
-});
+		return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	},
+);
