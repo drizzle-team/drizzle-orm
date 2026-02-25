@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { sync as globSync } from 'glob';
-import { join, resolve } from 'path';
+import { dirname, extname, isAbsolute, join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
@@ -389,6 +389,49 @@ export class InMemoryMutex {
 const isBun = typeof (globalThis as any).Bun !== 'undefined';
 const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
+const findFileUp = (fromDir: string, filename: string): string | undefined => {
+	let dir = fromDir;
+	while (true) {
+		const candidate = join(dir, filename);
+		if (existsSync(candidate)) return candidate;
+		const parent = dirname(dir);
+		if (parent === dir) return undefined;
+		dir = parent;
+	}
+};
+
+const stripJsonComments = (raw: string): string => {
+	return raw
+		.replace(/"(?:[^"\\]|\\.)*"|\/\/.*$|\/\*[\s\S]*?\*\//gm, (m) => m.startsWith('"') ? m : '')
+		.replace(/,\s*([}\]])/g, '$1');
+};
+
+const stripWildcard = (s: string): string => s.endsWith('/*') ? s.slice(0, -2) : s;
+
+const resolveAliasesFromTsconfig = (fromDir: string): Record<string, string> => {
+	const tsconfigPath = findFileUp(fromDir, 'tsconfig.json');
+	if (!tsconfigPath) return {};
+
+	try {
+		const tsconfig = JSON.parse(stripJsonComments(readFileSync(tsconfigPath, 'utf8')));
+		const paths: Record<string, string[]> | undefined = tsconfig?.compilerOptions?.paths;
+		if (!paths) return {};
+
+		const baseDir = resolve(dirname(tsconfigPath), tsconfig?.compilerOptions?.baseUrl || '.');
+		const alias: Record<string, string> = {};
+
+		for (const [key, targets] of Object.entries(paths)) {
+			if (targets?.[0]) {
+				alias[stripWildcard(key)] = resolve(baseDir, stripWildcard(targets[0]));
+			}
+		}
+
+		return alias;
+	} catch {
+		return {};
+	}
+};
+
 export const loadModule = async <T = unknown>(
 	modulePath: string,
 ): Promise<T> => {
@@ -411,18 +454,19 @@ export const loadModule = async <T = unknown>(
 		process.exit(1);
 	}
 
-	const path = require('path');
-	const absoluteModulePath = path.isAbsolute(modulePath)
+	const absoluteModulePath = isAbsolute(modulePath)
 		? modulePath
-		: path.resolve(modulePath);
-	const ext = path.extname(modulePath);
+		: resolve(modulePath);
+	const ext = extname(modulePath);
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
 	if (isTS) {
-		const jiti = require('jiti')(path.dirname(absoluteModulePath), {
+		const alias = resolveAliasesFromTsconfig(dirname(absoluteModulePath));
+		const jiti = require('jiti')(dirname(absoluteModulePath), {
 			interopDefault: true,
 			esmResolve: true,
 			requireCache: false,
+			...(Object.keys(alias).length > 0 ? { alias } : {}),
 		});
 		const mod = await jiti.import(absoluteModulePath);
 		return mod;
