@@ -7,6 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { arrayCompatNormalize, extendGenericPgCodecs, genericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { parsePgArray } from '~/pg-core/utils/array.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
@@ -69,8 +70,12 @@ export const pgliteCodecs = extendGenericPgCodecs({
 		},
 	},
 	queryNormalize: {
-		bigint: undefined,
-		bigserial: undefined,
+		bigint: {
+			array: (value, arrayDimensions) => arrayCompatNormalize(BigInt)(parsePgArray(value), arrayDimensions),
+		},
+		bigserial: {
+			array: (value, arrayDimensions) => arrayCompatNormalize(BigInt)(parsePgArray(value), arrayDimensions),
+		},
 		bytea: {
 			item: typeof Buffer === 'undefined'
 				? genericPgCodecs.queryNormalize.bytea?.item
