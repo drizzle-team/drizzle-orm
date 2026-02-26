@@ -82,10 +82,6 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 				[1187]: (value) => value,
 				// date[]
 				[1182]: (value) => value,
-				// bigint
-				[20]: (value) => value,
-				// bigint[]
-				[1016]: (value) => value,
 			},
 		};
 	}
