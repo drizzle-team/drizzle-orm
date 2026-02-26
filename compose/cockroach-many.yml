@@ -1,6 +1,6 @@
 services:
   cockroach0:
-    image: cockroachdb/cockroach:25
+    image: cockroachdb/cockroach:latest-v25.2
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26260:26257"
@@ -12,7 +12,7 @@ services:
       retries: 60
 
   cockroach1:
-    image: cockroachdb/cockroach:25
+    image: cockroachdb/cockroach:latest-v25.2
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26261:26257"
@@ -24,7 +24,7 @@ services:
       retries: 60
 
   cockroach2:
-    image: cockroachdb/cockroach:25
+    image: cockroachdb/cockroach:latest-v25.2
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26262:26257"
