@@ -597,7 +597,7 @@ beforeAll(async () => {
 	await db.execute(
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."values_from_array_array_table" (
-				"values_from_array" varchar(256)
+				"values_from_array" varchar(256)[]
 			);    
 		`,
 	);

@@ -3,6 +3,7 @@ import type { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
+import { parsePgArray } from './utils/array.ts';
 
 export type PostgresOriginalType =
 	// Numeric
@@ -332,6 +333,9 @@ export const genericPgCodecs: PgCodecs = {
 		bigserial: {
 			item: BigInt,
 			array: arrayCompatNormalize(BigInt),
+		},
+		geometry: {
+			array: parsePgArray,
 		},
 	},
 };
