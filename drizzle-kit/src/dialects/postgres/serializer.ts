@@ -1,11 +1,13 @@
 import type { CasingType } from '../../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
 import type { PostgresDDL } from './ddl';
-import { createDDL, interimToDDL } from './ddl';
+import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import type { PostgresSnapshot } from './snapshot';
 import { drySnapshot, snapshotValidator } from './snapshot';
+import type { JsonStatement } from './statements';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -75,6 +77,9 @@ export const prepareSnapshot = async (
 		...prevRest
 	} = prevSnapshot;
 
+	// function to combine snapshots into one
+	// take all the statements from commutative statements to generate a new one with ddl
+
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: PostgresSnapshot = {
 		id,
@@ -84,3 +89,576 @@ export const prepareSnapshot = async (
 
 	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
 };
+
+// snapshotToDLL function, replicates interimToDDL function
+
+export function generateLatestSnapshot(
+	snapshot: PostgresSnapshot,
+	statements: JsonStatement[],
+) {
+	const ddl = fromEntities(snapshot.ddl);
+	const stripDiffMeta = <T>(value: T): T => {
+		if (!value || typeof value !== 'object') {
+			return value;
+		}
+
+		return Object.fromEntries(
+			Object.entries(value as Record<string, unknown>).filter(
+				([key]) => !key.startsWith('$'),
+			),
+		) as T;
+	};
+	const push = (entity: { push: (row: unknown) => unknown }, row: unknown) => {
+		entity.push(stripDiffMeta(row));
+	};
+	const del = (
+		entity: { delete: (where?: unknown) => unknown },
+		where: unknown,
+	) => {
+		entity.delete(stripDiffMeta(where));
+	};
+	const replace = (
+		entity: {
+			delete: (where?: unknown) => unknown;
+			push: (row: unknown) => unknown;
+		},
+		left: unknown,
+		right: unknown,
+	) => {
+		del(entity, left);
+		push(entity, right);
+	};
+
+	const pushTable = (
+		table: Extract<JsonStatement, { type: 'create_table' }>['table'],
+	) => {
+		ddl.tables.push({
+			name: table.name,
+			schema: table.schema,
+			isRlsEnabled: table.isRlsEnabled,
+		});
+		for (const column of table.columns) {
+			ddl.columns.push(column);
+		}
+		for (const index of table.indexes) {
+			ddl.indexes.push(index);
+		}
+		if (table.pk) {
+			ddl.pks.push(table.pk);
+		}
+		for (const fk of table.fks) {
+			ddl.fks.push(fk);
+		}
+		for (const unique of table.uniques) {
+			ddl.uniques.push(unique);
+		}
+		for (const check of table.checks) {
+			ddl.checks.push(check);
+		}
+		for (const policy of table.policies) {
+			ddl.policies.push(policy);
+		}
+	};
+
+	const dropTable = (table: { schema: string; name: string }) => {
+		const where = { schema: table.schema, table: table.name } as const;
+		ddl.tables.delete({ schema: table.schema, name: table.name });
+		ddl.columns.delete(where);
+		ddl.indexes.delete(where);
+		ddl.pks.delete(where);
+		ddl.fks.delete(where);
+		ddl.uniques.delete(where);
+		ddl.checks.delete(where);
+		ddl.policies.delete(where);
+		ddl.privileges.delete(where);
+	};
+
+	const moveTable = (table: string, from: string, to: string) => {
+		const fromWhere = { schema: from, table };
+		ddl.tables.update({
+			where: { schema: from, name: table },
+			set: { schema: to },
+		});
+		ddl.columns.update({ where: fromWhere, set: { schema: to } });
+		ddl.indexes.update({ where: fromWhere, set: { schema: to } });
+		ddl.pks.update({ where: fromWhere, set: { schema: to } });
+		ddl.fks.update({ where: fromWhere, set: { schema: to } });
+		ddl.uniques.update({ where: fromWhere, set: { schema: to } });
+		ddl.checks.update({ where: fromWhere, set: { schema: to } });
+		ddl.policies.update({ where: fromWhere, set: { schema: to } });
+		ddl.privileges.update({ where: fromWhere, set: { schema: to } });
+
+		ddl.fks.update({
+			where: {
+				schemaTo: from,
+				tableTo: table,
+			},
+			set: {
+				schemaTo: to,
+			},
+		});
+	};
+
+	for (const statement of statements) {
+		switch (statement.type) {
+			case 'create_table':
+				// TODO move
+				pushTable(statement.table);
+				break;
+			case 'drop_table':
+				// TODO move
+				dropTable(statement.table);
+				break;
+			case 'rename_table':
+				ddl.tables.update({
+					where: { schema: statement.schema, name: statement.from },
+					set: { name: statement.to },
+				});
+				ddl.columns.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.indexes.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.pks.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.fks.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.fks.update({
+					where: { schemaTo: statement.schema, tableTo: statement.from },
+					set: { tableTo: statement.to },
+				});
+				ddl.uniques.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.checks.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.policies.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				ddl.privileges.update({
+					where: { schema: statement.schema, table: statement.from },
+					set: { table: statement.to },
+				});
+				break;
+			case 'move_table':
+				moveTable(statement.name, statement.from, statement.to);
+				break;
+			case 'remove_from_schema':
+				moveTable(statement.table, statement.schema, 'public');
+				break;
+			case 'set_new_schema':
+				moveTable(statement.table, statement.from, statement.to);
+				break;
+
+			case 'add_column':
+				push(ddl.columns, statement.column);
+				break;
+			case 'drop_column':
+				del(ddl.columns, statement.column);
+				break;
+			case 'rename_column':
+				ddl.columns.update({
+					where: {
+						schema: statement.from.schema,
+						table: statement.from.table,
+						name: statement.from.name,
+					},
+					set: { name: statement.to.name },
+				});
+				ddl.indexes.update({
+					where: { schema: statement.from.schema, table: statement.from.table },
+					set: {
+						columns: (column) => {
+							if (
+								!column.isExpression
+								&& column.value === statement.from.name
+							) {
+								return { ...column, value: statement.to.name };
+							}
+							return column;
+						},
+					},
+				});
+				ddl.pks.update({
+					where: { schema: statement.from.schema, table: statement.from.table },
+					set: {
+						columns: (column) => column === statement.from.name ? statement.to.name : column,
+					},
+				});
+				ddl.fks.update({
+					where: { schema: statement.from.schema, table: statement.from.table },
+					set: {
+						columns: (column) => column === statement.from.name ? statement.to.name : column,
+						columnsTo: (column) => column === statement.from.name ? statement.to.name : column,
+					},
+				});
+				ddl.uniques.update({
+					where: { schema: statement.from.schema, table: statement.from.table },
+					set: {
+						columns: (column) => column === statement.from.name ? statement.to.name : column,
+					},
+				});
+				break;
+			case 'alter_column':
+				replace(ddl.columns, statement.diff.$left, statement.to);
+				break;
+			case 'recreate_column':
+				replace(ddl.columns, statement.diff.$left, statement.diff.$right);
+				break;
+
+			case 'create_index':
+				push(ddl.indexes, statement.index);
+				break;
+			case 'drop_index':
+				del(ddl.indexes, statement.index);
+				break;
+			case 'rename_index':
+				ddl.indexes.update({
+					where: { schema: statement.schema, name: statement.from },
+					set: { name: statement.to },
+				});
+				break;
+			case 'recreate_index':
+				replace(ddl.indexes, statement.diff.$left, statement.index);
+				break;
+
+			case 'add_pk':
+				push(ddl.pks, statement.pk);
+				break;
+			case 'drop_pk':
+				del(ddl.pks, statement.pk);
+				break;
+			case 'alter_pk':
+				ddl.pks.delete(statement.diff.$left);
+				if (!statement.deleted) {
+					ddl.pks.push(statement.pk);
+				}
+				break;
+
+			case 'create_fk':
+				push(ddl.fks, statement.fk);
+				break;
+			case 'drop_fk':
+				del(ddl.fks, statement.fk);
+				break;
+			case 'recreate_fk':
+				replace(ddl.fks, statement.diff.$left, statement.fk);
+				break;
+
+			case 'add_unique':
+				push(ddl.uniques, statement.unique);
+				break;
+			case 'drop_unique':
+				del(ddl.uniques, statement.unique);
+				break;
+			case 'alter_unique':
+				replace(ddl.uniques, statement.diff.$left, statement.diff.$right);
+				break;
+
+			case 'add_check':
+				push(ddl.checks, statement.check);
+				break;
+			case 'drop_check':
+				del(ddl.checks, statement.check);
+				break;
+			case 'alter_check':
+				replace(ddl.checks, statement.diff.$left, statement.diff.$right);
+				break;
+
+			case 'rename_constraint':
+				ddl.pks.update({
+					where: {
+						schema: statement.schema,
+						table: statement.table,
+						name: statement.from,
+					},
+					set: { name: statement.to },
+				});
+				ddl.fks.update({
+					where: {
+						schema: statement.schema,
+						table: statement.table,
+						name: statement.from,
+					},
+					set: { name: statement.to },
+				});
+				ddl.uniques.update({
+					where: {
+						schema: statement.schema,
+						table: statement.table,
+						name: statement.from,
+					},
+					set: { name: statement.to },
+				});
+				ddl.checks.update({
+					where: {
+						schema: statement.schema,
+						table: statement.table,
+						name: statement.from,
+					},
+					set: { name: statement.to },
+				});
+				break;
+
+			case 'create_schema':
+				ddl.schemas.push({ name: statement.name });
+				break;
+			case 'drop_schema':
+				ddl.schemas.delete({ name: statement.name });
+				ddl.tables.delete({ schema: statement.name });
+				ddl.enums.delete({ schema: statement.name });
+				ddl.columns.delete({ schema: statement.name });
+				ddl.indexes.delete({ schema: statement.name });
+				ddl.fks.delete({ schema: statement.name });
+				ddl.pks.delete({ schema: statement.name });
+				ddl.uniques.delete({ schema: statement.name });
+				ddl.checks.delete({ schema: statement.name });
+				ddl.sequences.delete({ schema: statement.name });
+				ddl.policies.delete({ schema: statement.name });
+				ddl.privileges.delete({ schema: statement.name });
+				ddl.views.delete({ schema: statement.name });
+				break;
+			case 'rename_schema':
+				ddl.schemas.update({
+					where: { name: statement.from.name },
+					set: { name: statement.to.name },
+				});
+				ddl.tables.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.enums.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.columns.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.indexes.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.fks.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.fks.update({
+					where: { schemaTo: statement.from.name },
+					set: { schemaTo: statement.to.name },
+				});
+				ddl.pks.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.uniques.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.checks.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.sequences.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.policies.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.privileges.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.views.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				break;
+
+			case 'create_enum':
+				push(ddl.enums, statement.enum);
+				break;
+			case 'drop_enum':
+				del(ddl.enums, statement.enum);
+				break;
+			case 'rename_enum':
+				ddl.enums.update({
+					where: { schema: statement.schema, name: statement.from },
+					set: { name: statement.to },
+				});
+				ddl.columns.update({
+					where: {
+						schema: statement.schema,
+						type: statement.from,
+						typeSchema: statement.schema,
+					},
+					set: { type: statement.to },
+				});
+				break;
+			case 'move_enum':
+				ddl.enums.update({
+					where: {
+						schema: statement.from.schema ?? 'public',
+						name: statement.from.name,
+					},
+					set: {
+						schema: statement.to.schema ?? 'public',
+						name: statement.to.name,
+					},
+				});
+				break;
+			case 'alter_enum':
+				replace(ddl.enums, statement.from, statement.to);
+				break;
+			case 'recreate_enum':
+				replace(ddl.enums, statement.from, statement.to);
+				break;
+			case 'alter_type_drop_value':
+				ddl.enums.update({
+					where: { schema: statement.enum.schema, name: statement.enum.name },
+					set: { values: statement.enum.values },
+				});
+				break;
+
+			case 'create_sequence':
+				push(ddl.sequences, statement.sequence);
+				break;
+			case 'drop_sequence':
+				del(ddl.sequences, statement.sequence);
+				break;
+			case 'rename_sequence':
+				ddl.sequences.update({
+					where: { schema: statement.from.schema, name: statement.from.name },
+					set: { name: statement.to.name },
+				});
+				break;
+			case 'move_sequence':
+				ddl.sequences.update({
+					where: {
+						schema: statement.from.schema ?? 'public',
+						name: statement.from.name,
+					},
+					set: {
+						schema: statement.to.schema ?? 'public',
+						name: statement.to.name,
+					},
+				});
+				break;
+			case 'alter_sequence':
+				replace(ddl.sequences, statement.diff.$left, statement.sequence);
+				break;
+
+			case 'create_policy':
+				push(ddl.policies, statement.policy);
+				break;
+			case 'drop_policy':
+				del(ddl.policies, statement.policy);
+				break;
+			case 'rename_policy':
+				ddl.policies.update({
+					where: {
+						schema: statement.from.schema,
+						table: statement.from.table,
+						name: statement.from.name,
+					},
+					set: { name: statement.to.name },
+				});
+				break;
+			case 'alter_policy':
+				replace(ddl.policies, statement.diff.$left, statement.policy);
+				break;
+			case 'recreate_policy':
+				replace(ddl.policies, statement.diff.$left, statement.policy);
+				break;
+			case 'alter_rls':
+				ddl.tables.update({
+					where: { schema: statement.schema, name: statement.name },
+					set: { isRlsEnabled: statement.isRlsEnabled },
+				});
+				break;
+
+			case 'create_role':
+				push(ddl.roles, statement.role);
+				break;
+			case 'drop_role':
+				del(ddl.roles, statement.role);
+				break;
+			case 'rename_role':
+				ddl.roles.update({
+					where: { name: statement.from.name },
+					set: { name: statement.to.name },
+				});
+				ddl.privileges.update({
+					where: { grantor: statement.from.name },
+					set: { grantor: statement.to.name },
+				});
+				ddl.privileges.update({
+					where: { grantee: statement.from.name },
+					set: { grantee: statement.to.name },
+				});
+				ddl.policies.update({
+					where: {},
+					set: {
+						roles: (role) => role === statement.from.name ? statement.to.name : role,
+					},
+				});
+				break;
+			case 'alter_role':
+				replace(ddl.roles, statement.diff.$left, statement.role);
+				break;
+
+			case 'grant_privilege':
+				push(ddl.privileges, statement.privilege);
+				break;
+			case 'revoke_privilege':
+				del(ddl.privileges, statement.privilege);
+				break;
+			case 'regrant_privilege':
+				replace(ddl.privileges, statement.diff.$left, statement.privilege);
+				break;
+
+			case 'create_view':
+				push(ddl.views, statement.view);
+				break;
+			case 'drop_view':
+				del(ddl.views, statement.view);
+				break;
+			case 'rename_view':
+				ddl.views.update({
+					where: { schema: statement.from.schema, name: statement.from.name },
+					set: { name: statement.to.name },
+				});
+				break;
+			case 'move_view':
+				ddl.views.update({
+					where: { schema: statement.fromSchema, name: statement.view.name },
+					set: { schema: statement.toSchema, name: statement.view.name },
+				});
+				break;
+			case 'alter_view':
+				replace(ddl.views, statement.diff.$left, statement.view);
+				break;
+
+			default:
+				assertUnreachable(statement);
+		}
+	}
+
+	return {
+		...snapshot,
+		ddl: ddl.entities.list(),
+	};
+}
