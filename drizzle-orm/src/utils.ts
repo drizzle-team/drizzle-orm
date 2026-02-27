@@ -1,5 +1,6 @@
 import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
+import type { DrizzleQueryError } from './errors.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
@@ -238,6 +239,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	schema?: TSchema;
 	casing?: Casing;
 	cache?: Cache;
+	onError?: (err: DrizzleQueryError) => void;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -314,6 +316,13 @@ export function isConfig(data: any): boolean {
 
 	if ('mode' in data) {
 		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
+
+		return true;
+	}
+
+	if ('onError' in data) {
+		const type = typeof data['onError'];
+		if (type !== 'function' && type !== 'undefined') return false;
 
 		return true;
 	}

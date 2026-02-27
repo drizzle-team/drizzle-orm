@@ -2,9 +2,10 @@ import retry from 'async-retry';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
-import { afterAll, beforeAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, vi } from 'vitest';
 import { createDockerDB, tests } from './mysql-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
+import { tests as onErrorTests } from './mysql-on-error';
 
 const ENABLE_LOGGING = false;
 
@@ -12,6 +13,8 @@ let db: MySql2Database;
 let dbGlobalCached: MySql2Database;
 let cachedDb: MySql2Database;
 let client: mysql.Connection;
+const onErrorFn = vi.fn();
+let onErrorDb: MySql2Database;
 
 beforeAll(async () => {
 	let connectionString;
@@ -41,6 +44,7 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	onErrorDb = drizzle(client, { logger: ENABLE_LOGGING, onError: onErrorFn });
 });
 
 afterAll(async () => {
@@ -55,7 +59,12 @@ beforeEach((ctx) => {
 		db: cachedDb,
 		dbGlobalCached,
 	};
+	ctx.onErrorMysql = {
+		db: onErrorDb,
+		onError: onErrorFn,
+	};
 });
 
 cacheTests();
 tests();
+onErrorTests();
