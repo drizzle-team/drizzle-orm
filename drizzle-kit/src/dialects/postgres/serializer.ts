@@ -90,14 +90,29 @@ export const prepareSnapshot = async (
 	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
 };
 
-// snapshotToDLL function, replicates interimToDDL function
-
+// util function
+// takes parent snapshot and statements
+// applies statements to the snapshot and returns new snapshot
 export function generateLatestSnapshot(
 	snapshot: PostgresSnapshot,
 	statements: JsonStatement[],
-) {
+): PostgresSnapshot {
 	const ddl = fromEntities(snapshot.ddl);
-	const stripDiffMeta = <T>(value: T): T => {
+
+	/**
+	 * Ex.:
+	 * statement: {
+		type: 'add_column',
+		column: {
+			'$diffType': 'create',
+			entityType: 'columns',
+			...
+		},
+		isPK: false,
+		isCompositePK: false
+	}
+	 */
+	const clearMetaFields = <T>(value: T): T => {
 		if (!value || typeof value !== 'object') {
 			return value;
 		}
@@ -108,14 +123,15 @@ export function generateLatestSnapshot(
 			),
 		) as T;
 	};
+
 	const push = (entity: { push: (row: unknown) => unknown }, row: unknown) => {
-		entity.push(stripDiffMeta(row));
+		entity.push(clearMetaFields(row));
 	};
 	const del = (
 		entity: { delete: (where?: unknown) => unknown },
 		where: unknown,
 	) => {
-		entity.delete(stripDiffMeta(where));
+		entity.delete(clearMetaFields(where));
 	};
 	const replace = (
 		entity: {
@@ -127,50 +143,6 @@ export function generateLatestSnapshot(
 	) => {
 		del(entity, left);
 		push(entity, right);
-	};
-
-	const pushTable = (
-		table: Extract<JsonStatement, { type: 'create_table' }>['table'],
-	) => {
-		ddl.tables.push({
-			name: table.name,
-			schema: table.schema,
-			isRlsEnabled: table.isRlsEnabled,
-		});
-		for (const column of table.columns) {
-			ddl.columns.push(column);
-		}
-		for (const index of table.indexes) {
-			ddl.indexes.push(index);
-		}
-		if (table.pk) {
-			ddl.pks.push(table.pk);
-		}
-		for (const fk of table.fks) {
-			ddl.fks.push(fk);
-		}
-		for (const unique of table.uniques) {
-			ddl.uniques.push(unique);
-		}
-		for (const check of table.checks) {
-			ddl.checks.push(check);
-		}
-		for (const policy of table.policies) {
-			ddl.policies.push(policy);
-		}
-	};
-
-	const dropTable = (table: { schema: string; name: string }) => {
-		const where = { schema: table.schema, table: table.name } as const;
-		ddl.tables.delete({ schema: table.schema, name: table.name });
-		ddl.columns.delete(where);
-		ddl.indexes.delete(where);
-		ddl.pks.delete(where);
-		ddl.fks.delete(where);
-		ddl.uniques.delete(where);
-		ddl.checks.delete(where);
-		ddl.policies.delete(where);
-		ddl.privileges.delete(where);
 	};
 
 	const moveTable = (table: string, from: string, to: string) => {
@@ -202,13 +174,51 @@ export function generateLatestSnapshot(
 	for (const statement of statements) {
 		switch (statement.type) {
 			case 'create_table':
-				// TODO move
-				pushTable(statement.table);
+				const table = statement.table;
+
+				ddl.tables.push({
+					name: table.name,
+					schema: table.schema,
+					isRlsEnabled: table.isRlsEnabled,
+				});
+				for (const column of table.columns) {
+					ddl.columns.push(column);
+				}
+				for (const index of table.indexes) {
+					ddl.indexes.push(index);
+				}
+				if (table.pk) {
+					ddl.pks.push(table.pk);
+				}
+				for (const fk of table.fks) {
+					ddl.fks.push(fk);
+				}
+				for (const unique of table.uniques) {
+					ddl.uniques.push(unique);
+				}
+				for (const check of table.checks) {
+					ddl.checks.push(check);
+				}
+				for (const policy of table.policies) {
+					ddl.policies.push(policy);
+				}
+
 				break;
-			case 'drop_table':
-				// TODO move
-				dropTable(statement.table);
+			case 'drop_table': {
+				const table = statement.table;
+
+				const where = { schema: table.schema, table: table.name } as const;
+				ddl.tables.delete({ schema: table.schema, name: table.name });
+				ddl.columns.delete(where);
+				ddl.indexes.delete(where);
+				ddl.pks.delete(where);
+				ddl.fks.delete(where);
+				ddl.uniques.delete(where);
+				ddl.checks.delete(where);
+				ddl.policies.delete(where);
+				ddl.privileges.delete(where);
 				break;
+			}
 			case 'rename_table':
 				ddl.tables.update({
 					where: { schema: statement.schema, name: statement.from },
@@ -253,12 +263,6 @@ export function generateLatestSnapshot(
 				break;
 			case 'move_table':
 				moveTable(statement.name, statement.from, statement.to);
-				break;
-			case 'remove_from_schema':
-				moveTable(statement.table, statement.schema, 'public');
-				break;
-			case 'set_new_schema':
-				moveTable(statement.table, statement.from, statement.to);
 				break;
 
 			case 'add_column':
@@ -335,6 +339,15 @@ export function generateLatestSnapshot(
 
 			case 'add_pk':
 				push(ddl.pks, statement.pk);
+				for (const columnName of statement.pk.columns) {
+					ddl.columns.update({
+						where: {
+							name: columnName,
+						},
+						set: { notNull: true },
+					});
+				}
+
 				break;
 			case 'drop_pk':
 				del(ddl.pks, statement.pk);
@@ -519,18 +532,21 @@ export function generateLatestSnapshot(
 						name: statement.to.name,
 					},
 				});
+				ddl.columns.update({
+					where: {
+						typeSchema: statement.from.schema ?? 'public',
+						name: statement.from.name,
+					},
+					set: {
+						typeSchema: statement.to.schema ?? 'public',
+					},
+				});
 				break;
 			case 'alter_enum':
 				replace(ddl.enums, statement.from, statement.to);
 				break;
 			case 'recreate_enum':
 				replace(ddl.enums, statement.from, statement.to);
-				break;
-			case 'alter_type_drop_value':
-				ddl.enums.update({
-					where: { schema: statement.enum.schema, name: statement.enum.name },
-					set: { values: statement.enum.values },
-				});
 				break;
 
 			case 'create_sequence':

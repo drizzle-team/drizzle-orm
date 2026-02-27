@@ -694,6 +694,15 @@ const dropUniqueConvertor = convertor('drop_unique', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
 });
 
+const alterUniqueConvertor = convertor('alter_unique', (st) => {
+	const statements: string[] = [];
+
+	statements.push(dropUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+	statements.push(addUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+
+	return statements;
+});
+
 const createEnumConvertor = convertor('create_enum', (st) => {
 	const { name, schema, values } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
@@ -1062,6 +1071,7 @@ const convertors = [
 	recreateCheckConvertor,
 	addUniqueConvertor,
 	dropUniqueConvertor,
+	alterUniqueConvertor,
 	renameConstraintConvertor,
 	createEnumConvertor,
 	dropEnumConvertor,

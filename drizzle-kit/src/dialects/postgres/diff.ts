@@ -851,6 +851,14 @@ export const ddlDiff = async (
 	const jsonDropCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_check', { check: it })
 	);
+	const jsonRenamedCheckConstraints = checkRenames.map((it) =>
+		prepareStatement('rename_constraint', {
+			schema: it.to.schema,
+			table: it.to.table,
+			from: it.from.name,
+			to: it.to.name,
+		})
+	);
 
 	// group by tables?
 	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
@@ -1240,6 +1248,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
+	jsonStatements.push(...jsonRenamedCheckConstraints);
 
 	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
