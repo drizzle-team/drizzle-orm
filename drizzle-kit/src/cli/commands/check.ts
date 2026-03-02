@@ -1,13 +1,40 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import { render } from 'hanji';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/utils/commutativity';
 import { detectNonCommutative } from 'src/utils/commutativity';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
 
-// ─── Shared helpers ──────────────────────────────────────────────────────────
+export type CheckHandlerResult = {
+	statements: unknown[];
+	parentSnapshot: unknown | null;
+	parentId?: string;
+	leafIds?: string[];
+	nonCommutativityMessage?: string;
+};
+
+const emptyResult = (nonCommutativityMessage?: string): CheckHandlerResult => ({
+	statements: [],
+	parentSnapshot: null,
+	nonCommutativityMessage,
+});
+
+const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
+	const branches = report.commutativeBranches ?? [];
+	if (branches.length === 0) return null;
+
+	const leafSet = new Set(report.leafNodes);
+	const candidates = branches.filter(
+		(branch) =>
+			branch.leafs.length > 1
+			&& branch.leafs.length === leafSet.size
+			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+	);
+
+	if (candidates.length !== 1) return null;
+	return candidates[0];
+};
 
 const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
 	const ids = new Set<string>();
@@ -29,7 +56,7 @@ const headerBadge = (conflicts: UnifiedBranchConflict[]): string => {
 	);
 };
 
-export const renderReportDirectory = (
+export const generateReportDirectory = (
 	report: NonCommutativityReport,
 ): string => {
 	const { conflicts } = report;
@@ -110,48 +137,68 @@ export const checkHandler = async (
 	out: string,
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
-) => {
+	shouldExitOnConflict = true,
+): Promise<CheckHandlerResult> => {
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
 	for (const snapshot of snapshots) {
-		const raw = JSON.parse(readFileSync(`./${snapshot}`).toString());
+		const raw = JSON.parse(readFileSync(snapshot).toString());
 
 		const res = validator(raw);
-		if (res.status === 'unsupported') {
-			console.log(
-				info(
-					`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
-				),
-			);
-			process.exit(0);
-		}
-		if (res.status === 'malformed') {
-			console.log(`${snapshot} data is malformed`);
-			process.exit(1);
-		}
-
-		if (res.status === 'nonLatest') {
-			console.log(
-				`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
-			);
-			process.exit(1);
+		switch (res.status) {
+			case 'valid':
+				break;
+			case 'unsupported':
+				console.log(
+					info(
+						`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+					),
+				);
+				process.exit(0);
+				break;
+			case 'malformed':
+				console.log(`${snapshot} data is malformed`);
+				process.exit(1);
+				break;
+			case 'nonLatest':
+				console.log(
+					`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+				);
+				process.exit(1);
+				break;
 		}
 	}
 
 	if (ignoreConflicts) {
-		return;
+		return emptyResult();
 	}
 
 	try {
 		const response = await detectNonCommutative(snapshots, dialect);
-		if (response.conflicts.length === 0) {
-			return;
+		if (response.conflicts.length > 0) {
+			const nonCommutativityMessage = generateReportDirectory(response);
+			console.log(nonCommutativityMessage);
+			if (shouldExitOnConflict) {
+				process.exit(1);
+			}
+			return emptyResult(nonCommutativityMessage);
 		}
 
-		render(renderReportDirectory(response));
-		process.exit(1);
+		const selectedBranch = selectOpenCommutativeBranch(response);
+		if (!selectedBranch) {
+			return emptyResult();
+		}
+
+		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
+		return {
+			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+			parentSnapshot: selectedBranch.parentSnapshot,
+			parentId: selectedBranch.parentId,
+			leafIds: sortedLeafs.map((leaf) => leaf.id),
+		};
 	} catch (e) {
 		console.error(e);
+		return emptyResult();
 	}
 };

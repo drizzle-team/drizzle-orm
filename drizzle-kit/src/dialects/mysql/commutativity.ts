@@ -17,11 +17,7 @@ type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 
 const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	// Table operations
-	create_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-	],
+	create_table: ['create_table', 'drop_table', 'rename_table'],
 	drop_table: [
 		'create_table',
 		'drop_table',
@@ -33,18 +29,44 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'rename_column',
 		'create_index',
 	],
-	rename_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-	],
+	rename_table: ['create_table', 'drop_table', 'rename_table'],
 
 	// Column operations
-	add_column: ['add_column', 'alter_column', 'drop_column', 'rename_column', 'recreate_column'],
-	drop_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	alter_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	recreate_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
-	rename_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+	add_column: [
+		'add_column',
+		'alter_column',
+		'drop_column',
+		'rename_column',
+		'recreate_column',
+	],
+	drop_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	alter_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	recreate_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
+	rename_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
 
 	// Index operations
 	create_index: ['create_index', 'drop_index', 'drop_table'],
@@ -70,13 +92,20 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view'],
 };
 
-function formatFootprint(action: string, objectName: string, columnName: string): string {
+function formatFootprint(
+	action: string,
+	objectName: string,
+	columnName: string,
+): string {
 	return `${action};${objectName};${columnName}`;
 }
 
-function extractStatementInfo(
-	statement: JsonStatement,
-): { action: string; schema: string; objectName: string; columnName: string } {
+function extractStatementInfo(statement: JsonStatement): {
+	action: string;
+	schema: string;
+	objectName: string;
+	columnName: string;
+} {
 	const action = statement.type;
 	let schema = '';
 	let objectName = '';
@@ -192,11 +221,16 @@ function describeStatement(statement: JsonStatement): string {
 	return `${info.action} on ${info.objectName} table`;
 }
 
-export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [string[], string[]] {
+export function footprint(
+	statement: JsonStatement,
+	snapshot?: MysqlSnapshot,
+): [string[], string[]] {
 	const info = extractStatementInfo(statement);
 	const conflictingTypes = footprintMap[statement.type];
 
-	const statementFootprint = [formatFootprint(statement.type, info.objectName, info.columnName)];
+	const statementFootprint = [
+		formatFootprint(statement.type, info.objectName, info.columnName),
+	];
 
 	// For column-level operations, also produce a table-level statement footprint.
 	// This allows table-level operations (e.g. drop_table) whose conflict footprints
@@ -210,7 +244,9 @@ export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [
 		'rename_column',
 	];
 	if (columnOps.includes(statement.type) && info.columnName !== '') {
-		statementFootprint.push(formatFootprint(statement.type, info.objectName, ''));
+		statementFootprint.push(
+			formatFootprint(statement.type, info.objectName, ''),
+		);
 	}
 
 	let conflictFootprints = conflictingTypes.map((conflictType) =>
@@ -218,14 +254,22 @@ export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [
 	);
 
 	if (snapshot) {
-		const expandedFootprints = expandFootprintsFromSnapshot(statement, info, conflictingTypes, snapshot);
+		const expandedFootprints = expandFootprintsFromSnapshot(
+			statement,
+			info,
+			conflictingTypes,
+			snapshot,
+		);
 		conflictFootprints = [...conflictFootprints, ...expandedFootprints];
 	}
 
 	return [statementFootprint, conflictFootprints];
 }
 
-function generateLeafFootprints(statements: JsonStatement[], snapshot?: MysqlSnapshot): {
+function generateLeafFootprints(
+	statements: JsonStatement[],
+	snapshot?: MysqlSnapshot,
+): {
 	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
 	conflictFootprints: Array<{ hash: string; statement: JsonStatement }>;
 } {
@@ -250,27 +294,39 @@ function generateLeafFootprints(statements: JsonStatement[], snapshot?: MysqlSna
 
 function expandFootprintsFromSnapshot(
 	statement: JsonStatement,
-	info: { action: string; schema: string; objectName: string; columnName: string },
+	info: {
+		action: string;
+		schema: string;
+		objectName: string;
+		columnName: string;
+	},
 	conflictingTypes: JsonStatement['type'][],
 	snapshot: MysqlSnapshot,
 ): string[] {
 	const expandedFootprints: string[] = [];
 
-	if (
-		statement.type === 'drop_table' || statement.type === 'rename_table'
-	) {
-		const childEntities = findChildEntitiesInTableFromSnapshot(info.objectName, snapshot);
+	if (statement.type === 'drop_table' || statement.type === 'rename_table') {
+		const childEntities = findChildEntitiesInTableFromSnapshot(
+			info.objectName,
+			snapshot,
+		);
 		for (const entity of childEntities) {
 			for (const conflictType of conflictingTypes) {
-				expandedFootprints.push(formatFootprint(conflictType, entity.objectName, entity.columnName));
+				expandedFootprints.push(
+					formatFootprint(conflictType, entity.objectName, entity.columnName),
+				);
 			}
 		}
 		// all indexes in changed tables should make a conflict in this case
 		// maybe we need to make other fields optional
 		if (statement.type === 'drop_table') {
-			expandedFootprints.push(formatFootprint('create_index', statement.table, ''));
+			expandedFootprints.push(
+				formatFootprint('create_index', statement.table, ''),
+			);
 		} else if (statement.type === 'rename_table') {
-			expandedFootprints.push(formatFootprint('create_index', statement.to, ''));
+			expandedFootprints.push(
+				formatFootprint('create_index', statement.to, ''),
+			);
 		}
 	}
 
@@ -313,7 +369,10 @@ function findFootprintIntersections(
 			if (hashInfoA.hash === conflictInfoB.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoA.hash, rightStatement: conflictInfoB.hash });
-				return { leftStatement: hashInfoA.statement, rightStatement: conflictInfoB.statement };
+				return {
+					leftStatement: hashInfoA.statement,
+					rightStatement: conflictInfoB.statement,
+				};
 			}
 		}
 	}
@@ -323,7 +382,10 @@ function findFootprintIntersections(
 			if (hashInfoB.hash === conflictInfoA.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoB.hash, rightStatement: conflictInfoA.hash });
-				return { leftStatement: hashInfoB.statement, rightStatement: conflictInfoA.statement };
+				return {
+					leftStatement: hashInfoB.statement,
+					rightStatement: conflictInfoA.statement,
+				};
 			}
 		}
 	}
@@ -336,14 +398,8 @@ export const getReasonsFromStatements = async (
 	bStatements: JsonStatement[],
 	parentSnapshot?: MysqlSnapshot,
 ) => {
-	const branchAFootprints = generateLeafFootprints(
-		aStatements,
-		parentSnapshot,
-	);
-	const branchBFootprints = generateLeafFootprints(
-		bStatements,
-		parentSnapshot,
-	);
+	const branchAFootprints = generateLeafFootprints(aStatements, parentSnapshot);
+	const branchBFootprints = generateLeafFootprints(bStatements, parentSnapshot);
 
 	return findFootprintIntersections(
 		branchAFootprints.statementHashes,
@@ -369,6 +425,7 @@ export const detectNonCommutative = async (
 	}
 
 	const conflicts: UnifiedBranchConflict[] = [];
+	const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
 
 	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
 		if (childIds.length <= 1) continue;
@@ -380,7 +437,10 @@ export const detectNonCommutative = async (
 			childToLeaves[childId] = collectLeaves(nodes, childId);
 		}
 
-		const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
+		const leafStatements: Record<
+			string,
+			{ statements: JsonStatement[]; path: string }
+		> = {};
 		for (const leaves of Object.values(childToLeaves)) {
 			for (const leafId of leaves) {
 				const leafNode = nodes[leafId]!;
@@ -390,34 +450,58 @@ export const detectNonCommutative = async (
 			}
 		}
 
+		let hasConflict = false;
+
 		for (let i = 0; i < childIds.length; i++) {
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
 				const groupB = childToLeaves[childIds[j]] ?? [];
 				for (const aId of groupA) {
 					for (const bId of groupB) {
+						if (aId === bId) {
+							continue;
+						}
 						const aStatements = leafStatements[aId]!.statements;
 						const bStatements = leafStatements[bId]!.statements;
 
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 
 						// function that accepts statements are respond with conflicts
-						const intersectedHashed = await getReasonsFromStatements(aStatements, bStatements, parentSnapshot);
+						const intersectedHashed = await getReasonsFromStatements(
+							aStatements,
+							bStatements,
+							parentSnapshot,
+						);
 
 						if (intersectedHashed) {
-							const chainA = buildChain(nodes, prevToChildren, childIds[i], aId);
-							const chainB = buildChain(nodes, prevToChildren, childIds[j], bId);
+							hasConflict = true;
+							const chainA = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[i],
+								aId,
+							);
+							const chainB = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[j],
+								bId,
+							);
 
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
 								branchA: {
 									chain: chainA,
-									statementDescription: describeStatement(intersectedHashed.leftStatement),
+									statementDescription: describeStatement(
+										intersectedHashed.leftStatement,
+									),
 								},
 								branchB: {
 									chain: chainB,
-									statementDescription: describeStatement(intersectedHashed.rightStatement),
+									statementDescription: describeStatement(
+										intersectedHashed.rightStatement,
+									),
 								},
 							});
 						}
@@ -425,19 +509,44 @@ export const detectNonCommutative = async (
 				}
 			}
 		}
+
+		const uniqueLeafIds = Array.from(
+			new Set(Object.values(childToLeaves).flat()),
+		);
+		if (hasConflict) {
+			continue;
+		}
+
+		if (uniqueLeafIds.length <= 1) {
+			continue;
+		}
+
+		const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
+		const leafs = uniqueLeafIds.map((leafId) => ({
+			id: leafId,
+			path: leafStatements[leafId]?.path ?? nodes[leafId]?.folderPath ?? leafId,
+			statements: leafStatements[leafId]?.statements ?? [],
+		}));
+
+		commutativeBranches?.push({
+			parentId: prevId,
+			parentPath: parentNode?.folderPath,
+			parentSnapshot,
+			leafs,
+		});
 	}
 
 	// Collect all leaf nodes (nodes with no children)
 	const allNodeIds = new Set(Object.keys(nodes));
-	const nodesWithChildren = new Set(Object.values(prevToChildren).flat());
-	const leafNodes = Array.from(allNodeIds).filter((id) => !nodesWithChildren.has(id));
+	const parentIds = new Set(Object.keys(prevToChildren));
+	const leafNodes = Array.from(allNodeIds).filter((id) => !parentIds.has(id));
 
-	return { conflicts, leafNodes };
+	return { conflicts, leafNodes, commutativeBranches };
 };
 
-function buildSnapshotGraph<TSnapshot extends { id: string; prevIds: string[] }>(
-	snapshotFiles: string[],
-): Record<string, SnapshotNode<TSnapshot>> {
+function buildSnapshotGraph<
+	TSnapshot extends { id: string; prevIds: string[] },
+>(snapshotFiles: string[]): Record<string, SnapshotNode<TSnapshot>> {
 	const byId: Record<string, SnapshotNode<TSnapshot>> = {};
 	for (const file of snapshotFiles) {
 		if (!existsSync(file)) continue;
@@ -531,7 +640,10 @@ async function diff(
 	fromSnap: MysqlSnapshot,
 	toSnap: MysqlSnapshot,
 ): Promise<{ statements: JsonStatement[] }>;
-async function diff(fromSnap: any, toSnap: any): Promise<{ statements: JsonStatement[] }> {
+async function diff(
+	fromSnap: any,
+	toSnap: any,
+): Promise<{ statements: JsonStatement[] }> {
 	const fromDDL: MysqlDDL = createDDL();
 	const toDDL: MysqlDDL = createDDL();
 

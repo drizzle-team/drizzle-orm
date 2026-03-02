@@ -75,11 +75,41 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	],
 
 	// Column operations
-	add_column: ['add_column', 'alter_column', 'drop_column', 'rename_column', 'recreate_column'],
-	drop_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	alter_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	recreate_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
-	rename_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+	add_column: [
+		'add_column',
+		'alter_column',
+		'drop_column',
+		'rename_column',
+		'recreate_column',
+	],
+	drop_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	alter_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	recreate_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
+	rename_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
 
 	// Index operations
 	create_index: ['create_index', 'drop_index', 'rename_index'],
@@ -125,7 +155,14 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	],
 
 	// Enum operations
-	create_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	create_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+	],
 	drop_enum: [
 		'create_enum',
 		'drop_enum',
@@ -135,7 +172,14 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'move_enum',
 		'alter_type_drop_value',
 	],
-	rename_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	rename_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+	],
 	alter_enum: [
 		'create_enum',
 		'drop_enum',
@@ -145,23 +189,97 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'move_enum',
 		'alter_type_drop_value',
 	],
-	recreate_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
-	move_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	recreate_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+	],
+	move_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+	],
 	alter_type_drop_value: ['drop_enum', 'alter_enum', 'alter_type_drop_value'],
 
 	// Sequence operations
-	create_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-	drop_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-	rename_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-	alter_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-	move_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+	create_sequence: [
+		'create_sequence',
+		'drop_sequence',
+		'rename_sequence',
+		'alter_sequence',
+		'move_sequence',
+	],
+	drop_sequence: [
+		'create_sequence',
+		'drop_sequence',
+		'rename_sequence',
+		'alter_sequence',
+		'move_sequence',
+	],
+	rename_sequence: [
+		'create_sequence',
+		'drop_sequence',
+		'rename_sequence',
+		'alter_sequence',
+		'move_sequence',
+	],
+	alter_sequence: [
+		'create_sequence',
+		'drop_sequence',
+		'rename_sequence',
+		'alter_sequence',
+		'move_sequence',
+	],
+	move_sequence: [
+		'create_sequence',
+		'drop_sequence',
+		'rename_sequence',
+		'alter_sequence',
+		'move_sequence',
+	],
 
 	// View operations
-	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-	drop_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-	rename_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-	move_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
+	create_view: [
+		'create_view',
+		'drop_view',
+		'rename_view',
+		'alter_view',
+		'move_view',
+	],
+	drop_view: [
+		'create_view',
+		'drop_view',
+		'rename_view',
+		'alter_view',
+		'move_view',
+	],
+	rename_view: [
+		'create_view',
+		'drop_view',
+		'rename_view',
+		'alter_view',
+		'move_view',
+	],
+	alter_view: [
+		'create_view',
+		'drop_view',
+		'rename_view',
+		'alter_view',
+		'move_view',
+	],
+	move_view: [
+		'create_view',
+		'drop_view',
+		'rename_view',
+		'alter_view',
+		'move_view',
+	],
 
 	// Schema operations
 	create_schema: ['create_schema', 'drop_schema', 'rename_schema'],
@@ -169,14 +287,50 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	rename_schema: ['create_schema', 'drop_schema', 'rename_schema'],
 
 	// Policy operations
-	create_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-	drop_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-	rename_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-	alter_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-	recreate_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+	create_policy: [
+		'create_policy',
+		'drop_policy',
+		'rename_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
+	drop_policy: [
+		'create_policy',
+		'drop_policy',
+		'rename_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
+	rename_policy: [
+		'create_policy',
+		'drop_policy',
+		'rename_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
+	alter_policy: [
+		'create_policy',
+		'drop_policy',
+		'rename_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
+	recreate_policy: [
+		'create_policy',
+		'drop_policy',
+		'rename_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
 
 	// RLS operations
-	alter_rls: ['alter_rls', 'create_policy', 'drop_policy', 'alter_policy', 'recreate_policy'],
+	alter_rls: [
+		'alter_rls',
+		'create_policy',
+		'drop_policy',
+		'alter_policy',
+		'recreate_policy',
+	],
 
 	// Role operations
 	create_role: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
@@ -194,17 +348,33 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 
 	// Privilege operations
 	grant_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
-	revoke_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
-	regrant_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
+	revoke_privilege: [
+		'grant_privilege',
+		'revoke_privilege',
+		'regrant_privilege',
+	],
+	regrant_privilege: [
+		'grant_privilege',
+		'revoke_privilege',
+		'regrant_privilege',
+	],
 };
 
-function formatFootprint(action: string, schema: string, objectName: string, columnName: string): string {
+function formatFootprint(
+	action: string,
+	schema: string,
+	objectName: string,
+	columnName: string,
+): string {
 	return `${action};${schema};${objectName};${columnName}`;
 }
 
-function extractStatementInfo(
-	statement: JsonStatement,
-): { action: string; schema: string; objectName: string; columnName: string } {
+function extractStatementInfo(statement: JsonStatement): {
+	action: string;
+	schema: string;
+	objectName: string;
+	columnName: string;
+} {
 	const action = statement.type;
 	let schema = '';
 	let objectName = '';
@@ -491,25 +661,48 @@ function describeStatement(statement: JsonStatement): string {
 	return `${info.action} on ${info.objectName} table`;
 }
 
-export function footprint(statement: JsonStatement, snapshot?: PostgresSnapshot): [string[], string[]] {
+export function footprint(
+	statement: JsonStatement,
+	snapshot?: PostgresSnapshot,
+): [string[], string[]] {
 	const info = extractStatementInfo(statement);
 	const conflictingTypes = footprintMap[statement.type];
 
-	const statementFootprint = [formatFootprint(statement.type, info.schema, info.objectName, info.columnName)];
+	const statementFootprint = [
+		formatFootprint(
+			statement.type,
+			info.schema,
+			info.objectName,
+			info.columnName,
+		),
+	];
 
 	let conflictFootprints = conflictingTypes.map((conflictType) =>
-		formatFootprint(conflictType, info.schema, info.objectName, info.columnName)
+		formatFootprint(
+			conflictType,
+			info.schema,
+			info.objectName,
+			info.columnName,
+		)
 	);
 
 	if (snapshot) {
-		const expandedFootprints = expandFootprintsFromSnapshot(statement, info, conflictingTypes, snapshot);
+		const expandedFootprints = expandFootprintsFromSnapshot(
+			statement,
+			info,
+			conflictingTypes,
+			snapshot,
+		);
 		conflictFootprints = [...conflictFootprints, ...expandedFootprints];
 	}
 
 	return [statementFootprint, conflictFootprints];
 }
 
-function generateLeafFootprints(statements: JsonStatement[], snapshot?: PostgresSnapshot): {
+function generateLeafFootprints(
+	statements: JsonStatement[],
+	snapshot?: PostgresSnapshot,
+): {
 	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
 	conflictFootprints: Array<{ hash: string; statement: JsonStatement }>;
 } {
@@ -534,7 +727,12 @@ function generateLeafFootprints(statements: JsonStatement[], snapshot?: Postgres
 
 function expandFootprintsFromSnapshot(
 	statement: JsonStatement,
-	info: { action: string; schema: string; objectName: string; columnName: string },
+	info: {
+		action: string;
+		schema: string;
+		objectName: string;
+		columnName: string;
+	},
 	conflictingTypes: JsonStatement['type'][],
 	snapshot: PostgresSnapshot,
 ): string[] {
@@ -542,20 +740,42 @@ function expandFootprintsFromSnapshot(
 
 	// For schemas - include all tables/views/enums/sequences in that schema
 	if (statement.type === 'drop_schema' || statement.type === 'rename_schema') {
-		const childEntities = findChildEntitiesInSchemaFromSnapshot(info.objectName, snapshot);
+		const childEntities = findChildEntitiesInSchemaFromSnapshot(
+			info.objectName,
+			snapshot,
+		);
 		for (const entity of childEntities) {
 			for (const conflictType of conflictingTypes) {
-				expandedFootprints.push(formatFootprint(conflictType, entity.schema, entity.objectName, entity.columnName));
+				expandedFootprints.push(
+					formatFootprint(
+						conflictType,
+						entity.schema,
+						entity.objectName,
+						entity.columnName,
+					),
+				);
 			}
 		}
 	} // For tables - include all columns/indexes/constraints in that table
 	else if (
-		statement.type === 'drop_table' || statement.type === 'rename_table'
+		statement.type === 'drop_table'
+		|| statement.type === 'rename_table'
 	) {
-		const childEntities = findChildEntitiesInTableFromSnapshot(info.schema, info.objectName, snapshot);
+		const childEntities = findChildEntitiesInTableFromSnapshot(
+			info.schema,
+			info.objectName,
+			snapshot,
+		);
 		for (const entity of childEntities) {
 			for (const conflictType of conflictingTypes) {
-				expandedFootprints.push(formatFootprint(conflictType, entity.schema, entity.objectName, entity.columnName));
+				expandedFootprints.push(
+					formatFootprint(
+						conflictType,
+						entity.schema,
+						entity.objectName,
+						entity.columnName,
+					),
+				);
 			}
 		}
 		// all indexes in changed tables should make a conflict in this case
@@ -571,29 +791,85 @@ function findChildEntitiesInSchemaFromSnapshot(
 	schemaName: string,
 	snapshot: PostgresSnapshot,
 ): Array<{ schema: string; objectName: string; columnName: string }> {
-	const entities: Array<{ schema: string; objectName: string; columnName: string }> = [];
+	const entities: Array<{
+		schema: string;
+		objectName: string;
+		columnName: string;
+	}> = [];
 
 	for (const entity of snapshot.ddl) {
 		if (entity.entityType === 'tables' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
-		} else if (entity.entityType === 'columns' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: entity.name });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'columns'
+			&& entity.schema === schemaName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: entity.name,
+			});
 		} else if (entity.entityType === 'views' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
 		} else if (entity.entityType === 'enums' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
-		} else if (entity.entityType === 'sequences' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
-		} else if (entity.entityType === 'indexes' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'sequences'
+			&& entity.schema === schemaName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'indexes'
+			&& entity.schema === schemaName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
 		} else if (entity.entityType === 'pks' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
 		} else if (entity.entityType === 'fks' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
-		} else if (entity.entityType === 'uniques' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'uniques'
+			&& entity.schema === schemaName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
 		} else if (entity.entityType === 'checks' && entity.schema === schemaName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
 		}
 	}
 
@@ -605,21 +881,73 @@ function findChildEntitiesInTableFromSnapshot(
 	tableName: string,
 	snapshot: PostgresSnapshot,
 ): Array<{ schema: string; objectName: string; columnName: string }> {
-	const entities: Array<{ schema: string; objectName: string; columnName: string }> = [];
+	const entities: Array<{
+		schema: string;
+		objectName: string;
+		columnName: string;
+	}> = [];
 
 	for (const entity of snapshot.ddl) {
-		if (entity.entityType === 'columns' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: entity.name });
-		} else if (entity.entityType === 'indexes' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
-		} else if (entity.entityType === 'pks' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
-		} else if (entity.entityType === 'fks' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
-		} else if (entity.entityType === 'uniques' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
-		} else if (entity.entityType === 'checks' && entity.schema === schemaName && entity.table === tableName) {
-			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		if (
+			entity.entityType === 'columns'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: entity.name,
+			});
+		} else if (
+			entity.entityType === 'indexes'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.name,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'pks'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'fks'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'uniques'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
+		} else if (
+			entity.entityType === 'checks'
+			&& entity.schema === schemaName
+			&& entity.table === tableName
+		) {
+			entities.push({
+				schema: entity.schema,
+				objectName: entity.table,
+				columnName: '',
+			});
 		}
 	}
 
@@ -639,7 +967,10 @@ function findFootprintIntersections(
 			if (hashInfoA.hash === conflictInfoB.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoA.hash, rightStatement: conflictInfoB.hash });
-				return { leftStatement: hashInfoA.statement, rightStatement: conflictInfoB.statement };
+				return {
+					leftStatement: hashInfoA.statement,
+					rightStatement: conflictInfoB.statement,
+				};
 			}
 		}
 	}
@@ -649,7 +980,10 @@ function findFootprintIntersections(
 			if (hashInfoB.hash === conflictInfoA.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoB.hash, rightStatement: conflictInfoA.hash });
-				return { leftStatement: hashInfoB.statement, rightStatement: conflictInfoA.statement };
+				return {
+					leftStatement: hashInfoB.statement,
+					rightStatement: conflictInfoA.statement,
+				};
 			}
 		}
 	}
@@ -663,14 +997,8 @@ export const getReasonsFromStatements = async (
 	snapshot?: PostgresSnapshot,
 ) => {
 	const parentSnapshot = snapshot ?? drySnapshot;
-	const branchAFootprints = generateLeafFootprints(
-		aStatements,
-		parentSnapshot,
-	);
-	const branchBFootprints = generateLeafFootprints(
-		bStatements,
-		parentSnapshot,
-	);
+	const branchAFootprints = generateLeafFootprints(aStatements, parentSnapshot);
+	const branchBFootprints = generateLeafFootprints(bStatements, parentSnapshot);
 
 	return findFootprintIntersections(
 		branchAFootprints.statementHashes,
@@ -696,6 +1024,7 @@ export const detectNonCommutative = async (
 	}
 
 	const conflicts: UnifiedBranchConflict[] = [];
+	const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
 
 	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
 		if (childIds.length <= 1) continue;
@@ -707,7 +1036,10 @@ export const detectNonCommutative = async (
 			childToLeaves[childId] = collectLeaves(nodes, childId);
 		}
 
-		const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
+		const leafStatements: Record<
+			string,
+			{ statements: JsonStatement[]; path: string }
+		> = {};
 		for (const leaves of Object.values(childToLeaves)) {
 			for (const leafId of leaves) {
 				const leafNode = nodes[leafId]!;
@@ -717,34 +1049,58 @@ export const detectNonCommutative = async (
 			}
 		}
 
+		let hasConflict = false;
+
 		for (let i = 0; i < childIds.length; i++) {
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
 				const groupB = childToLeaves[childIds[j]] ?? [];
 				for (const aId of groupA) {
 					for (const bId of groupB) {
+						if (aId === bId) {
+							continue;
+						}
 						const aStatements = leafStatements[aId]!.statements;
 						const bStatements = leafStatements[bId]!.statements;
 
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 
 						// function that accepts statements are respond with conflicts
-						const intersectedHashed = await getReasonsFromStatements(aStatements, bStatements, parentSnapshot);
+						const intersectedHashed = await getReasonsFromStatements(
+							aStatements,
+							bStatements,
+							parentSnapshot,
+						);
 
 						if (intersectedHashed) {
-							const chainA = buildChain(nodes, prevToChildren, childIds[i], aId);
-							const chainB = buildChain(nodes, prevToChildren, childIds[j], bId);
+							hasConflict = true;
+							const chainA = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[i],
+								aId,
+							);
+							const chainB = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[j],
+								bId,
+							);
 
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
 								branchA: {
 									chain: chainA,
-									statementDescription: describeStatement(intersectedHashed.leftStatement),
+									statementDescription: describeStatement(
+										intersectedHashed.leftStatement,
+									),
 								},
 								branchB: {
 									chain: chainB,
-									statementDescription: describeStatement(intersectedHashed.rightStatement),
+									statementDescription: describeStatement(
+										intersectedHashed.rightStatement,
+									),
 								},
 							});
 						}
@@ -752,19 +1108,44 @@ export const detectNonCommutative = async (
 				}
 			}
 		}
+
+		const uniqueLeafIds = Array.from(
+			new Set(Object.values(childToLeaves).flat()),
+		);
+		if (hasConflict) {
+			continue;
+		}
+
+		if (uniqueLeafIds.length <= 1) {
+			continue;
+		}
+
+		const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
+		const leafs = uniqueLeafIds.map((leafId) => ({
+			id: leafId,
+			path: leafStatements[leafId]?.path ?? nodes[leafId]?.folderPath ?? leafId,
+			statements: leafStatements[leafId]?.statements ?? [],
+		}));
+
+		commutativeBranches?.push({
+			parentId: prevId,
+			parentPath: parentNode?.folderPath,
+			parentSnapshot,
+			leafs,
+		});
 	}
 
 	// Collect all leaf nodes (nodes with no children)
 	const allNodeIds = new Set(Object.keys(nodes));
-	const nodesWithChildren = new Set(Object.values(prevToChildren).flat());
-	const leafNodes = Array.from(allNodeIds).filter((id) => !nodesWithChildren.has(id));
+	const parentIds = new Set(Object.keys(prevToChildren));
+	const leafNodes = Array.from(allNodeIds).filter((id) => !parentIds.has(id));
 
-	return { conflicts, leafNodes };
+	return { conflicts, leafNodes, commutativeBranches };
 };
 
-function buildSnapshotGraph<TSnapshot extends { id: string; prevIds: string[] }>(
-	snapshotFiles: string[],
-): Record<string, SnapshotNode<TSnapshot>> {
+function buildSnapshotGraph<
+	TSnapshot extends { id: string; prevIds: string[] },
+>(snapshotFiles: string[]): Record<string, SnapshotNode<TSnapshot>> {
 	const byId: Record<string, SnapshotNode<TSnapshot>> = {};
 	for (const file of snapshotFiles) {
 		if (!existsSync(file)) continue;
@@ -859,7 +1240,10 @@ async function diffPostgres(
 	fromSnap: PostgresSnapshot,
 	toSnap: PostgresSnapshot,
 ): Promise<{ statements: JsonStatement[] }>;
-async function diffPostgres(fromSnap: any, toSnap: any): Promise<{ statements: JsonStatement[] }> {
+async function diffPostgres(
+	fromSnap: any,
+	toSnap: any,
+): Promise<{ statements: JsonStatement[] }> {
 	const fromDDL: PostgresDDL = createDDL();
 	const toDDL: PostgresDDL = createDDL();
 

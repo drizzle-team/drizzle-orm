@@ -24,6 +24,16 @@ export type UnifiedBranchConflict = {
 export type NonCommutativityReport = {
 	conflicts: UnifiedBranchConflict[];
 	leafNodes: string[]; // IDs of all leaf nodes (terminal nodes with no children)
+	commutativeBranches?: {
+		parentId: string;
+		parentPath?: string;
+		parentSnapshot: unknown;
+		leafs: {
+			id: string;
+			path: string;
+			statements: unknown[];
+		}[];
+	}[];
 };
 
 export const detectNonCommutative = async (
@@ -31,12 +41,16 @@ export const detectNonCommutative = async (
 	dialect: Dialect,
 ): Promise<NonCommutativityReport> => {
 	if (dialect === 'postgresql') {
-		const { detectNonCommutative } = await import('../dialects/postgres/commutativity');
+		const { detectNonCommutative } = await import(
+			'../dialects/postgres/commutativity'
+		);
 		return detectNonCommutative(snapshots);
 	} else if (dialect === 'mysql') {
-		const { detectNonCommutative } = await import('../dialects/mysql/commutativity');
+		const { detectNonCommutative } = await import(
+			'../dialects/mysql/commutativity'
+		);
 		return detectNonCommutative(snapshots);
 	}
 
-	return { conflicts: [], leafNodes: [] };
+	return { conflicts: [], leafNodes: [], commutativeBranches: [] };
 };
