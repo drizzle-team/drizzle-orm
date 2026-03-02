@@ -48,8 +48,9 @@ const optionDriver = string()
 const optionCasing = string()
 	.enum('camelCase', 'snake_case')
 	.desc('Casing for serialization');
-const optionIgnoreConflicts = boolean('ignore-conflicts')
-	.desc('Skip commutativity conflict checks');
+const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
+	'Skip commutativity conflict checks',
+);
 
 export const generate = command({
 	name: 'generate',
@@ -83,14 +84,18 @@ export const generate = command({
 		assertV3OutFolder(opts.out);
 
 		const dialect = opts.dialect;
-		await checkHandler(opts.out, dialect, opts.ignoreConflicts);
+		const checkResult = await checkHandler(
+			opts.out,
+			dialect,
+			opts.ignoreConflicts,
+		);
 
 		if (dialect === 'postgresql') {
 			const { handle } = await import('./commands/generate-postgres');
-			await handle(opts);
+			await handle(opts, checkResult);
 		} else if (dialect === 'mysql') {
 			const { handle } = await import('./commands/generate-mysql');
-			await handle(opts);
+			await handle(opts, checkResult);
 		} else if (dialect === 'sqlite') {
 			const { handle } = await import('./commands/generate-sqlite');
 			await handle(opts);
@@ -127,7 +132,12 @@ export const migrate = command({
 	},
 	transform: async (opts) => {
 		const migrateConf = await prepareMigrateConfig(opts.config);
-		return { ...migrateConf, ...(opts.ignoreConflicts !== undefined && { ignoreConflicts: opts.ignoreConflicts }) };
+		return {
+			...migrateConf,
+			...(opts.ignoreConflicts !== undefined && {
+				ignoreConflicts: opts.ignoreConflicts,
+			}),
+		};
 	},
 	handler: async (opts) => {
 		await assertOrmCoreVersion();

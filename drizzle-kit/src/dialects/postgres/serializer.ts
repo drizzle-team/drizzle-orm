@@ -1,7 +1,8 @@
+import type { CheckHandlerResult } from '../../cli/commands/check';
 import type { CasingType } from '../../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
-import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
+import { prepareFilenames } from '../../utils/utils-node';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -13,6 +14,7 @@ export const prepareSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
 	casing: CasingType | undefined,
+	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
@@ -22,11 +24,24 @@ export const prepareSnapshot = async (
 }> => {
 	const { readFileSync } = await import('fs');
 	const { randomUUID } = await import('crypto');
-	const prevSnapshot = snapshots.length === 0
+	const latestSnapshot = snapshots.length === 0
 		? drySnapshot
 		: snapshotValidator.strict(
 			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
 		);
+
+	const branchParentSnapshot = checkResult?.parentSnapshot
+		? snapshotValidator.strict(
+			checkResult.parentSnapshot as Record<string, unknown>,
+		)
+		: null;
+	const branchStatements = (checkResult?.statements ?? []) as JsonStatement[];
+	const useBranchParent = branchParentSnapshot !== null && branchStatements.length > 0;
+	const mergeLeafIds = (checkResult?.leafIds?.length ?? 0) > 1 ? checkResult?.leafIds : undefined;
+
+	const prevSnapshot = useBranchParent
+		? generateLatestSnapshot(branchParentSnapshot, branchStatements)
+		: latestSnapshot;
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
@@ -60,7 +75,7 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
+	const prevIds = mergeLeafIds ?? [prevSnapshot.id];
 
 	const snapshot = {
 		version: '8',
@@ -77,9 +92,6 @@ export const prepareSnapshot = async (
 		...prevRest
 	} = prevSnapshot;
 
-	// function to combine snapshots into one
-	// take all the statements from commutative statements to generate a new one with ddl
-
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: PostgresSnapshot = {
 		id,
@@ -90,7 +102,6 @@ export const prepareSnapshot = async (
 	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
 };
 
-// util function
 // takes parent snapshot and statements
 // applies statements to the snapshot and returns new snapshot
 export function generateLatestSnapshot(
@@ -542,6 +553,12 @@ export function generateLatestSnapshot(
 				break;
 			case 'recreate_enum':
 				replace(ddl.enums, statement.from, statement.to);
+				break;
+			case 'alter_type_drop_value':
+				ddl.enums.update({
+					where: { schema: statement.enum.schema, name: statement.enum.name },
+					set: { values: statement.enum.values },
+				});
 				break;
 
 			case 'create_sequence':

@@ -118,6 +118,13 @@ export interface JsonRegrantPrivilege {
 	diff: DiffEntities['privileges'];
 }
 
+export interface JsonDropValueFromEnum {
+	type: 'alter_type_drop_value';
+	deletedValues: string[];
+	enum: Enum;
+	columns: Column[];
+}
+
 export interface JsonCreateSequence {
 	type: 'create_sequence';
 	sequence: Sequence;
@@ -281,6 +288,19 @@ export interface JsonMoveTable {
 	to: string;
 }
 
+export interface JsonAlterTableRemoveFromSchema {
+	type: 'remove_from_schema';
+	table: string;
+	schema: string;
+}
+
+export interface JsonAlterTableSetNewSchema {
+	type: 'set_new_schema';
+	table: string;
+	from: string;
+	to: string;
+}
+
 export interface JsonDropIndex {
 	type: 'drop_index';
 	index: Index;
@@ -413,6 +433,8 @@ export type JsonStatement =
 	| JsonDropSchema
 	| JsonRenameSchema
 	| JsonMoveTable
+	| JsonAlterTableRemoveFromSchema
+	| JsonAlterTableSetNewSchema
 	| JsonAlterSequence
 	| JsonDropSequence
 	| JsonCreateSequence
@@ -434,6 +456,7 @@ export type JsonStatement =
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView
+	| JsonDropValueFromEnum
 	| JsonAlterCheck
 	| JsonRecreateIndex;
 
