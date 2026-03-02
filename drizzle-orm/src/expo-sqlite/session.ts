@@ -225,11 +225,13 @@ export class ExpoSQLitePreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			[rows],
-			fields!,
-			joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				[row],
+				fields!,
+				joinsNotNullableMap,
+			)[0]
+			: mapResultRow(this.fields!, row, this.joinsNotNullableMap);
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
