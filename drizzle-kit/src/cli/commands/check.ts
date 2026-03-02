@@ -190,6 +190,7 @@ export const checkHandler = async (
 			return emptyResult();
 		}
 
+		// Maybe remove
 		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
 		return {
 			statements: sortedLeafs.flatMap((leaf) => leaf.statements),

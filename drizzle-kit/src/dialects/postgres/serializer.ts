@@ -2,7 +2,7 @@ import type { CheckHandlerResult } from '../../cli/commands/check';
 import type { CasingType } from '../../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
-import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
+import { prepareFilenames } from '../../utils/utils-node';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -75,11 +75,7 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevIds = mergeLeafIds
-		? mergeLeafIds
-		: snapshots.length === 0
-		? [prevSnapshot.id]
-		: findLeafSnapshotIds(snapshots);
+	const prevIds = mergeLeafIds ?? [prevSnapshot.id];
 
 	const snapshot = {
 		version: '8',
@@ -106,7 +102,6 @@ export const prepareSnapshot = async (
 	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
 };
 
-// util function
 // takes parent snapshot and statements
 // applies statements to the snapshot and returns new snapshot
 export function generateLatestSnapshot(
