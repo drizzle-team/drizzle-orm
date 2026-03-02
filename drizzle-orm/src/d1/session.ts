@@ -348,11 +348,13 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)([result as unknown[]]) as T['all'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			[result as unknown[]],
-			this.fields!,
-			this.joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				[result as unknown[]],
+				this.fields!,
+				this.joinsNotNullableMap,
+			)[0]
+			: mapResultRow(this.fields!, result, this.joinsNotNullableMap);
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {

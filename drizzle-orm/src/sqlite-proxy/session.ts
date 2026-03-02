@@ -316,11 +316,13 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) as T['get'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			[row as unknown[]],
-			this.fields!,
-			this.joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				[row as unknown[]],
+				this.fields!,
+				this.joinsNotNullableMap,
+			)[0]
+			: mapResultRow(this.fields!, row as unknown[], this.joinsNotNullableMap);
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
