@@ -148,6 +148,86 @@ describe('transition tests', () => {
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
 
+	test('rename table that has other entities', async () => {
+		const test = pgTable('test', {
+			id: integer('id'),
+		});
+		const users = pgTable(
+			'users',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubs = pgTable('users_subsc', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => users.id),
+			subId: varchar('sub_id'),
+		});
+		const from = {
+			test,
+			users: users,
+			usersSubs: usersSubs,
+		};
+
+		const usersTo = pgTable(
+			'users_renamed',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubsTo = pgTable('users_subsc', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => usersTo.id),
+			subId: varchar('sub_id'),
+		});
+		const to = {
+			test,
+			users: usersTo,
+			usersSubs: usersSubsTo,
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['rename_table'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: ['public.users->public.users_renamed'],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
 	test('move table to another schema', async () => {
 		const analytics = pgSchema('analytics');
 		const from = {
@@ -169,6 +249,174 @@ describe('transition tests', () => {
 			from,
 			to,
 			renames: ['public.users->analytics.users'],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('move table to another schema. Table has other entities', async () => {
+		const analytics = pgSchema('analytics');
+		const test = pgTable('test', {
+			id: integer('id'),
+		});
+
+		const users = pgTable(
+			'users',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubs = pgTable('users_subs', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => users.id),
+			subId: varchar('sub_id'),
+		});
+		const from = {
+			analytics,
+			test,
+			users: users,
+			usersSubs: usersSubs,
+		};
+
+		const usersTo = analytics.table(
+			'users',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubsTo = pgTable('users_subs', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => usersTo.id),
+			subId: varchar('sub_id'),
+		});
+		const to = {
+			analytics,
+			test,
+			users: usersTo,
+			usersSubs: usersSubsTo,
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['move_table'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: ['public.users->analytics.users'],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('move table to another schema + rename table. Table has other entities', async () => {
+		const analytics = pgSchema('analytics');
+		const test = pgTable('test', {
+			id: integer('id'),
+		});
+
+		const users = pgTable(
+			'users',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubs = pgTable('users_subs', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => users.id),
+			subId: varchar('sub_id'),
+		});
+		const from = {
+			analytics,
+			test,
+			users: users,
+			usersSubs: usersSubs,
+		};
+
+		const usersTo = analytics.table(
+			'users_renamed',
+			{
+				id: integer('id'),
+				name: varchar('name'),
+				test_id: integer('test_id').references(() => test.id),
+				age: integer('age'),
+				test: integer('test'),
+			},
+			(
+				t,
+			) => [
+				check('age_check', sql`${t.age} > 18`),
+				index('users_name_idx').on(t.name),
+				unique().on(t.test),
+			],
+		);
+		const usersSubsTo = pgTable('users_subs', {
+			id: integer('id'),
+			userId: integer('user_id').references(() => usersTo.id),
+			subId: varchar('sub_id'),
+		});
+		const to = {
+			analytics,
+			test,
+			users: usersTo,
+			usersSubs: usersSubsTo,
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['rename_table', 'move_table'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: ['public.users->analytics.users_renamed'],
 		});
 
 		expect(
@@ -321,9 +569,30 @@ describe('transition tests', () => {
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
 
-	// TODO
-	// test("recreate_column", async () => {
-	// });
+	test('recreate_column', async () => {
+		const from = { users: pgTable('users', { id: integer('id').generatedAlwaysAs(sql`13`) }) };
+		const to = {
+			users: pgTable('users', { id: integer('id').generatedAlwaysAs(sql`15`) }),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['recreate_column'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
 
 	test('add index', async () => {
 		const from = {
@@ -457,7 +726,109 @@ describe('transition tests', () => {
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
 
-	test('add pk', async () => {
+	test('add pk to notNull', async () => {
+		const from = {
+			users: pgTable('users', {
+				id: integer('id').notNull(),
+				name: integer('name'),
+			}),
+		};
+		const to = {
+			users: pgTable(
+				'users',
+				{ id: integer('id').notNull(), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.id] })],
+			),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['add_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('add pk to nullable', async () => {
+		const from = {
+			users: pgTable('users', {
+				id: integer('id').notNull(),
+				name: integer('name'),
+			}),
+		};
+		const to = {
+			users: pgTable(
+				'users',
+				{ id: integer('id').notNull(), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.name] })],
+			),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['add_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('add composite pk #1', async () => {
+		const from = {
+			users: pgTable('users', {
+				id: integer('id'),
+				name: integer('name'),
+			}),
+		};
+		const to = {
+			users: pgTable(
+				'users',
+				{ id: integer('id'), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.id, t.name] })],
+			),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['add_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('add composite pk #2', async () => {
 		const from = {
 			users: pgTable('users', {
 				id: integer('id').notNull(),
@@ -491,11 +862,113 @@ describe('transition tests', () => {
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
 
-	test('drop pk', async () => {
+	test('drop pk from notNull', async () => {
 		const from = {
 			users: pgTable(
 				'users',
 				{ id: integer('id').notNull(), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.id] })],
+			),
+		};
+		const to = {
+			users: pgTable('users', {
+				id: integer('id').notNull(),
+				name: integer('name'),
+			}),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['drop_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('drop pk from nullable', async () => {
+		const from = {
+			users: pgTable(
+				'users',
+				{ id: integer('id'), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.id] })],
+			),
+		};
+		const to = {
+			users: pgTable('users', {
+				id: integer('id'),
+				name: integer('name'),
+			}),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['alter_column', 'drop_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('drop composite pk #1', async () => {
+		const from = {
+			users: pgTable(
+				'users',
+				{ id: integer('id'), name: integer('name') },
+				(t) => [primaryKey({ columns: [t.id, t.name] })],
+			),
+		};
+		const to = {
+			users: pgTable('users', {
+				id: integer('id'),
+				name: integer('name'),
+			}),
+		};
+
+		const expectedTypes: JsonStatement['type'][] = ['alter_column', 'alter_column', 'drop_pk'];
+
+		const { afterPatch, fromTs, statements } = await applyTransition({
+			from,
+			to,
+			renames: [],
+		});
+
+		expect(
+			statements.map((it) => it.type).sort((a, b) => a.localeCompare(b)),
+			`Inconsistent statement types. Expected: ${expectedTypes.join(', ')}. Actual: ${
+				statements
+					.map((s) => s.type)
+					.join(', ')
+			}`,
+		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
+		expect(afterPatch).toStrictEqual(fromTs);
+	});
+
+	test('drop composite pk #2', async () => {
+		const from = {
+			users: pgTable(
+				'users',
+				{ id: integer('id').notNull(), name: integer('name').notNull() },
 				(t) => [primaryKey({ columns: [t.id, t.name] })],
 			),
 		};
@@ -1579,6 +2052,11 @@ describe('transition tests', () => {
 		).toStrictEqual(expectedTypes.sort((a, b) => a.localeCompare(b)));
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
+
+	// TODO
+	// grant_privilege;
+	// revoke_privilege;
+	// regrant_privilege;
 
 	test('create view', async () => {
 		const from = {
