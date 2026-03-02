@@ -461,7 +461,7 @@ describe('Accepts drivers in .client', (it) => {
 	});
 
 	it('mysql2/promise:Pool', async () => {
-		const cl = await ms2pPool({
+		const cl = ms2pPool({
 			uri: process.env['MYSQL_CONNECTION_STRING'],
 		});
 
