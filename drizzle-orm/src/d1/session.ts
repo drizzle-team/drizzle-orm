@@ -354,7 +354,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 				this.fields!,
 				this.joinsNotNullableMap,
 			)[0]
-			: mapResultRow(this.fields!, result, this.joinsNotNullableMap);
+			: mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
