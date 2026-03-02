@@ -2673,6 +2673,44 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4326
+		test.concurrent('mutation of getColumns(table)', async ({ db, push }) => {
+			const cities2Table = pgTable('cities_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+			]);
+
+			const joinSelection = Object.assign(getColumns(users2Table), { cityName: cities2Table.name });
+			const result = await db.select({ ...joinSelection }).from(users2Table).innerJoin(
+				cities2Table,
+				eq(users2Table.cityId, cities2Table.id),
+			).where(eq(users2Table.id, 1));
+			expect(result).toStrictEqual([{ cityId: 1, cityName: 'New York', id: 1, name: 'John' }]);
+
+			const userSelection = getColumns(users2Table);
+			expect(Object.keys(userSelection)).toStrictEqual(['id', 'name', 'cityId']);
+			const result1 = await db.select({ ...userSelection }).from(users2Table).where(eq(users2Table.id, 2));
+			expect(result1).toStrictEqual([{ id: 2, name: 'Jane', cityId: 2 }]);
+		});
+
 		// https://github.com/drizzle-team/drizzle-orm/issues/5049
 		test('view #3', async ({ db }) => {
 			const table1 = pgTable('table1', {
