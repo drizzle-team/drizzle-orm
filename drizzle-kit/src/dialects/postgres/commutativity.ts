@@ -22,16 +22,12 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'drop_table',
 		'rename_table',
 		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
 	],
 	drop_table: [
 		'create_table',
 		'drop_table',
 		'rename_table',
 		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
 		'add_column',
 		'drop_column',
 		'alter_column',
@@ -46,32 +42,12 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'drop_table',
 		'rename_table',
 		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
 	],
 	move_table: [
 		'create_table',
 		'drop_table',
 		'rename_table',
 		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
-	],
-	remove_from_schema: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
-	],
-	set_new_schema: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-		'remove_from_schema',
-		'set_new_schema',
 	],
 
 	// Column operations
@@ -394,14 +370,6 @@ function extractStatementInfo(statement: JsonStatement): {
 		case 'move_table':
 			schema = statement.from;
 			objectName = statement.name;
-			break;
-		case 'remove_from_schema':
-			schema = statement.schema;
-			objectName = statement.table;
-			break;
-		case 'set_new_schema':
-			schema = statement.from;
-			objectName = statement.table;
 			break;
 
 		// Column operations
