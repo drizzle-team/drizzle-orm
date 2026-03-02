@@ -401,7 +401,8 @@ export const loadModule = async <T = unknown>(modulePath: string): Promise<T> =>
 			)
 			: undefined;
 		// oxlint-disable-next-line consistent-type-imports
-		const jiti = (require('jiti') as typeof import('jiti').default)(baseDir, {
+		const { createJiti } = require('jiti') as typeof import('jiti');
+		const jiti = createJiti(baseDir, {
 			interopDefault: true,
 			alias: aliases,
 			requireCache: false,
