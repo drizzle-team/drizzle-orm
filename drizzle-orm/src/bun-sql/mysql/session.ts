@@ -24,7 +24,7 @@ import {
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
@@ -44,6 +44,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -116,11 +117,13 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			return customResultMapper(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row: unknown[]) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -154,11 +157,13 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 					const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 					yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 				} else {
-					yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-						[row as unknown[]],
-						fields!,
-						joinsNotNullableMap,
-					)[0] as T['execute'];
+					yield this.useJitMapper
+						? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+							[row],
+							fields!,
+							joinsNotNullableMap,
+						)[0] as T['execute']
+						: mapResultRow(fields!, row, joinsNotNullableMap);
 				}
 			} else {
 				yield row as T['execute'];
@@ -170,6 +175,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 	mode: Mode;
 }
 
@@ -221,6 +227,7 @@ export class BunMySqlSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -245,6 +252,7 @@ export class BunMySqlSession<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,

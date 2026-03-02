@@ -8,7 +8,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
@@ -40,6 +40,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -109,11 +110,13 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			result.rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				result.rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -145,6 +148,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 export interface PgliteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PgliteSession<
@@ -192,6 +196,7 @@ export class PgliteSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -213,6 +218,7 @@ export class PgliteSession<
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

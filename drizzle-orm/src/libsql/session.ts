@@ -18,11 +18,12 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -73,6 +74,7 @@ export class LibSQLSession<
 			this.tx,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -94,6 +96,7 @@ export class LibSQLSession<
 			this.tx,
 			executeMethod,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -226,6 +229,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -293,11 +297,13 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['all'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			(rows as unknown[][]).map((row) => Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))),
-			this.fields!,
-			this.joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				(rows as unknown[][]).map((row) => Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))),
+				this.fields!,
+				this.joinsNotNullableMap,
+			)
+			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -358,11 +364,17 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['get'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			[Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))],
-			this.fields!,
-			this.joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				[Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))],
+				this.fields!,
+				this.joinsNotNullableMap,
+			)[0]
+			: mapResultRow(
+				this.fields!,
+				Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v)),
+				this.joinsNotNullableMap,
+			);
 	}
 
 	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {

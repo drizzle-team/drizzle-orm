@@ -15,6 +15,7 @@ import { GelDbSession } from './session.ts';
 export interface GelDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class GelDriver {
@@ -32,6 +33,7 @@ export class GelDriver {
 	): GelDbSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new GelDbSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -73,7 +75,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new GelDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new GelDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
 	const session = driver.createSession(relations, schema);
 	const db = new GelJsDatabase(dialect, session, relations, schema as any) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;

@@ -13,7 +13,7 @@ import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export class PostgresJsPreparedQuery<
 	T extends PreparedQueryConfig,
@@ -35,6 +35,7 @@ export class PostgresJsPreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -80,11 +81,13 @@ export class PostgresJsPreparedQuery<
 					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
 				}
 
-				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-					rows,
-					fields!,
-					joinsNotNullableMap,
-				);
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						rows,
+						fields!,
+						joinsNotNullableMap,
+					)
+					: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -146,6 +149,7 @@ export class PostgresJsPreparedQuery<
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PostgresJsSession<
@@ -194,6 +198,7 @@ export class PostgresJsSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -214,6 +219,7 @@ export class PostgresJsSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

@@ -12,7 +12,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type XataHttpClient = {
 	sql: SQLPluginResult;
@@ -42,6 +42,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -75,11 +76,13 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -124,6 +127,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 export interface XataHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class XataHttpSession<
@@ -174,6 +178,7 @@ export class XataHttpSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -193,6 +198,7 @@ export class XataHttpSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

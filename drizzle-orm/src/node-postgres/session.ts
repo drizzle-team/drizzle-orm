@@ -14,7 +14,7 @@ import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 const { Pool, types } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
@@ -42,6 +42,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -184,11 +185,13 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 				}
 
-				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-					result.rows,
-					fields!,
-					joinsNotNullableMap,
-				);
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						result.rows,
+						fields!,
+						joinsNotNullableMap,
+					)
+					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -242,6 +245,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NodePgSession<
@@ -289,6 +293,7 @@ export class NodePgSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -310,6 +315,7 @@ export class NodePgSession<
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

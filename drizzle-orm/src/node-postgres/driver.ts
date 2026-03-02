@@ -15,6 +15,7 @@ import { NodePgSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NodePgDatabase<
@@ -61,6 +62,7 @@ function construct<
 	const session = new NodePgSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMapper,
 	});
 
 	const db = new NodePgDatabase(

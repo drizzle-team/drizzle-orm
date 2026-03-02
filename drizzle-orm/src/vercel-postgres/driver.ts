@@ -14,6 +14,7 @@ import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } fro
 export interface VercelPgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class VercelPgDriver {
@@ -32,6 +33,7 @@ export class VercelPgDriver {
 	): VercelPgSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -77,7 +79,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new VercelPgDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 	const db = new VercelPgDatabase(
 		dialect,

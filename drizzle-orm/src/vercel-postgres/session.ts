@@ -20,7 +20,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
@@ -47,6 +47,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -164,11 +165,13 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -208,6 +211,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 export interface VercelPgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class VercelPgSession<
@@ -255,6 +259,7 @@ export class VercelPgSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -276,6 +281,7 @@ export class VercelPgSession<
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

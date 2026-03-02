@@ -17,6 +17,7 @@ import { MySql2Session } from './session.ts';
 export interface MySqlDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class MySql2Driver {
@@ -101,7 +102,11 @@ function construct<
 	const mode = config.mode ?? 'default';
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema, mode);
 	const db = new MySql2Database(
 		dialect,

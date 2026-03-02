@@ -16,6 +16,7 @@ import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } fro
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NeonHttpDriver {
@@ -35,6 +36,7 @@ export class NeonHttpDriver {
 	): NeonHttpSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
 		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -170,7 +172,11 @@ function construct<
 
 	const relations = config.relations ?? {} as TRelations;
 
-	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new NeonHttpDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 
 	const db = new NeonHttpDatabase(

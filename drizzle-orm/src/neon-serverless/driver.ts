@@ -15,6 +15,7 @@ import { NeonSession } from './session.ts';
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NeonDriver {
@@ -33,6 +34,7 @@ export class NeonDriver {
 	): NeonSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new NeonSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -79,7 +81,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
 	const session = driver.createSession(relations, schema);
 	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<
 		TSchema

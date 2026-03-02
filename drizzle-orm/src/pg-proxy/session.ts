@@ -11,12 +11,13 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryWithTypings } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PgRemoteSession<
@@ -34,7 +35,7 @@ export class PgRemoteSession<
 		dialect: PgDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: PgRemoteSessionOptions = {},
+		private options: PgRemoteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -64,6 +65,7 @@ export class PgRemoteSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -85,6 +87,7 @@ export class PgRemoteSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -132,6 +135,7 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -182,11 +186,13 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
 				}
 
-				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-					rows,
-					fields!,
-					joinsNotNullableMap,
-				);
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						rows,
+						fields!,
+						joinsNotNullableMap,
+					)
+					: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}

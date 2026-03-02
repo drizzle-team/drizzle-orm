@@ -18,7 +18,7 @@ import {
 } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
@@ -41,6 +41,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -111,11 +112,13 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows as unknown[][],
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows as unknown[][],
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row as unknown[], joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -145,6 +148,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PlanetscaleSession<
@@ -199,6 +203,7 @@ export class PlanetscaleSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -221,6 +226,7 @@ export class PlanetscaleSession<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,

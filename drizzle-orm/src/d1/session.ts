@@ -19,11 +19,12 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -73,6 +74,7 @@ export class SQLiteD1Session<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -94,6 +96,7 @@ export class SQLiteD1Session<
 			fields,
 			executeMethod,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -225,6 +228,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
@@ -283,11 +287,13 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			rows as unknown[][],
-			this.fields!,
-			this.joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				rows as unknown[][],
+				this.fields!,
+				this.joinsNotNullableMap,
+			)
+			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {

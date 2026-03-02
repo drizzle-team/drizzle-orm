@@ -21,6 +21,7 @@ import { PgliteSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PgliteDriver {
@@ -39,6 +40,7 @@ export class PgliteDriver {
 	): PgliteSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new PgliteSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -125,7 +127,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
 	const session = driver.createSession(relations, schema);
 	const db = new PgliteDatabase(
 		dialect,

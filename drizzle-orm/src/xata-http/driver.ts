@@ -14,6 +14,7 @@ import { XataHttpSession } from './session.ts';
 export interface XataDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class XataHttpDriver {
@@ -34,6 +35,7 @@ export class XataHttpDriver {
 		return new XataHttpSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			useJitMapper: this.options.useJitMapper,
 		});
 	}
 
@@ -86,7 +88,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new XataHttpDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 
 	const db = new XataHttpDatabase(

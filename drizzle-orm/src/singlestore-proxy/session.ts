@@ -18,13 +18,14 @@ import type {
 import { SingleStorePreparedQuery as PreparedQueryBase, SingleStoreSession } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 export class SingleStoreRemoteSession<
@@ -47,7 +48,7 @@ export class SingleStoreRemoteSession<
 		dialect: SingleStoreDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: SingleStoreRemoteSessionOptions,
+		private options: SingleStoreRemoteSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -66,6 +67,7 @@ export class SingleStoreRemoteSession<
 			query.params,
 			this.logger,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -85,6 +87,7 @@ export class SingleStoreRemoteSession<
 			query.params,
 			this.logger,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -138,6 +141,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -198,11 +202,13 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
