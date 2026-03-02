@@ -15,7 +15,7 @@ import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts
 import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
@@ -46,6 +46,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -80,11 +81,13 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 					}
 
-					return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-						rows as unknown[][],
-						fields!,
-						joinsNotNullableMap,
-					);
+					return this.useJitMapper
+						? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+							rows as unknown[][],
+							fields!,
+							joinsNotNullableMap,
+						) as T['execute']
+						: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
 				},
 			));
 		}).pipe(Effect.provideService(EffectLogger, this.logger));
@@ -133,6 +136,12 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	}
 }
 
+export interface EffectPgSessionOptions {
+	logger: EffectLogger;
+	cache: EffectCache;
+	useJitMapper?: boolean;
+}
+
 export class EffectPgSession<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
@@ -146,8 +155,7 @@ export class EffectPgSession<
 		dialect: PgDialect,
 		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private logger: EffectLogger,
-		private cache: EffectCache,
+		private options: EffectPgSessionOptions,
 	) {
 		super(dialect);
 	}
@@ -168,13 +176,14 @@ export class EffectPgSession<
 			this.client,
 			query.sql,
 			query.params,
-			this.logger,
-			this.cache,
+			this.options.logger,
+			this.options.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 			false,
 		);
@@ -193,13 +202,14 @@ export class EffectPgSession<
 			this.client,
 			query.sql,
 			query.params,
-			this.logger,
-			this.cache,
+			this.options.logger,
+			this.options.cache,
 			undefined,
 			undefined,
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

@@ -14,10 +14,11 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type DrizzleTypeError, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -36,7 +37,7 @@ export class SQLJsSession<
 		dialect: SQLiteSyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: SQLJsSessionOptions = {},
+		private options: SQLJsSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -48,7 +49,15 @@ export class SQLJsSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new PreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			this.options.useJitMapper,
+		);
 	}
 
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -64,6 +73,7 @@ export class SQLJsSession<
 			fields,
 			executeMethod,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -135,6 +145,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -184,11 +195,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)(rows, normalizeFieldValue) as T['all'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
@@ -242,11 +255,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)([row], normalizeFieldValue) as T['get'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			[row],
-			fields!,
-			joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				[row],
+				fields!,
+				joinsNotNullableMap,
+			)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {

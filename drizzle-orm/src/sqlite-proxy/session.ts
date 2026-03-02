@@ -17,12 +17,13 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -43,7 +44,7 @@ export class SQLiteRemoteSession<
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private batchCLient?: AsyncBatchRemoteCallback,
-		options: SQLiteRemoteSessionOptions = {},
+		private options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -72,6 +73,7 @@ export class SQLiteRemoteSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -92,6 +94,7 @@ export class SQLiteRemoteSession<
 			fields,
 			executeMethod,
 			true,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -196,6 +199,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		/** @internal */ public customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
@@ -232,11 +236,13 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) as T['all'];
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			rows as unknown[][],
-			this.fields!,
-			this.joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				rows as unknown[][],
+				this.fields!,
+				this.joinsNotNullableMap,
+			)
+			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {

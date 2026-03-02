@@ -18,12 +18,13 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { SQLiteCloudRunResult } from './driver.ts';
 
 export interface SQLiteCloudSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -74,6 +75,7 @@ export class SQLiteCloudSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -96,6 +98,7 @@ export class SQLiteCloudSession<
 			fields,
 			executeMethod,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
@@ -222,6 +225,7 @@ export class SQLiteCloudPreparedQuery<
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -266,11 +270,13 @@ export class SQLiteCloudPreparedQuery<
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -324,11 +330,13 @@ export class SQLiteCloudPreparedQuery<
 
 		if (row === undefined) return row;
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			[row],
-			fields!,
-			joinsNotNullableMap,
-		)[0];
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				[row],
+				fields!,
+				joinsNotNullableMap,
+			)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private async getRqbV2(placeholderValues?: Record<string, unknown>) {

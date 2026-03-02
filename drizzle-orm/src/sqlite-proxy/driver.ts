@@ -106,7 +106,11 @@ export function drizzle<
 	}
 
 	const relations = _config.relations ?? {} as TRelations;
-	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger, cache });
+	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, {
+		logger,
+		cache,
+		useJitMapper: config?.useJitMapper,
+	});
 	const db = new SqliteRemoteDatabase(
 		'async',
 		dialect,

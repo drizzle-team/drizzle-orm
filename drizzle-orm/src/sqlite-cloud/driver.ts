@@ -61,7 +61,7 @@ export function construct<
 		dialect,
 		relations,
 		schema,
-		{ logger, cache: config.cache },
+		{ logger, cache: config.cache, useJitMapper: config.useJitMapper },
 	);
 	const db = new SQLiteCloudDatabase(
 		'async',

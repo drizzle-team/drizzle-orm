@@ -139,6 +139,7 @@ function construct<
 		...config,
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMapper,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
 	(<any> db).$client = client;

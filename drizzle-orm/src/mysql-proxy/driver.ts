@@ -50,7 +50,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new MySqlRemoteSession(callback, dialect, relations, schema, { logger });
+	const session = new MySqlRemoteSession(callback, dialect, relations, schema, {
+		logger,
+		useJitMapper: config.useJitMapper,
+	});
 	return new MySqlRemoteDatabase(
 		dialect,
 		session,

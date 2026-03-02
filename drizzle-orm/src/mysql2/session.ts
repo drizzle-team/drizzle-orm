@@ -33,7 +33,7 @@ import {
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
 
@@ -64,6 +64,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -148,11 +149,13 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -205,11 +208,13 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-								[row as unknown[]],
-								fields!,
-								joinsNotNullableMap,
-							)[0] as T['execute'];
+							yield this.useJitMapper
+								? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+									[row as unknown[]],
+									fields!,
+									joinsNotNullableMap,
+								)[0] as T['execute']
+								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {
 						yield row as T['execute'];
@@ -228,6 +233,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 	mode: Mode;
 }
 
@@ -278,6 +284,7 @@ export class MySql2Session<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -302,6 +309,7 @@ export class MySql2Session<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,

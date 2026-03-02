@@ -17,7 +17,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
@@ -47,6 +47,7 @@ export class AwsDataApiPreparedQuery<
 		/** @internal */
 		readonly transactionId: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -100,11 +101,13 @@ export class AwsDataApiPreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			result.rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				result.rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -196,6 +199,7 @@ export interface AwsDataApiSessionOptions {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
+	useJitMapper?: boolean;
 }
 
 interface AwsDataApiQueryBase {
@@ -262,6 +266,7 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -285,6 +290,7 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

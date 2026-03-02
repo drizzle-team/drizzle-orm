@@ -78,7 +78,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new PostgresJsSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new PostgresJsSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const db = new PostgresJsDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

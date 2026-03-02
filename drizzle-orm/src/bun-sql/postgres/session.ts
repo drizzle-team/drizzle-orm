@@ -14,7 +14,7 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends PgAsyncPreparedQuery<T>
@@ -35,6 +35,7 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -81,11 +82,13 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
 				}
 
-				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-					rows,
-					fields!,
-					joinsNotNullableMap,
-				);
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						rows,
+						fields!,
+						joinsNotNullableMap,
+					)
+					: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -147,6 +150,7 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class BunSQLSession<
@@ -195,6 +199,7 @@ export class BunSQLSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -215,6 +220,7 @@ export class BunSQLSession<
 			undefined,
 			fields,
 			true,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);

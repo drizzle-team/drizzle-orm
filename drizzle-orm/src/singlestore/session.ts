@@ -32,7 +32,7 @@ import {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
@@ -63,6 +63,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -147,11 +148,13 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return customResultMapper(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -204,11 +207,13 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-								[row as unknown[]],
-								fields!,
-								joinsNotNullableMap,
-							)[0] as T['execute'];
+							yield this.useJitMapper
+								? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+									[row as unknown[]],
+									fields!,
+									joinsNotNullableMap,
+								)[0] as T['execute']
+								: mapResultRow(this.fields!, row as unknown[], this.joinsNotNullableMap);
 						}
 					} else {
 						yield row as T['execute'];
@@ -227,6 +232,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class SingleStoreDriverSession<
@@ -280,6 +286,7 @@ export class SingleStoreDriverSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -304,6 +311,7 @@ export class SingleStoreDriverSession<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,

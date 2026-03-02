@@ -18,7 +18,7 @@ import {
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
@@ -42,6 +42,7 @@ export class NodeMsSqlPreparedQuery<
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
@@ -85,11 +86,13 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows.recordset,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows.recordset,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.recordset.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	async *iterator(
@@ -154,11 +157,13 @@ export class NodeMsSqlPreparedQuery<
 							const mappedRow = customResultMapper([row as unknown[]]);
 							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
 						} else {
-							yield (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-								[row as unknown[]],
-								fields!,
-								joinsNotNullableMap,
-							)[0] as T['execute'];
+							yield this.useJitMapper
+								? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+									[row as unknown[]],
+									fields!,
+									joinsNotNullableMap,
+								)[0] as T['execute']
+								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {
 						yield row as T['execute'];
@@ -174,6 +179,7 @@ export class NodeMsSqlPreparedQuery<
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -210,6 +216,7 @@ export class NodeMsSqlSession<
 			query.params,
 			this.logger,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}

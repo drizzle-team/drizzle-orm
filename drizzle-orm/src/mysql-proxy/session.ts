@@ -20,7 +20,7 @@ import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-c
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
@@ -28,6 +28,7 @@ export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class MySqlRemoteSession<
@@ -51,7 +52,7 @@ export class MySqlRemoteSession<
 		dialect: MySqlDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: MySqlRemoteSessionOptions,
+		private options: MySqlRemoteSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -79,6 +80,7 @@ export class MySqlRemoteSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -101,6 +103,7 @@ export class MySqlRemoteSession<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -160,6 +163,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -224,11 +228,13 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 			return customResultMapper(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-			rows,
-			fields!,
-			joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+				rows,
+				fields!,
+				joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

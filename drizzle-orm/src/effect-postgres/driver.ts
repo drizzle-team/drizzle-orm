@@ -98,7 +98,11 @@ export const make = Effect.fn('PgDrizzle.make')(
 		}
 
 		const relations = config.relations ?? {} as TRelations;
-		const session = new EffectPgSession(client, dialect, relations, schema, logger, cache);
+		const session = new EffectPgSession(client, dialect, relations, schema, {
+			logger,
+			cache,
+			useJitMapper: config.useJitMapper,
+		});
 		const db = new EffectPgDatabase(
 			dialect,
 			session,

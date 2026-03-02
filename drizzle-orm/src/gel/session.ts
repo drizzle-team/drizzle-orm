@@ -11,7 +11,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type JitMapper, makeJitQueryMapper } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type GelClient = Client | Transaction;
 
@@ -34,6 +34,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -80,11 +81,13 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result);
 				}
 
-				return (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-					result,
-					fields!,
-					joinsNotNullableMap,
-				);
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
+						result,
+						fields!,
+						joinsNotNullableMap,
+					)
+					: result.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -144,6 +147,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 export interface GelSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class GelDbSession<
@@ -190,6 +194,7 @@ export class GelDbSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -210,6 +215,7 @@ export class GelDbSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			undefined,
 			true,

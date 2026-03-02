@@ -377,6 +377,7 @@ export interface DrizzleConfig<
 	casing?: Casing | undefined;
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
+	useJitMapper?: boolean | undefined;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -475,6 +476,13 @@ export function isConfig(data: any): boolean {
 	if ('client' in data) {
 		const type = typeof data['client'];
 		if (type !== 'object' && type !== 'function' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('useJitMapper' in data) {
+		const type = typeof data['useJitMapper'];
+		if (type !== 'boolean' && type !== 'undefined') return false;
 
 		return true;
 	}

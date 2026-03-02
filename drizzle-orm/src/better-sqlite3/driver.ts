@@ -59,7 +59,10 @@ function construct<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
-	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, { logger });
+	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, {
+		logger,
+		useJitMapper: config.useJitMapper,
+	});
 	const db = new BetterSQLite3Database(
 		'sync',
 		dialect,

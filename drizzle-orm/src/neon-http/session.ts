@@ -13,7 +13,7 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { type JitMapper, makeJitQueryMapper, type NeonAuthToken } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
 
@@ -46,6 +46,7 @@ export class NeonHttpPreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -142,11 +143,13 @@ export class NeonHttpPreparedQuery<
 			return (this.customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
-			rows,
-			this.fields!,
-			this.joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper ??= makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(
+				rows,
+				this.fields!,
+				this.joinsNotNullableMap,
+			)
+			: rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -183,6 +186,7 @@ export class NeonHttpPreparedQuery<
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NeonHttpSession<
@@ -233,6 +237,7 @@ export class NeonHttpSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -252,6 +257,7 @@ export class NeonHttpSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
 		);
