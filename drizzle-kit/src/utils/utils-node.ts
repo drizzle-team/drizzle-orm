@@ -134,6 +134,32 @@ export const prepareOutFolder = (out: string) => {
 	return { snapshots };
 };
 
+/**
+ * Reads all snapshot files and returns the IDs of leaf nodes (nodes that are
+ * not referenced as a parent by any other node). When generating a new migration,
+ * these leaf IDs should be used as `prevIds` to merge all open branches.
+ */
+export const findLeafSnapshotIds = (snapshots: string[]): string[] => {
+	if (snapshots.length === 0) return [];
+
+	const allIds = new Set<string>();
+	const referencedAsParent = new Set<string>();
+
+	for (const file of snapshots) {
+		const raw = JSON.parse(readFileSync(file, 'utf8')) as {
+			id: string;
+			prevIds: string[];
+		};
+		allIds.add(raw.id);
+		for (const pid of raw.prevIds) {
+			referencedAsParent.add(pid);
+		}
+	}
+
+	const leafIds = [...allIds].filter((id) => !referencedAsParent.has(id));
+	return leafIds.length > 0 ? leafIds : [Array.from(allIds).pop()!];
+};
+
 type ValidationResult =
 	| { status: 'valid' | 'unsupported' | 'nonLatest' }
 	| { status: 'malformed'; errors: string[] };
