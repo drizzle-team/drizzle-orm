@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
+import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
@@ -380,13 +381,32 @@ export const loadModule = async <T = unknown>(modulePath: string): Promise<T> =>
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
 	if (isTS) {
-		const jiti = require('jiti')(path.dirname(absoluteModulePath), {
+		const baseDir = path.dirname(absoluteModulePath);
+		const tsconfig = getTsconfig(baseDir);
+		const tsconfigPaths = tsconfig?.config?.compilerOptions?.paths as Record<string, string[]> | undefined;
+		const tsconfigBaseUrl = tsconfig?.config?.compilerOptions?.baseUrl ?? '.';
+		const tsconfigDir = tsconfig?.path ? path.dirname(tsconfig.path) : undefined;
+		const aliases = tsconfigPaths && tsconfigDir
+			? Object.fromEntries(
+				Object.entries(tsconfigPaths).flatMap(([key, values]) => {
+					const target = values?.[0];
+					if (!target) return [];
+					if (key.endsWith('/*') && target.endsWith('/*')) {
+						const keyPrefix = key.slice(0, -1);
+						const targetPrefix = target.slice(0, -1);
+						return [[keyPrefix, path.resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix)]];
+					}
+					return [[key, path.resolve(tsconfigDir, tsconfigBaseUrl, target)]];
+				}),
+			)
+			: undefined;
+		// oxlint-disable-next-line consistent-type-imports
+		const jiti = (require('jiti') as typeof import('jiti').default)(baseDir, {
 			interopDefault: true,
-			esmResolve: true,
+			alias: aliases,
 			requireCache: false,
 		});
-		const mod = await jiti.import(absoluteModulePath);
-		return mod;
+		return jiti.import(absoluteModulePath);
 	}
 
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
