@@ -11,6 +11,7 @@ import type {
 	PrimaryKey,
 	Role,
 	Schema,
+	Sequence,
 	UniqueConstraint,
 	View,
 	ViewColumn,
@@ -29,10 +30,13 @@ import { isSystemNamespace } from './grammar';
  *
  * DSQL limitations (not supported in schema generation):
  * - No enums (uses text/varchar instead)
- * - No sequences (uses UUID with gen_random_uuid())
  * - No policies/RLS
  * - No foreign keys (DDL operations blocked, but introspection reads any existing FKs)
  * - Only btree indexes (no hash, gin, gist, etc.)
+ *
+ * DSQL-specific sequence requirements:
+ * - CACHE is required and must be 1 or >= 65536
+ * - Only BIGINT data type is supported
  */
 export const fromDatabase = async (
 	db: DB,
@@ -59,6 +63,7 @@ export const fromDatabase = async (
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
 	const roles: Role[] = [];
+	const sequences: Sequence[] = [];
 
 	type Namespace = {
 		oid: number | string;
@@ -744,12 +749,62 @@ export const fromDatabase = async (
 		});
 	}
 
+	// Query sequences
+	// DSQL supports sequences with CACHE required (must be 1 or >= 65536)
+	const sequencesList = await db.query<{
+		schema: string;
+		name: string;
+		startWith: string;
+		minValue: string;
+		maxValue: string;
+		incrementBy: string;
+		cycle: boolean;
+		cacheSize: string;
+	}>(`
+		SELECT
+			nspname AS "schema",
+			relname AS "name",
+			seqstart::text AS "startWith",
+			seqmin::text AS "minValue",
+			seqmax::text AS "maxValue",
+			seqincrement::text AS "incrementBy",
+			seqcycle AS "cycle",
+			seqcache::text AS "cacheSize"
+		FROM pg_catalog.pg_sequence
+		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid = pg_class.oid
+		JOIN pg_catalog.pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+		WHERE nspname IN (${filteredNamespacesStringForSQL})
+		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
+	`).then((rows) => {
+		queryCallback('sequences', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('sequences', [], err);
+		throw err;
+	});
+
+	// Process sequences
+	for (const seq of sequencesList) {
+		sequences.push({
+			entityType: 'sequences',
+			schema: seq.schema,
+			name: seq.name,
+			startWith: seq.startWith,
+			minValue: seq.minValue,
+			maxValue: seq.maxValue,
+			incrementBy: seq.incrementBy,
+			cycle: seq.cycle,
+			cacheSize: parseInt(seq.cacheSize, 10),
+		});
+	}
+
 	progressCallback('tables', filteredTables.length, 'done');
 	progressCallback('columns', columnsList.length, 'done');
 	progressCallback('checks', checks.length, 'done');
 	progressCallback('indexes', indexes.length, 'done');
 	progressCallback('views', viewsList.length, 'done');
 	progressCallback('fks', fks.length, 'done');
+	progressCallback('sequences', sequences.length, 'done');
 
 	// Filter results
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
@@ -775,7 +830,7 @@ export const fromDatabase = async (
 		fks: resultFKs,
 		uniques: resultUniques,
 		checks: resultChecks,
-		sequences: [], // DSQL doesn't support sequences yet
+		sequences,
 		roles,
 		privileges: [], // DSQL doesn't expose privileges via introspection
 		policies: [], // DSQL doesn't support policies

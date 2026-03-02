@@ -1628,7 +1628,8 @@ export type IntrospectStage =
 	| 'policies'
 	| 'checks'
 	| 'fks'
-	| 'views';
+	| 'views'
+	| 'sequences';
 
 type IntrospectState = {
 	[key in IntrospectStage]: {
@@ -1681,6 +1682,11 @@ export class IntrospectProgress extends TaskView {
 		views: {
 			count: 0,
 			name: 'views',
+			status: 'fetching',
+		},
+		sequences: {
+			count: 0,
+			name: 'sequences',
 			status: 'fetching',
 		},
 	};

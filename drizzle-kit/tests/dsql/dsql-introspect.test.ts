@@ -17,7 +17,7 @@
  * - No foreign keys
  * - Only btree indexes (no hash, gin, gist)
  * - No enums
- * - No sequences (use uuid with gen_random_uuid())
+ * - Sequences require CACHE (must be 1 or >= 65536)
  * - JSON functions work at runtime but JSON cannot be a column type
  */
 
@@ -430,6 +430,98 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL introspection', () => {
 			expect(tsOutput).not.toMatch(/\.default\(\(random\(/); // Should NOT be raw expression
 		} finally {
 			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Introspect - Sequences', () => {
+	test('introspect sequence with default cache', async () => {
+		const seqName = uniqueName('introspect_seq_default');
+
+		try {
+			// Create sequence with default DSQL cache value
+			await dsqlDb.execute(sql.raw(`CREATE SEQUENCE "${seqName}" CACHE 65536`));
+
+			// Introspect
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			// Verify sequence was introspected
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.cacheSize).toBe(65536);
+		} finally {
+			await dsqlDb.execute(sql`DROP SEQUENCE IF EXISTS ${sql.identifier(seqName)}`);
+		}
+	});
+
+	test('introspect sequence with cache = 1', async () => {
+		const seqName = uniqueName('introspect_seq_cache1');
+
+		try {
+			await dsqlDb.execute(sql.raw(`CREATE SEQUENCE "${seqName}" CACHE 1`));
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.cacheSize).toBe(1);
+		} finally {
+			await dsqlDb.execute(sql`DROP SEQUENCE IF EXISTS ${sql.identifier(seqName)}`);
+		}
+	});
+
+	test('introspect sequence with all options', async () => {
+		const seqName = uniqueName('introspect_seq_full');
+
+		try {
+			await dsqlDb.execute(
+				sql.raw(
+					`CREATE SEQUENCE "${seqName}" INCREMENT BY 5 MINVALUE 10 MAXVALUE 10000 START WITH 100 CACHE 65536 CYCLE`,
+				),
+			);
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.incrementBy).toBe('5');
+			expect(seq?.minValue).toBe('10');
+			expect(seq?.maxValue).toBe('10000');
+			expect(seq?.startWith).toBe('100');
+			expect(seq?.cacheSize).toBe(65536);
+			expect(seq?.cycle).toBe(true);
+		} finally {
+			await dsqlDb.execute(sql`DROP SEQUENCE IF EXISTS ${sql.identifier(seqName)}`);
+		}
+	});
+
+	test('introspect sequence in custom schema', async () => {
+		const schemaName = uniqueName('introspect_seq_schema');
+		const seqName = uniqueName('seq_in_schema');
+
+		try {
+			await dsqlDb.execute(sql.raw(`CREATE SCHEMA "${schemaName}"`));
+			await dsqlDb.execute(sql.raw(`CREATE SEQUENCE "${schemaName}"."${seqName}" CACHE 65536`));
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl, errors } = interimToDDL(schema);
+
+			expect(errors).toHaveLength(0);
+
+			const seq = ddl.sequences.one({ schema: schemaName, name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.schema).toBe(schemaName);
+		} finally {
+			await dsqlDb.execute(sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`));
 		}
 	});
 });

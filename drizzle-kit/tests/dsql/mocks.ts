@@ -8,12 +8,21 @@
  * - Real cluster required (DSQL_CLUSTER_ENDPOINT environment variable)
  * - Unique table naming for test isolation
  * - ASYNC indexes
- * - No enums, sequences, foreign keys, policies
+ * - Sequences require CACHE (must be 1 or >= 65536)
+ * - No enums, foreign keys, policies
  */
 
 import { is, sql } from 'drizzle-orm';
 import { drizzle, type DSQLDatabase } from 'drizzle-orm/dsql';
-import { DSQLSchema, DSQLTable, type DSQLView, getTableConfig, isDSQLView } from 'drizzle-orm/dsql-core';
+import {
+	DSQLSchema,
+	DSQLSequence,
+	DSQLTable,
+	type DSQLView,
+	getTableConfig,
+	isDSQLSequence,
+	isDSQLView,
+} from 'drizzle-orm/dsql-core';
 import type { CasingType } from 'src/cli/validations/common';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/dsql/diff';
 import { fromDrizzleSchema } from 'src/dialects/dsql/drizzle';
@@ -57,6 +66,7 @@ export type DSQLSchemaType = Record<
 	| DSQLTable<any>
 	| DSQLSchema<string>
 	| DSQLView
+	| DSQLSequence
 	| unknown
 >;
 
@@ -79,8 +89,9 @@ export const drizzleToDDL = (
 	const tables = Object.values(schema).filter((it) => is(it, DSQLTable)) as DSQLTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, DSQLSchema)) as DSQLSchema<string>[];
 	const views = Object.values(schema).filter((it) => isDSQLView(it)) as DSQLView[];
+	const sequences = Object.values(schema).filter((it) => isDSQLSequence(it)) as DSQLSequence[];
 
-	const grouped = { schemas, tables, views };
+	const grouped = { schemas, tables, views, sequences };
 
 	const {
 		schema: res,

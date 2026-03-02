@@ -98,37 +98,62 @@ export const _push = async (
 	}
 };
 
-// Create a single shared database connection (pool handles concurrency)
-// Use promise-based singletons to avoid race conditions with concurrent tests
-let sharedDbPromise: Promise<DSQLDatabase<any>> | null = null;
-let rqbDbPromise: Promise<DSQLDatabase<typeof schema, typeof relations>> | null = null;
+// Create a single shared pool for all tests to avoid connection exhaustion
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { AuroraDSQLPool } = require('@aws/aurora-dsql-node-postgres-connector');
 
-async function createSharedDb(): Promise<DSQLDatabase<any>> {
+let sharedPoolPromise: Promise<any> | null = null;
+
+async function getSharedPool(): Promise<any> {
+	if (sharedPoolPromise) return sharedPoolPromise;
+
 	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
 	if (!clusterEndpoint) {
 		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
 	}
 
-	const database = await retry(
-		async () => {
-			const db = drizzle({
-				connection: {
-					host: clusterEndpoint,
-				},
-				logger: ENABLE_LOGGING,
-			});
-			// Test connection
-			await db.execute(sql`SELECT 1`);
-			return db;
-		},
-		{
-			retries: 20,
-			factor: 1,
-			minTimeout: 250,
-			maxTimeout: 250,
-			randomize: false,
-		},
-	);
+	sharedPoolPromise = (async () => {
+		const pool = new AuroraDSQLPool({
+			host: clusterEndpoint,
+			user: 'admin',
+			min: 20, // Pre-warm connections to avoid waiting
+			max: 100, // Large shared pool for all concurrent tests
+			connectionTimeoutMillis: 30000,
+			idleTimeoutMillis: 30000,
+			applicationName: 'drizzle-tests',
+		});
+
+		// Test connection
+		await retry(
+			async () => {
+				const result = await pool.query('SELECT 1');
+				if (!result) throw new Error('Connection test failed');
+			},
+			{
+				retries: 20,
+				factor: 1,
+				minTimeout: 250,
+				maxTimeout: 250,
+				randomize: false,
+			},
+		);
+
+		return pool;
+	})();
+
+	return sharedPoolPromise;
+}
+
+// Use promise-based singletons to avoid race conditions with concurrent tests
+let sharedDbPromise: Promise<DSQLDatabase<any>> | null = null;
+let rqbDbPromise: Promise<DSQLDatabase<typeof schema, typeof relations>> | null = null;
+
+async function createSharedDb(): Promise<DSQLDatabase<any>> {
+	const pool = await getSharedPool();
+
+	const database = drizzle(pool, {
+		logger: ENABLE_LOGGING,
+	});
 
 	// Clean up old test schemas (DSQL has a limit of 10 schemas)
 	const schemas = await database.execute(sql`
@@ -152,32 +177,12 @@ function getSharedDb(): Promise<DSQLDatabase<any>> {
 }
 
 async function createRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relations>> {
-	const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
-	if (!clusterEndpoint) {
-		throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
-	}
+	const pool = await getSharedPool();
 
-	const database = await retry(
-		async () => {
-			const db = drizzle({
-				connection: {
-					host: clusterEndpoint,
-				},
-				relations,
-				logger: ENABLE_LOGGING,
-			});
-			// Test connection
-			await db.execute(sql`SELECT 1`);
-			return db;
-		},
-		{
-			retries: 20,
-			factor: 1,
-			minTimeout: 250,
-			maxTimeout: 250,
-			randomize: false,
-		},
-	);
+	const database = drizzle(pool, {
+		relations,
+		logger: ENABLE_LOGGING,
+	});
 
 	// Create RQB tables
 	await database.execute(sql`DROP TABLE IF EXISTS rqb_users_to_groups CASCADE`);
@@ -293,40 +298,18 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 	caches: [
 		// eslint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const clusterEndpoint = process.env['DSQL_CLUSTER_ENDPOINT'];
-			if (!clusterEndpoint) {
-				throw new Error('DSQL_CLUSTER_ENDPOINT environment variable is required');
-			}
+			const pool = await getSharedPool();
 
-			const connectionConfig = {
-				host: clusterEndpoint,
-			};
+			// Use the shared pool for cache test databases
+			const allDb = drizzle(pool, {
+				logger: ENABLE_LOGGING,
+				cache: new TestCache('all'),
+			});
 
-			const allDb = await retry(
-				async () => {
-					const db = drizzle({
-						connection: connectionConfig,
-						logger: ENABLE_LOGGING,
-						cache: new TestCache('all'),
-					});
-					await db.execute(sql`SELECT 1`);
-					return db;
-				},
-				{ retries: 20, factor: 1, minTimeout: 250, maxTimeout: 250, randomize: false },
-			);
-
-			const explicitDb = await retry(
-				async () => {
-					const db = drizzle({
-						connection: connectionConfig,
-						logger: ENABLE_LOGGING,
-						cache: new TestCache('explicit'),
-					});
-					await db.execute(sql`SELECT 1`);
-					return db;
-				},
-				{ retries: 20, factor: 1, minTimeout: 250, maxTimeout: 250, randomize: false },
-			);
+			const explicitDb = drizzle(pool, {
+				logger: ENABLE_LOGGING,
+				cache: new TestCache('explicit'),
+			});
 
 			await use({ all: allDb, explicit: explicitDb });
 		},

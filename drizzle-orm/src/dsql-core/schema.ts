@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { type DSQLSequenceOptions, dsqlSequenceWithSchema } from './sequence.ts';
 import { type DSQLTableFn, dsqlTableWithSchema } from './table.ts';
 import { type dsqlView, dsqlViewWithSchema } from './view.ts';
 
@@ -19,6 +20,10 @@ export class DSQLSchema<TName extends string = string> {
 	view = ((name, columns) => {
 		return dsqlViewWithSchema(name, columns, this.schemaName);
 	}) as typeof dsqlView;
+
+	sequence = (name: string, options?: DSQLSequenceOptions) => {
+		return dsqlSequenceWithSchema(name, options, this.schemaName);
+	};
 }
 
 export function dsqlSchema<TName extends string>(name: TName): DSQLSchema<TName> {

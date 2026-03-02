@@ -1,7 +1,7 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { CasingType } from 'src/cli/validations/common';
-import { safeRegister } from 'src/utils/utils-node';
+import { loadModule } from 'src/utils/utils-node';
 import { getColumnCasing } from '../drizzle';
 import type {
 	Column,
@@ -13,20 +13,23 @@ import type {
 	Schema,
 	SchemaError,
 	SchemaWarning,
+	Sequence,
 	UniqueConstraint,
 } from '../postgres/ddl';
 import { defaultNameForPK, indexName, splitSqlType, trimDefaultValueSuffix, typeFor } from '../postgres/grammar';
 import type { EntityFilter } from '../pull-utils';
 
 // DSQL-specific imports
-import type { AnyDSQLColumn, DSQLView } from 'drizzle-orm/dsql-core';
+import type { AnyDSQLColumn, DSQLSequence, DSQLView } from 'drizzle-orm/dsql-core';
 import {
+	DSQL_DEFAULT_CACHE,
 	DSQLDialect,
 	DSQLSchema,
 	DSQLTable,
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	isDSQLSequence,
 	isDSQLView,
 } from 'drizzle-orm/dsql-core';
 
@@ -103,17 +106,18 @@ export const defaultNameForFK = (
  *
  * DSQL limitations handled here:
  * - No enums (dsql-core doesn't have enums)
- * - No sequences (dsql-core doesn't have sequences)
  * - No policies/RLS (dsql-core doesn't have policies)
  * - No foreign keys (dsql-core doesn't have foreign keys)
  * - No identity columns (dsql-core doesn't have identity columns)
  * - Only btree indexes (dsql-core only supports btree)
+ * - Sequences require CACHE (must be 1 or >= 65536)
  */
 export const fromDrizzleSchema = (
 	schema: {
 		schemas: DSQLSchema<string>[];
 		tables: DSQLTable[];
 		views: DSQLView[];
+		sequences: DSQLSequence[];
 	},
 	casing: CasingType | undefined,
 	filter: EntityFilter,
@@ -375,7 +379,29 @@ export const fromDrizzleSchema = (
 		);
 	}
 
-	// DSQL doesn't support sequences - skip sequence processing
+	// Process sequences
+	// DSQL requires CACHE to be 1 or >= 65536, defaulting to 65536
+	res.sequences = schema.sequences.map<Sequence>((seq) => {
+		const seqSchema = seq.schema ?? 'public';
+		const options = seq.seqOptions ?? {};
+
+		// Use DSQL default cache if not specified
+		const cacheSize = options.cache !== undefined
+			? (typeof options.cache === 'string' ? parseInt(options.cache, 10) : options.cache)
+			: DSQL_DEFAULT_CACHE;
+
+		return {
+			entityType: 'sequences',
+			name: seq.seqName!,
+			schema: seqSchema,
+			incrementBy: options.increment !== undefined ? String(options.increment) : null,
+			minValue: options.minValue !== undefined ? String(options.minValue) : null,
+			maxValue: options.maxValue !== undefined ? String(options.maxValue) : null,
+			startWith: options.startWith !== undefined ? String(options.startWith) : null,
+			cacheSize: cacheSize,
+			cycle: options.cycle ?? false,
+		};
+	});
 
 	// DSQL doesn't support roles - skip role processing
 
@@ -415,12 +441,13 @@ export const fromDrizzleSchema = (
 };
 
 /**
- * Extracts tables, schemas, and views from module exports.
+ * Extracts tables, schemas, views, and sequences from module exports.
  */
 export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: DSQLTable[] = [];
 	const schemas: DSQLSchema<string>[] = [];
 	const views: DSQLView[] = [];
+	const sequences: DSQLSequence[] = [];
 	const relations: Relations[] = [];
 
 	const i0values = Object.values(exports);
@@ -437,6 +464,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 			views.push(t);
 		}
 
+		if (isDSQLSequence(t)) {
+			sequences.push(t);
+		}
+
 		if (is(t, Relations)) {
 			relations.push(t);
 		}
@@ -446,6 +477,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		tables,
 		schemas,
 		views,
+		sequences,
 		relations,
 	};
 };
@@ -457,26 +489,27 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: DSQLTable[] = [];
 	const schemas: DSQLSchema<string>[] = [];
 	const views: DSQLView[] = [];
+	const sequences: DSQLSequence[] = [];
 	const relations: Relations[] = [];
 
-	await safeRegister(async () => {
-		for (let i = 0; i < imports.length; i++) {
-			const it = imports[i];
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
-			const i0: Record<string, unknown> = require(`${it}`);
-			const prepared = fromExports(i0);
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = fromExports(i0);
 
-			tables.push(...prepared.tables);
-			schemas.push(...prepared.schemas);
-			views.push(...prepared.views);
-			relations.push(...prepared.relations);
-		}
-	});
+		tables.push(...prepared.tables);
+		schemas.push(...prepared.schemas);
+		views.push(...prepared.views);
+		sequences.push(...prepared.sequences);
+		relations.push(...prepared.relations);
+	}
 
 	return {
 		tables,
 		schemas,
 		views,
+		sequences,
 		relations,
 	};
 };

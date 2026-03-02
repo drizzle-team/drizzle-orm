@@ -5,7 +5,8 @@
  * for DSQL-unique requirements:
  * - CREATE INDEX ASYNC (instead of PostgreSQL's CONCURRENTLY)
  * - Only btree indexes supported
- * - No enums, sequences, foreign keys, policies, RLS
+ * - No enums, foreign keys, policies, RLS
+ * - Sequences require CACHE (must be 1 or >= 65536)
  * - Limited ALTER TABLE support (no SET NOT NULL, SET DEFAULT, etc.)
  */
 
@@ -84,12 +85,91 @@ const recreateIndexConvertor = convertor('recreate_index', (st) => {
 });
 
 /**
+ * DSQL default cache value for sequences.
+ * DSQL requires cache to be either 1 or >= 65536.
+ */
+const DSQL_DEFAULT_CACHE = 65536;
+
+/**
+ * DSQL-specific sequence convertor.
+ * DSQL requires CACHE to be specified and must be 1 or >= 65536.
+ */
+const createSequenceConvertor = convertor('create_sequence', (st) => {
+	const { name, schema, minValue, maxValue, incrementBy, startWith, cacheSize, cycle } = st.sequence;
+	const sequenceWithSchema = schema && schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+
+	// DSQL requires CACHE - use provided value or default to 65536
+	const cache = cacheSize ?? DSQL_DEFAULT_CACHE;
+
+	return `CREATE SEQUENCE ${sequenceWithSchema}${incrementBy ? ` INCREMENT BY ${incrementBy}` : ''}${
+		minValue ? ` MINVALUE ${minValue}` : ''
+	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''} CACHE ${cache}${
+		cycle ? ` CYCLE` : ''
+	};`;
+});
+
+/**
+ * DSQL-specific drop sequence convertor.
+ */
+const dropSequenceConvertor = convertor('drop_sequence', (st) => {
+	const { name, schema } = st.sequence;
+	const sequenceWithSchema = schema && schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+	return `DROP SEQUENCE ${sequenceWithSchema};`;
+});
+
+/**
+ * DSQL-specific rename sequence convertor.
+ */
+const renameSequenceConvertor = convertor('rename_sequence', (st) => {
+	const sequenceWithSchemaFrom = st.from.schema && st.from.schema !== 'public'
+		? `"${st.from.schema}"."${st.from.name}"`
+		: `"${st.from.name}"`;
+	return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${st.to.name}";`;
+});
+
+/**
+ * DSQL-specific move sequence convertor.
+ */
+const moveSequenceConvertor = convertor('move_sequence', (st) => {
+	const { from, to } = st;
+	const sequenceWithSchema = from.schema && from.schema !== 'public'
+		? `"${from.schema}"."${from.name}"`
+		: `"${from.name}"`;
+	const seqSchemaTo = `"${to.schema}"`;
+	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
+});
+
+/**
+ * DSQL-specific alter sequence convertor.
+ * DSQL requires CACHE to be specified.
+ */
+const alterSequenceConvertor = convertor('alter_sequence', (st) => {
+	const { schema, name, incrementBy, minValue, maxValue, startWith, cacheSize, cycle } = st.sequence;
+
+	const sequenceWithSchema = schema && schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+
+	// DSQL requires CACHE - use provided value or default to 65536
+	const cache = cacheSize ?? DSQL_DEFAULT_CACHE;
+
+	return `ALTER SEQUENCE ${sequenceWithSchema}${incrementBy ? ` INCREMENT BY ${incrementBy}` : ''}${
+		minValue ? ` MINVALUE ${minValue}` : ''
+	}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''} CACHE ${cache}${
+		cycle ? ` CYCLE` : ''
+	};`;
+});
+
+/**
  * List of DSQL-specific convertors that override PostgreSQL behavior.
  */
 const dsqlConvertors = [
 	createIndexConvertor,
 	dropIndexConvertor,
 	recreateIndexConvertor,
+	createSequenceConvertor,
+	dropSequenceConvertor,
+	renameSequenceConvertor,
+	moveSequenceConvertor,
+	alterSequenceConvertor,
 ];
 
 // Unsupported statement types in DSQL
@@ -101,14 +181,6 @@ const enumStatementTypes = [
 	'recreate_enum',
 	'alter_enum',
 	'alter_type_drop_value',
-] as const;
-
-const sequenceStatementTypes = [
-	'create_sequence',
-	'drop_sequence',
-	'move_sequence',
-	'rename_sequence',
-	'alter_sequence',
 ] as const;
 
 const policyStatementTypes = [
@@ -136,11 +208,6 @@ function validateStatement(statement: JsonStatement): string | null {
 	// Enum-related statements
 	if ((enumStatementTypes as readonly string[]).includes(statement.type)) {
 		return `DSQL does not support enums. Cannot perform ${statement.type} operation.`;
-	}
-
-	// Sequence-related statements
-	if ((sequenceStatementTypes as readonly string[]).includes(statement.type)) {
-		return `DSQL does not support sequences. Cannot perform ${statement.type} operation.`;
 	}
 
 	// Foreign key statements
@@ -294,4 +361,13 @@ export function fromJson(statements: JsonStatement[]) {
 	};
 }
 
-export { createIndexConvertor, dropIndexConvertor, recreateIndexConvertor };
+export {
+	alterSequenceConvertor,
+	createIndexConvertor,
+	createSequenceConvertor,
+	dropIndexConvertor,
+	dropSequenceConvertor,
+	moveSequenceConvertor,
+	recreateIndexConvertor,
+	renameSequenceConvertor,
+};

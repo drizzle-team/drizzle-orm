@@ -8,7 +8,8 @@
  * - Each DDL statement auto-commits (no transaction rollback)
  * - ASYNC index creation
  * - Idempotency verification
- * - No foreign keys, enums, sequences, or policies
+ * - Sequences with required CACHE (must be 1 or >= 65536)
+ * - No foreign keys, enums, or policies
  *
  * Required environment variable:
  *   DSQL_CLUSTER_ENDPOINT - The full DSQL cluster endpoint (e.g., "abc123.dsql.us-west-2.on.aws")
@@ -20,6 +21,7 @@ import {
 	boolean,
 	check,
 	dsqlSchema,
+	dsqlSequence,
 	dsqlTable,
 	index,
 	integer,
@@ -817,6 +819,178 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Schema-Qualified Operations
 			const idx = ddl.indexes.one({ schema: schemaName, name: indexName });
 			expect(idx).toBeTruthy();
 			expect(idx?.isUnique).toBe(true);
+		} finally {
+			await cleanupSchema(dsqlDb, schemaName);
+		}
+	});
+});
+
+/**
+ * Helper to cleanup sequences
+ */
+const cleanupSequence = async (dsqlDb: DSQLDatabase<any>, seqName: string, schema = 'public') => {
+	try {
+		if (schema !== 'public') {
+			await dsqlDb.execute(sql`DROP SEQUENCE IF EXISTS ${sql.identifier(schema)}.${sql.identifier(seqName)}`);
+		} else {
+			await dsqlDb.execute(sql`DROP SEQUENCE IF EXISTS ${sql.identifier(seqName)}`);
+		}
+	} catch (e) {
+		console.warn(`Failed to cleanup sequence ${schema}.${seqName}:`, e);
+	}
+};
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Sequences', () => {
+	test('push creates sequence with default cache (65536)', async () => {
+		const seqName = _.uniqueName('push_seq_default');
+
+		const to = {
+			mySeq: dsqlSequence(seqName),
+		};
+
+		try {
+			const { sqlStatements } = await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			// Verify CREATE SEQUENCE was issued with correct CACHE
+			expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('CACHE 65536'))).toBe(true);
+
+			// Verify sequence exists via introspection
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.cacheSize).toBe(65536);
+		} finally {
+			await cleanupSequence(dsqlDb, seqName);
+		}
+	});
+
+	test('push creates sequence with cache = 1', async () => {
+		const seqName = _.uniqueName('push_seq_cache1');
+
+		const to = {
+			mySeq: dsqlSequence(seqName, { cache: 1 }),
+		};
+
+		try {
+			const { sqlStatements } = await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('CACHE 1'))).toBe(true);
+
+			// Verify sequence exists with cache = 1
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.cacheSize).toBe(1);
+		} finally {
+			await cleanupSequence(dsqlDb, seqName);
+		}
+	});
+
+	test('push creates sequence with all options', async () => {
+		const seqName = _.uniqueName('push_seq_full');
+
+		const to = {
+			mySeq: dsqlSequence(seqName, {
+				startWith: 100,
+				increment: 5,
+				minValue: 1,
+				maxValue: 10000,
+				cache: 65536,
+				cycle: false,
+			}),
+		};
+
+		try {
+			const { sqlStatements } = await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('INCREMENT BY 5'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('START WITH 100'))).toBe(true);
+
+			// Verify sequence exists with correct options
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeTruthy();
+			expect(seq?.incrementBy).toBe('5');
+			expect(seq?.startWith).toBe('100');
+		} finally {
+			await cleanupSequence(dsqlDb, seqName);
+		}
+	});
+
+	test('push drops sequence', async () => {
+		const seqName = _.uniqueName('push_seq_drop');
+
+		// First create the sequence
+		await dsqlDb.execute(sql`CREATE SEQUENCE ${sql.identifier(seqName)} CACHE 65536`);
+
+		// Then push empty schema to drop it
+		const to = {};
+
+		try {
+			const { sqlStatements } = await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			expect(sqlStatements.some((s) => s.includes('DROP SEQUENCE'))).toBe(true);
+
+			// Verify sequence no longer exists
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seq = ddl.sequences.one({ name: seqName });
+			expect(seq).toBeFalsy();
+		} finally {
+			await cleanupSequence(dsqlDb, seqName);
+		}
+	});
+
+	test('sequence nextval works', async () => {
+		const seqName = _.uniqueName('push_seq_nextval');
+
+		const to = {
+			mySeq: dsqlSequence(seqName, { startWith: 1, increment: 1, cache: 1 }),
+		};
+
+		try {
+			await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			// Call nextval and verify it returns values
+			const result1 = await dsqlDb.execute(sql`SELECT nextval(${seqName})`);
+			const val1 = (result1 as any).rows[0].nextval;
+			expect(Number(val1)).toBe(1);
+
+			const result2 = await dsqlDb.execute(sql`SELECT nextval(${seqName})`);
+			const val2 = (result2 as any).rows[0].nextval;
+			expect(Number(val2)).toBe(2);
+		} finally {
+			await cleanupSequence(dsqlDb, seqName);
+		}
+	});
+
+	test('push creates sequence in custom schema', async () => {
+		const schemaName = _.uniqueName('seq_schema');
+		const seqName = _.uniqueName('push_seq_schema');
+
+		const testSchema = dsqlSchema(schemaName);
+		const to = {
+			testSchema,
+			mySeq: testSchema.sequence(seqName),
+		};
+
+		try {
+			const { sqlStatements } = await push({ db, dsqlDb, to, ignoreSubsequent: true });
+
+			expect(sqlStatements.some((s) => s.includes('CREATE SCHEMA'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+
+			// Verify sequence exists in the correct schema
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seq = ddl.sequences.one({ schema: schemaName, name: seqName });
+			expect(seq).toBeTruthy();
 		} finally {
 			await cleanupSchema(dsqlDb, schemaName);
 		}

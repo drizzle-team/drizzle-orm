@@ -6,7 +6,7 @@
  *
  * DSQL-specific constraints tested:
  * - No enums (text/varchar instead)
- * - No sequences (uuid with gen_random_uuid())
+ * - Sequences with required CACHE (must be 1 or >= 65536)
  * - No foreign keys
  * - Only btree indexes
  * - ASYNC index creation
@@ -22,6 +22,7 @@ import {
 	date,
 	doublePrecision,
 	dsqlSchema,
+	dsqlSequence,
 	dsqlTable,
 	index,
 	integer,
@@ -714,5 +715,110 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Complex Schemas', () =>
 		expect(createTable).toContain('timestamp');
 		expect(createTable).toContain('interval');
 		expect(createTable).toContain('bytea');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Sequences', () => {
+	test('create sequence with default cache (65536)', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_default')),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+	});
+
+	test('create sequence with cache = 1', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_cache1'), { cache: 1 }),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 1');
+	});
+
+	test('create sequence with cache >= 65536', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_cache_large'), { cache: 100000 }),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 100000');
+	});
+
+	test('create sequence with all options', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_full'), {
+				startWith: 1000,
+				increment: 10,
+				minValue: 1,
+				maxValue: 1000000,
+				cache: 65536,
+				cycle: true,
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('INCREMENT BY 10');
+		expect(sqlStatements[0]).toContain('MINVALUE 1');
+		expect(sqlStatements[0]).toContain('MAXVALUE 1000000');
+		expect(sqlStatements[0]).toContain('START WITH 1000');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+		expect(sqlStatements[0]).toContain('CYCLE');
+	});
+
+	test('create sequence in custom schema', async () => {
+		const customSchema = dsqlSchema(_.uniqueName('gen_seq_schema'));
+		const to = {
+			schema: customSchema,
+			mySeq: customSchema.sequence(_.uniqueName('gen_seq_in_schema')),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Should create schema and sequence
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(2);
+		expect(sqlStatements.some((s) => s.includes('CREATE SCHEMA'))).toBe(true);
+		expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+	});
+
+	test('drop sequence', async () => {
+		const seqName = _.uniqueName('gen_seq_drop');
+		const from = {
+			mySeq: dsqlSequence(seqName),
+		};
+
+		const to = {};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('DROP SEQUENCE');
+		expect(sqlStatements[0]).toContain(seqName);
+	});
+
+	test('invalid cache value (between 1 and 65536) throws error', async () => {
+		// DSQL requires cache to be exactly 1 or >= 65536
+		expect(() => {
+			dsqlSequence('invalid_seq', { cache: 100 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
+	});
+
+	test('invalid cache value (0) throws error', async () => {
+		expect(() => {
+			dsqlSequence('invalid_seq_zero', { cache: 0 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
 	});
 });

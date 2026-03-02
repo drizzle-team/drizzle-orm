@@ -90,8 +90,8 @@
 	},
 	"peerDependenciesMeta": {
 		"@aws/aurora-dsql-node-postgres-connector": {
-      "optional": true
-    },
+			"optional": true
+		},
 		"arktype": {
 			"optional": true
 		},
