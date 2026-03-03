@@ -283,8 +283,8 @@ export const fromDrizzleSchema = (
 		// @ts-ignore
 		const { schema: configSchema, name: tableName } = getTableConfig(policy._linkedTable);
 
-		// filter policies by linked table schema
-		if (!filter({ type: 'schema', name: configSchema ?? 'public' })) continue;
+		// filter policies by linked table
+		if (!filter({ type: 'table', schema: configSchema ?? 'public', name: tableName })) continue;
 
 		const p = policyFrom(policy, dialect);
 		res.policies.push({
