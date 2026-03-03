@@ -48,7 +48,7 @@ export interface DSQLClient {
 
 // DSQL optimistic concurrency error codes
 const DSQL_RETRYABLE_ERRORS = ['OC000', 'OC001', '40001'];
-const DEFAULT_MAX_RETRIES = 10;
+const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 50;
 const DEFAULT_MAX_DELAY_MS = 5000;
 
@@ -81,7 +81,7 @@ export class DSQLRetryExhaustedError extends DrizzleError {
  * Configuration for DSQL retry behavior on optimistic concurrency conflicts.
  */
 export interface DSQLRetryConfig {
-	/** Maximum number of retry attempts (default: 10) */
+	/** Maximum number of retry attempts (default: 3) */
 	maxRetries?: number;
 	/** Base delay in milliseconds for exponential backoff (default: 50) */
 	baseDelayMs?: number;

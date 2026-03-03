@@ -340,6 +340,9 @@ importers:
 
   drizzle-orm:
     dependencies:
+      '@aws/aurora-dsql-node-postgres-connector':
+        specifier: '>=0.1.0'
+        version: 0.1.7(pg-connection-string@2.9.1)(pg@8.16.3)
       '@types/mssql':
         specifier: ^9.1.4
         version: 9.1.8

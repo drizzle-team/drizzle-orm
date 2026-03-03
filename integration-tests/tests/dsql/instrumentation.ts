@@ -11,6 +11,36 @@ import * as schema from './dsql.schema';
 
 const ENABLE_LOGGING = false;
 
+// Semaphore to limit concurrent tests - prevents pool exhaustion
+class TestQueue {
+	private running = 0;
+	private waiting: Array<() => void> = [];
+
+	constructor(private maxConcurrent: number) {}
+
+	async acquire(): Promise<void> {
+		if (this.running < this.maxConcurrent) {
+			this.running++;
+			return;
+		}
+		return new Promise((resolve) => {
+			this.waiting.push(() => {
+				this.running++;
+				resolve();
+			});
+		});
+	}
+
+	release(): void {
+		this.running--;
+		const next = this.waiting.shift();
+		if (next) next();
+	}
+}
+
+// Limit to 20 concurrent tests (matches pool.min for warm connections)
+const testQueue = new TestQueue(20);
+
 // Test cache implementation for cache behavior tests
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
@@ -116,9 +146,9 @@ async function getSharedPool(): Promise<any> {
 		const pool = new AuroraDSQLPool({
 			host: clusterEndpoint,
 			user: 'admin',
-			min: 20, // Pre-warm connections to avoid waiting
-			max: 100, // Large shared pool for all concurrent tests
-			connectionTimeoutMillis: 30000,
+			min: 20, // Pre-warm to match testQueue limit
+			max: 30, // Slight buffer above queue limit
+			connectionTimeoutMillis: 10000, // Below test timeout for fast failure
 			idleTimeoutMillis: 30000,
 			applicationName: 'drizzle-tests',
 		});
@@ -153,6 +183,7 @@ async function createSharedDb(): Promise<DSQLDatabase<any>> {
 
 	const database = drizzle(pool, {
 		logger: ENABLE_LOGGING,
+		retryConfig: { maxRetries: 10 }, // Higher retry for tests due to schema churn
 	});
 
 	// Clean up old test schemas (DSQL has a limit of 10 schemas)
@@ -182,6 +213,7 @@ async function createRqbDb(): Promise<DSQLDatabase<typeof schema, typeof relatio
 	const database = drizzle(pool, {
 		relations,
 		logger: ENABLE_LOGGING,
+		retryConfig: { maxRetries: 10 }, // Higher retry for tests due to schema churn
 	});
 
 	// Create RQB tables
@@ -256,8 +288,13 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 	db: [
 		// eslint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const db = await getSharedDb();
-			await use(db);
+			await testQueue.acquire();
+			try {
+				const db = await getSharedDb();
+				await use(db);
+			} finally {
+				testQueue.release();
+			}
 		},
 		{ scope: 'test' },
 	],
@@ -304,11 +341,13 @@ export const dsqlTest = base.extend<DSQLTestContext>({
 			const allDb = drizzle(pool, {
 				logger: ENABLE_LOGGING,
 				cache: new TestCache('all'),
+				retryConfig: { maxRetries: 10 }, // Higher retry for tests due to schema churn
 			});
 
 			const explicitDb = drizzle(pool, {
 				logger: ENABLE_LOGGING,
 				cache: new TestCache('explicit'),
+				retryConfig: { maxRetries: 10 }, // Higher retry for tests due to schema churn
 			});
 
 			await use({ all: allDb, explicit: explicitDb });
