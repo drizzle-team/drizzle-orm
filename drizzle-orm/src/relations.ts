@@ -1258,7 +1258,7 @@ export function fieldSelectionToSQL(table: SchemaEntry, target: string) {
 }
 
 function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFilter<unknown>): SQL | undefined {
-	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
+	if (filter === null || typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
 	if (!entries.length) return undefined;
