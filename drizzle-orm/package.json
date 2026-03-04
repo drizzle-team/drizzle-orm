@@ -72,6 +72,7 @@
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
 		"gel": ">=2",
+		"surrealdb": ">=2",
 		"@upstash/redis": ">=1.34.7"
 	},
 	"peerDependenciesMeta": {
@@ -142,6 +143,9 @@
 			"optional": true
 		},
 		"gel": {
+			"optional": true
+		},
+		"surrealdb": {
 			"optional": true
 		},
 		"@op-engineering/op-sqlite": {
