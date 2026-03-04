@@ -16,6 +16,7 @@ export default defineConfig({
 					'tests/relational/mysql.planetscale.test.ts',
 					'tests/relational/mysql.planetscale-v1.test.ts',
 					'tests/pg/neon-serverless.test.ts',
+					'tests/pg/netlify-db.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
 					'tests/mysql/mysql-planetscale.test.ts',
 					'tests/sqlite/libsql.test.ts',
