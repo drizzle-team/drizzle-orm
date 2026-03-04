@@ -1031,6 +1031,7 @@ export type AnyOneConfig = OneConfig<
 >;
 
 export interface ManyConfig<TTargetTable extends SchemaEntry> {
+	optional?: boolean;
 	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
 	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
 	where?: TableFilter<TTargetTable>;
