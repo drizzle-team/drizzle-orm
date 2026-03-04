@@ -1,4 +1,4 @@
-import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
+import { ColumnTableAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { SQL, View } from './sql/sql.ts';
@@ -84,6 +84,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 
 			const newValue = value.clone();
 			newValue.isSelectionField = true;
+			newValue.origin = this.config.alias;
 			return newValue;
 		}
 
@@ -101,11 +102,12 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			if (this.config.alias) {
 				return new Proxy(
 					value,
-					new ColumnAliasProxyHandler(
+					new ColumnTableAliasProxyHandler(
 						new Proxy(
 							value.table,
-							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
+							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false, true),
 						),
+						true,
 					),
 				);
 			}

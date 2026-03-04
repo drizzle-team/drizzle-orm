@@ -1,41 +1,31 @@
 import type { LocalTime } from 'gel';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
-export type GelLocalTimeBuilderInitial<TName extends string> = GelLocalTimeBuilder<{
-	name: TName;
-	dataType: 'localTime';
-	columnType: 'GelLocalTime';
+export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
+	dataType: 'object localTime';
 	data: LocalTime;
 	driverParam: LocalTime;
-	enumValues: undefined;
-}>;
-
-export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime', 'GelLocalTime'>>
-	extends GelLocalDateColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelLocalTimeBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'localTime', 'GelLocalTime');
+	constructor(name: string) {
+		super(name, 'object localTime', 'GelLocalTime');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelLocalTime<MakeColumnConfig<T, TTableName>> {
-		return new GelLocalTime<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelLocalTime(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class GelLocalTime<T extends ColumnBaseConfig<'localTime', 'GelLocalTime'>> extends GelColumn<T> {
+export class GelLocalTime<T extends ColumnBaseConfig<'object localTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelLocalTime';
 
 	getSQLType(): string {
@@ -43,8 +33,6 @@ export class GelLocalTime<T extends ColumnBaseConfig<'localTime', 'GelLocalTime'
 	}
 }
 
-export function localTime(): GelLocalTimeBuilderInitial<''>;
-export function localTime<TName extends string>(name: TName): GelLocalTimeBuilderInitial<TName>;
-export function localTime(name?: string) {
+export function localTime(name?: string): GelLocalTimeBuilder {
 	return new GelLocalTimeBuilder(name ?? '');
 }

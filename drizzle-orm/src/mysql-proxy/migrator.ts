@@ -1,15 +1,17 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: MySqlRemoteDatabase<TSchema>,
+export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: MySqlRemoteDatabase<TSchema, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
@@ -26,26 +28,43 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 		id: sql.raw('id'),
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
-	}).from(sql.identifier(migrationsTable).getSQL()).orderBy(
-		sql.raw('created_at desc'),
-	).limit(1);
+	}).from(sql.identifier(migrationsTable).getSQL()) as { id: number; hash: string; created_at: string }[];
 
-	const lastDbMigration = dbMigrations[0];
-
-	const queriesToRun: string[] = [];
-
-	for (const migration of migrations) {
-		if (
-			!lastDbMigration
-			|| Number(lastDbMigration.created_at) < migration.folderMillis
-		) {
-			queriesToRun.push(
-				...migration.sql,
-				`insert into ${
-					sql.identifier(migrationsTable).value
-				} (\`hash\`, \`created_at\`) values('${migration.hash}', '${migration.folderMillis}')`,
-			);
+	if (typeof config === 'object' && config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' as const };
 		}
+
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' as const };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		await callback([
+			db.dialect.sqlToQuery(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		]);
+
+		return;
+	}
+
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+	const queriesToRun: string[] = [];
+	for (const migration of migrationsToRun) {
+		queriesToRun.push(
+			...migration.sql,
+			db.dialect.sqlToQuery(
+				sql`insert into ${
+					sql.identifier(migrationsTable)
+				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+			).sql,
+		);
 	}
 
 	await callback(queriesToRun);

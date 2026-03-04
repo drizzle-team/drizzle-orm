@@ -1,11 +1,11 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { SQLiteColumn, SQLiteColumnBuilderBase } from './columns/common.ts';
+import type { SQLiteColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { sqliteTable } from './table.ts';
 import { SQLiteViewBase } from './view-base.ts';
@@ -68,7 +68,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, SQLiteColumnBuilderBase> = Record<string, SQLiteColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends ViewBuilderCore<
 	{ name: TName; columns: TColumns }
 > {
@@ -149,13 +149,13 @@ export type SQLiteViewWithSelection<
 > = SQLiteView<TName, TExisting, TSelection> & TSelection;
 
 export function sqliteView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function sqliteView<TName extends string, TColumns extends Record<string, SQLiteColumnBuilderBase>>(
+export function sqliteView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
 export function sqliteView(
 	name: string,
-	selection?: Record<string, SQLiteColumnBuilderBase>,
+	selection?: Record<string, ColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
 		return new ManualViewBuilder(name, selection);

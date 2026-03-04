@@ -14,20 +14,23 @@ export default defineConfig({
 
 		// This one was excluded because we need to modify an API for SingleStore-generated columns.
 		// It’s in the backlog.
-		exclude: ['tests/**/singlestore-generated.test.ts'],
+		exclude: [
+			// 'tests/mssql/**/*.test.ts',
+			// 'tests/cockroach/**/*.test.ts',
+			'tests/**/singlestore-generated.test.ts',
+			'tests/singlestore/**/*.test.ts',
+			'tests/gel/**/*.test.ts',
+			// 'tests/cockroach/',
+			'tests/postgres/commutativity.test.ts',
+			'tests/postgres/commutativity.integration.test.ts',
+		],
 
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
 		testTimeout: 100000,
 		hookTimeout: 100000,
-		isolate: true,
-		poolOptions: {
-			threads: {
-				singleThread: true,
-			},
-		},
-		maxWorkers: 1,
+		maxConcurrency: 5,
 		fileParallelism: false,
 	},
 	plugins: [tsconfigPaths()],

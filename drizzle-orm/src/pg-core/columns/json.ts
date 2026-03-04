@@ -1,39 +1,30 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'PgJson';
-	data: unknown;
-	driverParam: unknown;
-	enumValues: undefined;
-}>;
-
-export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> extends PgColumnBuilder<
-	T
+export class PgJsonBuilder extends PgColumnBuilder<
+	{
+		dataType: 'object json';
+		data: unknown;
+		driverParam: unknown;
+	}
 > {
 	static override readonly [entityKind]: string = 'PgJsonBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'PgJson');
+	constructor(name: string) {
+		super(name, 'object json', 'PgJson');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgJson<MakeColumnConfig<T, TTableName>> {
-		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgJson(table, this.config as any);
 	}
 }
 
-export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColumn<T> {
+export class PgJson extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJson';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
 		super(table, config);
 	}
 
@@ -41,24 +32,22 @@ export class PgJson<T extends ColumnBaseConfig<'json', 'PgJson'>> extends PgColu
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue(value: unknown): string {
 		return JSON.stringify(value);
 	}
 
-	override mapFromDriverValue(value: T['data'] | string): T['data'] {
+	override mapFromDriverValue(value: unknown): unknown {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
 			} catch {
-				return value as T['data'];
+				return value;
 			}
 		}
 		return value;
 	}
 }
 
-export function json(): PgJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): PgJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): PgJsonBuilder {
 	return new PgJsonBuilder(name ?? '');
 }

@@ -1,5 +1,5 @@
 import semver from 'semver';
-import { err, warning } from './views';
+import { err } from './views';
 
 export const assertExists = (it?: any) => {
 	if (!it) throw new Error();
@@ -24,7 +24,7 @@ export const checkPackage = async (it: string) => {
 	try {
 		await import(it);
 		return true;
-	} catch (e) {
+	} catch {
 		return false;
 	}
 };
@@ -35,7 +35,7 @@ export const assertPackages = async (...pkgs: string[]) => {
 			const it = pkgs[i];
 			await import(it);
 		}
-	} catch (e) {
+	} catch {
 		err(
 			`please install required packages: ${
 				pkgs
@@ -57,7 +57,7 @@ export const assertEitherPackage = async (
 			const it = pkgs[i];
 			await import(it);
 			availables.push(it);
-		} catch (e) {}
+		} catch {}
 	}
 
 	if (availables.length > 0) {
@@ -74,12 +74,12 @@ export const assertEitherPackage = async (
 	process.exit(1);
 };
 
-const requiredApiVersion = 10;
+const requiredApiVersion = 12;
 export const assertOrmCoreVersion = async () => {
 	try {
 		const { compatibilityVersion } = await import('drizzle-orm/version');
 
-		await import('drizzle-orm/relations');
+		await import('drizzle-orm/_relations');
 
 		if (compatibilityVersion && compatibilityVersion === requiredApiVersion) {
 			return;
@@ -94,7 +94,7 @@ export const assertOrmCoreVersion = async () => {
 				'This version of drizzle-kit is outdated\nPlease update drizzle-kit package to the latest version 👍',
 			);
 		}
-	} catch (e) {
+	} catch {
 		console.log('Please install latest version of drizzle-orm');
 	}
 	process.exit(1);
@@ -106,7 +106,13 @@ export const ormCoreVersions = async () => {
 			'drizzle-orm/version'
 		);
 		return { compatibilityVersion, npmVersion };
-	} catch (e) {
+	} catch {
 		return {};
 	}
 };
+
+export class QueryError extends Error {
+	constructor(wrapped: Error, public readonly sql: string, public readonly params: any[]) {
+		super(wrapped.message, { cause: wrapped });
+	}
+}

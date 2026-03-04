@@ -1,39 +1,29 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelDoublePrecisionBuilderInitial<TName extends string> = GelDoublePrecisionBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'GelDoublePrecision';
+export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
+	dataType: 'number double';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
-}>;
-
-export class GelDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelDoublePrecision'>>
-	extends GelColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelDoublePrecisionBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'GelDoublePrecision');
+	constructor(name: string) {
+		super(name, 'number double', 'GelDoublePrecision');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelDoublePrecision<MakeColumnConfig<T, TTableName>> {
-		return new GelDoublePrecision<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelDoublePrecision(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class GelDoublePrecision<T extends ColumnBaseConfig<'number', 'GelDoublePrecision'>> extends GelColumn<T> {
+export class GelDoublePrecision<T extends ColumnBaseConfig<'number double'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDoublePrecision';
 
 	getSQLType(): string {
@@ -48,8 +38,6 @@ export class GelDoublePrecision<T extends ColumnBaseConfig<'number', 'GelDoubleP
 	}
 }
 
-export function doublePrecision(): GelDoublePrecisionBuilderInitial<''>;
-export function doublePrecision<TName extends string>(name: TName): GelDoublePrecisionBuilderInitial<TName>;
-export function doublePrecision(name?: string) {
+export function doublePrecision(name?: string): GelDoublePrecisionBuilder {
 	return new GelDoublePrecisionBuilder(name ?? '');
 }

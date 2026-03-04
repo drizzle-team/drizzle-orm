@@ -3,18 +3,29 @@ import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
 import { type PgEnum, type PgEnumObject, pgEnumObjectWithSchema, pgEnumWithSchema } from './columns/enum.ts';
 import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
-import { type PgTableFn, pgTableWithSchema } from './table.ts';
+import { EnableRLS, type PgTableFn, type PgTableFnInternal, pgTableWithSchema } from './table.ts';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view.ts';
 
 export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
+
+	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
-	) {}
+	) {
+		this.table = Object.assign(this.table, {
+			withRLS: ((name, columns, extraConfig) => {
+				const table = pgTableWithSchema(name, columns, extraConfig, this.schemaName);
+				table[EnableRLS] = true;
+
+				return table;
+			}) as PgTableFnInternal<TName>,
+		});
+	}
 
 	table: PgTableFn<TName> = ((name, columns, extraConfig) => {
 		return pgTableWithSchema(name, columns, extraConfig, this.schemaName);
-	});
+	}) as PgTableFn<TName>;
 
 	view = ((name, columns) => {
 		return pgViewWithSchema(name, columns, this.schemaName);
@@ -54,6 +65,11 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 
 	shouldOmitSQLParens(): boolean {
 		return true;
+	}
+
+	existing(): this {
+		this.isExisting = true;
+		return this;
 	}
 }
 

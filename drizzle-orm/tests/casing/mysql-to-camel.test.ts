@@ -1,9 +1,9 @@
 import { Client } from '@planetscale/database';
 import { connect } from '@tidbcloud/serverless';
 import { beforeEach, describe, it } from 'vitest';
+import { relations } from '~/_relations';
 import { alias, boolean, int, mysqlSchema, mysqlTable, serial, text, union } from '~/mysql-core';
 import { drizzle as planetscale } from '~/planetscale-serverless';
-import { relations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 import { drizzle as mysql } from '~/tidb-serverless';
 
@@ -31,8 +31,8 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = mysql(connect({}), { schema, casing: 'camelCase' });
-const ps = planetscale(new Client({}), { schema, casing: 'camelCase' });
+const db = mysql({ client: connect({}), schema, casing: 'camelCase' });
+const ps = planetscale({ client: new Client({}), schema, casing: 'camelCase' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -135,7 +135,7 @@ describe('mysql to snake case', () => {
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db.query.users.findFirst({
+		const query = db._query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
@@ -163,7 +163,7 @@ describe('mysql to snake case', () => {
 	});
 
 	it('query (find first, planetscale)', ({ expect }) => {
-		const query = ps.query.users.findFirst({
+		const query = ps._query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
@@ -191,7 +191,7 @@ describe('mysql to snake case', () => {
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db.query.users.findMany({
+		const query = db._query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
@@ -219,7 +219,7 @@ describe('mysql to snake case', () => {
 	});
 
 	it('query (find many, planetscale)', ({ expect }) => {
-		const query = ps.query.users.findMany({
+		const query = ps._query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
@@ -295,5 +295,31 @@ describe('mysql to snake case', () => {
 			params: [1],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
+	});
+
+	it('select columns as', ({ expect }) => {
+		const query = db
+			.select({ age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.orderBy(asc(users.id.as('userId')));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
+			params: [],
+		});
+	});
+
+	it('select join columns as', ({ expect }) => {
+		const query = db
+			.select({ name: fullName, age: users.age.as('ageOfUser'), id: users.id.as('userId') })
+			.from(users)
+			.leftJoin(developers, eq(users.id.as('userId'), developers.user_id))
+			.orderBy(asc(users.first_name));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
+			params: [],
+		});
 	});
 });

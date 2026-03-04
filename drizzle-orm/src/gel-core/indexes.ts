@@ -1,7 +1,8 @@
 import { SQL } from '~/sql/sql.ts';
 
 import { entityKind, is } from '~/entity.ts';
-import type { GelColumn, GelExtraConfigColumn } from './columns/index.ts';
+import type { GelColumn } from './columns/index.ts';
+import { GelExtraConfigColumn } from './columns/index.ts';
 import { IndexedColumn } from './columns/index.ts';
 import type { GelTable } from './table.ts';
 
@@ -119,16 +120,33 @@ export class IndexBuilderOn {
 
 	constructor(private unique: boolean, private name?: string) {}
 
-	on(...columns: [Partial<GelExtraConfigColumn> | SQL, ...Partial<GelExtraConfigColumn | SQL>[]]): IndexBuilder {
+	on(
+		...columns: [Partial<GelExtraConfigColumn> | SQL | GelColumn, ...Partial<GelExtraConfigColumn | SQL | GelColumn>[]]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as GelExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+
+				if (is(it, GelExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as GelColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			false,
@@ -136,16 +154,33 @@ export class IndexBuilderOn {
 		);
 	}
 
-	onOnly(...columns: [Partial<GelExtraConfigColumn | SQL>, ...Partial<GelExtraConfigColumn | SQL>[]]): IndexBuilder {
+	onOnly(
+		...columns: [Partial<GelExtraConfigColumn | SQL | GelColumn>, ...Partial<GelExtraConfigColumn | SQL | GelColumn>[]]
+	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as GelExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = it.defaultConfig;
-				return clonedIndexedColumn;
+
+				if (is(it, GelExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as GelColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,
@@ -166,17 +201,32 @@ export class IndexBuilderOn {
 	 */
 	using(
 		method: GelIndexMethod,
-		...columns: [Partial<GelExtraConfigColumn | SQL>, ...Partial<GelExtraConfigColumn | SQL>[]]
+		...columns: [Partial<GelExtraConfigColumn | SQL | GelColumn>, ...Partial<GelExtraConfigColumn | SQL | GelColumn>[]]
 	): IndexBuilder {
 		return new IndexBuilder(
 			columns.map((it) => {
 				if (is(it, SQL)) {
 					return it;
 				}
-				it = it as GelExtraConfigColumn;
-				const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType!, it.indexConfig!);
-				it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
-				return clonedIndexedColumn;
+
+				if (is(it, GelExtraConfigColumn)) {
+					const clonedIndexedColumn = new IndexedColumn(
+						it.name,
+						!!it.keyAsName,
+						it.columnType!,
+						it.indexConfig!,
+					);
+					it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+					return clonedIndexedColumn;
+				}
+
+				it = it as GelColumn;
+				return new IndexedColumn(
+					it.name,
+					!!it.keyAsName,
+					it.columnType!,
+					{},
+				);
 			}),
 			this.unique,
 			true,

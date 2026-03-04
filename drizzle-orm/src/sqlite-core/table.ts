@@ -1,9 +1,14 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
-import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumnBuilderBase } from './columns/common.ts';
+import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { IndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -21,7 +26,7 @@ export type SQLiteTableExtraConfig = Record<
 	SQLiteTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
+export type TableConfig = TableConfigBase<SQLiteColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');
@@ -52,14 +57,13 @@ export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteT
 
 export type SQLiteTableWithColumns<T extends TableConfig> =
 	& SQLiteTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>;
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -75,7 +79,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
@@ -110,7 +114,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -146,7 +150,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
@@ -161,7 +165,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 
 function sqliteTableBase<
 	TTableName extends string,
-	TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 	TSchema extends string | undefined,
 >(
 	name: TTableName,
@@ -213,7 +217,7 @@ function sqliteTableBase<
 		) => SQLiteTableExtraConfig;
 	}
 
-	return table;
+	return table as any;
 }
 
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {

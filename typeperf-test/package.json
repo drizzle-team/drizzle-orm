@@ -1,0 +1,33 @@
+{
+	"name": "typeperf-tests",
+	"version": "1.0.0",
+	"description": "Type performance tests for drizzle-orm",
+	"type": "module",
+	"scripts": {
+		"test": "vitest run",
+		"test:update": "vitest run --update",
+		"bench": "tsx benches/pg-columns.bench.ts",
+		"bench:beta": "tsx benches/beta/pg-columns.bench.ts",
+		"build": "echo skip...",
+		"build:artifact": "pnpm run build",
+		"pack": "echo skip...",
+		"pack:artifact": "pnpm run pack",
+		"test:types": "tsc --noEmit"
+	},
+	"keywords": [],
+	"author": "Drizzle Team",
+	"license": "Apache-2.0",
+	"private": true,
+	"devDependencies": {
+		"@ark/attest": "^0.56.0",
+		"vitest": "^2.1.8",
+		"tsx": "^4.19.0"
+	},
+	"dependencies": {
+		"drizzle-beta": "npm:drizzle-orm@1.0.0-beta.8-734e789",
+		"drizzle-seed": "workspace:../drizzle-seed/dist",
+		"drizzle-typebox": "workspace:../drizzle-typebox/dist",
+		"drizzle-valibot": "workspace:../drizzle-valibot/dist",
+		"drizzle-zod": "workspace:../drizzle-zod/dist"
+	}
+}

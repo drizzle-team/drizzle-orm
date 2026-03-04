@@ -102,7 +102,7 @@ const users = sqliteTable(
 {
 	const db = drizzle({} as any, { schema: { users } });
 
-	const dbUser = await db.query.users.findFirst();
+	const dbUser = await db._query.users.findFirst();
 
 	Expect<
 		Equal<
@@ -122,7 +122,7 @@ const users = sqliteTable(
 {
 	const db = drizzle({} as any, { schema: { users } });
 
-	const dbUser = await db.query.users.findMany();
+	const dbUser = await db._query.users.findMany();
 
 	Expect<
 		Equal<

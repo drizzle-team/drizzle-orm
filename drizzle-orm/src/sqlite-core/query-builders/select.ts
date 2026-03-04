@@ -63,7 +63,7 @@ export class SQLiteSelectBuilder<
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
 	private fields: TSelection;
-	private session: SQLiteSession<any, any, any, any> | undefined;
+	private session: SQLiteSession<any, any, any, any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
@@ -71,7 +71,7 @@ export class SQLiteSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
@@ -163,7 +163,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: SQLiteSession<any, any, any, any> | undefined;
+	protected session: SQLiteSession<any, any, any, any, any> | undefined;
 	protected dialect: SQLiteDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -173,7 +173,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[] | undefined;
 			distinct: boolean | undefined;
@@ -684,7 +684,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
@@ -731,7 +731,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
@@ -931,10 +931,10 @@ export class SQLiteSelectBase<
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
 		this.cacheConfig = config === undefined
-			? { config: {}, enable: true, autoInvalidate: true }
+			? { config: {}, enabled: true, autoInvalidate: true }
 			: config === false
-			? { enable: false }
-			: { enable: true, autoInvalidate: true, ...config };
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
 		return this;
 	}
 

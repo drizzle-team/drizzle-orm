@@ -10,7 +10,7 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Columns, Table } from '~/table.ts';
+import { type InferInsertModel, Table, TableColumns } from '~/table.ts';
 import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -27,14 +27,20 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	select?: boolean;
 }
 
-export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
+export type SQLiteInsertValue<
+	TTable extends SQLiteTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> = Simplify<
 	{
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
 >;
 
-export type SQLiteInsertSelectQueryBuilder<TTable extends SQLiteTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnySQLiteColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type SQLiteInsertSelectQueryBuilder<
+	TTable extends SQLiteTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnySQLiteColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class SQLiteInsertBuilder<
@@ -46,7 +52,7 @@ export class SQLiteInsertBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any>,
+		protected session: SQLiteSession<any, any, any, any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
 	) {}
@@ -95,7 +101,7 @@ export class SQLiteInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
@@ -241,7 +247,7 @@ export class SQLiteInsertBase<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession<any, any, any, any>,
+		private session: SQLiteSession<any, any, any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,

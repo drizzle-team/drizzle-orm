@@ -3,7 +3,6 @@ import { Expect } from 'type-tests/utils.ts';
 import { integer, pgTable, serial, text } from '~/pg-core/index.ts';
 import { gt, inArray, like } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
-import { DrizzleTypeError } from '~/utils.ts';
 import { db } from './db.ts';
 
 {

@@ -1,4 +1,5 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
+import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
@@ -15,11 +16,13 @@ import {
 	MySqlSession,
 	MySqlTransaction,
 } from '~/mysql-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlPreparedQuery<T> {
+export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
+	extends MySqlPreparedQuery<T>
+{
 	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
 	private rawQuery = { as: 'object' } as const;
@@ -37,16 +40,21 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super(cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.queryString, params);
@@ -99,10 +107,29 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		});
 
 		if (customResultMapper) {
-			return customResultMapper(rows as unknown[][]);
+			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 		}
 
 		return rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+
+		this.logger.logQuery(this.queryString, params);
+
+		const {
+			client,
+			queryString,
+			rawQuery,
+			customResultMapper,
+		} = this;
+
+		const res = await client.execute(queryString, params, rawQuery);
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+			res.rows as any as Record<string, unknown>[],
+		);
 	}
 
 	override iterator(_placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
@@ -117,8 +144,15 @@ export interface PlanetscaleSessionOptions {
 
 export class PlanetscaleSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends MySqlSession<MySqlQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends MySqlSession<
+	MySqlQueryResultHKT,
+	PlanetScalePreparedQueryHKT,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'PlanetscaleSession';
 
 	private logger: Logger;
@@ -129,7 +163,8 @@ export class PlanetscaleSession<
 		private baseClient: Client | Connection,
 		dialect: MySqlDialect,
 		tx: Transaction | undefined,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PlanetscaleSessionOptions = {},
 	) {
 		super(dialect);
@@ -165,6 +200,29 @@ export class PlanetscaleSession<
 		);
 	}
 
+	prepareRelationalQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+	): MySqlPreparedQuery<T> {
+		return new PlanetScalePreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			customResultMapper,
+			generatedIds,
+			returningIds,
+			true,
+		);
+	}
+
 	async query(query: string, params: unknown[]): Promise<ExecutedQuery> {
 		this.logger.logQuery(query, params);
 
@@ -196,13 +254,21 @@ export class PlanetscaleSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.baseClient.transaction((pstx) => {
-			const session = new PlanetscaleSession(this.baseClient, this.dialect, pstx, this.schema, this.options);
-			const tx = new PlanetScaleTransaction<TFullSchema, TSchema>(
+			const session = new PlanetscaleSession(
+				this.baseClient,
 				this.dialect,
-				session as MySqlSession<any, any, any, any>,
+				pstx,
+				this.relations,
+				this.schema,
+				this.options,
+			);
+			const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TSchema>(
+				this.dialect,
+				session as MySqlSession<any, any, any, any, any>,
+				this.relations,
 				this.schema,
 			);
 			return transaction(tx);
@@ -212,26 +278,35 @@ export class PlanetscaleSession<
 
 export class PlanetScaleTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends MySqlTransaction<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends MySqlTransaction<
+	PlanetscaleQueryResultHKT,
+	PlanetScalePreparedQueryHKT,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'PlanetScaleTransaction';
 
 	constructor(
 		dialect: MySqlDialect,
 		session: MySqlSession,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		relations: TRelations,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, schema, nestedIndex, 'planetscale');
+		super(dialect, session, relations, schema, nestedIndex, 'planetscale');
 	}
 
 	override async transaction<T>(
-		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PlanetScaleTransaction<TFullSchema, TSchema>(
+		const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
+			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
 		);

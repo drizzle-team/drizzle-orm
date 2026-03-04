@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -16,90 +17,84 @@ import type { GelDialect } from '../dialect.ts';
 import type { GelPreparedQuery, GelSession, PreparedQueryConfig } from '../session.ts';
 import type { GelTable } from '../table.ts';
 
-export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
-	static readonly [entityKind]: string = 'GelRelationalQueryBuilder';
+export class RelationalQueryBuilder<
+	TSchema extends TablesRelationalConfig,
+	TFields extends TableRelationalConfig,
+> {
+	static readonly [entityKind]: string = 'GelRelationalQueryBuilderV2';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: GelTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: GelDialect,
 		private session: GelSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
-	): GelRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
-		return new GelRelationalQuery(
-			this.fullSchema,
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
+		return new PgRelationalQuery(
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : {},
+			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): GelRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
-		return new GelRelationalQuery(
-			this.fullSchema,
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
+		return new PgRelationalQuery(
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
 		);
 	}
 }
 
-export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
-	implements RunnableQuery<TResult, 'gel'>, SQLWrapper
+export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
+	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'GelRelationalQuery';
+	static override readonly [entityKind]: string = 'GelRelationalQueryV2';
 
 	declare readonly _: {
-		readonly dialect: 'gel';
+		readonly dialect: 'pg';
 		readonly result: TResult;
 	};
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
 		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
 		private table: GelTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: GelDialect,
 		private session: GelSession,
-		private config: DBQueryConfig<'many', true> | true,
+		private config: DBQueryConfig<'many' | 'one'> | true,
 		private mode: 'many' | 'first',
 	) {
 		super();
 	}
 
 	/** @internal */
-	_prepare(name?: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+	_prepare(name?: string, generateName = false): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
+			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
-				name,
-				true,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) =>
-						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-					);
+				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
+				(rows, mapColumnValue) => {
+					for (const row of rows) {
+						mapRelationalRow(row, query.selection, mapColumnValue);
+					}
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
@@ -109,31 +104,29 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	prepare(name: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name);
+	prepare(name?: string): GelPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+		return this._prepare(name, true);
 	}
 
 	private _getQuery() {
-		return this.dialect.buildRelationalQueryWithoutPK({
-			fullSchema: this.fullSchema,
+		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
+			mode: this.mode,
 		});
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this._getQuery().sql as SQL;
+		return this._getQuery().sql;
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
 		return { query, builtQuery };
 	}
@@ -144,7 +137,7 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 
 	override execute(): Promise<TResult> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(undefined);
+			return this._prepare().execute();
 		});
 	}
 }

@@ -1,37 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
-export type GelSmallIntBuilderInitial<TName extends string> = GelSmallIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'GelSmallInt';
+export class GelSmallIntBuilder extends GelIntColumnBaseBuilder<{
+	dataType: 'number int16';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
-}>;
-
-export class GelSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelSmallInt'>>
-	extends GelIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelSmallIntBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'GelSmallInt');
+	constructor(name: string) {
+		super(name, 'number int16', 'GelSmallInt');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelSmallInt<MakeColumnConfig<T, TTableName>> {
-		return new GelSmallInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: GelTable) {
+		return new GelSmallInt(table, this.config as any);
 	}
 }
 
-export class GelSmallInt<T extends ColumnBaseConfig<'number', 'GelSmallInt'>> extends GelColumn<T> {
+export class GelSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint16'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelSmallInt';
 
 	getSQLType(): string {
@@ -39,8 +29,6 @@ export class GelSmallInt<T extends ColumnBaseConfig<'number', 'GelSmallInt'>> ex
 	}
 }
 
-export function smallint(): GelSmallIntBuilderInitial<''>;
-export function smallint<TName extends string>(name: TName): GelSmallIntBuilderInitial<TName>;
-export function smallint(name?: string) {
+export function smallint(name?: string): GelSmallIntBuilder {
 	return new GelSmallIntBuilder(name ?? '');
 }

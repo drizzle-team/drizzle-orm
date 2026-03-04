@@ -87,9 +87,11 @@ export class Index {
 	static readonly [entityKind]: string = 'MySqlIndex';
 
 	readonly config: IndexConfig & { table: MySqlTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: MySqlTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

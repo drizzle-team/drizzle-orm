@@ -350,7 +350,7 @@ export function notInArray(
  * @see isNotNull for the inverse of this test
  */
 export function isNull(value: SQLWrapper): SQL {
-	return sql`${value} is null`;
+	return sql`(${value} is null)`;
 }
 
 /**
@@ -370,7 +370,7 @@ export function isNull(value: SQLWrapper): SQL {
  * @see isNull for the inverse of this test
  */
 export function isNotNull(value: SQLWrapper): SQL {
-	return sql`${value} is not null`;
+	return sql`(${value} is not null)`;
 }
 
 /**
@@ -526,7 +526,7 @@ export function notBetween(
  *
  * @see ilike for a case-insensitive version of this condition
  */
-export function like(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
+export function like(column: Column | SQL.Aliased | SQL | SQLWrapper, value: string | SQLWrapper): SQL {
 	return sql`${column} like ${value}`;
 }
 
@@ -548,7 +548,7 @@ export function like(column: Column | SQL.Aliased | SQL, value: string | SQLWrap
  * @see like for the inverse condition
  * @see notIlike for a case-insensitive version of this condition
  */
-export function notLike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
+export function notLike(column: Column | SQL.Aliased | SQL | SQLWrapper, value: string | SQLWrapper): SQL {
 	return sql`${column} not like ${value}`;
 }
 
@@ -571,7 +571,7 @@ export function notLike(column: Column | SQL.Aliased | SQL, value: string | SQLW
  *
  * @see like for a case-sensitive version of this condition
  */
-export function ilike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
+export function ilike(column: Column | SQL.Aliased | SQL | SQLWrapper, value: string | SQLWrapper): SQL {
 	return sql`${column} ilike ${value}`;
 }
 
@@ -593,7 +593,7 @@ export function ilike(column: Column | SQL.Aliased | SQL, value: string | SQLWra
  * @see ilike for the inverse condition
  * @see notLike for a case-sensitive version of this condition
  */
-export function notIlike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
+export function notIlike(column: Column | SQL.Aliased | SQL | SQLWrapper, value: string | SQLWrapper): SQL {
 	return sql`${column} not ilike ${value}`;
 }
 
@@ -637,7 +637,8 @@ export function arrayContains(
 		if (values.length === 0) {
 			throw new Error('arrayContains requires at least one value');
 		}
-		const array = sql`${bindIfParam(values, column)}`;
+		const par = bindIfParam(values, column);
+		const array = sql`${Array.isArray(par) ? new Param(par) : par}`;
 		return sql`${column} @> ${array}`;
 	}
 
@@ -685,7 +686,8 @@ export function arrayContained(
 		if (values.length === 0) {
 			throw new Error('arrayContained requires at least one value');
 		}
-		const array = sql`${bindIfParam(values, column)}`;
+		const par = bindIfParam(values, column);
+		const array = sql`${Array.isArray(par) ? new Param(par) : par}`;
 		return sql`${column} <@ ${array}`;
 	}
 
@@ -732,7 +734,8 @@ export function arrayOverlaps(
 		if (values.length === 0) {
 			throw new Error('arrayOverlaps requires at least one value');
 		}
-		const array = sql`${bindIfParam(values, column)}`;
+		const par = bindIfParam(values, column);
+		const array = sql`${Array.isArray(par) ? new Param(par) : par}`;
 		return sql`${column} && ${array}`;
 	}
 

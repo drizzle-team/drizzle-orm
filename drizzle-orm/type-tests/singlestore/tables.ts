@@ -1,6 +1,5 @@
 import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { BuildColumn } from '~/column-builder.ts';
 import {
 	bigint,
 	binary,
@@ -21,7 +20,6 @@ import {
 	primaryKey,
 	real,
 	serial,
-	type SingleStoreColumn,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -41,7 +39,6 @@ import { singlestoreSchema } from '~/singlestore-core/schema.ts';
 import { eq } from '~/sql/expressions/index.ts';
 /* import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts'; */
 import type { InferSelectModel } from '~/table.ts';
-import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = singlestoreTable(
@@ -60,103 +57,30 @@ export const users = singlestoreTable(
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 		enumCol: singlestoreEnum('enum_col', ['a', 'b', 'c']).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.lock('default')
 			.algorithm('copy')
 			.using(`btree`),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export const cities = singlestoreTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
-
-Expect<
-	Equal<
-		{
-			id: SingleStoreColumn<
-				{
-					name: 'id';
-					tableName: 'cities_table';
-					dataType: 'number';
-					columnType: 'SingleStoreSerial';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					isPrimaryKey: true;
-					isAutoincrement: true;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{},
-				{}
-			>;
-			name: SingleStoreColumn<
-				{
-					name: 'name_db';
-					tableName: 'cities_table';
-					dataType: 'string';
-					columnType: 'SingleStoreText';
-					data: string;
-					driverParam: string;
-					notNull: true;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: [string, ...string[]];
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{},
-				{}
-			>;
-			population: SingleStoreColumn<
-				{
-					name: 'population';
-					tableName: 'cities_table';
-					dataType: 'number';
-					columnType: 'SingleStoreInt';
-					data: number;
-					driverParam: string | number;
-					notNull: false;
-					hasDefault: true;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				},
-				{},
-				{}
-			>;
-		},
-		typeof cities._.columns
-	>
->;
+}, (cities) => [index('citiesNameIdx').on(cities.id)]);
 
 Expect<
 	Equal<{
 		id: number;
-		name_db: string;
+		name: string;
 		population: number | null;
-	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+	}, InferSelectModel<typeof cities>>
 >;
 
 Expect<
@@ -173,11 +97,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
-
-Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
+}, (cities) => [index('citiesNameIdx').on(cities.id)]);
 
 export const classes = singlestoreTable('classes_table', ({ serial, text }) => ({
 	id: serial('id').primaryKey(),
@@ -211,7 +131,7 @@ Expect<
 	Equal<
 		SingleStoreViewWithSelection<'new_yorkers', false, {
 			userId: SingleStoreColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				columnType: 'SingleStoreSerial';
 				data: number;
@@ -227,7 +147,7 @@ Expect<
 				hasRuntimeDefault: false;
 			}>;
 			cityId: SingleStoreColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				columnType: 'SingleStoreSerial';
 				data: number;
@@ -267,7 +187,7 @@ Expect<
 		Equal<
 			SingleStoreViewWithSelection<'new_yorkers', false, {
 				userId: SingleStoreColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					columnType: 'SingleStoreSerial';
 					data: number;
@@ -283,7 +203,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: SingleStoreColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					columnType: 'SingleStoreSerial';
 					data: number;
@@ -505,40 +425,6 @@ Expect<
 		>
 	>;
 } */
-
-{
-	const customText = customType<{ data: string }>({
-		dataType() {
-			return 'text';
-		},
-	});
-
-	const t = customText('name').notNull();
-	Expect<
-		Equal<
-			{
-				name: 'name';
-				tableName: 'table';
-				dataType: 'custom';
-				columnType: 'SingleStoreCustomColumn';
-				data: string;
-				driverParam: unknown;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-				brand: 'Column';
-				dialect: 'singlestore';
-			},
-			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
-		>
-	>;
-}
 
 {
 	singlestoreTable('test', {
@@ -748,12 +634,10 @@ Expect<
 			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
 			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
 		},
-		(table) => {
-			return {
-				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
-				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
-			};
-		},
+		(table) => [
+			primaryKey({ columns: [table.id], name: 'email_log_id' }),
+			unique('email_log_message_id_unique').on(table.messageId),
+		],
 	);
 
 	Expect<
@@ -932,8 +816,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

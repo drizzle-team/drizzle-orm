@@ -1,11 +1,13 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { migrate as coreMigrate } from '~/pg-core/async/session.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PostgresJsDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>>(
-	db: PostgresJsDatabase<TSchema>,
+export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: PostgresJsDatabase<TSchema, TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	await db.dialect.migrate(migrations, db.session, config);
+	return await coreMigrate(migrations, db.session, config);
 }

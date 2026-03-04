@@ -1,13 +1,12 @@
 packages:
+  - attw-fork
   - drizzle-orm
   - drizzle-kit
-  - drizzle-zod
-  - drizzle-typebox
-  - drizzle-valibot
-  - drizzle-arktype
   - drizzle-seed
   - integration-tests
+  - typeperf-test
   - eslint-plugin-drizzle
+
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'
   - '@newrelic/native-metrics'
@@ -17,8 +16,10 @@ onlyBuiltDependencies:
   - bufferutil
   - cpu-features
   - dprint
+  - duckdb
   - es5-ext
   - esbuild
+  - msgpackr-extract
   - prisma
   - protobufjs
   - sqlite3

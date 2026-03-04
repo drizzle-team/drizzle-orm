@@ -1,18 +1,13 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
+import * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import type { PgAsyncRaw } from '~/pg-core/async/raw.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
-import { PgArray } from '~/pg-core/index.ts';
-import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import { PgColumn, type PgInsertConfig, type PgTable, type TableConfig } from '~/pg-core/index.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
@@ -29,7 +24,8 @@ export interface PgDriverOptions {
 
 export interface DrizzleAwsDataApiPgConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends DrizzleConfig<TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends DrizzleConfig<TSchema, TRelations> {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -37,12 +33,13 @@ export interface DrizzleAwsDataApiPgConfig<
 
 export class AwsDataApiPgDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<AwsDataApiPgQueryResultHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgAsyncDatabase<AwsDataApiPgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper | string): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+	>(query: SQLWrapper | string): PgAsyncRaw<AwsDataApiPgQueryResult<TRow>> {
 		return super.execute(query);
 	}
 }
@@ -63,11 +60,13 @@ export class AwsPgDialect extends PgDialect {
 			for (const value of (values as Record<string, Param | SQL>[])) {
 				for (const fieldName of Object.keys(columns)) {
 					const colValue = value[fieldName];
+					const column = columns[fieldName];
 					if (
-						is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+						is(colValue, Param) && colValue.value !== undefined
+						&& is(column, PgColumn) && column.dimensions
 						&& Array.isArray(colValue.value)
 					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())})`;
 					}
 				}
 			}
@@ -82,20 +81,24 @@ export class AwsPgDialect extends PgDialect {
 		for (const [colName, colValue] of Object.entries(set)) {
 			const currentColumn = columns[colName];
 			if (
-				currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
+				currentColumn && is(colValue, Param) && colValue.value !== undefined
+				&& is(currentColumn, PgColumn) && currentColumn.dimensions
 				&& Array.isArray(colValue.value)
 			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
+				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())})`;
 			}
 		}
 		return super.buildUpdateSet(table, set);
 	}
 }
 
-function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
+function construct<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	client: AwsDataApiClient,
-	config: DrizzleAwsDataApiPgConfig<TSchema>,
-): AwsDataApiPgDatabase<TSchema> & {
+	config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
+): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: AwsDataApiClient;
 } {
 	const dialect = new AwsPgDialect({ casing: config.casing });
@@ -106,11 +109,11 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,
@@ -119,8 +122,13 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger, cache: config.cache }, undefined);
-	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
+	const relations = config.relations ?? {} as TRelations;
+	const session = new AwsDataApiSession(client, dialect, relations, schema, {
+		...config,
+		logger,
+		cache: config.cache,
+	}, undefined);
+	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -132,46 +140,39 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AwsDataApiClient = RDSDataClient,
 >(
 	...params: [
-		TClient,
-		DrizzleAwsDataApiPgConfig<TSchema>,
-	] | [
 		(
 			| (
-				& DrizzleConfig<TSchema>
+				& DrizzleConfig<TSchema, TRelations>
 				& {
 					connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
 				}
 			)
 			| (
-				& DrizzleAwsDataApiPgConfig<TSchema>
+				& DrizzleAwsDataApiPgConfig<TSchema, TRelations>
 				& {
 					client: TClient;
 				}
 			)
 		),
 	]
-): AwsDataApiPgDatabase<TSchema> & {
+): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof RDSDataClient || params[0].constructor.name !== 'Object') {
-		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
-	}
-
 	if ((params[0] as { client?: TClient }).client) {
 		const { client, ...drizzleConfig } = params[0] as {
 			client: TClient;
-		} & DrizzleAwsDataApiPgConfig<TSchema>;
+		} & DrizzleAwsDataApiPgConfig<TSchema, TRelations>;
 
 		return construct(client, drizzleConfig) as any;
 	}
 
 	const { connection, ...drizzleConfig } = params[0] as {
 		connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
-	} & DrizzleConfig<TSchema>;
+	} & DrizzleConfig<TSchema, TRelations>;
 	const { resourceArn, database, secretArn, ...rdsConfig } = connection;
 
 	const instance = new RDSDataClient(rdsConfig);
@@ -179,9 +180,12 @@ export function drizzle<
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config: DrizzleAwsDataApiPgConfig<TSchema>,
-	): AwsDataApiPgDatabase<TSchema> & {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
+	): AwsDataApiPgDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

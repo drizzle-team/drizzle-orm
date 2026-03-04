@@ -1,16 +1,10 @@
-import retry from 'async-retry';
-import type Docker from 'dockerode';
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { foreignKey, gelSchema, gelTable, text, timestamptz, uniqueIndex, uuid } from 'drizzle-orm/gel-core';
 import createClient, { type Client } from 'gel';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import 'zx/globals';
-import { createDockerDB } from './createInstance';
-
-$.quiet = true;
-
-const ENABLE_LOGGING = false;
 
 export const extauth = gelSchema('ext::auth');
 
@@ -54,48 +48,25 @@ let client: Client;
 let db: GelJsDatabase<typeof schema>;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
-let container: Docker.Container | undefined;
-
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-	await sleep(15 * 1000);
-	client = await retry(() => {
-		client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.close();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, schema: { user, identityInExtauth, userRelations } });
+	const connectionString = process.env['GEL_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('gel GEL_CONNECTION_STRING is not set. ');
+
+	client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
+	db = drizzle({ client, schema: { user, identityInExtauth, userRelations } });
 
 	dsn = connectionString;
 });
 
 afterAll(async () => {
 	await client?.close().catch(console.error);
-	await container?.stop().catch(console.error);
 });
 
 describe('extensions tests group', async () => {
 	beforeAll(async () => {
-		await $`gel query 'CREATE EXTENSION pgcrypto VERSION "1.3";
+		await $`gel query 'reset schema to initial ;
+  CREATE EXTENSION pgcrypto VERSION "1.3";
   CREATE EXTENSION auth VERSION "1.0";
   CREATE TYPE default::User {
       CREATE REQUIRED LINK identity: ext::auth::Identity;
@@ -114,7 +85,7 @@ describe('extensions tests group', async () => {
 	});
 
 	afterEach(async () => {
-		await $`gel query "DELETE default::User;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await client.querySQL(`DELETE FROM "User";`);
 	});
 
 	test('check that you can query from ext::auth schema in gel', async () => {
@@ -127,7 +98,7 @@ describe('extensions tests group', async () => {
 
 		const userResponse = await db.select().from(user);
 		const authResponse = await db.select().from(identityInExtauth);
-		const relationsResponse = await db.query.user.findMany({
+		const relationsResponse = await db._query.user.findMany({
 			columns: {
 				id: false,
 				identityId: false,

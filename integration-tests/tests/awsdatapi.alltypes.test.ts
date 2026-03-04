@@ -6,7 +6,7 @@
 // import type { TestFn } from 'ava';
 // import anyTest from 'ava';
 // import * as dotenv from 'dotenv';
-// import { name, sql } from 'drizzle-orm';
+// import { name, sql  , type BuildRelations } from 'drizzle-orm';
 // import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 // import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 // import {

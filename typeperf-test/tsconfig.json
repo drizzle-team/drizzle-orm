@@ -1,0 +1,15 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"checkJs": false,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"target": "ES2022",
+		"strict": true,
+		"skipLibCheck": true
+	},
+	"include": ["./benches"],
+	"exclude": ["./cases", "./test", "./lib"]
+}

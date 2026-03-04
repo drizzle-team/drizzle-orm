@@ -4,10 +4,10 @@ import { drizzle } from '~/gel/index.ts';
 import { sql } from '~/sql/sql.ts';
 import * as schema from './tables-rel.ts';
 
-const db = drizzle(gel.createClient(), { schema });
+const db = drizzle({ client: gel.createClient(), schema });
 
 {
-	const result = await db.query.users.findMany({
+	const result = await db._query.users.findMany({
 		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
 		limit: sql.placeholder('l'),
 		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
@@ -86,7 +86,7 @@ const db = drizzle(gel.createClient(), { schema });
 }
 
 {
-	const result = await db.query.users.findMany({
+	const result = await db._query.users.findMany({
 		columns: {
 			id: true,
 			name: true,

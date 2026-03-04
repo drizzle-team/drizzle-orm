@@ -37,7 +37,7 @@ export interface SingleStoreSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends SingleStoreTable | View, TAlias extends string> = TTable extends Table
 	? SingleStoreTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'singlestore'>;
 		}>

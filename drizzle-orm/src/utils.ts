@@ -3,8 +3,9 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
-import type { SelectedFieldsOrdered } from './operations.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
+import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
@@ -14,7 +15,7 @@ import { ViewBaseConfig } from './view-common.ts';
 /** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	row: unknown[],
+	row: unknown[] | (readonly unknown[]),
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
@@ -204,12 +205,30 @@ export type Writable<T> = {
 
 export type NonArray<T> = T extends any[] ? never : T;
 
+/**
+ * @deprecated
+ * Use `getColumns` instead
+ */
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
 	return view[ViewBaseConfig].selectedFields;
+}
+
+export function getColumns<T extends Table | View | Subquery>(
+	table: T,
+): T extends Table ? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T extends Subquery ? T['_']['selectedFields']
+	: never
+{
+	return (is(table, Table)
+		? table[Table.Symbol.Columns]
+		: is(table, View)
+		? table[ViewBaseConfig].selectedFields
+		: table._.selectedFields) as any;
 }
 
 /** @internal */
@@ -233,11 +252,15 @@ export type ColumnsWithTable<
 
 export type Casing = 'snake_case' | 'camelCase';
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
-	logger?: boolean | Logger;
-	schema?: TSchema;
-	casing?: Casing;
-	cache?: Cache;
+export interface DrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelationConfigs extends AnyRelations = EmptyRelations,
+> {
+	logger?: boolean | Logger | undefined;
+	schema?: TSchema | undefined;
+	casing?: Casing | undefined;
+	relations?: TRelationConfigs | undefined;
+	cache?: Cache | undefined;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -274,13 +297,14 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 type ExpectedConfigShape = {
 	logger?: boolean | {
 		logQuery(query: string, params: unknown[]): void;
-	};
-	schema?: Record<string, never>;
-	casing?: 'snake_case' | 'camelCase';
+	} | undefined;
+	schema?: Record<string, never> | undefined;
+	relations?: AnyRelations | undefined;
+	casing?: 'snake_case' | 'camelCase' | undefined;
 };
 
 // If this errors, you must update config shape checker function with new config specs
-const _: DrizzleConfig = {} as ExpectedConfigShape;
+const _: DrizzleConfig<any, any> = {} as ExpectedConfigShape;
 const __: ExpectedConfigShape = {} as DrizzleConfig;
 
 export function isConfig(data: any): boolean {
@@ -300,6 +324,13 @@ export function isConfig(data: any): boolean {
 
 	if ('schema' in data) {
 		const type = typeof data['schema'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('relations' in data) {
+		const type = typeof data['relations'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
@@ -340,3 +371,67 @@ export function isConfig(data: any): boolean {
 export type NeonAuthToken = string | (() => string | Promise<string>);
 
 export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
+
+export function assertUnreachable(_x: never | undefined): never {
+	throw new Error("Didn't expect to get here");
+}
+
+export function isWithEnum(column: Column<any>): column is typeof column & { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): value is { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): boolean {
+	return ((typeof value === 'object' && value !== null) || typeof value === 'function') && 'enumValues' in value
+		&& Array.isArray(value.enumValues)
+		&& value.enumValues.length > 0;
+}
+
+export type Literal = string | number | boolean | null;
+export type Json = Literal | { [key: string]: any } | any[];
+
+export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column<any>
+	? TColumn['_']['identity'] extends 'always' ? true
+	: TColumn['_'] extends { generated: undefined } ? false
+	: TColumn['_']['generated'] extends { type: 'byDefault' } ? false
+	: true
+	: false;
+
+export type GetSelection<T extends SelectedFieldsFlat<Column<any>> | Table<any> | View> = T extends Table<any>
+	? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T;
+
+export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...infer Rest]
+	? IsNever<First> extends true ? RemoveNeverElements<Rest>
+	: [First, ...RemoveNeverElements<Rest>]
+	: [];
+
+export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
+	? IsNever<TColumn['_']['baseColumn']> extends false ? true
+	: false
+	: false;
+
+export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
+
+export type EnumValuesToReadonlyEnum<TEnumValues extends [string, ...string[]]> = {
+	readonly [K in TEnumValues[number]]: K;
+};
+
+export const CONSTANTS = {
+	INT8_MIN: -128,
+	INT8_MAX: 127,
+	INT8_UNSIGNED_MAX: 255,
+	INT16_MIN: -32768,
+	INT16_MAX: 32767,
+	INT16_UNSIGNED_MAX: 65535,
+	INT24_MIN: -8388608,
+	INT24_MAX: 8388607,
+	INT24_UNSIGNED_MAX: 16777215,
+	INT32_MIN: -2147483648,
+	INT32_MAX: 2147483647,
+	INT32_UNSIGNED_MAX: 4294967295,
+	INT48_MIN: -140737488355328,
+	INT48_MAX: 140737488355327,
+	INT48_UNSIGNED_MAX: 281474976710655,
+	INT64_MIN: -9223372036854775808n,
+	INT64_MAX: 9223372036854775807n,
+	INT64_UNSIGNED_MAX: 18446744073709551615n,
+};

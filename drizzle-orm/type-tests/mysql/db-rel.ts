@@ -7,10 +7,10 @@ import * as schema from './tables-rel.ts';
 const { Pool } = pg;
 
 const pdb = new Pool({ connectionString: process.env['PG_CONNECTION_STRING'] });
-const db = drizzle(pdb, { schema });
+const db = drizzle({ client: pdb, schema });
 
 {
-	const result = await db.query.users.findMany({
+	const result = await db._query.users.findMany({
 		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
 		limit: placeholder('l'),
 		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
@@ -86,7 +86,7 @@ const db = drizzle(pdb, { schema });
 }
 
 {
-	const result = await db.query.users.findMany({
+	const result = await db._query.users.findMany({
 		columns: {
 			id: true,
 			name: true,

@@ -14,12 +14,11 @@ import {
 	numeric,
 	primaryKey,
 	real,
-	type SQLiteColumn,
 	sqliteTable,
 	text,
 	uniqueIndex,
 } from '~/sqlite-core/index.ts';
-import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
+import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
 
 export const users = sqliteTable(
@@ -39,27 +38,27 @@ export const users = sqliteTable(
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 		enumCol: text('enum_col', { enum: ['a', 'b', 'c'] }).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.where(
 				sql`${users.class} is not null`,
 			),
-		uniqueClassEvenBetterThanPrisma: uniqueIndex('uniqueClass')
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.where(
 				sql`${users.class} is not null`,
 			),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(() => ({
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
-		})),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export type User = typeof users.$inferSelect;
@@ -157,50 +156,8 @@ export const newYorkers = sqliteView('new_yorkers')
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
 
-Expect<
-	Equal<
-		SQLiteViewWithSelection<'new_yorkers', false, {
-			userId: SQLiteColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'SQLiteInteger';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				isPrimaryKey: true;
-			}>;
-			cityId: SQLiteColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'SQLiteInteger';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				isPrimaryKey: true;
-			}>;
-		}>,
-		typeof newYorkers
-	>
->;
-
 {
-	const newYorkers = sqliteView('new_yorkers', {
+	const _newYorkers = sqliteView('new_yorkers', {
 		userId: integer('user_id').notNull(),
 		cityId: integer('city_id'),
 	})
@@ -209,97 +166,13 @@ Expect<
 				eq(cities.id, users.homeCity)
 			} where ${gt(users.age1, 18)}`,
 		);
-
-	Expect<
-		Equal<
-			SQLiteViewWithSelection<'new_yorkers', false, {
-				userId: SQLiteColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'SQLiteInteger';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-				cityId: SQLiteColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'SQLiteInteger';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
 }
 
 {
-	const newYorkers = sqliteView('new_yorkers', {
+	const _newYorkers = sqliteView('new_yorkers', {
 		userId: integer('user_id').notNull(),
 		cityId: integer('city_id'),
 	}).existing();
-
-	Expect<
-		Equal<
-			SQLiteViewWithSelection<'new_yorkers', true, {
-				userId: SQLiteColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'SQLiteInteger';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-				cityId: SQLiteColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'SQLiteInteger';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					isPrimaryKey: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
 }
 
 {
@@ -558,8 +431,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

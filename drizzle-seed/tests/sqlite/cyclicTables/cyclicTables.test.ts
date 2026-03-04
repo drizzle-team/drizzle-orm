@@ -12,7 +12,7 @@ let db: BetterSQLite3Database;
 beforeAll(async () => {
 	client = new BetterSqlite3(':memory:');
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	db.run(
 		sql`

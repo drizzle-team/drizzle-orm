@@ -23,7 +23,7 @@ export class Select extends Prompt<{ index: number; value: string }> {
 			text += idx === this.data.selectedIdx
 				? `${chalk.green('❯ ' + it.label)}`
 				: `  ${it.label}`;
-			text += idx != this.data.items.length - 1 ? '\n' : '';
+			text += idx !== this.data.items.length - 1 ? '\n' : '';
 		});
 
 		return text;

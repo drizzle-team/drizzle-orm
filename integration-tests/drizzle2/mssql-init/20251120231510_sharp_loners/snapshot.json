@@ -1,0 +1,59 @@
+{
+  "version": "1",
+  "dialect": "mssql",
+  "id": "0c15c859-9a9b-491f-b3e1-4bb0ee502afb",
+  "prevIds": [
+    "4a793769-8ce6-4179-bbf5-cea1ba3de5ef"
+  ],
+  "ddl": [
+    {
+      "name": "users12",
+      "entityType": "tables",
+      "schema": "dbo"
+    },
+    {
+      "type": "int",
+      "notNull": true,
+      "generated": null,
+      "identity": {
+        "seed": 1,
+        "increment": 1
+      },
+      "name": "id",
+      "schema": "dbo",
+      "entityType": "columns",
+      "table": "users12"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "schema": "dbo",
+      "entityType": "columns",
+      "table": "users12"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "schema": "dbo",
+      "entityType": "columns",
+      "table": "users12"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "id"
+      ],
+      "name": "users12_pkey",
+      "table": "users12",
+      "schema": "dbo",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

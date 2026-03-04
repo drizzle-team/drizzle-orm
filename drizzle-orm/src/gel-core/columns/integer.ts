@@ -1,37 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '../table.ts';
+import type { GelTable } from '../table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
-export type GelIntegerBuilderInitial<TName extends string> = GelIntegerBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'GelInteger';
+export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
+	dataType: 'number int32';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
-}>;
-
-export class GelIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelInteger'>>
-	extends GelIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelIntegerBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'GelInteger');
+	constructor(name: string) {
+		super(name, 'number int32', 'GelInteger');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelInteger<MakeColumnConfig<T, TTableName>> {
-		return new GelInteger<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: GelTable) {
+		return new GelInteger(table, this.config as any);
 	}
 }
 
-export class GelInteger<T extends ColumnBaseConfig<'number', 'GelInteger'>> extends GelColumn<T> {
+export class GelInteger<T extends ColumnBaseConfig<'number int32' | 'number uint32'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelInteger';
 
 	getSQLType(): string {
@@ -39,8 +29,6 @@ export class GelInteger<T extends ColumnBaseConfig<'number', 'GelInteger'>> exte
 	}
 }
 
-export function integer(): GelIntegerBuilderInitial<''>;
-export function integer<TName extends string>(name: TName): GelIntegerBuilderInitial<TName>;
-export function integer(name?: string) {
+export function integer(name?: string): GelIntegerBuilder {
 	return new GelIntegerBuilder(name ?? '');
 }
