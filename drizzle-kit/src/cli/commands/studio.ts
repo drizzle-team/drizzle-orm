@@ -77,7 +77,7 @@ export type Setup = {
 		| 'bun'
 		| 'duckdb'
 		| '@duckdb/node-api';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
+	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -458,6 +458,12 @@ export const drizzleForMySQL = async (
 // 	};
 // };
 
+// D1 binding credentials type (mirrors the one in connections.ts)
+type D1BindingCredentials = {
+	driver: 'd1';
+	binding: D1Database;
+};
+
 export const drizzleForSQLite = async (
 	credentials: SqliteCredentials | D1BindingCredentials,
 	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
@@ -465,8 +471,31 @@ export const drizzleForSQLite = async (
 	schemaFiles?: SchemaFile[],
 	casing?: CasingType,
 ): Promise<Setup> => {
-	const { connectToSQLite } = await import('../connections');
+	const customDefaults = getCustomDefaults(sqliteSchema, casing);
 
+	if ('driver' in credentials && credentials.driver === 'd1') {
+		const { connectToD1 } = await import('../connections');
+		const sqliteDB = await connectToD1(credentials.binding);
+
+		const dbUrl = 'd1://binding';
+		const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+		return {
+			dbHash,
+			dialect: 'sqlite',
+			driver: 'd1',
+			packageName: 'd1',
+			proxy: sqliteDB.proxy,
+			transactionProxy: sqliteDB.transactionProxy,
+			customDefaults,
+			schema: sqliteSchema,
+			relations,
+			schemaFiles,
+			casing,
+		};
+	}
+
+	const { connectToSQLite } = await import('../connections');
 	const sqliteDB = await connectToSQLite(credentials);
 
 	let dbUrl: string;

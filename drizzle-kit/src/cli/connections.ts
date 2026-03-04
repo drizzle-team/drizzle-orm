@@ -1743,7 +1743,7 @@ export const connectToD1 = async (
 	& SQLiteDB
 	& {
 		packageName: 'd1';
-		migrate: (config: MigrationConfig) => Promise<void>;
+		migrate: (config: MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
