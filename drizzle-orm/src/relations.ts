@@ -869,9 +869,11 @@ function makeRqbJitMapperInner(
 			}
 		}
 
+		let bypassCodecs = false;
 		let decoder: string;
 		if (is(field, Column)) {
 			if (useJsonMappers && (<any> field).mapFromJsonValue) {
+				bypassCodecs = true;
 				decoder = `${sel}.field.mapFromJsonValue`;
 			} else {
 				decoder = field.mapFromDriverValue.isNoop ? '' : `${sel}.field.mapFromDriverValue`;
@@ -889,9 +891,9 @@ function makeRqbJitMapperInner(
 		if (mapColumnValue) fn.push(`${item} = this.mapColumnValue(${item});`);
 
 		let decodedValue = item;
-		if (codec) decodedValue = `${sel}.codec(${decodedValue}, ${arrayDimensions})`;
+		if (!bypassCodecs && codec) decodedValue = `${sel}.codec(${decodedValue}, ${arrayDimensions})`;
 		if (decoder) decodedValue = `${decoder}(${decodedValue})`;
-		if (codec || decoder) fn.push(`if(${item} !== null) {`, `${item} = ${decodedValue};`, '}');
+		if ((!bypassCodecs && codec) || decoder) fn.push(`if(${item} !== null) {`, `${item} = ${decodedValue};`, '}');
 	}
 
 	return fn.join('\n');

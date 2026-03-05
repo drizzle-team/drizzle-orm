@@ -84,8 +84,11 @@ export class MySqlRelationalQuery<
 		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
-			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection));
+			(rows) => {
+				for (let i = 0; i < rows.length; ++i) {
+					mapRelationalRow(rows[i]!, query.selection);
+				}
+
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}

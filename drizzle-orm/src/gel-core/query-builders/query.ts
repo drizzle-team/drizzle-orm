@@ -92,9 +92,10 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				undefined,
 				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
 				(rows, mapColumnValue) => {
-					for (const row of rows) {
-						mapRelationalRow(row, query.selection, mapColumnValue);
+					for (let i = 0; i < rows.length; ++i) {
+						mapRelationalRow(rows[i]!, query.selection, mapColumnValue);
 					}
+
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
