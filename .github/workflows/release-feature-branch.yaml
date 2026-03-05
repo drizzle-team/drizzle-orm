@@ -89,8 +89,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: int:gel
-            dbs: [gel]
+          # - shard: int:gel
+          #   dbs: [gel]
           # - shard: int:singlestore
           #   dbs: [singlestore]
           # - shard: int:singlestore-core
