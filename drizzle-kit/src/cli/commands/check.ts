@@ -126,10 +126,11 @@ export const generateReportDirectory = (
 		if (p < parentEntries.length - 1) lines.push('');
 	}
 
-	lines.push(
-		chalk.gray('\nPlease refer to our guide on how to resolve such conflicts:'),
-		chalk.bold.underline.blue('https://orm.drizzle.team/docs/migrations'),
-	);
+	// Need to add a proper guide to uncomment
+	// lines.push(
+	// 	chalk.gray('\nPlease refer to our guide on how to resolve such conflicts:'),
+	// 	chalk.bold.underline.blue('https://orm.drizzle.team/docs/migrations'),
+	// );
 	return lines.join('\n');
 };
 
