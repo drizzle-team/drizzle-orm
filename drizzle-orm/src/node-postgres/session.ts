@@ -11,10 +11,15 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 const { Pool, types } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
@@ -23,6 +28,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -41,10 +47,12 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
@@ -129,6 +137,14 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					if (typeId as number === 1182) {
 						return (val: any) => val;
 					}
+					// point
+					if (typeId as number === 600) {
+						return (val: any) => val;
+					}
+					// point[]
+					if (typeId as number === 1017) {
+						return (val: any) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -171,9 +187,14 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
-					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+				}
+
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
+					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -196,7 +217,10 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result.rows)
+					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 			});
 		});
 	}
@@ -227,6 +251,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NodePgSession<
@@ -274,6 +299,7 @@ export class NodePgSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -282,7 +308,8 @@ export class NodePgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	) {
 		return new NodePgPreparedQuery(
 			this.client,
@@ -295,8 +322,10 @@ export class NodePgSession<
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

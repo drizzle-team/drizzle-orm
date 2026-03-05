@@ -32,20 +32,9 @@ export class PgJson extends PgColumn<'object json'> {
 		return 'json';
 	}
 
-	override mapToDriverValue(value: unknown): string {
+	override mapToDriverValue = (value: unknown): string => {
 		return JSON.stringify(value);
-	}
-
-	override mapFromDriverValue(value: unknown): unknown {
-		if (typeof value === 'string') {
-			try {
-				return JSON.parse(value);
-			} catch {
-				return value;
-			}
-		}
-		return value;
-	}
+	};
 }
 
 export function json(name?: string): PgJsonBuilder {

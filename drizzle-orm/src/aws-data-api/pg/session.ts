@@ -15,9 +15,14 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
@@ -29,6 +34,7 @@ export class AwsDataApiPreparedQuery<
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: AwsDataApiClient,
@@ -46,10 +52,12 @@ export class AwsDataApiPreparedQuery<
 		/** @internal */
 		readonly transactionId: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = new ExecuteStatementCommand({
@@ -95,9 +103,14 @@ export class AwsDataApiPreparedQuery<
 			return Object.assign(result, { rows: mappedRows });
 		}
 
-		return customResultMapper
-			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows!)
-			: result.rows!.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		if (customResultMapper) {
+			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+		}
+
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
+			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -129,9 +142,12 @@ export class AwsDataApiPreparedQuery<
 			return row;
 		});
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-			mappedRows,
-		);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(mappedRows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+				mappedRows,
+			);
 	}
 
 	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
@@ -189,6 +205,7 @@ export interface AwsDataApiSessionOptions {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
+	useJitMapper?: boolean;
 }
 
 interface AwsDataApiQueryBase {
@@ -255,6 +272,7 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -264,6 +282,7 @@ export class AwsDataApiSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		transactionId?: string,
 	): PgAsyncPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -278,8 +297,10 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

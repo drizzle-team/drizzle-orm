@@ -7,6 +7,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -15,6 +16,7 @@ import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } fro
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NeonHttpDriver {
@@ -34,6 +36,7 @@ export class NeonHttpDriver {
 	): NeonHttpSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
 		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -134,6 +137,8 @@ export class NeonHttpDatabase<
 	}
 }
 
+export const neonHttpCodecs = extendGenericPgCodecs();
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -144,7 +149,7 @@ function construct<
 ): NeonHttpDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: neonHttpCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -167,7 +172,11 @@ function construct<
 
 	const relations = config.relations ?? {} as TRelations;
 
-	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new NeonHttpDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 
 	const db = new NeonHttpDatabase(

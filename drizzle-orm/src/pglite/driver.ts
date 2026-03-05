@@ -5,15 +5,23 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import {
+	arrayCompatNormalize,
+	castToText,
+	castToTextArr,
+	extendGenericPgCodecs,
+	genericPgCodecs,
+} from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PgliteDriver {
@@ -32,6 +40,7 @@ export class PgliteDriver {
 	): PgliteSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new PgliteSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -44,6 +53,49 @@ export class PgliteDatabase<
 	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
+export const pgliteCodecs = extendGenericPgCodecs({
+	jsonNormalize: {
+		bytea: {
+			item: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.jsonNormalize.bytea?.item,
+			array: typeof Buffer === 'undefined'
+				? arrayCompatNormalize(base64ToUint8Array)
+				: genericPgCodecs.jsonNormalize.bytea?.array,
+		},
+	},
+	jsonCast: {
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	queryCast: {
+		bigint: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		bigserial: {
+			item: castToText,
+			array: castToTextArr,
+		},
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	queryNormalize: {
+		bytea: {
+			item: typeof Buffer === 'undefined'
+				? genericPgCodecs.queryNormalize.bytea?.item
+				: (v: Uint8Array) => Buffer.from(v),
+			array: typeof Buffer === 'undefined'
+				? genericPgCodecs.queryNormalize.bytea?.array
+				: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
+		},
+	},
+});
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -53,7 +105,7 @@ function construct<
 ): PgliteDatabase<TSchema, TRelations> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: pgliteCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -75,7 +127,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
 	const session = driver.createSession(relations, schema);
 	const db = new PgliteDatabase(
 		dialect,

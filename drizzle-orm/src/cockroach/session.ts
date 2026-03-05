@@ -14,7 +14,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 const { Pool, types } = pg;
 
@@ -25,6 +25,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
+	private jitMapper?: JitMapper<T['execute']>;
 
 	constructor(
 		private client: NodeCockroachClient,
@@ -34,6 +35,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -155,9 +157,13 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? customResultMapper(result.rows)
-					: result.rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
+				}
+
+				return this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(result.rows)
+					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -185,6 +191,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 export interface NodeCockroachSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 export class NodeCockroachSession<
@@ -220,6 +227,7 @@ export class NodeCockroachSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}

@@ -51,10 +51,8 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: PgTable<any>,
@@ -62,30 +60,16 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	) {
 		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
 
-		// Wrap mapFromJsonValue with array handling if this is an array column
-		if (this.dimensions) {
-			// Create a mapper function that handles a single element
-			// This uses the raw mapJson or mapFrom functions, not the wrapped mapFromDriverValue
-			const elementMapper = (value: unknown): unknown => {
-				if (typeof this.mapJson === 'function') {
-					return this.mapJson(value);
-				}
-				if (typeof this.mapFrom === 'function') {
-					return this.mapFrom(value as T['driverParam']);
-				}
-				return value;
-			};
-
+		if (this.dimensions && config.customTypeParams.fromJson) {
 			this.mapFromJsonValue = (value: unknown): unknown => {
 				if (value === null) return value;
-				// Parse string representation if needed
 				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
-				return this.mapJsonArrayElements(arr, elementMapper, this.dimensions);
+				return this.mapJsonArrayElements(arr, config.customTypeParams.fromJson!, this.dimensions);
 			};
 		}
 	}
@@ -100,41 +84,6 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 
 	getSQLType(): string {
 		return this.sqlName;
-	}
-
-	override mapFromDriverValue(value: T['driverParam']): T['data'] {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	}
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql, arrayDimensions);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'bytea':
-			case 'geometry':
-			case 'timestamp':
-			case 'numeric':
-			case 'bigint': {
-				const arrVal = '[]'.repeat(arrayDimensions ?? 0);
-
-				return sql`${identifier}::text${sql.raw(arrVal).if(arrayDimensions)}`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue(value: T['data']): T['driverParam'] {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
 	}
 }
 

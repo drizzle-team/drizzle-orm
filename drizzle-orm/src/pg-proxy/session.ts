@@ -8,15 +8,21 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type QueryWithTypings } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PgRemoteSession<
@@ -34,7 +40,7 @@ export class PgRemoteSession<
 		dialect: PgDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: PgRemoteSessionOptions = {},
+		private options: PgRemoteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -64,6 +70,7 @@ export class PgRemoteSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -72,7 +79,8 @@ export class PgRemoteSession<
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PreparedQuery<T, true> {
 		return new PreparedQuery(
 			this.client,
@@ -85,8 +93,10 @@ export class PgRemoteSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -116,6 +126,7 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -131,10 +142,12 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -177,9 +190,14 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? customResultMapper(rows)
-					: rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
+				}
+
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
+					: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -203,7 +221,10 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 			});
 		});
 	}

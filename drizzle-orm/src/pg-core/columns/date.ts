@@ -28,15 +28,19 @@ export class PgDate extends PgColumn<'object date'> {
 		return 'date';
 	}
 
-	override mapFromDriverValue(value: string | Date): Date {
-		if (typeof value === 'string') return new Date(value);
-		return value;
-	}
+	override mapFromDriverValue = (value: string): Date => {
+		return new Date(value);
+	};
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = function(value: Date | string): string {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
-	}
+		try {
+			return value.toISOString();
+		} catch (e) {
+			console.log(value);
+			throw e;
+		}
+	};
 }
 
 export class PgDateStringBuilder extends PgDateColumnBuilder<{
@@ -66,15 +70,10 @@ export class PgDateString extends PgColumn<'string date'> {
 		return 'date';
 	}
 
-	override mapFromDriverValue(value: Date | string): string {
-		if (typeof value === 'string') return value;
-		return value.toISOString().slice(0, -14);
-	}
-
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {

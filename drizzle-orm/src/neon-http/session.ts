@@ -10,10 +10,15 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
 
@@ -32,6 +37,7 @@ export class NeonHttpPreparedQuery<
 > extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'NeonHttpPreparedQuery';
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -45,10 +51,12 @@ export class NeonHttpPreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super(query, cache, queryMetadata, cacheConfig);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
@@ -127,7 +135,10 @@ export class NeonHttpPreparedQuery<
 
 		const rows = (result as FullQueryResults<false>).rows;
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
 	override mapResult(result: unknown): unknown {
@@ -138,10 +149,16 @@ export class NeonHttpPreparedQuery<
 		const rows = (result as FullQueryResults<true>).rows;
 
 		if (this.customResultMapper) {
-			return (this.customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
+			return this.isRqbV2Query && this.useJitMapper
+				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+					?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows as any as Record<string, unknown>[])
+				: (this.customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -178,6 +195,7 @@ export class NeonHttpPreparedQuery<
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NeonHttpSession<
@@ -228,6 +246,7 @@ export class NeonHttpSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -237,6 +256,7 @@ export class NeonHttpSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PgAsyncPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
@@ -247,8 +267,10 @@ export class NeonHttpSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

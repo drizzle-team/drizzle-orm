@@ -26,13 +26,6 @@ export class PgSmallInt extends PgColumn<'number int16'> {
 	getSQLType(): string {
 		return 'smallint';
 	}
-
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	}
 }
 export function smallint(name?: string): PgSmallIntBuilder {
 	return new PgSmallIntBuilder(name ?? '');

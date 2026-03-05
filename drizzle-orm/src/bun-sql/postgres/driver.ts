@@ -5,11 +5,96 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { arrayCompatNormalize, castToText, castToTextArr, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { BunSQLQueryResultHKT } from './session.ts';
 import { BunSQLSession } from './session.ts';
+
+export const bunSqlPgCodecs = extendGenericPgCodecs({
+	queryCast: {
+		date: {
+			item: castToText,
+		},
+		uuid: {
+			array: castToTextArr,
+		},
+		timestamp: {
+			item: castToText,
+		},
+		timestamptz: {
+			item: castToText,
+		},
+		float4: {
+			item: castToText,
+			array: castToTextArr,
+		},
+	},
+	queryNormalize: {
+		bigint: {
+			item: BigInt,
+			array: arrayCompatNormalize(BigInt),
+		},
+		bigserial: {
+			item: BigInt,
+		},
+		json: {
+			item: (v) => JSON.parse(v),
+		},
+		jsonb: {
+			item: (v) => JSON.parse(v),
+		},
+		int: {
+			array: (
+				value: any,
+				dimensions: number,
+			) => {
+				if (dimensions <= 1) {
+					// eslint-disable-next-line drizzle-internal/no-instanceof
+					if (value instanceof Int32Array) {
+						return Array.from(value) as any;
+					}
+					return value;
+				}
+
+				const stack: { arr: any; depth: number }[] = [{ arr: value, depth: 1 }];
+
+				while (stack.length > 0) {
+					const { arr, depth } = stack.pop()!;
+
+					if (depth === dimensions - 1) {
+						for (let i = 0; i < arr.length; i++) {
+							const leaf = arr[i];
+							// eslint-disable-next-line drizzle-internal/no-instanceof
+							if (leaf instanceof Int32Array) {
+								arr[i] = Array.from(leaf);
+							}
+						}
+					} else {
+						for (let i = 0; i < arr.length; i++) {
+							stack.push({ arr: arr[i], depth: depth + 1 });
+						}
+					}
+				}
+
+				return value;
+			},
+		},
+		float4: {
+			item: Number,
+			array: arrayCompatNormalize(Number),
+		},
+	},
+	jsonNormalize: {
+		json: {
+			item: (v) => JSON.parse(v),
+		},
+		jsonb: {
+			item: (v) => JSON.parse(v),
+		},
+	},
+});
 
 export class BunSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -27,7 +112,7 @@ function construct<
 ): BunSQLDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: bunSqlPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -49,7 +134,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunSQLSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new BunSQLSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const db = new BunSQLDatabase(dialect, session, relations, schema as any) as BunSQLDatabase<
 		TSchema,
 		TRelations

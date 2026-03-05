@@ -3,6 +3,7 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -15,6 +16,26 @@ export class PostgresJsDatabase<
 > extends PgAsyncDatabase<PostgresJsQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
+
+export const postgresJsCodecs = extendGenericPgCodecs({
+	queryCast: {
+		interval: {
+			array: undefined,
+		},
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+	jsonCast: {
+		point: undefined,
+		line: undefined,
+		macaddr8: {
+			array: undefined,
+		},
+	},
+});
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -35,7 +56,7 @@ function construct<
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
 
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: postgresJsCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -57,7 +78,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new PostgresJsSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new PostgresJsSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const db = new PostgresJsDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

@@ -5,6 +5,7 @@ import * as V1 from '~/_relations.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
+import { castToText, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
@@ -28,6 +29,23 @@ export const DefaultServices = Layer.merge(
 	EffectCache.Default,
 	EffectLogger.Default,
 );
+
+export const effectPgCodecs = extendGenericPgCodecs({
+	queryCast: {
+		date: {
+			item: castToText,
+		},
+		interval: {
+			item: castToText,
+		},
+		timestamp: {
+			item: castToText,
+		},
+		timestamptz: {
+			item: castToText,
+		},
+	},
+});
 
 /**
  * Creates an EffectPgDatabase instance.
@@ -64,7 +82,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
-		const dialect = new PgDialect({ casing: config.casing });
+		const dialect = new PgDialect({ casing: config.casing, codecs: effectPgCodecs });
 
 		let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 		if (config.schema) {
@@ -80,7 +98,11 @@ export const make = Effect.fn('PgDrizzle.make')(
 		}
 
 		const relations = config.relations ?? {} as TRelations;
-		const session = new EffectPgSession(client, dialect, relations, schema, logger, cache);
+		const session = new EffectPgSession(client, dialect, relations, schema, {
+			logger,
+			cache,
+			useJitMapper: config.useJitMapper,
+		});
 		const db = new EffectPgDatabase(
 			dialect,
 			session,

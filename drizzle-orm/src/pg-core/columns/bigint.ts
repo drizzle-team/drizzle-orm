@@ -28,12 +28,9 @@ export class PgBigInt53 extends PgColumn<'number int53'> {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'number') {
-			return value;
-		}
+	override mapFromDriverValue = (value: bigint): number => {
 		return Number(value);
-	}
+	};
 }
 
 export class PgBigInt64Builder extends PgIntColumnBuilder<{
@@ -58,11 +55,6 @@ export class PgBigInt64 extends PgColumn<'bigint int64'> {
 
 	getSQLType(): string {
 		return 'bigint';
-	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
-		return BigInt(value);
 	}
 }
 
@@ -90,11 +82,9 @@ export class PgBigIntString extends PgColumn<'string int64'> {
 		return 'bigint';
 	}
 
-	override mapFromDriverValue(value: string | number): string {
-		if (typeof value === 'string') return value;
-
+	override mapFromDriverValue = (value: bigint): string => {
 		return String(value);
-	}
+	};
 }
 
 export interface PgBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {

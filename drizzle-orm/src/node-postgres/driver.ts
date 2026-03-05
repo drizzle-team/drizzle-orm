@@ -5,6 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -14,6 +15,7 @@ import { NodePgSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class NodePgDatabase<
@@ -22,6 +24,8 @@ export class NodePgDatabase<
 > extends PgAsyncDatabase<NodePgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
+
+export const nodePgCodecs = extendGenericPgCodecs();
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
@@ -33,7 +37,7 @@ function construct<
 ): NodePgDatabase<TSchema, TRelations> & {
 	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: nodePgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -58,6 +62,7 @@ function construct<
 	const session = new NodePgSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMapper,
 	});
 
 	const db = new NodePgDatabase(

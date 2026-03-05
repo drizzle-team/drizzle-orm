@@ -47,16 +47,14 @@ export class PgTimestamp extends PgColumn<'object date'> {
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): Date {
-		if (typeof value === 'string') return new Date(this.withTimezone ? value : value + '+0000');
+	override mapFromDriverValue = (value: string): Date => {
+		return new Date(this.withTimezone ? value : value + '+0000');
+	};
 
-		return value;
-	}
-
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export class PgTimestampStringBuilder extends PgDateColumnBuilder<
@@ -105,21 +103,10 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): string {
-		if (typeof value === 'string') return value;
-
-		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
-		if (this.withTimezone) {
-			return `${shortened}+00`;
-		}
-
-		return shortened;
-	}
-
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export type Precision = 0 | 1 | 2 | 3 | 4 | 5 | 6;

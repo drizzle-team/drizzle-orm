@@ -5,6 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import type { PgAsyncRaw } from '~/pg-core/async/raw.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgColumn, type PgInsertConfig, type PgTable, type TableConfig } from '~/pg-core/index.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -92,6 +93,17 @@ export class AwsPgDialect extends PgDialect {
 	}
 }
 
+export const awsDataApiPgCodecs = extendGenericPgCodecs({
+	queryNormalize: {
+		json: {
+			item: (v) => JSON.parse(v),
+		},
+		jsonb: {
+			item: (v) => JSON.parse(v),
+		},
+	},
+});
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -101,7 +113,7 @@ function construct<
 ): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect({ casing: config.casing });
+	const dialect = new AwsPgDialect({ casing: config.casing, codecs: awsDataApiPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -127,6 +139,7 @@ function construct<
 		...config,
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMapper,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
 	(<any> db).$client = client;

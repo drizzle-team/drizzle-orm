@@ -5,7 +5,12 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -17,12 +22,13 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -43,7 +49,7 @@ export class SQLiteRemoteSession<
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private batchCLient?: AsyncBatchRemoteCallback,
-		options: SQLiteRemoteSessionOptions = {},
+		private options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -72,6 +78,7 @@ export class SQLiteRemoteSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -81,6 +88,7 @@ export class SQLiteRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): RemotePreparedQuery<T, true> {
 		return new RemotePreparedQuery(
 			this.client,
@@ -92,8 +100,10 @@ export class SQLiteRemoteSession<
 			fields,
 			executeMethod,
 			true,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -181,6 +191,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
 	private method: SQLiteExecuteMethod;
+	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -195,10 +206,12 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		/** @internal */ public customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 		this.method = executeMethod;
@@ -225,19 +238,28 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return rows;
 		}
 
-		if (this.customResultMapper) {
-			return (this.customResultMapper as (rows: unknown[][]) => unknown)(
-				this.isRqbV2Query ? (rows as unknown[][]).map((r) => JSON.parse(r[0] as string)) : rows as unknown[][],
-			) as T['all'];
+		if (this.isRqbV2Query) {
+			for (let i = 0; i < (rows as unknown[]).length; ++i) {
+				(rows as unknown[])[i] = JSON.parse((rows as unknown[])[i] as string);
+			}
+
+			return this.useJitMapper
+				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
+				: (this.customResultMapper as (
+					rows: Record<string, unknown>[],
+					mapColumnValue?: (value: unknown) => unknown,
+				) => unknown)(rows as Record<string, unknown>[]);
 		}
 
-		return (rows as unknown[][]).map((row) => {
-			return mapResultRow(
-				this.fields!,
-				row,
-				this.joinsNotNullableMap,
-			);
-		});
+		if (this.customResultMapper) {
+			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]) as T['all'];
+		}
+
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(rows as unknown[][])
+			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -305,17 +327,28 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return undefined;
 		}
 
+		if (this.isRqbV2Query) {
+			return this.useJitMapper
+				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([JSON.parse(row as string) as Record<string, unknown>])
+				: (this.customResultMapper as (
+					rows: Record<string, unknown>[],
+					mapColumnValue?: (value: unknown) => unknown,
+				) => unknown)([JSON.parse(row as string) as Record<string, unknown>]);
+		}
+
 		if (this.customResultMapper) {
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)(
-				[this.isRqbV2Query ? JSON.parse(row as string) : rows] as unknown[][],
+				[rows] as unknown[][],
 			) as T['get'];
 		}
 
-		return mapResultRow(
-			this.fields!,
-			row as unknown[],
-			this.joinsNotNullableMap,
-		);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(this.fields!, this.joinsNotNullableMap))(
+					[row as unknown[]],
+				)[0]
+			: mapResultRow(this.fields!, row as unknown[], this.joinsNotNullableMap);
 	}
 
 	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {

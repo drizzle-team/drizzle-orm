@@ -17,7 +17,7 @@ import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
-import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzleNodePostgres, nodePgCodecs } from 'drizzle-orm/node-postgres';
 import type {
 	PgEnum,
 	PgEnumObject,
@@ -549,7 +549,7 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 							throw e;
 						}
 					};
-					await use(drizzleProxy(proxyHandler, { relations }));
+					await use(drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs }));
 					return;
 				}
 
@@ -613,7 +613,7 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, casing });
+						return drizzleProxy(proxyHandler, { relations, casing, codecs: nodePgCodecs });
 					}
 					throw new Error();
 				};
@@ -640,8 +640,8 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 							throw e;
 						}
 					};
-					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all') });
-					const db2 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('explicit') });
+					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all'), codecs: nodePgCodecs });
+					const db2 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('explicit'), codecs: nodePgCodecs });
 					await use({ all: db1, explicit: db2 });
 					return;
 				}

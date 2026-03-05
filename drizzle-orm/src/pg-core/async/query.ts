@@ -32,12 +32,29 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 				builtQuery,
 				undefined,
 				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
+				(rows, mapColumnValue) => {
+					for (let i = 0; i < rows.length; ++i) {
+						mapRelationalRow(
+							rows[i]!,
+							query.selection,
+							mapColumnValue,
+							this.parseJson,
+							undefined,
+							false,
+						);
+					}
+
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
 					return rows as TResult;
+				},
+				{
+					isFirst: this.mode === 'first',
+					parseJson: this.parseJson,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
 				},
 			).setToken(this.authToken);
 		});

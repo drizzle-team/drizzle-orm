@@ -13,6 +13,7 @@ import { TiDBServerlessSession } from './session.ts';
 export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class TiDBServerlessDatabase<
@@ -56,6 +57,7 @@ function construct<
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, schema, {
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMapper,
 	});
 	const db = new TiDBServerlessDatabase(
 		dialect,

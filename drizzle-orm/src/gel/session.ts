@@ -8,10 +8,15 @@ import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type GelClient = Client | Transaction;
 
@@ -19,6 +24,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 	extends GelPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'GelPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: GelClient,
@@ -33,11 +39,13 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private transaction: boolean = false,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -75,9 +83,14 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			})) as unknown[][];
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return customResultMapper
-					? (customResultMapper as (rows: unknown[][]) => T['execute'])(result)
-					: result.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+				if (customResultMapper) {
+					return (customResultMapper as (rows: unknown[][]) => unknown)(result);
+				}
+
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result)
+					: result.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
 	}
@@ -100,9 +113,12 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-					result as Record<string, unknown>[],
-				);
+				return this.useJitMapper
+					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
+					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+						result as Record<string, unknown>[],
+					);
 			});
 		});
 	}
@@ -137,6 +153,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 export interface GelSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class GelDbSession<
@@ -183,6 +200,7 @@ export class GelDbSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -191,7 +209,8 @@ export class GelDbSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): GelDbPreparedQuery<T, true> {
 		return new GelDbPreparedQuery(
 			this.client,
@@ -203,9 +222,11 @@ export class GelDbSession<
 			undefined,
 			fields,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			undefined,
 			true,
+			config,
 		);
 	}
 

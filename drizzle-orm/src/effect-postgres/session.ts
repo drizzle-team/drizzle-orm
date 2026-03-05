@@ -12,10 +12,15 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
@@ -30,6 +35,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	extends PgEffectPreparedQuery<T, EffectPgQueryEffectHKT>
 {
 	static override readonly [entityKind]: string = 'EffectPgPreparedQuery';
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: PgClient,
@@ -45,10 +51,12 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -79,7 +87,10 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 					}
 
-					return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
+					return this.useJitMapper
+						? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+							?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows as unknown[][]) as T['execute']
+						: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
 				},
 			));
 		}).pipe(Effect.provideService(EffectLogger, this.logger));
@@ -96,10 +107,13 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return yield* client.unsafe(query.sql, params as any).withoutTransform.pipe(
 				Effect.flatMap((v) =>
 					Effect.try(() =>
-						(customResultMapper as (
-							rows: Record<string, unknown>[],
-							mapColumnValue?: (value: unknown) => unknown,
-						) => T['execute'])(v as Record<string, unknown>[])
+						this.useJitMapper
+							? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+								?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(v as Record<string, unknown>[])
+							: (customResultMapper as (
+								rows: Record<string, unknown>[],
+								mapColumnValue?: (value: unknown) => unknown,
+							) => T['execute'])(v as Record<string, unknown>[])
 					)
 				),
 				Effect.catchAll((e) => new EffectDrizzleQueryError({ query: query.sql, params, cause: e })),
@@ -128,6 +142,12 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	}
 }
 
+export interface EffectPgSessionOptions {
+	logger: EffectLogger;
+	cache: EffectCache;
+	useJitMapper?: boolean;
+}
+
 export class EffectPgSession<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
@@ -141,8 +161,7 @@ export class EffectPgSession<
 		dialect: PgDialect,
 		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private logger: EffectLogger,
-		private cache: EffectCache,
+		private options: EffectPgSessionOptions,
 	) {
 		super(dialect);
 	}
@@ -163,13 +182,14 @@ export class EffectPgSession<
 			this.client,
 			query.sql,
 			query.params,
-			this.logger,
-			this.cache,
+			this.options.logger,
+			this.options.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 			false,
 		);
@@ -183,20 +203,23 @@ export class EffectPgSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): EffectPgPreparedQuery<T, true> {
 		return new EffectPgPreparedQuery<T, true>(
 			this.client,
 			query.sql,
 			query.params,
-			this.logger,
-			this.cache,
+			this.options.logger,
+			this.options.cache,
 			undefined,
 			undefined,
 			fields,
 			name,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

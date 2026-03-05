@@ -2,6 +2,7 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { genericPgCodecs, type PgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -26,8 +27,8 @@ export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing }),
+	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
+	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing, codecs: config.codecs ?? genericPgCodecs }),
 ): PgRemoteDatabase<TSchema, TRelations> {
 	const dialect = _dialect();
 	let logger;
@@ -51,7 +52,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new PgRemoteSession(callback, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new PgRemoteSession(callback, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const db = new PgRemoteDatabase(
 		dialect,
 		session,

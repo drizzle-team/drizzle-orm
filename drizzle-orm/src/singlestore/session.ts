@@ -17,7 +17,12 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
@@ -32,7 +37,7 @@ import {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
@@ -49,6 +54,9 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
+	private jitMapper?:
+		| JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -62,6 +70,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -70,6 +79,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		// Keys that should be returned, it has the column with all properties + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super(cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
@@ -146,7 +156,14 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper =
+				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+						fields!,
+						joinsNotNullableMap,
+					))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -194,12 +211,30 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				} else if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
 					throw row;
 				} else {
-					if (hasRowsMapper) {
+					if (this.isRqbV2Query) {
+						if (this.useJitMapper) {
+							yield (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+								?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
+						} else {
+							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([
+								row as Record<string, unknown>,
+							]);
+							if (this.rqbConfig!.isFirst) yield mapped;
+							else yield ((<any[]> mapped)[0]);
+						}
+					} else if (hasRowsMapper) {
 						if (customResultMapper) {
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+							yield this.useJitMapper
+								? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+									: T['execute'])[]>
+									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										joinsNotNullableMap,
+									))([row as unknown[]])[0] as T['execute']
+								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {
 						yield row as T['execute'];
@@ -218,6 +253,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class SingleStoreDriverSession<
@@ -271,6 +307,7 @@ export class SingleStoreDriverSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -281,6 +318,7 @@ export class SingleStoreDriverSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<SingleStorePreparedQueryHKT, T> {
@@ -295,10 +333,12 @@ export class SingleStoreDriverSession<
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 

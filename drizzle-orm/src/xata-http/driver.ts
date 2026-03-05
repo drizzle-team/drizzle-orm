@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -13,6 +14,7 @@ import { XataHttpSession } from './session.ts';
 export interface XataDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class XataHttpDriver {
@@ -33,6 +35,7 @@ export class XataHttpDriver {
 		return new XataHttpSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			useJitMapper: this.options.useJitMapper,
 		});
 	}
 
@@ -55,6 +58,8 @@ export class XataHttpDatabase<
 	>;
 }
 
+export const xataHttpCodecs = extendGenericPgCodecs();
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -64,7 +69,7 @@ export function drizzle<
 ): XataHttpDatabase<TSchema, TRelations> & {
 	$client: XataHttpClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: xataHttpCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -83,7 +88,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new XataHttpDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 
 	const db = new XataHttpDatabase(

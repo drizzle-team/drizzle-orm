@@ -8,7 +8,12 @@ import { entityKind } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -20,11 +25,12 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export type BunSQLiteRunResult = Record<string, unknown>[] & Record<string, unknown>;
@@ -76,6 +82,7 @@ export class BunSQLiteSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -85,6 +92,7 @@ export class BunSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): BunSQLitePreparedQuery<T, true> {
 		return new BunSQLitePreparedQuery(
 			this.client,
@@ -96,8 +104,10 @@ export class BunSQLiteSession<
 			fields,
 			executeMethod,
 			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -185,6 +195,7 @@ export class BunSQLitePreparedQuery<
 	}
 > {
 	static override readonly [entityKind]: string = 'BunSQLitePreparedQuery';
+	private jitMapper?: JitMapper | RelationalQueryJitMapper;
 
 	constructor(
 		private client: BunSQL,
@@ -199,11 +210,13 @@ export class BunSQLitePreparedQuery<
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
@@ -240,7 +253,10 @@ export class BunSQLitePreparedQuery<
 			) => unknown)(rows);
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async allRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['all']> {
@@ -250,10 +266,13 @@ export class BunSQLitePreparedQuery<
 
 		const rows = await client.unsafe(query.sql, params);
 
-		return (customResultMapper as (
-			rows: unknown[][],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)(rows);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows);
 	}
 
 	async get(placeholderValues: Record<string, unknown> = {}): Promise<T['get']> {
@@ -281,7 +300,12 @@ export class BunSQLitePreparedQuery<
 		}
 
 		if (row === undefined) return row;
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private async getRqbV2(placeholderValues: Record<string, unknown> = {}) {
@@ -294,10 +318,13 @@ export class BunSQLitePreparedQuery<
 
 		if (row === undefined) return row;
 
-		return (customResultMapper as (
-			rows: unknown[][],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([row]);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows)
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row]);
 	}
 
 	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {

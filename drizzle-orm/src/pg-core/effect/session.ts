@@ -11,7 +11,7 @@ import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-ef
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -154,6 +154,7 @@ export abstract class PgEffectSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 
 	override execute<T>(query: SQL) {

@@ -32,17 +32,14 @@ export class PgPointTuple extends PgColumn<'array point'> {
 		return 'point';
 	}
 
-	override mapFromDriverValue(value: string | { x: number; y: number }): [number, number] {
-		if (typeof value === 'string') {
-			const [x, y] = value.slice(1, -1).split(',');
-			return [Number.parseFloat(x!), Number.parseFloat(y!)];
-		}
-		return [value.x, value.y];
-	}
+	override mapFromDriverValue = (value: string): [number, number] => {
+		const [x, y] = value.slice(1, -1).split(',');
+		return [Number.parseFloat(x!), Number.parseFloat(y!)];
+	};
 
-	override mapToDriverValue(value: [number, number]): string {
+	override mapToDriverValue = (value: [number, number]): string => {
 		return `(${value[0]},${value[1]})`;
-	}
+	};
 }
 
 export class PgPointObjectBuilder extends PgColumnBuilder<{
@@ -74,17 +71,14 @@ export class PgPointObject extends PgColumn<'object point'> {
 		return 'point';
 	}
 
-	override mapFromDriverValue(value: string | { x: number; y: number }): { x: number; y: number } {
-		if (typeof value === 'string') {
-			const [x, y] = value.slice(1, -1).split(',');
-			return { x: Number.parseFloat(x!), y: Number.parseFloat(y!) };
-		}
-		return value;
-	}
+	override mapFromDriverValue = (value: string): { x: number; y: number } => {
+		const [x, y] = value.slice(1, -1).split(',');
+		return { x: Number.parseFloat(x!), y: Number.parseFloat(y!) };
+	};
 
-	override mapToDriverValue(value: { x: number; y: number }): string {
+	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `(${value.x},${value.y})`;
-	}
+	};
 }
 
 export interface PgPointConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {

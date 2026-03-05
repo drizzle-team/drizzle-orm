@@ -5,6 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/index.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -13,6 +14,7 @@ import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } fro
 export interface VercelPgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class VercelPgDriver {
@@ -31,6 +33,7 @@ export class VercelPgDriver {
 	): VercelPgSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -43,6 +46,8 @@ export class VercelPgDatabase<
 	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
+export const vercelPgCodecs = extendGenericPgCodecs();
+
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -52,7 +57,7 @@ function construct<
 ): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, codecs: vercelPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -74,7 +79,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new VercelPgDriver(client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMapper,
+	});
 	const session = driver.createSession(relations, schema);
 	const db = new VercelPgDatabase(
 		dialect,
