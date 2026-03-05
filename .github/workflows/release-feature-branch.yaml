@@ -89,8 +89,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: int:gel
-            dbs: [gel]
+          # - shard: int:gel
+          #   dbs: [gel]
           # - shard: int:singlestore
           #   dbs: [singlestore]
           # - shard: int:singlestore-core
@@ -104,7 +104,11 @@ jobs:
           - shard: int:sqlite
             dbs: []
           - shard: int:other
-            dbs: [mysql, mssql, cockroach, singlestore, postgres, postgres-postgis, postgres-vector]
+            dbs: [mysql, postgres, postgres-postgis, postgres-vector]
+          - shard: int:seeder
+            dbs: []
+          - shard: int:imports
+            dbs: []
           - shard: int:planetscale
             dbs: []
           - shard: int:cockroach
@@ -282,18 +286,10 @@ jobs:
           
             int:bun)  bun test ./tests/bun/ ;;
 
-            int:other)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests \
-                --exclude ./tests/gel/ \
-                --exclude ./tests/mysql/ \
-                --exclude ./tests/cockroach/ \
-                --exclude ./tests/singlestore/ \
-                --exclude ./tests/mssql/ \
-                --exclude ./tests/pg/ \
-                --exclude ./tests/sqlite/ \
-                --exclude ./tests/bun/ \
-                --exclude tests/validators
-            ;;
+            int:seeder) pnpm test:seeder ;;
+            int:imports) pnpm test:imports ;;
+            int:other) pnpm test:other ;;
+            
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 

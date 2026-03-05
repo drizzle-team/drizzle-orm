@@ -10,6 +10,7 @@ import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -245,18 +246,28 @@ export async function migrate(
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-	const migrationTableCreate = sql`
+
+	await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+
+	// Create table with latest schema (version 1) if this is a new database
+	if (newDb) {
+		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
-				created_at bigint
+				created_at bigint,
+				name text,
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
-	await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-	await session.execute(migrationTableCreate);
+		await session.execute(migrationTableCreate);
+	}
 
-	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string }>(
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -275,7 +286,7 @@ export async function migrate(
 		await session.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name ?? null})`,
 		);
 
 		return;
@@ -290,7 +301,9 @@ export async function migrate(
 			await tx.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
+					migration.name ?? null
+				})`,
 			);
 		}
 	});

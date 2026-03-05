@@ -33,6 +33,7 @@ export function migrate<TSchema extends Record<string, unknown>, TRelations exte
 			folderMillis: d.timestamp,
 			hash: '',
 			bps: true,
+			name: d.name,
 		}));
 
 		return db.dialect.migrate(migrations, db.session, {

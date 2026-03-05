@@ -1,22 +1,11 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname } from 'path';
 import { assertUnreachable } from '../../utils';
+import type { NonCommutativityReport, UnifiedBranchConflict } from '../../utils/commutativity';
 import { createDDL, type MysqlDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySnapshot, type MysqlSnapshot } from './snapshot';
 import type { JsonStatement } from './statements';
-
-export type BranchConflict = {
-	parentId: string;
-	parentPath?: string;
-	branchA: { headId: string; path: string; statement: JsonStatement };
-	branchB: { headId: string; path: string; statement: JsonStatement };
-};
-
-export type MySQLNonCommutativityReport = {
-	conflicts: BranchConflict[];
-	leafNodes: string[]; // IDs of all leaf nodes (terminal nodes with no children)
-};
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
@@ -28,11 +17,7 @@ type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 
 const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	// Table operations
-	create_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-	],
+	create_table: ['create_table', 'drop_table', 'rename_table'],
 	drop_table: [
 		'create_table',
 		'drop_table',
@@ -44,18 +29,44 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'rename_column',
 		'create_index',
 	],
-	rename_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-	],
+	rename_table: ['create_table', 'drop_table', 'rename_table'],
 
 	// Column operations
-	add_column: ['add_column', 'alter_column', 'drop_column', 'rename_column', 'recreate_column'],
-	drop_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	alter_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-	recreate_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
-	rename_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+	add_column: [
+		'add_column',
+		'alter_column',
+		'drop_column',
+		'rename_column',
+		'recreate_column',
+	],
+	drop_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	alter_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'rename_column',
+		'recreate_column',
+	],
+	recreate_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
+	rename_column: [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	],
 
 	// Index operations
 	create_index: ['create_index', 'drop_index', 'drop_table'],
@@ -66,11 +77,13 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	create_pk: ['drop_pk', 'create_pk'],
 
 	// Foreign key operations
-	create_fk: ['create_fk'],
+	create_fk: ['create_fk', 'drop_constraint'],
 
-	// TODO statements
-	drop_constraint: [],
-	create_check: [],
+	// Constraint operations (FK drops / check drops)
+	drop_constraint: ['drop_constraint', 'create_fk', 'create_check'],
+
+	// Check constraint operations
+	create_check: ['create_check', 'drop_constraint'],
 
 	// View operations
 	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view'],
@@ -79,13 +92,20 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view'],
 };
 
-function formatFootprint(action: string, objectName: string, columnName: string): string {
+function formatFootprint(
+	action: string,
+	objectName: string,
+	columnName: string,
+): string {
 	return `${action};${objectName};${columnName}`;
 }
 
-function extractStatementInfo(
-	statement: JsonStatement,
-): { action: string; schema: string; objectName: string; columnName: string } {
+function extractStatementInfo(statement: JsonStatement): {
+	action: string;
+	schema: string;
+	objectName: string;
+	columnName: string;
+} {
 	const action = statement.type;
 	let schema = '';
 	let objectName = '';
@@ -171,25 +191,85 @@ function extractStatementInfo(
 	return { action, schema, objectName, columnName };
 }
 
-export function footprint(statement: JsonStatement, snapshot?: MysqlSnapshot): [string[], string[]] {
+// Actions that target schema-level entities (tables, views) — use "in <schema>"
+const schemaLevelActions = new Set([
+	'create_table',
+	'drop_table',
+	'rename_table',
+	'create_view',
+	'drop_view',
+	'alter_view',
+	'rename_view',
+]);
+
+function describeStatement(statement: JsonStatement): string {
+	const info = extractStatementInfo(statement);
+
+	if (schemaLevelActions.has(info.action)) {
+		// Schema-level entity: "create_table: <name> in <schema>"
+		const container = info.schema || 'database';
+		return `${info.action}: ${info.objectName} in ${container}`;
+	}
+
+	// Sub-table entity (column, index, pk, fk, check, constraint)
+	if (info.columnName) {
+		// Column-level: "add_column: <column> on <table> table"
+		return `${info.action}: ${info.columnName} on ${info.objectName} table`;
+	}
+
+	// Table-child without column name (index, pk, fk, check): "create_index on <table> table"
+	return `${info.action} on ${info.objectName} table`;
+}
+
+export function footprint(
+	statement: JsonStatement,
+	snapshot?: MysqlSnapshot,
+): [string[], string[]] {
 	const info = extractStatementInfo(statement);
 	const conflictingTypes = footprintMap[statement.type];
 
-	const statementFootprint = [formatFootprint(statement.type, info.objectName, info.columnName)];
+	const statementFootprint = [
+		formatFootprint(statement.type, info.objectName, info.columnName),
+	];
+
+	// For column-level operations, also produce a table-level statement footprint.
+	// This allows table-level operations (e.g. drop_table) whose conflict footprints
+	// use an empty column name to match against any column operation on that table,
+	// including newly-added columns not present in the parent snapshot.
+	const columnOps: JsonStatement['type'][] = [
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+	];
+	if (columnOps.includes(statement.type) && info.columnName !== '') {
+		statementFootprint.push(
+			formatFootprint(statement.type, info.objectName, ''),
+		);
+	}
 
 	let conflictFootprints = conflictingTypes.map((conflictType) =>
 		formatFootprint(conflictType, info.objectName, info.columnName)
 	);
 
 	if (snapshot) {
-		const expandedFootprints = expandFootprintsFromSnapshot(statement, info, conflictingTypes, snapshot);
+		const expandedFootprints = expandFootprintsFromSnapshot(
+			statement,
+			info,
+			conflictingTypes,
+			snapshot,
+		);
 		conflictFootprints = [...conflictFootprints, ...expandedFootprints];
 	}
 
 	return [statementFootprint, conflictFootprints];
 }
 
-function generateLeafFootprints(statements: JsonStatement[], snapshot?: MysqlSnapshot): {
+function generateLeafFootprints(
+	statements: JsonStatement[],
+	snapshot?: MysqlSnapshot,
+): {
 	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
 	conflictFootprints: Array<{ hash: string; statement: JsonStatement }>;
 } {
@@ -214,27 +294,39 @@ function generateLeafFootprints(statements: JsonStatement[], snapshot?: MysqlSna
 
 function expandFootprintsFromSnapshot(
 	statement: JsonStatement,
-	info: { action: string; schema: string; objectName: string; columnName: string },
+	info: {
+		action: string;
+		schema: string;
+		objectName: string;
+		columnName: string;
+	},
 	conflictingTypes: JsonStatement['type'][],
 	snapshot: MysqlSnapshot,
 ): string[] {
 	const expandedFootprints: string[] = [];
 
-	if (
-		statement.type === 'drop_table' || statement.type === 'rename_table'
-	) {
-		const childEntities = findChildEntitiesInTableFromSnapshot(info.objectName, snapshot);
+	if (statement.type === 'drop_table' || statement.type === 'rename_table') {
+		const childEntities = findChildEntitiesInTableFromSnapshot(
+			info.objectName,
+			snapshot,
+		);
 		for (const entity of childEntities) {
 			for (const conflictType of conflictingTypes) {
-				expandedFootprints.push(formatFootprint(conflictType, entity.objectName, entity.columnName));
+				expandedFootprints.push(
+					formatFootprint(conflictType, entity.objectName, entity.columnName),
+				);
 			}
 		}
 		// all indexes in changed tables should make a conflict in this case
 		// maybe we need to make other fields optional
 		if (statement.type === 'drop_table') {
-			expandedFootprints.push(formatFootprint('create_index', statement.table, ''));
+			expandedFootprints.push(
+				formatFootprint('create_index', statement.table, ''),
+			);
 		} else if (statement.type === 'rename_table') {
-			expandedFootprints.push(formatFootprint('create_index', statement.to, ''));
+			expandedFootprints.push(
+				formatFootprint('create_index', statement.to, ''),
+			);
 		}
 	}
 
@@ -277,7 +369,10 @@ function findFootprintIntersections(
 			if (hashInfoA.hash === conflictInfoB.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoA.hash, rightStatement: conflictInfoB.hash });
-				return { leftStatement: hashInfoA.statement, rightStatement: conflictInfoB.statement };
+				return {
+					leftStatement: hashInfoA.statement,
+					rightStatement: conflictInfoB.statement,
+				};
 			}
 		}
 	}
@@ -287,7 +382,10 @@ function findFootprintIntersections(
 			if (hashInfoB.hash === conflictInfoA.hash) {
 				// Decided to return a first issue. You should run check and fix them until you have 0
 				// intersections.push({ leftStatement: hashInfoB.hash, rightStatement: conflictInfoA.hash });
-				return { leftStatement: hashInfoB.statement, rightStatement: conflictInfoA.statement };
+				return {
+					leftStatement: hashInfoB.statement,
+					rightStatement: conflictInfoA.statement,
+				};
 			}
 		}
 	}
@@ -298,18 +396,10 @@ function findFootprintIntersections(
 export const getReasonsFromStatements = async (
 	aStatements: JsonStatement[],
 	bStatements: JsonStatement[],
-	snapshotLeft?: MysqlSnapshot,
-	snapshotRight?: MysqlSnapshot,
+	parentSnapshot?: MysqlSnapshot,
 ) => {
-	// const parentSnapshot = snapshot ?? drySnapshot;
-	const branchAFootprints = generateLeafFootprints(
-		aStatements,
-		snapshotLeft,
-	);
-	const branchBFootprints = generateLeafFootprints(
-		bStatements,
-		snapshotRight,
-	);
+	const branchAFootprints = generateLeafFootprints(aStatements, parentSnapshot);
+	const branchBFootprints = generateLeafFootprints(bStatements, parentSnapshot);
 
 	return findFootprintIntersections(
 		branchAFootprints.statementHashes,
@@ -321,7 +411,7 @@ export const getReasonsFromStatements = async (
 
 export const detectNonCommutative = async (
 	snapshots: string[],
-): Promise<MySQLNonCommutativityReport> => {
+): Promise<NonCommutativityReport> => {
 	const nodes = buildSnapshotGraph<MysqlSnapshot>(snapshots);
 
 	// Build parent -> children mapping (a child can have multiple parents)
@@ -334,7 +424,8 @@ export const detectNonCommutative = async (
 		}
 	}
 
-	const conflicts: BranchConflict[] = [];
+	const conflicts: UnifiedBranchConflict[] = [];
+	const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
 
 	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
 		if (childIds.length <= 1) continue;
@@ -346,7 +437,10 @@ export const detectNonCommutative = async (
 			childToLeaves[childId] = collectLeaves(nodes, childId);
 		}
 
-		const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
+		const leafStatements: Record<
+			string,
+			{ statements: JsonStatement[]; path: string }
+		> = {};
 		for (const leaves of Object.values(childToLeaves)) {
 			for (const leafId of leaves) {
 				const leafNode = nodes[leafId]!;
@@ -356,46 +450,108 @@ export const detectNonCommutative = async (
 			}
 		}
 
+		let hasConflict = false;
+
 		for (let i = 0; i < childIds.length; i++) {
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
 				const groupB = childToLeaves[childIds[j]] ?? [];
+				const groupASet = new Set(groupA);
+				const hasMergedOverlap = groupB.some((leafId) => groupASet.has(leafId));
+				if (hasMergedOverlap) {
+					continue;
+				}
 				for (const aId of groupA) {
 					for (const bId of groupB) {
+						if (aId === bId) {
+							continue;
+						}
 						const aStatements = leafStatements[aId]!.statements;
 						const bStatements = leafStatements[bId]!.statements;
 
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 
 						// function that accepts statements are respond with conflicts
-						const intersectedHashed = await getReasonsFromStatements(aStatements, bStatements, parentSnapshot);
+						const intersectedHashed = await getReasonsFromStatements(
+							aStatements,
+							bStatements,
+							parentSnapshot,
+						);
 
 						if (intersectedHashed) {
-							// parentId and parentPath is a head of a branched leaves
+							hasConflict = true;
+							const chainA = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[i],
+								aId,
+							);
+							const chainB = buildChain(
+								nodes,
+								prevToChildren,
+								childIds[j],
+								bId,
+							);
+
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
-								branchA: { headId: aId, path: leafStatements[aId]!.path, statement: intersectedHashed.leftStatement },
-								branchB: { headId: bId, path: leafStatements[bId]!.path, statement: intersectedHashed.rightStatement },
+								branchA: {
+									chain: chainA,
+									statementDescription: describeStatement(
+										intersectedHashed.leftStatement,
+									),
+								},
+								branchB: {
+									chain: chainB,
+									statementDescription: describeStatement(
+										intersectedHashed.rightStatement,
+									),
+								},
 							});
 						}
 					}
 				}
 			}
 		}
+
+		const uniqueLeafIds = Array.from(
+			new Set(Object.values(childToLeaves).flat()),
+		);
+		if (hasConflict) {
+			continue;
+		}
+
+		if (uniqueLeafIds.length <= 1) {
+			continue;
+		}
+
+		const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
+		const leafs = uniqueLeafIds.map((leafId) => ({
+			id: leafId,
+			path: leafStatements[leafId]?.path ?? nodes[leafId]?.folderPath ?? leafId,
+			statements: leafStatements[leafId]?.statements ?? [],
+		}));
+
+		commutativeBranches?.push({
+			parentId: prevId,
+			parentPath: parentNode?.folderPath,
+			parentSnapshot,
+			leafs,
+		});
 	}
 
 	// Collect all leaf nodes (nodes with no children)
 	const allNodeIds = new Set(Object.keys(nodes));
-	const nodesWithChildren = new Set(Object.values(prevToChildren).flat());
-	const leafNodes = Array.from(allNodeIds).filter((id) => !nodesWithChildren.has(id));
+	const parentIds = new Set(Object.keys(prevToChildren));
+	const leafNodes = Array.from(allNodeIds).filter((id) => !parentIds.has(id));
 
-	return { conflicts, leafNodes };
+	return { conflicts, leafNodes, commutativeBranches };
 };
 
-function buildSnapshotGraph<TSnapshot extends { id: string; prevIds: string[] }>(
-	snapshotFiles: string[],
-): Record<string, SnapshotNode<TSnapshot>> {
+function buildSnapshotGraph<
+	TSnapshot extends { id: string; prevIds: string[] },
+>(snapshotFiles: string[]): Record<string, SnapshotNode<TSnapshot>> {
 	const byId: Record<string, SnapshotNode<TSnapshot>> = {};
 	for (const file of snapshotFiles) {
 		if (!existsSync(file)) continue;
@@ -441,6 +597,46 @@ function collectLeaves<TSnapshot extends { id: string; prevIds: string[] }>(
 	return leaves;
 }
 
+/**
+ * Build an ordered chain of migration nodes from `startId` to `targetId`
+ * by following the parent->children map. Returns the path as MigrationNode[].
+ */
+function buildChain<TSnapshot extends { id: string; prevIds: string[] }>(
+	graph: Record<string, SnapshotNode<TSnapshot>>,
+	prevToChildren: Record<string, string[]>,
+	startId: string,
+	targetId: string,
+): { id: string; path: string }[] {
+	const queue: string[][] = [[startId]];
+	const visited = new Set<string>();
+
+	while (queue.length > 0) {
+		const path = queue.shift()!;
+		const current = path[path.length - 1];
+
+		if (current === targetId) {
+			return path.map((id) => ({
+				id,
+				path: graph[id]?.folderPath ?? id,
+			}));
+		}
+
+		if (visited.has(current)) continue;
+		visited.add(current);
+
+		const children = prevToChildren[current] ?? [];
+		for (const child of children) {
+			if (!visited.has(child)) {
+				queue.push([...path, child]);
+			}
+		}
+	}
+
+	// Fallback: if no path found (shouldn't happen), return just the leaf
+	const leafNode = graph[targetId];
+	return [{ id: targetId, path: leafNode?.folderPath ?? targetId }];
+}
+
 async function diff(
 	fromSnap: MysqlSnapshot | 'dry',
 	toSnap: MysqlSnapshot,
@@ -449,7 +645,10 @@ async function diff(
 	fromSnap: MysqlSnapshot,
 	toSnap: MysqlSnapshot,
 ): Promise<{ statements: JsonStatement[] }>;
-async function diff(fromSnap: any, toSnap: any): Promise<{ statements: JsonStatement[] }> {
+async function diff(
+	fromSnap: any,
+	toSnap: any,
+): Promise<{ statements: JsonStatement[] }> {
 	const fromDDL: MysqlDDL = createDDL();
 	const toDDL: MysqlDDL = createDDL();
 
