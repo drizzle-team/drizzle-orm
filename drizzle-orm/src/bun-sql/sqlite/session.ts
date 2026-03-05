@@ -253,7 +253,7 @@ export class BunSQLitePreparedQuery<
 			) => unknown)(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -266,7 +266,7 @@ export class BunSQLitePreparedQuery<
 
 		const rows = await client.unsafe(query.sql, params);
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
 				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (
@@ -300,7 +300,7 @@ export class BunSQLitePreparedQuery<
 		}
 
 		if (row === undefined) return row;
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
 					[row],
@@ -318,7 +318,7 @@ export class BunSQLitePreparedQuery<
 
 		if (row === undefined) return row;
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows)
 			: (customResultMapper as (

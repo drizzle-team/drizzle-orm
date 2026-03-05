@@ -82,7 +82,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -102,7 +102,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		});
 		if (warning) console.warn(warning);
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(records)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(records);

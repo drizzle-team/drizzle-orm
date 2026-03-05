@@ -192,7 +192,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -221,7 +221,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
 					[row],
@@ -237,7 +237,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		const rows = stmt.all(...params) as Record<string, unknown>[];
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
 				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
@@ -252,7 +252,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		const row = stmt.get(...params) as Record<string, unknown>;
 		if (!row) return undefined;
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(

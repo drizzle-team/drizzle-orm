@@ -157,7 +157,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
 				: T['execute'])[]>
 				?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number]

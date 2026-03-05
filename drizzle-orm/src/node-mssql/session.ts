@@ -86,7 +86,7 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper =
 				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(

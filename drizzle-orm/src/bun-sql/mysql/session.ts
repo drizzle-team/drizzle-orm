@@ -125,7 +125,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			return customResultMapper(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper =
 				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -143,7 +143,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		const { client, query, customResultMapper } = this;
 		const rows = await client.unsafe(query, params);
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);

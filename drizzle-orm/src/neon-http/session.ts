@@ -135,7 +135,7 @@ export class NeonHttpPreparedQuery<
 
 		const rows = (result as FullQueryResults<false>).rows;
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
@@ -155,7 +155,7 @@ export class NeonHttpPreparedQuery<
 				: (this.customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 				?? makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
