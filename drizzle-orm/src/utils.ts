@@ -81,12 +81,12 @@ function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): string {
-	let fn = [];
+	let fn = [] as string[];
 	if (joinsNotNullableMap) fn.push(`const nullifyMap = {};`);
 
 	const initializedPaths = new Set<string>();
 
-	for (const [idx, { path: pathArr, field, codec }] of columns.entries()) {
+	for (const [idx, { path: pathArr, field, codec, arrayDimensions }] of columns.entries()) {
 		const pathPrefix = pathArr.slice(0, -1);
 		const path = pathArr.map((e) => `[${JSON.stringify(e)}]`).join('');
 
@@ -102,36 +102,33 @@ function makeJitQueryMapperInner(
 		let decoderStr: string;
 		if (is(field, Column)) {
 			decoder = field;
-			decoderStr = `columns[${idx}].field.mapFromDriverValue`;
+			decoderStr = `this.columns[${idx}].field.mapFromDriverValue`;
 		} else if (is(field, SQL)) {
 			decoder = field.decoder;
-			decoderStr = `columns[${idx}].field.decoder.mapFromDriverValue`;
+			decoderStr = `this.columns[${idx}].field.decoder.mapFromDriverValue`;
 		} else if (is(field, Subquery)) {
 			decoder = field._.sql.decoder;
-			decoderStr = `columns[${idx}].field._.sql.decoder.mapFromDriverValue`;
+			decoderStr = `this.columns[${idx}].field._.sql.decoder.mapFromDriverValue`;
 		} else {
 			decoder = field.sql.decoder;
-			decoderStr = `columns[${idx}].field.sql.decoder.mapFromDriverValue`;
+			decoderStr = `this.columns[${idx}].field.sql.decoder.mapFromDriverValue`;
 		}
 		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
 		const rowStr = `rows[i][${idx}]`;
 
+		let decodedValue = rowStr;
+		if (codec) decodedValue = `this.columns[${idx}].codec(${decodedValue}, ${arrayDimensions})`;
+		if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
 		fn.push(
-			`	res${path} = ${rowStr} === null ? ${rowStr} : ${
-				decoderStr
-					? `${decoderStr}(${codec ? `columns[${idx}].codec(${rowStr}, columns[${idx}].arrayDimensions)` : rowStr})`
-					: codec
-					? `columns[${idx}].codec(${rowStr}, columns[${idx}].arrayDimensions)`
-					: rowStr
-			};`,
+			`	res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
 		);
 
 		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
 			const objectName = JSON.stringify(pathArr[0]!);
 			fn.push(
 				`if (!(${objectName} in nullifyMap)) {`,
-				`	nullifyMap[${objectName}] = res${path} === null ? this.getTableName(columns[${idx}].field.table) : false;`,
-				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== this.getTableName(columns[${idx}].field.table)) {`,
+				`	nullifyMap[${objectName}] = res${path} === null ? this.getTableName(this.columns[${idx}].field.table) : false;`,
+				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== this.getTableName(this.columns[${idx}].field.table)) {`,
 				`	nullifyMap[${objectName}] = false;`,
 				`}`,
 			);
@@ -142,7 +139,7 @@ function makeJitQueryMapperInner(
 		fn.push(
 			`if(Object.keys(nullifyMap).length) {`,
 			`	for (const [objectName, tableName] of Object.entries(nullifyMap)) {`,
-			`		if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {`,
+			`		if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {`,
 			`			res[objectName] = null;`,
 			`		}`,
 			`	}`,
@@ -153,11 +150,7 @@ function makeJitQueryMapperInner(
 	return fn.join('\n');
 }
 
-export type JitMapper<TResult = Record<string, unknown>[]> = (
-	rows: unknown[][],
-	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> | undefined,
-) => TResult;
+export type JitMapper<TResult = Record<string, unknown>[]> = (rows: unknown[][]) => TResult;
 
 /** @internal */
 export function makeJitQueryMapper<TResult>(
@@ -166,8 +159,6 @@ export function makeJitQueryMapper<TResult>(
 ): JitMapper<TResult> {
 	return new Function(
 		'rows',
-		'columns',
-		'joinsNotNullableMap',
 		`const mapped = [];
 		for (let i = 0; i < rows.length; ++i) {
 			const res = {};
@@ -178,6 +169,8 @@ export function makeJitQueryMapper<TResult>(
 		//# sourceURL=drizzle:jit-query-mapper`,
 	).bind({
 		getTableName,
+		columns,
+		joinsNotNullableMap,
 	}) as any;
 }
 

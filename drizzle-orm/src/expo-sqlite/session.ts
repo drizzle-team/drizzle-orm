@@ -3,7 +3,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -69,6 +74,7 @@ export class ExpoSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): ExpoSQLitePreparedQuery<T, true> {
 		const stmt = this.client.prepareSync(query.sql);
 		return new ExpoSQLitePreparedQuery(
@@ -81,6 +87,7 @@ export class ExpoSQLiteSession<
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -142,7 +149,7 @@ export class ExpoSQLitePreparedQuery<
 	{ type: 'sync'; run: SQLiteRunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'ExpoSQLitePreparedQuery';
-	private jitMapper?: JitMapper<unknown[]>;
+	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
 
 	constructor(
 		private stmt: SQLiteStatement,
@@ -156,6 +163,7 @@ export class ExpoSQLitePreparedQuery<
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('sync', executeMethod, query);
 	}
@@ -185,12 +193,9 @@ export class ExpoSQLitePreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -200,7 +205,10 @@ export class ExpoSQLitePreparedQuery<
 		logger.logQuery(query.sql, params);
 		const rows = stmt.executeSync(params as any[]).getAllSync() as Record<string, unknown>[];
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -225,12 +233,11 @@ export class ExpoSQLitePreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				[row],
-				fields!,
-				joinsNotNullableMap,
-			)[0]
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
 			: mapResultRow(this.fields!, row, this.joinsNotNullableMap);
 	}
 
@@ -245,7 +252,10 @@ export class ExpoSQLitePreparedQuery<
 			return undefined;
 		}
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

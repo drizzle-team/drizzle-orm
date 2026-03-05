@@ -18,7 +18,12 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 
@@ -28,7 +33,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NeonPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']>;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
@@ -52,6 +57,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
@@ -166,12 +172,9 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				result.rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
 			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
@@ -184,7 +187,10 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 		const result = await client.query(rawQuery, params);
 
-		return customResultMapper!(result.rows);
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result.rows)
+			: customResultMapper!(result.rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
@@ -269,7 +275,8 @@ export class NeonSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
@@ -285,6 +292,7 @@ export class NeonSession<
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

@@ -158,6 +158,13 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				}
 				return rows as TResult;
 			},
+			{
+				isFirst: this.mode === 'first',
+				parseJson: !this.rowMode,
+				parseJsonIfString: false,
+				rootJsonMappers: true,
+				selection: query.selection,
+			},
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 

@@ -4,7 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -265,6 +265,7 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeRelationalQuery(
@@ -272,8 +273,9 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareRelationalQuery(query, fields, executeMethod, customResultMapper);
+		return this.prepareRelationalQuery(query, fields, executeMethod, customResultMapper, config);
 	}
 
 	abstract transaction<T>(

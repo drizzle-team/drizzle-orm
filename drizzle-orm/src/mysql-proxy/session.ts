@@ -17,7 +17,12 @@ import type {
 	PreparedQueryKind,
 } from '~/mysql-core/session.ts';
 import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
@@ -91,6 +96,7 @@ export class MySqlRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
@@ -108,6 +114,7 @@ export class MySqlRemoteSession<
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 
@@ -149,7 +156,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 	extends PreparedQueryBase<T>
 {
 	static override readonly [entityKind]: string = 'MySqlProxyPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']>;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -172,6 +179,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super(cache, queryMetadata, cacheConfig);
 	}
@@ -228,12 +236,9 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -247,7 +252,10 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		const { rows: res } = await client(queryString, params, 'execute');
 		const rows = res[0];
 
-		return customResultMapper!(rows);
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+			: customResultMapper!(rows);
 	}
 
 	override iterator(

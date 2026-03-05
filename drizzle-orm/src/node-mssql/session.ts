@@ -86,12 +86,15 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows.recordset,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper =
+				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+						fields!,
+						joinsNotNullableMap,
+					))(
+					rows.recordset,
+				)
 			: rows.recordset.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -158,11 +161,14 @@ export class NodeMsSqlPreparedQuery<
 							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
 						} else {
 							yield this.useJitMapper
-								? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-									[row as unknown[]],
-									fields!,
-									joinsNotNullableMap,
-								)[0] as T['execute']
+								? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+									: T['execute'])[]>
+									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										joinsNotNullableMap,
+									))([
+										row as unknown[],
+									])[0] as T['execute']
 								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {

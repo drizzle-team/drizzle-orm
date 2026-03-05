@@ -7,7 +7,7 @@ import { TransactionRollbackError } from '~/errors.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils.ts';
@@ -149,6 +149,7 @@ export abstract class PgAsyncSession<
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PgAsyncPreparedQuery<T>;
 
 	override execute<T>(query: SQL): Promise<T>;

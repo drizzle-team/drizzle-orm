@@ -40,12 +40,19 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 			name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
 			(rawRows, mapColumnValue) => {
 				const rows = rawRows.map((row) =>
-					mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson, undefined, undefined, false)
+					mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson, undefined, false)
 				);
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;
+			},
+			{
+				isFirst: this.mode === 'first',
+				parseJson: this.parseJson,
+				parseJsonIfString: false,
+				rootJsonMappers: false,
+				selection: query.selection,
 			},
 		);
 	}

@@ -8,7 +8,12 @@ import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
@@ -19,7 +24,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 	extends GelPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'GelPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']>;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: GelClient,
@@ -40,6 +45,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 		) => T['execute'],
 		private transaction: boolean = false,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
@@ -81,12 +87,9 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result);
 				}
 
-				return this.useJitMapper
-					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-						result,
-						fields!,
-						joinsNotNullableMap,
-					)
+				return !this.useJitMapper
+					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result)
 					: result.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});
@@ -110,9 +113,12 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-					result as Record<string, unknown>[],
-				);
+				return !this.useJitMapper
+					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
+					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+						result as Record<string, unknown>[],
+					);
 			});
 		});
 	}
@@ -203,7 +209,8 @@ export class GelDbSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): GelDbPreparedQuery<T, true> {
 		return new GelDbPreparedQuery(
 			this.client,
@@ -219,6 +226,7 @@ export class GelDbSession<
 			customResultMapper,
 			undefined,
 			true,
+			config,
 		);
 	}
 

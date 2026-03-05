@@ -30,7 +30,12 @@ import {
 	type MySqlTransactionConfig,
 	type PreparedQueryKind,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
@@ -50,7 +55,9 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
-	private jitMapper?: JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
+	private jitMapper?:
+		| JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: MySql2Client,
@@ -73,6 +80,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super(cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
@@ -149,12 +157,11 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+				: T['execute'])[]>
+				?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number]
+					: T['execute'])[]>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -203,17 +210,29 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 				} else if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
 					throw row;
 				} else {
-					if (hasRowsMapper) {
+					if (this.isRqbV2Query) {
+						if (this.useJitMapper) {
+							yield (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+								?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
+						} else {
+							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+								[row] as Record<string, unknown>[],
+							);
+							if (this.rqbConfig!.isFirst) yield mapped;
+							else yield ((<any[]> mapped)[0]);
+						}
+					} else if (hasRowsMapper) {
 						if (customResultMapper) {
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
 							yield this.useJitMapper
-								? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-									[row as unknown[]],
-									fields!,
-									joinsNotNullableMap,
-								)[0] as T['execute']
+								? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+									: T['execute'])[]>
+									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										joinsNotNullableMap,
+									))([row as unknown[]])[0] as T['execute']
 								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {
@@ -295,6 +314,7 @@ export class MySql2Session<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
@@ -314,6 +334,7 @@ export class MySql2Session<
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 

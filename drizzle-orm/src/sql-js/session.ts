@@ -3,7 +3,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -65,6 +70,7 @@ export class SQLJsSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): PreparedQuery<T, true> {
 		return new PreparedQuery(
 			this.client,
@@ -76,6 +82,7 @@ export class SQLJsSession<
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -136,7 +143,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	>
 {
 	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
-	private jitMapper?: JitMapper<unknown[]>;
+	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
 
 	constructor(
 		private client: Database,
@@ -151,6 +158,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('sync', executeMethod, query);
 	}
@@ -195,12 +203,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)(rows, normalizeFieldValue) as T['all'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -218,10 +223,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		stmt.free();
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)(rows, normalizeFieldValue) as T['all'];
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows, normalizeFieldValue) as T['all'];
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -255,12 +263,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)([row], normalizeFieldValue) as T['get'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				[row],
-				fields!,
-				joinsNotNullableMap,
-			)[0]
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
 			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
@@ -289,10 +296,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		}
 		if (!nonUndef) return undefined;
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([row], normalizeFieldValue) as T['get'];
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row], normalizeFieldValue) as T['get'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

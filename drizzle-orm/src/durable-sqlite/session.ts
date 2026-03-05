@@ -2,7 +2,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -72,6 +77,7 @@ export class SQLiteDOSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLiteDOPreparedQuery<T, true> {
 		return new SQLiteDOPreparedQuery(
 			this.client,
@@ -83,6 +89,7 @@ export class SQLiteDOSession<
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -148,7 +155,7 @@ export class SQLiteDOPreparedQuery<
 	execute: T['execute'];
 }> {
 	static override readonly [entityKind]: string = 'SQLiteDOPreparedQuery';
-	private jitMapper?: JitMapper<unknown[]>;
+	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
 
 	constructor(
 		private client: DurableObjectStorage,
@@ -162,6 +169,7 @@ export class SQLiteDOPreparedQuery<
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		// 3-6 params are for cache. As long as we don't support sync cache - it will be skipped here
 		super('sync', executeMethod, query, undefined, undefined, undefined);
@@ -194,12 +202,9 @@ export class SQLiteDOPreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
@@ -213,7 +218,10 @@ export class SQLiteDOPreparedQuery<
 			? client.sql.exec(query.sql, ...params).toArray()
 			: client.sql.exec(query.sql).toArray();
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -238,12 +246,11 @@ export class SQLiteDOPreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				[row],
-				fields!,
-				joinsNotNullableMap,
-			)[0]
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
 			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
@@ -259,7 +266,10 @@ export class SQLiteDOPreparedQuery<
 			return undefined;
 		}
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
