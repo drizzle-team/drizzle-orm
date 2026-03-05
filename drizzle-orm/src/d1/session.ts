@@ -292,7 +292,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		}
 
 		if (this.isRqbV2Query) {
-			return !this.useJitMapper
+			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
 				: (this.customResultMapper as (
@@ -305,7 +305,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(this.fields!, this.joinsNotNullableMap))(rows as unknown[][])
 			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
@@ -362,7 +362,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		if (!result) return undefined;
 
 		if (this.isRqbV2Query) {
-			return !this.useJitMapper
+			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([result as Record<string, unknown>])
 				: (this.customResultMapper as (
@@ -375,7 +375,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)([result as unknown[]]) as T['all'];
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(this.fields!, this.joinsNotNullableMap))(
 					[result as unknown[]],

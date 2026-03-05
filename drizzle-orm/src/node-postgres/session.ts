@@ -191,7 +191,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 				}
 
-				return !this.useJitMapper
+				return this.useJitMapper
 					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
 					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -217,7 +217,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return !this.useJitMapper
+				return this.useJitMapper
 					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result.rows)
 					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);

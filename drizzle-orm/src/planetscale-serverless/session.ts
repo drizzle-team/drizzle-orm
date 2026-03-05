@@ -118,7 +118,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
 					rows as unknown[][],
@@ -140,7 +140,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 
 		const res = await client.execute(queryString, params, rawQuery);
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(res.rows as any as Record<string, unknown>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(

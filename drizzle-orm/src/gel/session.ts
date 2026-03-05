@@ -87,7 +87,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result);
 				}
 
-				return !this.useJitMapper
+				return this.useJitMapper
 					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result)
 					: result.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -113,7 +113,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return !this.useJitMapper
+				return this.useJitMapper
 					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
 					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(

@@ -87,7 +87,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 						return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 					}
 
-					return !this.useJitMapper
+					return this.useJitMapper
 						? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 							?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows as unknown[][]) as T['execute']
 						: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];

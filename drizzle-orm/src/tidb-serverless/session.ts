@@ -109,7 +109,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -124,7 +124,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		const res = await client.execute(queryString, params, executeRawConfig) as FullResult;
 
 		const { rows } = res;
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(

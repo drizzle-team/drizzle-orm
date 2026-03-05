@@ -243,7 +243,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 				(rows as unknown[])[i] = JSON.parse((rows as unknown[])[i] as string);
 			}
 
-			return !this.useJitMapper
+			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
 				: (this.customResultMapper as (
@@ -256,7 +256,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return (this.customResultMapper as (rows: unknown[][]) => unknown)(rows as unknown[][]) as T['all'];
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
 				?? makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(rows as unknown[][])
 			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
@@ -328,7 +328,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.isRqbV2Query) {
-			return !this.useJitMapper
+			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([JSON.parse(row as string) as Record<string, unknown>])
 				: (this.customResultMapper as (
@@ -343,7 +343,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) as T['get'];
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(this.fields!, this.joinsNotNullableMap))(
 					[row as unknown[]],

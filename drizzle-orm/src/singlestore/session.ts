@@ -156,7 +156,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return customResultMapper(rows);
 		}
 
-		return !this.useJitMapper
+		return this.useJitMapper
 			? (this.jitMapper =
 				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
