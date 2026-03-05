@@ -156,32 +156,6 @@ export function generateLatestSnapshot(
 		push(entity, right);
 	};
 
-	const moveTable = (table: string, from: string, to: string) => {
-		const fromWhere = { schema: from, table };
-		ddl.tables.update({
-			where: { schema: from, name: table },
-			set: { schema: to },
-		});
-		ddl.columns.update({ where: fromWhere, set: { schema: to } });
-		ddl.indexes.update({ where: fromWhere, set: { schema: to } });
-		ddl.pks.update({ where: fromWhere, set: { schema: to } });
-		ddl.fks.update({ where: fromWhere, set: { schema: to } });
-		ddl.uniques.update({ where: fromWhere, set: { schema: to } });
-		ddl.checks.update({ where: fromWhere, set: { schema: to } });
-		ddl.policies.update({ where: fromWhere, set: { schema: to } });
-		ddl.privileges.update({ where: fromWhere, set: { schema: to } });
-
-		ddl.fks.update({
-			where: {
-				schemaTo: from,
-				tableTo: table,
-			},
-			set: {
-				schemaTo: to,
-			},
-		});
-	};
-
 	for (const statement of statements) {
 		switch (statement.type) {
 			case 'create_table':
@@ -231,22 +205,23 @@ export function generateLatestSnapshot(
 				break;
 			}
 			case 'rename_table':
+				/**
+				 * prepareStatement('rename_table', {
+							schema: it.from.schema,
+							from: it.from.name,
+							to: it.to.name,
+						})
+				 */
 				ddl.tables.update({
-					where: { schema: statement.schema, name: statement.from },
-					set: { name: statement.to },
+					set: {
+						name: statement.to,
+					},
+					where: {
+						name: statement.from,
+						schema: statement.schema,
+					},
 				});
-				ddl.columns.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
-				ddl.indexes.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
-				ddl.pks.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
+
 				ddl.fks.update({
 					where: { schema: statement.schema, table: statement.from },
 					set: { table: statement.to },
@@ -255,33 +230,47 @@ export function generateLatestSnapshot(
 					where: { schemaTo: statement.schema, tableTo: statement.from },
 					set: { tableTo: statement.to },
 				});
-				ddl.uniques.update({
+
+				ddl.entities.update({
 					where: { schema: statement.schema, table: statement.from },
 					set: { table: statement.to },
 				});
-				ddl.checks.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
-				ddl.policies.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
-				ddl.privileges.update({
-					where: { schema: statement.schema, table: statement.from },
-					set: { table: statement.to },
-				});
+
 				break;
 			case 'move_table':
-				moveTable(statement.name, statement.from, statement.to);
-				break;
-			case 'remove_from_schema':
-				moveTable(statement.table, statement.schema, 'public');
-				break;
-			case 'set_new_schema':
-				moveTable(statement.table, statement.from, statement.to);
-				break;
+				// rename of table comes first
+				/**
+				 * prepareStatement('move_table', {
+							name: it.to.name, // rename of table comes first
+							from: it.from.schema,
+							to: it.to.schema,
+						})
+				 */
+				ddl.tables.update({
+					set: {
+						schema: statement.to,
+					},
+					where: {
+						schema: statement.from,
+						name: statement.name,
+					},
+				});
 
+				ddl.fks.update({
+					where: { schema: statement.from, table: statement.name },
+					set: { table: statement.to },
+				});
+				ddl.fks.update({
+					where: { schemaTo: statement.from, tableTo: statement.name },
+					set: { tableTo: statement.to },
+				});
+
+				ddl.entities.update({
+					where: { schema: statement.from, table: statement.name },
+					set: { table: statement.to },
+				});
+
+				break;
 			case 'add_column':
 				push(ddl.columns, statement.column);
 				break;
