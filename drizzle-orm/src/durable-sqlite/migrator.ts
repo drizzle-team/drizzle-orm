@@ -49,7 +49,7 @@ export async function migrate<
 
 	db.transaction((tx) => {
 		try {
-			const migrationsTable = config.migrationsTable ?? "__drizzle_migrations";
+			const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 			const migrationTableCreate = sql`
 				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
