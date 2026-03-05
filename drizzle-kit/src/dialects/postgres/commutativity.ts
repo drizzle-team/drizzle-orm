@@ -17,12 +17,7 @@ type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 
 const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 	// Table operations
-	create_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-	],
+	create_table: ['create_table', 'drop_table', 'rename_table', 'move_table'],
 	drop_table: [
 		'create_table',
 		'drop_table',
@@ -37,18 +32,8 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_index',
 		'recreate_index',
 	],
-	rename_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-	],
-	move_table: [
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-	],
+	rename_table: ['create_table', 'drop_table', 'rename_table', 'move_table'],
+	move_table: ['create_table', 'drop_table', 'rename_table', 'move_table'],
 
 	// Column operations
 	add_column: [
@@ -1023,6 +1008,11 @@ export const detectNonCommutative = async (
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
 				const groupB = childToLeaves[childIds[j]] ?? [];
+				const groupASet = new Set(groupA);
+				const hasMergedOverlap = groupB.some((leafId) => groupASet.has(leafId));
+				if (hasMergedOverlap) {
+					continue;
+				}
 				for (const aId of groupA) {
 					for (const bId of groupB) {
 						if (aId === bId) {

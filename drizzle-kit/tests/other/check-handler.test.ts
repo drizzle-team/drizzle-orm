@@ -226,3 +226,88 @@ test('does not report conflicts when sibling branches converge to the same termi
 	expect(result.parentSnapshot).toBeNull();
 	expect(result.nonCommutativityMessage).toBeUndefined();
 });
+
+test('reports only active leaf conflict after branch merge and re-split', async () => {
+	mkdirSync('tests/tmp', { recursive: true });
+	const out = mkdtempSync('tests/tmp/dk-check-handler-');
+
+	const rootSchema = {
+		users: pgTable('users', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+	};
+	const parentSchema = {
+		users: pgTable('users', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+		posts: pgTable('posts', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+	};
+	const leftSchema = {
+		...parentSchema,
+		likes: pgTable('likes', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+	};
+	const rightSchema = {
+		...parentSchema,
+		groups: pgTable('groups', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+	};
+	const mergedSchema = {
+		...parentSchema,
+		likes: pgTable('likes', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+		groups: pgTable('groups', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+	};
+	const splitOneSchema = {
+		...parentSchema,
+		likes: pgTable('likes', {
+			id: integer('id'),
+			text: varchar('text'),
+		}),
+		groups: pgTable('groups', {
+			id: integer('id'),
+		}),
+	};
+	const splitTwoSchema = {
+		...splitOneSchema,
+	};
+
+	const root = makeSnapshot('r1', [ORIGIN], rootSchema);
+	const parent = makeSnapshot('p1', ['r1'], parentSchema);
+	const left = makeSnapshot('a1', ['p1'], leftSchema);
+	const right = makeSnapshot('b1', ['p1'], rightSchema);
+	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
+	const splitOne = makeSnapshot('s1', ['m1'], splitOneSchema);
+	const splitTwo = makeSnapshot('s2', ['m1'], splitTwoSchema);
+
+	snapshotPath(out, '000_root', root);
+	snapshotPath(out, '001_parent', parent);
+	snapshotPath(out, '002_left', left);
+	snapshotPath(out, '003_right', right);
+	snapshotPath(out, '004_merged', merged);
+	snapshotPath(out, '005_split_one', splitOne);
+	snapshotPath(out, '006_split_two', splitTwo);
+
+	const result = await checkHandler(out, 'postgresql', false, false);
+
+	expect(result.nonCommutativityMessage).toContain(
+		'drop_column: text on groups table',
+	);
+	expect(result.nonCommutativityMessage).not.toContain(
+		'create_table: groups in public schema',
+	);
+});

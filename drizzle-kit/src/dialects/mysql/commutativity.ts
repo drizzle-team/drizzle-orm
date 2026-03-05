@@ -456,6 +456,11 @@ export const detectNonCommutative = async (
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
 				const groupB = childToLeaves[childIds[j]] ?? [];
+				const groupASet = new Set(groupA);
+				const hasMergedOverlap = groupB.some((leafId) => groupASet.has(leafId));
+				if (hasMergedOverlap) {
+					continue;
+				}
 				for (const aId of groupA) {
 					for (const bId of groupB) {
 						if (aId === bId) {
