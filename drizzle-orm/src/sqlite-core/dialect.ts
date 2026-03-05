@@ -44,6 +44,7 @@ import type {
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
+import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -1160,17 +1161,23 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
 
-		const migrationTableCreate = sql`
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = upgradeSyncIfNeeded(migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 				id INTEGER PRIMARY KEY,
 				hash text NOT NULL,
-				created_at numeric
-			)
-		`;
-		session.run(migrationTableCreate);
+				created_at numeric,
+				name text,
+				applied_at TEXT
+			)`;
+			session.run(migrationTableCreate);
+		}
 
-		const dbMigrations = session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)}`,
+		const dbMigrations = session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1189,7 +1196,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+					new Date().toISOString()
+				})`,
 			);
 
 			return;
@@ -1206,7 +1215,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 				session.run(
 					sql`INSERT INTO ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 
@@ -1238,17 +1249,24 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
 
-		const migrationTableCreate = sql`
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 				id INTEGER PRIMARY KEY,
 				hash text NOT NULL,
-				created_at numeric
-			)
+				created_at numeric,
+				name text,
+				applied_at TEXT
+		)
 		`;
-		await session.run(migrationTableCreate);
+			await session.run(migrationTableCreate);
+		}
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)};`,
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)};`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -1267,7 +1285,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			await session.run(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+					new Date().toISOString()
+				})`,
 			);
 
 			return;
@@ -1280,9 +1300,11 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 					await tx.run(sql.raw(stmt));
 				}
 				await tx.run(
-					sql`INSERT INTO ${
+					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+						new Date().toISOString()
+					})`,
 				);
 			}
 		});

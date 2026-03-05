@@ -31,6 +31,7 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
+				name: key,
 			});
 		} catch {
 			throw new Error(`Failed to parse migration: ${key}`);

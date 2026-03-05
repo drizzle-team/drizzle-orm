@@ -517,12 +517,12 @@ describe('commutativity integration (postgres)', () => {
 
 		const report = await detectNonCommutative(files, 'postgresql');
 		expect(report.conflicts.length).toBe(1);
-		expect(report.conflicts[0].branchA.headId).toStrictEqual('a_drop');
-		expect(report.conflicts[0].branchB.headId).toStrictEqual('b_drop');
+		expect(report.conflicts[0].branchA.chain[report.conflicts[0].branchA.chain.length - 1].id).toStrictEqual('a_drop');
+		expect(report.conflicts[0].branchB.chain[report.conflicts[0].branchB.chain.length - 1].id).toStrictEqual('b_drop');
 		const con = report.conflicts[0];
 
 		// console.log(
-		// 	`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.headId} and second branch is ${con.branchB.headId}.\n\n${con.branchA.statement.type} statement from first branch is conflicting with ${con.branchB.statement.type}`,
+		// 	`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.chain[con.branchA.chain.length - 1].id} and second branch is ${con.branchB.chain[con.branchB.chain.length - 1].id}.\n\n${con.branchA.statementDescription} statement from first branch is conflicting with ${con.branchB.statementDescription}`,
 		// );
 	});
 

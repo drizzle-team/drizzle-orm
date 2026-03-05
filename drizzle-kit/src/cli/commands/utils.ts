@@ -89,6 +89,7 @@ export type GenerateConfig = {
 	bundle: boolean;
 	casing?: CasingType;
 	driver?: Driver;
+	ignoreConflicts?: boolean;
 };
 
 export type ExportConfig = {
@@ -109,6 +110,7 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		casing?: CasingType;
+		ignoreConflicts?: boolean;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -140,6 +142,7 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 	};
 };
 
@@ -422,11 +425,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'push' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'push' command with DuckDb dialect`));
 		process.exit(1);
 	}
 
@@ -656,11 +655,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'pull' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'pull' command with DuckDb dialect`));
 		process.exit(1);
 	}
 
@@ -950,11 +945,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'migrate' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'migrate' command with DuckDb dialect`));
 		process.exit(1);
 	}
 

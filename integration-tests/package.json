@@ -10,7 +10,10 @@
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
 		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/relational/mysql.test.ts tests/relational/mysql-v1.test.ts",
-		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/relational/mysql.planetscale"
+		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/relational/mysql.planetscale",
+		"test:other": "vitest run tests/utils tests/extensions",
+		"test:seeder": "vitest run tests/seeder",
+		"test:imports": "vitest run tests/imports"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",

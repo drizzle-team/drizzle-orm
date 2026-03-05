@@ -178,6 +178,7 @@ export const filterMigrationsSchema = (
 		columns: { table: string; schema?: string }[];
 		pks: { table: string; schema?: string }[];
 		tables: { name: string; schema?: string }[];
+		defaults?: { table: string; schema?: string }[]; // for mssql only
 	},
 	migrations: {
 		schema: string;
@@ -196,6 +197,13 @@ export const filterMigrationsSchema = (
 	interim.pks = interim.pks.filter((pk) =>
 		!(pk.table === migrationsTable && (pk.schema ? pk.schema === migrationsSchema : true))
 	);
+
+	// mssql only
+	if (interim.defaults) {
+		interim.defaults = interim.defaults.filter((def) =>
+			!(def.table === migrationsTable && (def.schema ? def.schema === migrationsSchema : true))
+		);
+	}
 
 	if (interim.schemas) {
 		let tablesInMigrationSchema = interim.tables.filter((table) => table.schema === migrationsSchema);

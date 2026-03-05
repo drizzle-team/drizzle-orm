@@ -39,6 +39,7 @@ test('generate #1', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -59,6 +60,7 @@ test('generate #2', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -76,6 +78,7 @@ test('generate #3', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -94,6 +97,7 @@ test('generate #4', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -111,6 +115,7 @@ test('generate #5', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -128,15 +133,13 @@ test('generate #6', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
 // config | pass through name and custom
 test('generate #7', async (t) => {
-	const res = await brotest(
-		generate,
-		'--name=custom --custom',
-	);
+	const res = await brotest(generate, '--name=custom --custom');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
@@ -148,6 +151,7 @@ test('generate #7', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -166,6 +170,7 @@ test('generate #8', async (t) => {
 		bundle: true, // expo driver
 		casing: undefined,
 		driver: 'expo',
+		ignoreConflicts: false,
 	});
 });
 
@@ -183,6 +188,7 @@ test('generate #9', async (t) => {
 		bundle: true, // expo driver
 		casing: undefined,
 		driver: 'durable-sqlite',
+		ignoreConflicts: false,
 	});
 });
 
@@ -204,6 +210,7 @@ test('generate #9', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+		ignoreConflicts: false,
 	});
 });
 
@@ -239,11 +246,17 @@ test('err #6', async (t) => {
 });
 
 test('err #7', async (t) => {
-	const res = await brotest(generate, '--config=drizzle.config.ts --schema=schema.ts');
+	const res = await brotest(
+		generate,
+		'--config=drizzle.config.ts --schema=schema.ts',
+	);
 	assert.equal(res.type, 'error');
 });
 
 test('err #8', async (t) => {
-	const res = await brotest(generate, '--config=drizzle.config.ts --dialect=postgresql');
+	const res = await brotest(
+		generate,
+		'--config=drizzle.config.ts --dialect=postgresql',
+	);
 	assert.equal(res.type, 'error');
 });

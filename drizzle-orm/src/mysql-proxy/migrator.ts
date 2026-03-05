@@ -3,6 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -15,20 +16,34 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrations = readMigrationFiles(config);
 
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-	const migrationTableCreate = sql`
-		create table if not exists ${sql.identifier(migrationsTable)} (
-			id serial primary key,
-			hash text not null,
-			created_at bigint
-		)
-	`;
-	await db.execute(migrationTableCreate);
+
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeIfNeeded(migrationsTable, db.session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id SERIAL PRIMARY KEY,
+				hash TEXT NOT NULL,
+				created_at BIGINT,
+				name TEXT,
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)
+		`;
+		await db.session.execute(migrationTableCreate);
+	}
 
 	const dbMigrations = await db.select({
 		id: sql.raw('id'),
 		hash: sql.raw('hash'),
 		created_at: sql.raw('created_at'),
-	}).from(sql.identifier(migrationsTable).getSQL()) as { id: number; hash: string; created_at: string }[];
+		name: sql.raw('name'),
+	}).from(sql.identifier(migrationsTable).getSQL()) as {
+		id: number;
+		hash: string;
+		created_at: string;
+		name: string | null;
+	}[];
 
 	if (typeof config === 'object' && config.init) {
 		if (dbMigrations.length) {
@@ -47,7 +62,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name})`
+					.inlineParams(),
 			).sql,
 		]);
 
@@ -62,7 +78,8 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`) values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, '${migration.folderMillis}', ${migration.name})`
+					.inlineParams(),
 			).sql,
 		);
 	}

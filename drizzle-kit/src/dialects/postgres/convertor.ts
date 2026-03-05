@@ -694,6 +694,15 @@ const dropUniqueConvertor = convertor('drop_unique', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
 });
 
+const alterUniqueConvertor = convertor('alter_unique', (st) => {
+	const statements: string[] = [];
+
+	statements.push(dropUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+	statements.push(addUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+
+	return statements;
+});
+
 const createEnumConvertor = convertor('create_enum', (st) => {
 	const { name, schema, values } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
@@ -932,7 +941,7 @@ const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
 
 	return `GRANT ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} TO ${privilege.grantee}${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY ${privilege.grantor};`;
+	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY "${privilege.grantor}";`;
 });
 
 const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {
@@ -941,7 +950,7 @@ const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {
 
 	return `REVOKE ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} FROM ${privilege.grantee};`;
+	} FROM "${privilege.grantee}";`;
 });
 
 const regrantPrivilegeConvertor = convertor('regrant_privilege', (st) => {
@@ -1062,6 +1071,7 @@ const convertors = [
 	recreateCheckConvertor,
 	addUniqueConvertor,
 	dropUniqueConvertor,
+	alterUniqueConvertor,
 	renameConstraintConvertor,
 	createEnumConvertor,
 	dropEnumConvertor,
