@@ -161,12 +161,8 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 				}
 
-				return this.useJitMapper
-					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-						result.rows,
-						fields!,
-						joinsNotNullableMap,
-					)
+				return !this.useJitMapper
+					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(result.rows)
 					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
 		});

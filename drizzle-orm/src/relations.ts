@@ -743,14 +743,11 @@ export function mapRelationalRow(
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
 	parseJsonIfString: boolean = false,
-	path?: string,
 	/** Root level data of query is usually not nested in JSON */
 	useJsonMappers: boolean = true,
 ): Record<string, unknown> {
 	for (const selectionItem of buildQueryResultSelection) {
 		if (selectionItem.selection) {
-			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
-
 			if (row[selectionItem.key] === null) continue;
 
 			if (parseJson) {
@@ -769,7 +766,6 @@ export function mapRelationalRow(
 						mapColumnValue,
 						false,
 						parseJsonIfString,
-						currentPath,
 					);
 				}
 
@@ -782,7 +778,6 @@ export function mapRelationalRow(
 				mapColumnValue,
 				false,
 				parseJsonIfString,
-				currentPath,
 			);
 
 			continue;
@@ -814,6 +809,136 @@ export function mapRelationalRow(
 	}
 
 	return row;
+}
+
+export type RelationalQueryJitMapper<T = unknown> = (rows: Record<string, unknown>[]) => T;
+
+function makeRqbJitMapperInner(
+	selection: BuildRelationalQueryResult['selection'],
+	pathPrefix: string,
+	selectionPathPrefix: string,
+	mapColumnValue: ((value: unknown) => unknown) | undefined,
+	/** Needed for SQLite as it returns JSON values as strings */
+	parseJson: boolean,
+	/** Needed for SingleStore as it returns JSON arrays as strings */
+	parseJsonIfString: boolean,
+	/** Root level data of query is usually not nested in JSON */
+	useJsonMappers: boolean,
+	recursionDepth = 0,
+): string {
+	const fn = [] as string[];
+	for (
+		const [idx, { field, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection
+			.entries()
+	) {
+		const sel = `${selectionPathPrefix}[${idx}]`;
+		const item = `${pathPrefix}[${JSON.stringify(key)}]`;
+
+		if (innerSelection) {
+			const innerIdx = `i${recursionDepth}`;
+			const innerCode = makeRqbJitMapperInner(
+				innerSelection,
+				isArray ? `${item}[${innerIdx}]` : item,
+				`${sel}.selection`,
+				mapColumnValue,
+				false,
+				parseJsonIfString,
+				true,
+				recursionDepth + 1,
+			);
+
+			if (innerCode && !isArray) {
+				fn.push(`if(${item} !== null${parseJson ? ` && (${item} = JSON.parse(${item})) !== null` : ''}) {`);
+			}
+
+			if (parseJson && (isArray || !innerCode)) fn.push(`${item} = JSON.parse(${item});`);
+			if (parseJsonIfString && !parseJson) fn.push(`if(typeof ${item} === 'string') ${item} = JSON.parse(${item});`);
+
+			if (innerCode) {
+				if (isArray) {
+					fn.push(
+						`for(let ${innerIdx} = 0; ${innerIdx} < ${item}.length; ++${innerIdx} ) {`,
+						innerCode,
+						`}`,
+					);
+				} else fn.push(innerCode);
+			}
+
+			if (innerCode && !isArray) {
+				fn.push(`}`);
+			}
+		}
+
+		let decoder: string;
+		if (is(field, Column)) {
+			if (useJsonMappers && (<any> field).mapFromJsonValue) {
+				decoder = `${sel}.field.mapFromJsonValue`;
+			} else {
+				decoder = field.mapFromDriverValue.isNoop ? '' : `${sel}.field.mapFromDriverValue`;
+			}
+		} else if (is(field, SQL)) {
+			decoder = field.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.decoder.mapFromDriverValue`;
+		} else if (is(field, SQL.Aliased)) {
+			decoder = field.sql.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.sql.decoder.mapFromDriverValue`;
+		} else if (is(field, Table) || is(field, View)) {
+			decoder = '';
+		} else {
+			decoder = field.getSQL().decoder.mapFromDriverValue.isNoop ? '' : `${sel}.getSQL().decoder.mapFromDriverValue`;
+		}
+
+		if (mapColumnValue) fn.push(`${item} = this.mapColumnValue(${item});`);
+
+		let decodedValue = item;
+		if (codec) decodedValue = `${sel}.codec(${decodedValue}, ${arrayDimensions})`;
+		if (decoder) decodedValue = `${decoder}(${decodedValue})`;
+		if (codec || decoder) fn.push(`if(${item} !== null) {`, `${item} = ${decodedValue};`, '}');
+	}
+
+	return fn.join('\n');
+}
+
+export interface RelationalQueryMapperConfig {
+	selection: BuildRelationalQueryResult['selection'];
+	isFirst: boolean;
+	parseJson: boolean;
+	parseJsonIfString: boolean;
+	rootJsonMappers: boolean;
+}
+
+export function makeRqbJitMapper<T = unknown>(
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+): RelationalQueryJitMapper<T> {
+	const fn = [] as string[];
+	const innerCode = makeRqbJitMapperInner(
+		selection,
+		isFirst ? 'rows[0]' : 'rows[i]',
+		'this.selection',
+		mapColumnValue,
+		parseJson,
+		parseJsonIfString,
+		rootJsonMappers,
+	);
+
+	if (innerCode) {
+		if (isFirst) {
+			fn.push(
+				`if(!rows[0]) return undefined;`,
+				innerCode,
+			);
+		} else {
+			fn.push(`for(let i = 0; i < rows.length; ++i) {`, innerCode, `}`);
+		}
+	}
+
+	fn.push(`return rows${isFirst ? '[0]' : ''};`, '//# sourceURL=drizzle:jit-relational-query-mapper');
+	return new Function(
+		'rows',
+		fn.join('\n'),
+	).bind({
+		selection,
+		mapColumnValue,
+	}) as RelationalQueryJitMapper<T>;
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {

@@ -91,6 +91,13 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
+			{
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: false,
+				rootJsonMappers: true,
+				selection: query.selection,
+			},
 		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
 

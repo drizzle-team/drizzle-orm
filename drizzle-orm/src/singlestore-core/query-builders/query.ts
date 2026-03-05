@@ -96,6 +96,13 @@ export class SingleStoreRelationalQuery<
 				}
 				return rows as TResult;
 			},
+			{
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: true,
+				rootJsonMappers: true,
+				selection: query.selection,
+			},
 		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 

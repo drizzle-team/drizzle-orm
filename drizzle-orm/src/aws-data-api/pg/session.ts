@@ -15,7 +15,12 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryJitMapper,
+	type RelationalQueryMapperConfig,
+} from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
@@ -29,7 +34,7 @@ export class AwsDataApiPreparedQuery<
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
 	private rawQuery: ExecuteStatementCommand;
-	private jitMapper?: JitMapper<T['execute']>;
+	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
 	constructor(
 		private client: AwsDataApiClient,
@@ -52,6 +57,7 @@ export class AwsDataApiPreparedQuery<
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQuery = new ExecuteStatementCommand({
@@ -101,12 +107,9 @@ export class AwsDataApiPreparedQuery<
 			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 		}
 
-		return this.useJitMapper
-			? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(
-				result.rows,
-				fields!,
-				joinsNotNullableMap,
-			)
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
 			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
@@ -139,9 +142,12 @@ export class AwsDataApiPreparedQuery<
 			return row;
 		});
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-			mappedRows,
-		);
+		return !this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(mappedRows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+				mappedRows,
+			);
 	}
 
 	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
@@ -276,6 +282,7 @@ export class AwsDataApiSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		transactionId?: string,
 	): PgAsyncPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -293,6 +300,7 @@ export class AwsDataApiSession<
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 

@@ -1,5 +1,6 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { RelationalQueryMapperConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
@@ -75,6 +76,7 @@ export abstract class PgSession {
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): PgBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;
