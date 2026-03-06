@@ -52,7 +52,6 @@ export class SQLJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
 		return new PreparedQuery(
 			this.client,
@@ -60,7 +59,6 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 		);
 	}
@@ -78,7 +76,6 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -151,7 +148,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -319,11 +315,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		stmt.free();
 
 		return rows;
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }
 

@@ -38,7 +38,6 @@ export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryE
 			this.build(),
 			undefined,
 			undefined,
-			true,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

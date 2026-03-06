@@ -16,7 +16,6 @@ import {
 	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
 } from '~/relations.ts';
-import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type JitMapper, makeJitQueryMapper, mapResultRow, type NeonAuthToken } from '~/utils.ts';
 
@@ -50,7 +49,6 @@ export class NeonHttpPreparedQuery<
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -141,7 +139,7 @@ export class NeonHttpPreparedQuery<
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
-	override mapResult(result: unknown): unknown {
+	override mapResult(result: unknown, _isFromBatch?: boolean): unknown {
 		if (!this.fields && !this.customResultMapper) {
 			return result;
 		}
@@ -188,7 +186,7 @@ export class NeonHttpPreparedQuery<
 
 	/** @internal */
 	isResponseInArrayMode() {
-		return this._isResponseInArrayMode;
+		return !!(this.fields || this.customResultMapper);
 	}
 }
 
@@ -229,7 +227,6 @@ export class NeonHttpSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -245,7 +242,6 @@ export class NeonHttpSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -266,7 +262,6 @@ export class NeonHttpSession<
 			undefined,
 			undefined,
 			fields,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -277,10 +272,10 @@ export class NeonHttpSession<
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		queries: T,
 	) {
-		const preparedQueries: PreparedQuery[] = [];
+		const preparedQueries: NeonHttpPreparedQuery<any>[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
 		for (const query of queries) {
-			const preparedQuery = query._prepare();
+			const preparedQuery = query._prepare() as NeonHttpPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			builtQueries.push(

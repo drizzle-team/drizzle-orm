@@ -51,7 +51,6 @@ export class PgRemoteSession<
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -69,7 +68,6 @@ export class PgRemoteSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -92,7 +90,6 @@ export class PgRemoteSession<
 			undefined,
 			undefined,
 			fields,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -141,7 +138,6 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -230,11 +226,6 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 	}
 
 	async all() {
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }
 

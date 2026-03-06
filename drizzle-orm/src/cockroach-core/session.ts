@@ -47,9 +47,6 @@ export abstract class CockroachPreparedQuery<T extends PreparedQueryConfig> impl
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
 }
 
 export interface CockroachTransactionConfig {
@@ -71,7 +68,6 @@ export abstract class CockroachSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): CockroachPreparedQuery<T>;
 
@@ -86,7 +82,6 @@ export abstract class CockroachSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
-					false,
 				);
 			});
 
@@ -99,7 +94,6 @@ export abstract class CockroachSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).all();
 	}
 

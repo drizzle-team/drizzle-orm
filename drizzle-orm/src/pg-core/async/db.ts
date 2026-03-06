@@ -673,7 +673,6 @@ export class PgAsyncDatabase<
 			builtQuery,
 			undefined,
 			undefined,
-			false,
 		).setToken(authToken);
 		return new PgAsyncRaw(
 			() => prepared.execute(),

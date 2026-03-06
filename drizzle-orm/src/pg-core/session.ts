@@ -28,9 +28,6 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
-
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
 
 	/** @internal */
@@ -59,7 +56,6 @@ export abstract class PgSession {
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';

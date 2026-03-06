@@ -132,7 +132,6 @@ export abstract class PgAsyncSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -163,7 +162,6 @@ export abstract class PgAsyncSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
-					false,
 				);
 			});
 
@@ -176,7 +174,6 @@ export abstract class PgAsyncSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).all();
 	}
 

@@ -57,7 +57,6 @@ export class SQLiteDOSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): SQLiteDOPreparedQuery<T> {
 		return new SQLiteDOPreparedQuery(
@@ -66,7 +65,6 @@ export class SQLiteDOSession<
 			this.logger,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -85,7 +83,6 @@ export class SQLiteDOSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -163,7 +160,6 @@ export class SQLiteDOPreparedQuery<
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -282,10 +278,5 @@ export class SQLiteDOPreparedQuery<
 
 		// @ts-ignore .raw().toArray() exists
 		return res.raw().toArray();
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

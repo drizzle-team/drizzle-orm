@@ -145,9 +145,6 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
 }
 
 export abstract class GelSession<
@@ -164,7 +161,6 @@ export abstract class GelSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -191,7 +187,6 @@ export abstract class GelSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
-					false,
 				);
 			});
 
@@ -204,7 +199,6 @@ export abstract class GelSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).all();
 	}
 

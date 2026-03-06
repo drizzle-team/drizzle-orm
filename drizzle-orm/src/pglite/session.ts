@@ -44,7 +44,6 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -144,11 +143,6 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			return await this.client.query<any[]>(this.queryString, params, this.rawQueryConfig);
 		}).then((result) => result.rows);
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface PgliteSessionOptions {
@@ -183,7 +177,6 @@ export class PgliteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -201,7 +194,6 @@ export class PgliteSession<
 			cacheConfig,
 			fields,
 			name,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -224,7 +216,6 @@ export class PgliteSession<
 			undefined,
 			fields,
 			name,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,

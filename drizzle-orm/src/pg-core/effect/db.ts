@@ -660,7 +660,6 @@ export class PgEffectDatabase<
 			builtQuery,
 			undefined,
 			undefined,
-			false,
 		);
 		return new PgEffectRaw(
 			() => prepared.execute(),

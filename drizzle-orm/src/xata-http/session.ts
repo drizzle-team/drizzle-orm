@@ -46,7 +46,6 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -123,11 +122,6 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			return this.client.sql({ statement: this.query.sql, params });
 		}).then((result) => result.records);
 	}
-
-	/** @internal */
-	isResponseInArrayMode() {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface XataHttpSessionOptions {
@@ -167,7 +161,6 @@ export class XataHttpSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -183,7 +176,6 @@ export class XataHttpSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -204,7 +196,6 @@ export class XataHttpSession<
 			undefined,
 			undefined,
 			fields,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,

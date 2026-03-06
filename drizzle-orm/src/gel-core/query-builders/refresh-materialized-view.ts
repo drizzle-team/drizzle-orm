@@ -86,7 +86,6 @@ export class GelRefreshMaterializedView<TQueryResult extends GelQueryResultHKT>
 				query,
 				undefined,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}

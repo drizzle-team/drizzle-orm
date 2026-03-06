@@ -50,7 +50,6 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -135,11 +134,6 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			);
 		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface EffectPgSessionOptions {
@@ -170,7 +164,6 @@ export class EffectPgSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -188,7 +181,6 @@ export class EffectPgSession<
 			cacheConfig,
 			fields,
 			name,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 			false,
@@ -215,7 +207,6 @@ export class EffectPgSession<
 			undefined,
 			fields,
 			name,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -228,7 +219,6 @@ export class EffectPgSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).execute();
 	}
 
@@ -237,7 +227,6 @@ export class EffectPgSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).all();
 	}
 

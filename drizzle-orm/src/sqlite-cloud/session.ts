@@ -60,7 +60,6 @@ export class SQLiteCloudSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -79,7 +78,6 @@ export class SQLiteCloudSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -103,7 +101,6 @@ export class SQLiteCloudSession<
 			undefined,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -114,7 +111,7 @@ export class SQLiteCloudSession<
 	override async run(query: SQL): Result<'async', SQLiteCloudRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run', false).run() as Result<
+			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<
 				'async',
 				SQLiteCloudRunResult
 			>;
@@ -124,14 +121,14 @@ export class SQLiteCloudSession<
 	}
 
 	override async all<T = unknown>(query: SQL): Result<'async', T[]> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).all() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').all() as Result<
 			'async',
 			T[]
 		>;
 	}
 
 	override async get<T = unknown>(query: SQL): Result<'async', T> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).get() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').get() as Result<
 			'async',
 			T
 		>;
@@ -140,7 +137,7 @@ export class SQLiteCloudSession<
 	override async values<T extends any[] = unknown[]>(
 		query: SQL,
 	): Result<'async', T[]> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).values() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').values() as Result<
 			'async',
 			T[]
 		>;
@@ -231,7 +228,6 @@ export class SQLiteCloudPreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -384,10 +380,5 @@ export class SQLiteCloudPreparedQuery<
 				});
 			});
 		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

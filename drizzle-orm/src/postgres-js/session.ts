@@ -39,7 +39,6 @@ export class PostgresJsPreparedQuery<
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -145,11 +144,6 @@ export class PostgresJsPreparedQuery<
 			});
 		});
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface PostgresJsSessionOptions {
@@ -186,7 +180,6 @@ export class PostgresJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -203,7 +196,6 @@ export class PostgresJsSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -225,7 +217,6 @@ export class PostgresJsSession<
 			undefined,
 			undefined,
 			fields,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,

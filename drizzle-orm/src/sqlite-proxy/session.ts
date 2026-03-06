@@ -60,7 +60,6 @@ export class SQLiteRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -77,7 +76,6 @@ export class SQLiteRemoteSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -99,7 +97,6 @@ export class SQLiteRemoteSession<
 			undefined,
 			fields,
 			executeMethod,
-			true,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -205,7 +202,6 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		/** @internal */ public customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -358,10 +354,5 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
 		});
 		return clientResult.rows as T[];
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }
