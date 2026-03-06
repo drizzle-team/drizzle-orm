@@ -336,6 +336,7 @@ export const fromDatabase = async (
 			qual as "using", 
 			with_check as "withCheck" 
 		FROM pg_policies
+		WHERE schemaname IN (${filteredNamespacesStringForSQL})
 		ORDER BY lower(schemaname), lower(tablename), lower(policyname)
 		;`,
 		)
