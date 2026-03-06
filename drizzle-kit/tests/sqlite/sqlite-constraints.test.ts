@@ -1138,7 +1138,7 @@ test('pk multistep #1', async () => {
 	expect(pst4).toStrictEqual(e3);
 });
 
-test.only('pk #10. add/remove NOT NULL', async () => {
+test('pk #10. add/remove NOT NULL', async () => {
 	const sch1 = {
 		users: sqliteTable('users', {
 			name: text().primaryKey(),
@@ -1164,7 +1164,7 @@ test.only('pk #10. add/remove NOT NULL', async () => {
 	const e2: string[] = [
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_users` (\n'
-		+ '\t`name` text PRIMARY KEY NOT NULL,\n'
+		+ '\t`name` text PRIMARY KEY NOT NULL\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -1206,7 +1206,7 @@ test.only('pk #10. add/remove NOT NULL', async () => {
 	const e3 = [
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_users` (\n'
-		+ '\t`name` text PRIMARY KEY,\n'
+		+ '\t`name` text PRIMARY KEY\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
 		'DROP TABLE `users`;',

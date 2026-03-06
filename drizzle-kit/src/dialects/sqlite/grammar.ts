@@ -43,9 +43,13 @@ const intAffinities = [
 	'int8',
 ];
 
+export const isIntegerType = (type: string) => {
+	return intAffinities.indexOf(type.toLowerCase()) >= 0;
+};
+
 export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	is(type) {
-		return intAffinities.indexOf(type.toLowerCase()) >= 0;
+		return isIntegerType(type);
 	},
 	drizzleImport: () => 'integer',
 	defaultFromDrizzle: (value, mode) => {

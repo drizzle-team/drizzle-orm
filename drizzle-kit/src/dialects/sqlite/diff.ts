@@ -6,7 +6,7 @@ import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultsCommutative } from './grammar';
+import { defaultsCommutative, isIntegerType } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
@@ -260,7 +260,11 @@ export const ddlDiff = async (
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
-		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
+		// if integer primary key and alters in not null -> skip
+		if (
+			isIntegerType(it.$left.type) && isIntegerType(it.$right.type) && it.notNull
+			&& ddl2.pks.one({ table: it.table, columns: [it.name] })
+		) {
 			delete it.notNull;
 		}
 

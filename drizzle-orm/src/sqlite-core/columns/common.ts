@@ -3,7 +3,9 @@ import type {
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnType,
+	HasDefault,
 	HasGenerated,
+	IsPrimaryKey,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
@@ -52,6 +54,14 @@ export abstract class SQLiteColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
+	}
+
+	override primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
+		: IsPrimaryKey<this>
+	{
+		this.config.primaryKey = true;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
+			: IsPrimaryKey<this>;
 	}
 
 	generatedAlwaysAs(as: SQL | (() => SQL), config?: SQLiteGeneratedColumnConfig): HasGenerated<this, {

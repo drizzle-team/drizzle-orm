@@ -81,7 +81,16 @@ export const fromDrizzleSchema = (
 				name,
 				type: column.getSQLType(),
 				default: defalutValue,
-				notNull: column.notNull && !primaryKey,
+				/**
+				 * CREATE TABLE `users` (`name` text not null PRIMARY KEY);
+				 * CREATE TABLE `users2` (`name` text PRIMARY KEY);
+				 * and introspecting this tables will result following:
+				 * users -> notNull: 1
+				 * users2 -> notNull: 0
+				 *
+				 * So check explicitly on defined notNull
+				 */
+				notNull: column.notNull,
 				pk: primaryKey,
 				pkName: null,
 				autoincrement: is(column, SQLiteBaseInteger)
