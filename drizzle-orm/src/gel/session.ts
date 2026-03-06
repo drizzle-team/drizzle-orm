@@ -38,7 +38,6 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -143,11 +142,6 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			});
 		});
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface GelSessionOptions {
@@ -182,7 +176,6 @@ export class GelDbSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -199,7 +192,6 @@ export class GelDbSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -221,7 +213,6 @@ export class GelDbSession<
 			undefined,
 			undefined,
 			fields,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			undefined,

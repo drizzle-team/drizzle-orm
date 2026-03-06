@@ -64,7 +64,6 @@ export class BunSQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -81,7 +80,6 @@ export class BunSQLiteSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -103,7 +101,6 @@ export class BunSQLiteSession<
 			undefined,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -114,7 +111,7 @@ export class BunSQLiteSession<
 	override async run(query: SQL): Result<'async', BunSQLiteRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run', false).run() as Result<
+			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<
 				'async',
 				BunSQLiteRunResult
 			>;
@@ -209,7 +206,6 @@ export class BunSQLitePreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -339,10 +335,5 @@ export class BunSQLitePreparedQuery<
 		return await this.queryWithCache(query.sql, params, async () => {
 			return await client.unsafe(query.sql, params).values();
 		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

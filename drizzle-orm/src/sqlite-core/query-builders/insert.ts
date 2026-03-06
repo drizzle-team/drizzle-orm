@@ -387,7 +387,6 @@ export class SQLiteInsertBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
-			true,
 			undefined,
 			{
 				type: 'insert',

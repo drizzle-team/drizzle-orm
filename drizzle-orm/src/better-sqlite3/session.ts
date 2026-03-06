@@ -58,7 +58,6 @@ export class BetterSQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -76,7 +75,6 @@ export class BetterSQLiteSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -99,7 +97,6 @@ export class BetterSQLiteSession<
 			undefined,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -171,7 +168,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -275,10 +271,5 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.raw().all(...params) as T['values'];
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

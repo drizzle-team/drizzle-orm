@@ -34,7 +34,6 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
@@ -182,11 +181,6 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 			});
 		});
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface NodeCockroachSessionOptions {
@@ -216,7 +210,6 @@ export class NodeCockroachSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): CockroachPreparedQuery<T> {
 		return new NodeCockroachPreparedQuery(
@@ -226,7 +219,6 @@ export class NodeCockroachSession<
 			this.logger,
 			fields,
 			name,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);

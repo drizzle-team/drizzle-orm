@@ -393,7 +393,6 @@ export class GelInsertBase<
 				query,
 				this.config.returning,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 				undefined,
 				{
 					type: 'insert',

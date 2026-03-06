@@ -35,7 +35,6 @@ export class PgEffectRefreshMaterializedView<
 			query,
 			undefined,
 			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
 		);
 	}
 

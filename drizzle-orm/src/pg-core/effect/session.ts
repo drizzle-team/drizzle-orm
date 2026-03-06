@@ -137,7 +137,6 @@ export abstract class PgEffectSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -159,13 +158,13 @@ export abstract class PgEffectSession<
 
 	override execute<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined, false)
+		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined)
 			.execute();
 	}
 
 	override all<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined, false)
+		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined)
 			.all();
 	}
 

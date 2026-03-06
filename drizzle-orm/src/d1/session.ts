@@ -60,7 +60,6 @@ export class SQLiteD1Session<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -78,7 +77,6 @@ export class SQLiteD1Session<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -101,7 +99,6 @@ export class SQLiteD1Session<
 			undefined,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -234,7 +231,6 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		cacheConfig: WithCacheConfig | undefined,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -389,10 +385,5 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		return await this.queryWithCache(this.query.sql, params, async () => {
 			return this.stmt.bind(...params).raw();
 		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

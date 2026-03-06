@@ -86,7 +86,6 @@ export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQuer
 				query,
 				undefined,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}

@@ -122,7 +122,6 @@ export class PgAsyncSelectBase<
 				query,
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 				undefined,
 				{
 					type: 'select',

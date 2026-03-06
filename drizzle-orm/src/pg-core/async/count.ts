@@ -44,7 +44,6 @@ export class PgAsyncCountBuilder extends PgCountBuilder {
 			this.build(),
 			undefined,
 			undefined,
-			true,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

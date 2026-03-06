@@ -51,7 +51,6 @@ export class AwsDataApiPreparedQuery<
 		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -192,11 +191,6 @@ export class AwsDataApiPreparedQuery<
 			return row;
 		});
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
 }
 
 export interface AwsDataApiSessionOptions {
@@ -254,7 +248,6 @@ export class AwsDataApiSession<
 		query: QueryWithTypings,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
 		cacheConfig?: WithCacheConfig,
@@ -271,7 +264,6 @@ export class AwsDataApiSession<
 			cacheConfig,
 			fields,
 			transactionId ?? this.transactionId,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -296,7 +288,6 @@ export class AwsDataApiSession<
 			undefined,
 			fields,
 			transactionId ?? this.transactionId,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -309,7 +300,6 @@ export class AwsDataApiSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 			undefined,
 			undefined,
 			undefined,

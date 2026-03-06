@@ -53,7 +53,6 @@ export class ExpoSQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): ExpoSQLitePreparedQuery<T> {
 		const stmt = this.client.prepareSync(query.sql);
@@ -63,7 +62,6 @@ export class ExpoSQLiteSession<
 			this.logger,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			this.options.useJitMapper,
 			customResultMapper,
 		);
@@ -83,7 +81,6 @@ export class ExpoSQLiteSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
 			this.options.useJitMapper,
 			customResultMapper,
 			true,
@@ -157,7 +154,6 @@ export class ExpoSQLitePreparedQuery<
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
@@ -262,10 +258,5 @@ export class ExpoSQLitePreparedQuery<
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.executeForRawResultSync(params as any[]).getAllSync();
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

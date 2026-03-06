@@ -33,7 +33,6 @@ export class PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHK
 				query,
 				undefined,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			).setToken(
 				this.authToken,
 			);

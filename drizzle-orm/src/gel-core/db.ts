@@ -637,7 +637,6 @@ export class GelDatabase<
 			builtQuery,
 			undefined,
 			undefined,
-			false,
 		);
 		return new GelRaw(
 			() => prepared.execute(undefined),

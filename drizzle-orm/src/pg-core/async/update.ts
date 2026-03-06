@@ -109,7 +109,6 @@ export class PgAsyncUpdateBase<
 			query,
 			this.config.returning,
 			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
 			undefined,
 			{
 				type: 'insert',

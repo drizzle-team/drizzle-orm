@@ -30,10 +30,6 @@ export class PrismaPgPreparedQuery<T> extends PgAsyncPreparedQuery<PreparedQuery
 	override all(): Promise<unknown> {
 		throw new Error('Method not implemented.');
 	}
-
-	override isResponseInArrayMode(): boolean {
-		return false;
-	}
 }
 
 export interface PrismaPgSessionOptions {
