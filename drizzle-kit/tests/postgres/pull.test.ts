@@ -897,98 +897,91 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-03-10'))(
-	'introspect view #4',
-	async () => {
-		const table = pgTable('table', {
-			column1: text().notNull(),
-			column2: text(),
-		});
-		const myView = pgView('public_table_view_4', {
-			column1: text(),
-			column2: text(),
-		}).as(sql`select column1, column2 from "table"`);
+test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect view #4', async () => {
+	const table = pgTable('table', {
+		column1: text().notNull(),
+		column2: text(),
+	});
+	const myView = pgView('public_table_view_4', { column1: text(), column2: text() }).as(
+		sql`select column1, column2 from "table"`,
+	);
 
-		const schema = { table, myView };
+	const schema = { table, myView };
 
-		const {
-			pushStatements,
-			pushSqlStatements,
-			generateStatements,
-			generateSqlStatements,
-		} = await diffIntrospect(db, schema, 'introspect-view-4');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view-4');
 
-		throw Error('');
-		expect(pushStatements).toStrictEqual([]);
-		expect(generateStatements).toStrictEqual([]);
-		expect(pushSqlStatements).toStrictEqual([]);
-		expect(generateSqlStatements).toStrictEqual([]);
-		// TODO: we need to check actual types generated;
-	},
-);
+	throw Error('');
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// TODO: we need to check actual types generated;
+});
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-03-10'))(
-	'introspect view #5',
-	async () => {
-		const applications = pgTable('applications', {
-			applicationId: serial('application_id').primaryKey(),
-			studentId: integer('student_id').references(() => students.studentId),
-			isAdminAccepted: boolean('is_admin_accepted'),
-		});
+test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect view #5', async () => {
+	const applications = pgTable('applications', {
+		applicationId: serial('application_id').primaryKey(),
+		studentId: integer('student_id').references(() => students.studentId),
+		isAdminAccepted: boolean('is_admin_accepted'),
+	});
 
-		const departments = pgTable('departments', {
-			departmentId: serial('department_id').primaryKey(),
-			title: text(),
-		});
+	const departments = pgTable('departments', {
+		departmentId: serial('department_id').primaryKey(),
+		title: text(),
+	});
 
-		const registrations = pgTable('registrations', {
-			registrationId: serial('registration_id').primaryKey(),
-			applicationId: integer('application_id').references(
-				() => applications.applicationId,
-			),
-			departmentId: integer('department_id').references(
-				() => departments.departmentId,
-			),
-			academicDegree: text('academic_degree'),
-		});
+	const registrations = pgTable('registrations', {
+		registrationId: serial('registration_id').primaryKey(),
+		applicationId: integer('application_id').references(
+			() => applications.applicationId,
+		),
+		departmentId: integer('department_id').references(
+			() => departments.departmentId,
+		),
+		academicDegree: text('academic_degree'),
+	});
 
-		const students = pgTable('students', {
-			studentId: serial('student_id').primaryKey(),
-			fullNameAr: text('full_name_ar').notNull(),
-		});
+	const students = pgTable('students', {
+		studentId: serial('student_id').primaryKey(),
+		fullNameAr: text('full_name_ar').notNull(),
+	});
 
-		const adminApplicationsList = pgView('admin_applications_list', {
-			applicationId: integer('application_id'),
-			studentName: text('student_name').notNull(),
-			academicDegree: text('academic_degree'),
-			department: text(),
-			isAdminAccepted: boolean('is_admin_accepted'),
-		}).as(
-			sql`SELECT a.application_id, s.full_name_ar AS student_name, r.academic_degree, d.title AS department, a.is_admin_accepted FROM applications a JOIN students s USING (student_id) JOIN registrations r USING (application_id) JOIN departments d ON d.department_id = r.department_id`,
-		);
+	const adminApplicationsList = pgView('admin_applications_list', {
+		applicationId: integer('application_id'),
+		studentName: text('student_name').notNull(),
+		academicDegree: text('academic_degree'),
+		department: text(),
+		isAdminAccepted: boolean('is_admin_accepted'),
+	}).as(
+		sql`SELECT a.application_id, s.full_name_ar AS student_name, r.academic_degree, d.title AS department, a.is_admin_accepted FROM applications a JOIN students s USING (student_id) JOIN registrations r USING (application_id) JOIN departments d ON d.department_id = r.department_id`,
+	);
 
-		const schema = {
-			students,
-			departments,
-			applications,
-			registrations,
-			adminApplicationsList,
-		};
+	const schema = {
+		students,
+		departments,
+		applications,
+		registrations,
+		adminApplicationsList,
+	};
 
-		const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
-			db,
-			schema,
-			'introspect-view-5',
-		);
-		expect(pushSqlStatements).toStrictEqual([]);
-		expect(generateSqlStatements).toStrictEqual([]);
-		throw new Error();
-		// text('student_name') column in view should contain notNull constraint
-	},
-);
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-view-5',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	throw new Error();
+	// text('student_name') column in view should contain notNull constraint
+});
 
 test('introspect view in other schema', async () => {
 	const newSchema = pgSchema('new_schema');
@@ -1797,73 +1790,70 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-03-10'))(
-	'introspect sequences with table filter',
-	async () => {
-		// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
+test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect sequences with table filter', async () => {
+	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
-		// const seq1 = pgSequence('seq1');
-		const table1 = pgTable('table1', {
-			column1: serial().primaryKey(),
-			// column1: integer().default(sql`nextval('${sql.raw(seq1.seqName!)}'::regclass)`).primaryKey(),
-		});
-		const table2 = pgTable('prefix_table2', {
-			column1: serial().primaryKey(),
-			// column1: integer().default(sql`nextval('${sql.raw(seq2.seqName!)}'::regclass)`).primaryKey(),
-		});
-		const schema1 = { table1, table2 };
-		await push({ db, to: schema1 });
+	// const seq1 = pgSequence('seq1');
+	const table1 = pgTable('table1', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq1.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const table2 = pgTable('prefix_table2', {
+		column1: serial().primaryKey(),
+		// column1: integer().default(sql`nextval('${sql.raw(seq2.seqName!)}'::regclass)`).primaryKey(),
+	});
+	const schema1 = { table1, table2 };
+	await push({ db, to: schema1 });
 
-		const filter = prepareEntityFilter(
-			'postgresql',
-			{
-				tables: ['!prefix_*'],
-				schemas: undefined,
-				entities: undefined,
-				extensions: undefined,
-			},
-			[],
-		);
-		const { tables, sequences } = await fromDatabaseForDrizzle(
-			db,
-			filter,
-			() => {},
-			{
-				table: '__drizzle_migrations',
-				schema: 'drizzle',
-			},
-		);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: ['!prefix_*'],
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
+	const { tables, sequences } = await fromDatabaseForDrizzle(
+		db,
+		filter,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
 
-		expect(tables).toStrictEqual([
-			{
-				entityType: 'tables',
-				schema: 'public',
-				name: 'table1',
-				isRlsEnabled: false,
-			},
-		]);
-		expect(sequences).toBe([
-			{
-				entityType: 'sequences',
-				schema: 'public',
-				name: 'table1_column1_seq',
-				startWith: '1',
-				minValue: '1',
-				maxValue: '2147483647',
-				incrementBy: '1',
-				cycle: false,
-				cacheSize: 1,
-			},
-		]);
-		// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
-		// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
-		// 	console.log(
-		// 		await db.query(`SELECT *
-		// FROM pg_sequences
-		// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
-		// 	);
-	},
-);
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'table1',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(sequences).toBe([
+		{
+			entityType: 'sequences',
+			schema: 'public',
+			name: 'table1_column1_seq',
+			startWith: '1',
+			minValue: '1',
+			maxValue: '2147483647',
+			incrementBy: '1',
+			cycle: false,
+			cacheSize: 1,
+		},
+	]);
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
+	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
+	// 	console.log(
+	// 		await db.query(`SELECT *
+	// FROM pg_sequences
+	// WHERE schemaname = 'public' AND sequencename = 'table1_column1_seq';`),
+	// 	);
+});
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4215
 test('introspect _{dataType} columns type as {dataType}[]', async () => {

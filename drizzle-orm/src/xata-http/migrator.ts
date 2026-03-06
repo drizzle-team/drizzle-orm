@@ -2,6 +2,7 @@ import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { XataHttpDatabase } from './driver.ts';
 
 export interface MigrationConfig {
@@ -27,21 +28,30 @@ export interface MigrationConfig {
 ): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-	const migrationTableCreate = sql`
+
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeIfNeeded('public', migrationsTable, db.session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
-			created_at bigint
+			created_at bigint,
+			name text,
+			applied_at timestamp with time zone DEFAULT now()
 		)
 	`;
-	await db.session.execute(migrationTableCreate);
+		await db.session.execute(migrationTableCreate);
+	}
 
 	const dbMigrations = await db.session.all<{
 		id: number;
 		hash: string;
 		created_at: string;
+		name: string | null;
 	}>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -60,7 +70,7 @@ export interface MigrationConfig {
 		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 
 		return;
@@ -75,7 +85,7 @@ export interface MigrationConfig {
 		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 	}
 }
