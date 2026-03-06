@@ -1138,6 +1138,86 @@ test('pk multistep #1', async () => {
 	expect(pst4).toStrictEqual(e3);
 });
 
+test.only('pk #10. add/remove NOT NULL', async () => {
+	const sch1 = {
+		users: sqliteTable('users', {
+			name: text().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n'];
+	expect(st1).toStrictEqual(e1);
+	expect(pst1).toStrictEqual(e1);
+
+	const sch2 = {
+		users: sqliteTable('users', {
+			name: text('name').primaryKey().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2 });
+
+	const e2: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`name` text PRIMARY KEY NOT NULL,\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3, next: pn3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+	expect(n3.pks.list()).toStrictEqual([{
+		columns: ['name'],
+		nameExplicit: false,
+		name: 'users_pk',
+		entityType: 'pks',
+		table: 'users',
+	}]);
+	expect(pn3.pks.list()).toStrictEqual([{
+		columns: ['name'],
+		nameExplicit: false,
+		name: 'users_pk',
+		entityType: 'pks',
+		table: 'users',
+	}]);
+
+	const sch3 = {
+		users: sqliteTable('users', {
+			name: text('name').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
+
+	const e3 = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`name` text PRIMARY KEY,\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+
+	expect(st4).toStrictEqual(e3);
+	expect(pst4).toStrictEqual(e3);
+});
+
 test('pk multistep #2', async () => {
 	const sch1 = {
 		users: sqliteTable('users', {
