@@ -8,8 +8,8 @@ import { tests } from '../mysql-common';
 import { runTests } from '../mysql-common-cache';
 import { usersMigratorTable } from '../schema2';
 
-// runTests('mysql', test);
-// tests(test);
+runTests('mysql', test);
+tests(test);
 
 describe('migrator', () => {
 	test('migrator', async ({ db }) => {

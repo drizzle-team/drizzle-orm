@@ -32,6 +32,8 @@ import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
+import { getReasonsFromStatements } from 'src/dialects/mysql/commutativity';
+import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
 import { expect } from 'vitest';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -484,32 +486,20 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const child1Interim = fromDrizzleSchema(Object.values(child1.schema), [], undefined);
+	const parentInterim = fromDrizzleSchema(Object.values(parent.schema), [], undefined);
+	const { ddl: parentDDL } = interimToDDL(parentInterim);
 
-	const child1Snapshot = {
+	const parentSnapshot = {
 		version: '6',
 		dialect: 'mysql',
-		id: child1.id,
-		prevIds: child1.prevId ? [child1.prevId] : [],
-		ddl: interimToDDL(child1Interim).ddl.entities.list(),
+		id: parent.id,
+		prevIds: parent.prevId ? [parent.prevId] : [],
+		ddl: parentDDL.entities.list(),
 		renames: [],
-	} as any;
-
-	const child2Interim = fromDrizzleSchema(Object.values(child2.schema), [], undefined);
-
-	const child2Snapshot = {
-		version: '6',
-		dialect: 'mysql',
-		id: child2.id,
-		prevIds: child2.prevId ? [child2.prevId] : [],
-		ddl: interimToDDL(child2Interim).ddl.entities.list(),
-		renames: [],
-	} as any;
+	} satisfies MysqlSnapshot;
 
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	const { getReasonsFromStatements } = await import('src/dialects/mysql/commutativity');
-	const r = await getReasonsFromStatements(st1, st2, child1Snapshot, child2Snapshot);
-	return r;
+	return await getReasonsFromStatements(st1, st2, parentSnapshot);
 }

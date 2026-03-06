@@ -35,6 +35,7 @@ import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
+import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
@@ -75,17 +76,25 @@ export class SingleStoreDialect {
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-		const migrationTableCreate = sql`
-			create table if not exists ${sql.identifier(migrationsTable)} (
-				id serial primary key,
-				hash text not null,
-				created_at bigint
+
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeIfNeeded(migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id SERIAL PRIMARY KEY,
+				hash TEXT NOT NULL,
+				created_at BIGINT,
+				name TEXT,
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		`;
-		await session.execute(migrationTableCreate);
+			await session.execute(migrationTableCreate);
+		}
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)}`,
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -104,7 +113,7 @@ export class SingleStoreDialect {
 			await session.execute(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
-				} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
 
 			return;
@@ -119,7 +128,7 @@ export class SingleStoreDialect {
 				await tx.execute(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
-					} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
+					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		});
