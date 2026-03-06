@@ -262,7 +262,7 @@ export const ddlDiff = async (
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
 		// if integer primary key and alters in not null -> skip
 		if (
-			isIntegerType(it.$left.type) && isIntegerType(it.$right.type) && it.notNull
+			isIntegerType(it.$left.type) && isIntegerType(it.$right.type) && it.notNull && !it.notNull.from && it.notNull.to
 			&& ddl2.pks.one({ table: it.table, columns: [it.name] })
 		) {
 			delete it.notNull;
