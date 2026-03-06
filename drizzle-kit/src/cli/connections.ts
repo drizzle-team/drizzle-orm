@@ -96,7 +96,6 @@ export const preparePostgresDB = async (
 					{ sql, params: params ?? [] },
 					undefined,
 					undefined,
-					false,
 				);
 				const result = await prepared.all();
 				return result as any[];
@@ -115,7 +114,6 @@ export const preparePostgresDB = async (
 					},
 					undefined,
 					undefined,
-					params.mode === 'array',
 				);
 				if (params.mode === 'array') {
 					const result = await prepared.values();
