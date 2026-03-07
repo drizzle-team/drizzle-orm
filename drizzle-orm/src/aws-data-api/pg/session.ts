@@ -149,7 +149,7 @@ export class AwsDataApiPreparedQuery<
 			);
 	}
 
-	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
+	async objects(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
 		const result = await this.execute(placeholderValues);
 		if (!this.fields && !this.customResultMapper) {
 			return (result as AwsDataApiPgQueryResult<unknown>).rows;
@@ -157,7 +157,7 @@ export class AwsDataApiPreparedQuery<
 		return result;
 	}
 
-	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
+	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['arrays']> {
 		const params = fillPlaceholders(this.params, placeholderValues ?? {});
 
 		this.rawQuery.input.parameters = params.map((param, index) => ({

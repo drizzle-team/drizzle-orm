@@ -1,4 +1,4 @@
-import type { Row, RowList, Sql, TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -7,142 +7,22 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
-import {
-	type AnyRelations,
-	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
-	type RelationalQueryMapperConfig,
-} from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import type { AnyRelations } from '~/relations.ts';
+import type { Query } from '~/sql/sql.ts';
 
-export class PostgresJsPreparedQuery<
-	T extends PreparedQueryConfig,
-	TIsRqbV2 extends boolean = false,
-> extends PgAsyncPreparedQuery<T> {
+export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T, Sql> {
 	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
 
-	constructor(
-		private client: Sql,
-		private queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		private isRqbV2Query?: TIsRqbV2,
-		private rqbConfig?: RelationalQueryMapperConfig,
-	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+	/** @internal */
+	override objects(params?: any[]): Promise<T['objects']> {
+		return this.client.unsafe(this.query.sql, params).then((rows) => Object.values(rows));
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
-
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-
-			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
-				'drizzle.query.params': JSON.stringify(params),
-			});
-
-			this.logger.logQuery(this.queryString, params);
-
-			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
-			if (!fields && !customResultMapper) {
-				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return this.queryWithCache(query, params, async () => {
-						return await client.unsafe(query, params as any[]);
-					});
-				});
-			}
-
-			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': query,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return this.queryWithCache(query, params, async () => {
-					return await client.unsafe(query, params as any[]).values();
-				});
-			});
-
-			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				if (customResultMapper) {
-					return (customResultMapper as (rows: unknown[][]) => unknown)(rows);
-				}
-
-				return this.useJitMapper
-					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
-						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
-					: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-			});
-		});
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-
-			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
-				'drizzle.query.params': JSON.stringify(params),
-			});
-
-			this.logger.logQuery(this.queryString, params);
-
-			const { queryString: query, client, customResultMapper } = this;
-
-			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': query,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-
-				return client.unsafe(query, params as any[]);
-			});
-
-			return tracer.startActiveSpan('drizzle.mapResponse', () => {
-				return this.useJitMapper
-					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
-						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(Object.values(rows))
-					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(Object.values(rows));
-			});
-		});
-	}
-
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
-				'drizzle.query.params': JSON.stringify(params),
-			});
-			this.logger.logQuery(this.queryString, params);
-			return tracer.startActiveSpan('drizzle.driver.execute', () => {
-				span?.setAttributes({
-					'drizzle.query.text': this.queryString,
-					'drizzle.query.params': JSON.stringify(params),
-				});
-				return this.queryWithCache(this.queryString, params, async () => {
-					return this.client.unsafe(this.queryString, params as any[]);
-				});
-			});
-		});
+	/** @internal */
+	override arrays(params?: any[]): Promise<T['arrays']> {
+		return this.client.unsafe(this.query.sql, params).values();
 	}
 }
 
@@ -178,9 +58,9 @@ export class PostgresJsSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
+		arrayMode: boolean,
 		name: string | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -189,51 +69,15 @@ export class PostgresJsSession<
 	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
+			arrayMode,
+			mapper,
+			name,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			this.options.useJitMapper,
-			customResultMapper,
 		);
-	}
-
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		config: RelationalQueryMapperConfig,
-	): PgAsyncPreparedQuery<T> {
-		return new PostgresJsPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			this.options.useJitMapper,
-			customResultMapper,
-			true,
-			config,
-		);
-	}
-
-	query(query: string, params: unknown[]): Promise<RowList<Row[]>> {
-		this.logger.logQuery(query, params);
-		return this.client.unsafe(query, params as any[]).values();
-	}
-
-	queryObjects<T extends Row>(
-		query: string,
-		params: unknown[],
-	): Promise<RowList<T[]>> {
-		return this.client.unsafe(query, params as any[]);
 	}
 
 	override transaction<T>(
@@ -298,5 +142,5 @@ export class PostgresJsTransaction<
 }
 
 export interface PostgresJsQueryResultHKT extends PgQueryResultHKT {
-	type: RowList<Assume<this['row'], Row>[]>;
+	type: this['row'][];
 }

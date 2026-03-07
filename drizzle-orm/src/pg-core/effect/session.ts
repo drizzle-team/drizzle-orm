@@ -115,9 +115,9 @@ export abstract class PgEffectPreparedQuery<
 	): QueryEffectKind<TEffectHKT, T['execute']>;
 
 	/** @internal */
-	abstract override all(
+	abstract override objects(
 		placeholderValues?: Record<string, unknown>,
-	): QueryEffectKind<TEffectHKT, T['all']>;
+	): QueryEffectKind<TEffectHKT, T['objects']>;
 }
 
 export abstract class PgEffectSession<
@@ -162,10 +162,10 @@ export abstract class PgEffectSession<
 			.execute();
 	}
 
-	override all<T>(query: SQL) {
+	override execute<T>(query: SQL) {
 		const { sql, params } = this.dialect.sqlToQuery(query);
 		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined)
-			.all();
+			.objects();
 	}
 
 	abstract transaction<A, E, R>(
@@ -242,7 +242,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 	yield* session.execute(migrationTableCreate);
 
-	const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string }>(
+	const dbMigrations = yield* session.execute<{ id: number; hash: string; created_at: string }>(
 		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 

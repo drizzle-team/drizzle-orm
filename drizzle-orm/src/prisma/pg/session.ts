@@ -27,7 +27,7 @@ export class PrismaPgPreparedQuery<T> extends PgAsyncPreparedQuery<PreparedQuery
 		return this.prisma.$queryRawUnsafe(this.query.sql, ...params);
 	}
 
-	override all(): Promise<unknown> {
+	override objects(): Promise<unknown> {
 		throw new Error('Method not implemented.');
 	}
 }
