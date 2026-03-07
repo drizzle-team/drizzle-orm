@@ -1,21 +1,21 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import type { RelationalQueryMapperConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
-	all: unknown;
-	values: unknown;
+	objects: unknown;
+	arrays: unknown;
 }
 
 export abstract class PgBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'PgBasePreparedQuery';
 
-	constructor(protected query: Query) {}
+	constructor(
+		protected query: Query,
+	) {}
 
 	getQuery(): Query {
 		return this.query;
@@ -25,13 +25,11 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		return response;
 	}
 
-	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
-
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
 
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): unknown;
+	abstract objects(params?: unknown[]): unknown;
+
+	abstract arrays(params?: unknown[]): unknown;
 
 	/** @internal */
 	protected abstract queryWithCache(
@@ -52,11 +50,11 @@ export abstract class PgSession {
 
 	constructor(protected dialect: PgDialect) {}
 
-	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+	abstract prepareQuery(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
+		arrayMode: boolean,
 		name: string | undefined,
-		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		mapper: ((rows: unknown[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -64,20 +62,8 @@ export abstract class PgSession {
 		cacheConfig?: WithCacheConfig,
 	): PgBasePreparedQuery;
 
-	abstract prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => T['execute'],
-		config: RelationalQueryMapperConfig,
-	): PgBasePreparedQuery;
-
 	abstract execute(query: SQL): unknown;
-
-	abstract all(query: SQL): unknown;
+	abstract values(query: SQL): unknown;
 }
 
 export interface PgQueryResultHKT {

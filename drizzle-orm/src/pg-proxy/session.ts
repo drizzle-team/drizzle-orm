@@ -225,7 +225,7 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		});
 	}
 
-	async all() {
+	async objects() {
 	}
 }
 

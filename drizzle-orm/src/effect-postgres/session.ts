@@ -120,14 +120,14 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 
-	override all(placeholderValues?: Record<string, unknown>) {
+	override objects(placeholderValues?: Record<string, unknown>) {
 		return Effect.gen(this, function*() {
 			const { query, client } = this;
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 
 			yield* EffectLogger.logQuery(query.sql, params);
 
-			return yield* this.queryWithCache<T['all'], SqlError, never>(
+			return yield* this.queryWithCache<T['objects'], SqlError, never>(
 				query.sql,
 				params,
 				client.unsafe(query.sql, params as any).withoutTransform,
@@ -222,12 +222,12 @@ export class EffectPgSession<
 		).execute();
 	}
 
-	override all<T>(query: SQL) {
+	override execute<T>(query: SQL) {
 		return this.prepareQuery<PreparedQueryConfig & { all: T }>(
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-		).all();
+		).objects();
 	}
 
 	override transaction<A, E, R>(

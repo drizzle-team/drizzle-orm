@@ -107,7 +107,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(records);
 	}
 
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
 		return this.queryWithCache(this.query.sql, params, async () => {
@@ -115,7 +115,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		}).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['arrays']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
 		return this.queryWithCache(this.query.sql, params, async () => {
