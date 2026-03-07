@@ -5,11 +5,10 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { applyMixins, type Assume, mapResultRow, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
@@ -102,10 +101,7 @@ export class PgAsyncSelectBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(
-		name?: string,
-		generateName = false,
-	): PgAsyncSelectPrepare<this> {
+	_prepare(name: string | boolean): PgAsyncSelectPrepare<this> {
 		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
@@ -116,20 +112,21 @@ export class PgAsyncSelectBase<
 				undefined,
 				(column) => this.dialect.codecs.get(column, 'queryNormalize'),
 			);
-			const preparedQuery = session.prepareQuery<
-				PreparedQueryConfig & { execute: any }
-			>(
+
+			const mapper = (rows: any[]) => {
+				return rows.map((it) => {
+					return mapResultRow(fieldsList, it, joinsNotNullableMap);
+				});
+			};
+
+			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				fieldsList,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				undefined,
-				{
-					type: 'select',
-					tables: [...usedTables],
-				},
+				'arrays',
+				name,
+				mapper,
+				{ type: 'select', tables: [...usedTables] },
 				cacheConfig,
 			);
-			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 
 			return preparedQuery.setToken(authToken);
 		});
@@ -145,7 +142,7 @@ export class PgAsyncSelectBase<
 	prepare(
 		name?: string,
 	): PgAsyncSelectPrepare<this> {
-		return this._prepare(name, true);
+		return this._prepare(name ?? true);
 	}
 
 	/** @internal */
@@ -158,7 +155,7 @@ export class PgAsyncSelectBase<
 
 	execute(placeholderValues?: Record<string, unknown>) {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare(false).execute(placeholderValues);
 		});
 	}
 }

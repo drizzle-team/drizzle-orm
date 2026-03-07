@@ -18,17 +18,13 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import { PgBasePreparedQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
 
-export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig, TClient = unknown>
-	extends PgBasePreparedQuery
-{
+export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
 	constructor(
-		protected client: TClient,
+		protected executor: (sql: string, params?: unknown[]) => Promise<any[]>,
 		query: Query,
-		readonly arrayMode: boolean,
 		protected mapper: ((rows: any[]) => any) | undefined,
-		protected name: string | undefined,
 		protected logger: Logger,
 		// cache instance
 		protected cache: Cache | undefined,
@@ -76,11 +72,7 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig, TClien
 				});
 
 				// return await so tracer captures time accurately
-				return await this.queryWithCache(
-					sql,
-					params,
-					(): Promise<T['arrays'] | T['objects']> => this.arrayMode ? this.arrays(params) : this.objects(params),
-				);
+				return await this.queryWithCache(sql, params, () => this.executor(sql, params));
 			});
 
 			if (!mapper) return query;
@@ -88,12 +80,6 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig, TClien
 			return query.then((rows) => tracer.startActiveSpan('drizzle.mapResponse', () => mapper(rows as unknown[])));
 		});
 	}
-
-	/** @internal */
-	abstract override objects(params?: unknown[]): Promise<T['objects']>;
-
-	/** @internal */
-	abstract override arrays(params?: unknown[]): Promise<T['arrays']>;
 
 	/** @internal */
 	protected async queryWithCache<T>(
@@ -170,8 +156,8 @@ export abstract class PgAsyncSession<
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		arrayMode: boolean,
-		name?: string,
+		mode: 'arrays' | 'objects',
+		name: string | boolean,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -187,7 +173,7 @@ export abstract class PgAsyncSession<
 	override execute<T>(query: SQL, token?: NeonAuthToken): Promise<T[]> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), false);
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), 'objects', false);
 			});
 
 			return prepared.setToken(token).execute();
@@ -197,7 +183,7 @@ export abstract class PgAsyncSession<
 	override values<T>(query: SQL): Promise<T[]> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), true);
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), 'arrays', false);
 			});
 
 			return prepared.execute();

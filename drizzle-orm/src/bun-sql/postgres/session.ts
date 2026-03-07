@@ -13,20 +13,6 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 
-export class BunSQLPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T, SQL> {
-	static override readonly [entityKind]: string = 'BunSQLPreparedQuery';
-
-	/** @internal */
-	override objects(params?: unknown[]): Promise<T['objects']> {
-		return this.client.unsafe(this.query.sql, params);
-	}
-
-	/** @internal */
-	override arrays(params?: unknown[]): Promise<T['arrays']> {
-		return this.client.unsafe(this.query.sql, params).values();
-	}
-}
-
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
@@ -59,8 +45,8 @@ export class BunSQLSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		arrayMode: boolean,
-		name: string | undefined,
+		mode: 'arrays' | 'objects',
+		_: string | undefined,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -68,17 +54,14 @@ export class BunSQLSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		return new BunSQLPreparedQuery<T>(
-			this.client,
-			query,
-			arrayMode,
-			mapper,
-			name,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-		);
+		const executor = async (sql: string, params?: unknown[]) => {
+			if (mode === 'arrays') {
+				return this.client.unsafe(sql, params).values();
+			}
+			return this.client.unsafe(sql, params);
+		};
+
+		return new PgAsyncPreparedQuery<T>(executor, query, mapper, this.logger, this.cache, queryMetadata, cacheConfig);
 	}
 
 	override transaction<T>(
