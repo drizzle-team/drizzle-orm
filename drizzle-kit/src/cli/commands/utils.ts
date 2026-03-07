@@ -1,10 +1,14 @@
 import chalk from 'chalk';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
 import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
+import {
+	type GenerateMigrationQuestions,
+	parseGenerateMigrationQuestions,
+} from '../../migrationQuestions';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
 import { Entities, pullParams, pushParams } from '../validations/cli';
@@ -147,6 +151,8 @@ export type GenerateConfig = {
 	bundle: boolean;
 	casing?: CasingType;
 	driver?: Driver;
+	preflight: boolean;
+	answers?: GenerateMigrationQuestions;
 };
 
 export type ExportConfig = {
@@ -167,6 +173,8 @@ export const prepareGenerateConfig = async (
 		driver?: Driver;
 		prefix?: Prefix;
 		casing?: CasingType;
+		preflight?: boolean;
+		answers?: string;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -188,8 +196,30 @@ export const prepareGenerateConfig = async (
 		process.exit(0);
 	}
 
+	if (options.custom && (options.preflight || options.answers)) {
+		console.log(error(`"--custom" can't be combined with "--preflight" or "--answers"`));
+		process.exit(1);
+	}
+
 	const prefix = ('migrations' in config ? config.migrations?.prefix : options.prefix)
 		|| 'index';
+
+	let answers: GenerateMigrationQuestions | undefined;
+	if (options.answers) {
+		const raw = existsSync(options.answers)
+			? readFileSync(resolve(options.answers), 'utf8')
+			: options.answers;
+
+		try {
+			answers = parseGenerateMigrationQuestions(JSON.parse(raw));
+		} catch (e) {
+			console.log(
+				error(`Unable to parse "--answers". Pass a JSON file path or an inline JSON string.`),
+			);
+			console.error(e);
+			process.exit(1);
+		}
+	}
 
 	return {
 		dialect: dialect,
@@ -202,6 +232,8 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+		preflight: options.preflight ?? false,
+		answers,
 	};
 };
 
