@@ -192,7 +192,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 			: customResultMapper!(result.rows);
 	}
 
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
 		return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
@@ -200,7 +200,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		}).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['arrays']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
 		return this.queryWithCache(this.queryConfig.text, params, async () => {
