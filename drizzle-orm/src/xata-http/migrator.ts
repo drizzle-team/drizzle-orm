@@ -36,7 +36,7 @@ export interface MigrationConfig {
 	`;
 	await db.session.execute(migrationTableCreate);
 
-	const dbMigrations = await db.session.all<{
+	const dbMigrations = await db.session.execute<{
 		id: number;
 		hash: string;
 		created_at: string;

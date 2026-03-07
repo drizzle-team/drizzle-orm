@@ -191,7 +191,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
 		return this.queryWithCache(this.rawQuery.text, params, async () => {
@@ -199,7 +199,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		}).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['arrays']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQuery.text, params);
 		return this.queryWithCache(this.queryConfig.text, params, async () => {

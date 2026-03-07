@@ -136,7 +136,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 	}
 
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.queryString, params);
 		return this.queryWithCache(this.queryString, params, async () => {

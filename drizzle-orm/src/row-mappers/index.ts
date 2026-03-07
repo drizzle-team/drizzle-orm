@@ -214,7 +214,11 @@ function mapRowInterpreted(
 				result[key] = null;
 			} else {
 				const decoder = resolveDecoder(item.field);
-				result[key] = decoder ? decoder(value) : value;
+				result[key] = decoder
+					? decoder(item.codec ? item.codec(value, item.arrayDimensions!) : value)
+					: item.codec
+					? item.codec(value, item.arrayDimensions!)
+					: value;
 			}
 		}
 	}

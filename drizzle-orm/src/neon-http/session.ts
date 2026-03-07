@@ -159,7 +159,7 @@ export class NeonHttpPreparedQuery<
 			: rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
+	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
 		return this.clientQuery(
@@ -172,11 +172,11 @@ export class NeonHttpPreparedQuery<
 		).then((result) => result.rows);
 	}
 
-	values(placeholderValues: Record<string, unknown> | undefined): Promise<T['values']>;
+	values(placeholderValues: Record<string, unknown> | undefined): Promise<T['arrays']>;
 	/** @internal */
-	values(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['values']>;
+	values(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['arrays']>;
 	/** @internal */
-	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: NeonAuthToken): Promise<T['values']> {
+	values(placeholderValues: Record<string, unknown> | undefined = {}, token?: NeonAuthToken): Promise<T['arrays']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
 		return this.clientQuery(this.query.sql, params, { arrayMode: true, fullResults: true, authToken: token }).then((

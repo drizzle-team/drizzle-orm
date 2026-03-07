@@ -6277,6 +6277,93 @@ test('all types', async () => {
 	expect(rawRes).toStrictEqual(expectedRes);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5287
+test('all types raw; insert/update', async () => {
+	const allTypesTable = pgTable('all_types', {
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+
+	await db.execute(sql`
+				CREATE TABLE "all_types" (
+					"json" json,
+					"jsonb" jsonb,
+					"arrjson" json[],
+					"arrjsonb" jsonb[]
+				);
+			`);
+
+	await db.insert(allTypesTable).values({
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 11],
+		},
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 10],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 11],
+		}],
+	});
+
+	const queryRes1 = await db.execute(sql`select * from ${allTypesTable};`);
+	const rawData1 = [queryRes1[0]];
+
+	const expectedRes1 = [
+		{
+			json: { str: 'strval', arr: ['str', 10] },
+			jsonb: { arr: ['strb', 11], str: 'strvalb' },
+
+			arrjson: [{ str: 'strval', arr: ['str', 10] }],
+			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+		},
+	];
+
+	expect(rawData1).toStrictEqual(expectedRes1);
+
+	await db.update(allTypesTable).set({
+		json: {
+			str: 'strval',
+			arr: ['str', 100],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 110],
+		},
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 100],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 110],
+		}],
+	});
+
+	const queryRes2 = await db.execute(sql`select * from ${allTypesTable};`);
+	const rawData2 = [queryRes2[0]];
+
+	const expectedRes2 = [
+		{
+			json: { str: 'strval', arr: ['str', 100] },
+			jsonb: { arr: ['strb', 110], str: 'strvalb' },
+
+			arrjson: [{ str: 'strval', arr: ['str', 100] }],
+			arrjsonb: [{ arr: ['strb', 110], str: 'strvalb' }],
+		},
+	];
+
+	expect(rawData2).toStrictEqual(expectedRes2);
+});
+
 test('all types ~codecs~', async () => {
 	const en = pgEnum('en_48', ['enVal1', 'enVal2']);
 	const allTypesTable = pgTable('all_types', {
