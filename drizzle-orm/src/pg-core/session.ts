@@ -17,19 +17,16 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		protected query: Query,
 	) {}
 
+	// TODO: ? why
+	mapResult(_: unknown, __?: boolean): unknown {
+		throw new Error('Method not implemented.');
+	}
+
 	getQuery(): Query {
 		return this.query;
 	}
 
-	mapResult(response: unknown, _isFromBatch?: boolean): unknown {
-		return response;
-	}
-
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
-
-	abstract objects(params?: unknown[]): unknown;
-
-	abstract arrays(params?: unknown[]): unknown;
 
 	/** @internal */
 	protected abstract queryWithCache(
@@ -52,8 +49,8 @@ export abstract class PgSession {
 
 	abstract prepareQuery(
 		query: Query,
-		arrayMode: boolean,
-		name: string | undefined,
+		mode: 'arrays' | 'objects',
+		name: string | boolean,
 		mapper: ((rows: unknown[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';

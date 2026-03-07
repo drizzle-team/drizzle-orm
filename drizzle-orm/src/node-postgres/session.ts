@@ -10,6 +10,7 @@ import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 
@@ -50,29 +51,6 @@ const typeConfig: CustomTypesConfig = {
 	}),
 };
 
-export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T, NodePgClient> {
-	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
-
-	/** @internal */
-	override objects(params?: unknown[]): Promise<T['objects']> {
-		return this.client.query({
-			name: this.name,
-			text: this.query.sql,
-			types: typeConfig,
-		}, params).then((r) => r.rows);
-	}
-
-	/** @internal */
-	arrays(params?: unknown[]): Promise<T['objects']> {
-		return this.client.query({
-			name: this.name,
-			rowMode: 'array',
-			text: this.query.sql,
-			types: typeConfig,
-		}, params).then((r) => r.rows);
-	}
-}
-
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
@@ -99,12 +77,22 @@ export class NodePgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		const executor = async (sql: string, params?: unknown[]) => {
+			const r = await this.client.query({
+				name: queryName,
+				rowMode: mode === 'arrays' ? 'array' : undefined as any,
+				text: sql,
+				types: typeConfig,
+			}, params);
+			return r.rows;
+		};
+
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		arrayMode: boolean,
-		name: string | undefined,
+		mode: 'arrays' | 'objects',
+		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -112,17 +100,23 @@ export class NodePgSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	) {
-		return new NodePgPreparedQuery<T>(
-			this.client,
-			query,
-			arrayMode,
-			mapper,
-			name,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-		);
+		const queryName = typeof name === 'string'
+			? name
+			: name === true
+			? preparedStatementName(query.sql, query.params)
+			: undefined;
+
+		const executor = async (sql: string, params?: unknown[]) => {
+			const r = await this.client.query({
+				name: queryName,
+				rowMode: mode === 'arrays' ? 'array' : undefined as any,
+				text: sql,
+				types: typeConfig,
+			}, params);
+			return r.rows;
+		};
+
+		return new PgAsyncPreparedQuery<T>(executor, query, mapper, this.logger, this.cache, queryMetadata, cacheConfig);
 	}
 
 	override async transaction<T>(

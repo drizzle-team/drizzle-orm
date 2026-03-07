@@ -28,34 +28,31 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rows, mapColumnValue) => {
-					for (let i = 0; i < rows.length; ++i) {
-						mapRelationalRow(
-							rows[i]!,
-							query.selection,
-							mapColumnValue,
-							this.parseJson,
-							undefined,
-							false,
-						);
-					}
+			const queryName = name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name);
+			const mapper = (rows: any[]) => {
+				for (let i = 0; i < rows.length; ++i) {
+					mapRelationalRow(
+						rows[i]!,
+						query.selection,
+						(it) => it, // TODO: remove, backward comp
+						this.parseJson,
+						undefined,
+						false,
+					);
+				}
 
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-				{
-					isFirst: this.mode === 'first',
-					parseJson: this.parseJson,
-					parseJsonIfString: false,
-					rootJsonMappers: false,
-					selection: query.selection,
-				},
+				if (this.mode === 'first') {
+					return rows[0] as TResult;
+				}
+				return rows as TResult;
+			};
+
+			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
+				builtQuery,
+				'objects',
+				queryName,
+				mapper,
+				// TODO: implement cache
 			).setToken(this.authToken);
 		});
 	}

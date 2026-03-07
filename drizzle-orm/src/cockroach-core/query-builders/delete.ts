@@ -10,7 +10,6 @@ import type { CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -245,7 +244,7 @@ export class CockroachDeleteBase<
 	}
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): CockroachDeletePrepare<this> {
+	_prepare(name?: string | boolean): CockroachDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery<
@@ -255,13 +254,13 @@ export class CockroachDeleteBase<
 			>(
 				query,
 				this.config.returning,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				name ?? false,
 			);
 		});
 	}
 
-	prepare(name?: string): CockroachDeletePrepare<this> {
-		return this._prepare(name, true);
+	prepare(name: string | boolean): CockroachDeletePrepare<this> {
+		return this._prepare(name);
 	}
 
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

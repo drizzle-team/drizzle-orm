@@ -669,11 +669,7 @@ export class PgAsyncDatabase<
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
-		>(
-			builtQuery,
-			undefined,
-			undefined,
-		).setToken(authToken);
+		>(builtQuery, 'objects', false).setToken(authToken);
 		return new PgAsyncRaw(
 			() => prepared.execute(),
 			sequel,
