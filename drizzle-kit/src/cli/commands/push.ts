@@ -41,7 +41,7 @@ export const mysqlPush = async (
 	const { schema } = await mysqlPushIntrospect(db, database, tablesFilter);
 	const { prepareMySQLPush } = await import('./migrate');
 
-	const statements = await prepareMySQLPush(schemaPath, schema, casing);
+	const statements = await prepareMySQLPush(schemaPath, schema, casing, force);
 
 	const filteredStatements = mySqlFilterStatements(
 		statements.statements ?? [],
@@ -184,7 +184,7 @@ export const singlestorePush = async (
 	);
 	const { prepareSingleStorePush } = await import('./migrate');
 
-	const statements = await prepareSingleStorePush(schemaPath, schema, casing);
+	const statements = await prepareSingleStorePush(schemaPath, schema, casing, force);
 
 	const filteredStatements = singleStoreFilterStatements(
 		statements.statements ?? [],
@@ -310,6 +310,7 @@ export const pgPush = async (
 	const statements = await preparePgPush(
 		{ id: randomUUID(), prevId: schema.id, ...serialized },
 		schema,
+		force,
 	);
 
 	try {
@@ -426,7 +427,7 @@ export const sqlitePush = async (
 	const { schema } = await sqlitePushIntrospect(db, tablesFilter);
 	const { prepareSQLitePush } = await import('./migrate');
 
-	const statements = await prepareSQLitePush(schemaPath, schema, casing);
+	const statements = await prepareSQLitePush(schemaPath, schema, casing, force);
 
 	if (statements.sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);
@@ -548,7 +549,7 @@ export const libSQLPush = async (
 
 	const { prepareLibSQLPush } = await import('./migrate');
 
-	const statements = await prepareLibSQLPush(schemaPath, schema, casing);
+	const statements = await prepareLibSQLPush(schemaPath, schema, casing, force);
 
 	if (statements.sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);
