@@ -51,6 +51,7 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
+import { writeInfoOutput } from '../output';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {
@@ -178,7 +179,9 @@ export const prepareGenerateConfig = async (
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
+	const config = from === 'config'
+		? await drizzleConfigFromFile(options.config, false, options.preflight ?? false)
+		: options;
 
 	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
@@ -190,7 +193,7 @@ export const prepareGenerateConfig = async (
 		process.exit(1);
 	}
 
-	const fileNames = prepareFilenames(schema);
+	const fileNames = prepareFilenames(schema, options.preflight ?? false);
 	if (fileNames.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
 		process.exit(0);
@@ -908,6 +911,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 export const drizzleConfigFromFile = async (
 	configPath?: string,
 	isExport?: boolean,
+	machineReadableOutput = false,
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
@@ -924,21 +928,28 @@ export const drizzleConfigFromFile = async (
 		: 'drizzle.config.json';
 
 	if (!configPath && !isExport) {
-		console.log(
+		writeInfoOutput(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
 			),
+			{ machineReadable: machineReadableOutput },
 		);
 	}
 
 	const path: string = resolve(join(prefix, configPath ?? defaultConfigPath));
 
 	if (!existsSync(path)) {
-		console.log(`${path} file does not exist`);
+		writeInfoOutput(`${path} file does not exist`, {
+			machineReadable: machineReadableOutput,
+		});
 		process.exit(1);
 	}
 
-	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) {
+		writeInfoOutput(chalk.grey(`Reading config file '${path}'`), {
+			machineReadable: machineReadableOutput,
+		});
+	}
 
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);

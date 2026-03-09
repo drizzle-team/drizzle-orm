@@ -30,6 +30,7 @@ import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersi
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
+import { withMachineOutput } from './output';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -87,67 +88,67 @@ export const generate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		// const parsed = cliConfigGenerate.parse(opts);
+		await withMachineOutput(opts.preflight, async () => {
+			const {
+				prepareAndMigratePg,
+				prepareAndMigrateMysql,
+				prepareAndMigrateSqlite,
+				prepareAndMigrateLibSQL,
+				prepareAndMigrateSingleStore,
+			} = await import('./commands/migrate');
 
-		const {
-			prepareAndMigratePg,
-			prepareAndMigrateMysql,
-			prepareAndMigrateSqlite,
-			prepareAndMigrateLibSQL,
-			prepareAndMigrateSingleStore,
-		} = await import('./commands/migrate');
+			try {
+				const dialect = opts.dialect;
+				if (dialect === 'postgresql') {
+					const questions = await prepareAndMigratePg(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'mysql') {
+					const questions = await prepareAndMigrateMysql(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'sqlite') {
+					const questions = await prepareAndMigrateSqlite(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'turso') {
+					const questions = await prepareAndMigrateLibSQL(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'singlestore') {
+					const questions = await prepareAndMigrateSingleStore(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'gel') {
+					console.log(
+						error(
+							`You can't use 'generate' command with Gel dialect`,
+						),
+					);
+					process.exit(1);
+				} else {
+					assertUnreachable(dialect);
+				}
+			} catch (e) {
+				if (e instanceof GenerateMigrationQuestionsError) {
+					console.log(
+						error(
+							`Not all migration conflicts were answered. Re-run with "--preflight" to export the remaining questions.`,
+						),
+					);
+					console.log(JSON.stringify(e.questions, null, 2));
+					process.exit(1);
+				}
 
-		try {
-			const dialect = opts.dialect;
-			if (dialect === 'postgresql') {
-				const questions = await prepareAndMigratePg(opts);
-				if (opts.preflight) {
-					console.log(JSON.stringify(questions, null, 2));
-				}
-			} else if (dialect === 'mysql') {
-				const questions = await prepareAndMigrateMysql(opts);
-				if (opts.preflight) {
-					console.log(JSON.stringify(questions, null, 2));
-				}
-			} else if (dialect === 'sqlite') {
-				const questions = await prepareAndMigrateSqlite(opts);
-				if (opts.preflight) {
-					console.log(JSON.stringify(questions, null, 2));
-				}
-			} else if (dialect === 'turso') {
-				const questions = await prepareAndMigrateLibSQL(opts);
-				if (opts.preflight) {
-					console.log(JSON.stringify(questions, null, 2));
-				}
-			} else if (dialect === 'singlestore') {
-				const questions = await prepareAndMigrateSingleStore(opts);
-				if (opts.preflight) {
-					console.log(JSON.stringify(questions, null, 2));
-				}
-			} else if (dialect === 'gel') {
-				console.log(
-					error(
-						`You can't use 'generate' command with Gel dialect`,
-					),
-				);
+				console.error(e);
 				process.exit(1);
-			} else {
-				assertUnreachable(dialect);
 			}
-		} catch (e) {
-			if (e instanceof GenerateMigrationQuestionsError) {
-				console.log(
-					error(
-						`Not all migration conflicts were answered. Re-run with "--preflight" to export the remaining questions.`,
-					),
-				);
-				console.log(JSON.stringify(e.questions, null, 2));
-				process.exit(1);
-			}
-
-			console.error(e);
-			process.exit(1);
-		}
+		});
 	},
 });
 
