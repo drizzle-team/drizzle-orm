@@ -61,14 +61,7 @@ const upgradeFunctions: Record<
 	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
-		// 1. Add new columns
-		await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
-		await execute(
-			session,
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
-		);
-
-		// 2. Read all existing DB migrations
+		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		const dbRows = await execute<{ id: number; hash: string; created_at: string }[]>(
 			session,
@@ -79,7 +72,7 @@ const upgradeFunctions: Record<
 			return;
 		}
 
-		// 3. Sort ASC by millis and if the same - sort by name
+		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
 			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
 		);
@@ -94,8 +87,12 @@ const upgradeFunctions: Record<
 			byHash.set(lm.hash, lm);
 		}
 
-		// 4. Match each DB row to a local migration and backfill name
-		//    Priority: millis -> hash -> serial position
+		// 	3. Match each DB row to a local migration and backfill name
+		// 	Priority: millis -> hash
+
+		const map: { id: number; created_at: string; name: string | null }[] = [];
+
+		// fill map with entries
 		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
@@ -111,10 +108,36 @@ const upgradeFunctions: Record<
 				matched = byHash.get(dbRow.hash);
 			}
 
+			map.push({ id: dbRow.id, created_at: dbRow.created_at, name: matched?.name ?? null });
+		}
+
+		// if any entry was not found - warn the user and exit
+		const unmatchedMigrations = map.filter((it) => !localMigrations.some((lm) => lm.name === it.name));
+		for (const uMigration of unmatchedMigrations) {
+			console.log(
+				`Warning: could not find a match for local migration "${uMigration.name}" in the database. This migration will be ignored in the backfilling process, and its name will not be backfilled to the DB. Local migrations that do not have a match in the DB will still be applied to the DB in the future, but that could cause issues.`,
+			);
+		}
+
+		// Backfill names for matched migrations
+		try {
+			await execute(session, sql`BEGIN`);
+			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
 			await execute(
 				session,
-				sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE id = ${dbRow.id}`,
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
 			);
+
+			for (const backfillEntry of map) {
+				await execute(
+					session,
+					sql`UPDATE ${table} SET name = ${backfillEntry.name}, applied_at = NULL WHERE id = ${backfillEntry.id}`,
+				);
+			}
+			await execute(session, sql`COMMIT`);
+		} catch (err: any) {
+			await execute(session, sql`ROLLBACK`);
+			throw err;
 		}
 	},
 };
@@ -171,6 +194,19 @@ export async function upgradeIfNeeded(
 	let version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+		const [dbMigrations] = await session.all<{ count: number }>(
+			sql`select COUNT(*) as count from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+		);
+
+		if (dbMigrations!.count > localMigrations.length) {
+			console.log(
+				`Error: The database has more migrations (${
+					dbMigrations!.count
+				}) than the local migrations (${localMigrations.length}). This could indicate a mismatch between the local and database migration states. Make sure you have the latest local migrations that correspond to the database state`,
+			);
+			process.exit(1);
+		}
+
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
