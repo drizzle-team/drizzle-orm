@@ -214,6 +214,9 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 });
 
 const skip = [
+	// Uses async versions
+	'sync transaction rollback',
+	'sync nested transaction rollback',
 	// Cannot convert 49,50,55 to a BigInt
 	'insert bigint values',
 	// SyntaxError: Unexpected token , in JSON at position 2

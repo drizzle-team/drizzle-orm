@@ -198,6 +198,9 @@ test.concurrent('migrator: local migration is unapplied. Migrations timestamp is
 });
 
 const skip = [
+	// Uses async versions
+	'sync transaction rollback',
+	'sync nested transaction rollback',
 	// Currently not supported by provider
 	'update with limit and order by',
 	'delete with limit and order by',
