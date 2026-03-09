@@ -486,7 +486,7 @@ jobs:
 
       # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v6
-        with: { node-version: '24' }
+        with: { node-version: '25' }
 
       - uses: pnpm/action-setup@v3
         name: Install pnpm

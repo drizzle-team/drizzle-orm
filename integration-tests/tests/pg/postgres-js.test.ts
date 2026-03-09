@@ -1,7 +1,7 @@
 import { Name, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
@@ -124,7 +124,7 @@ describe('postgresjs', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/postgres-js';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -159,7 +159,7 @@ describe('postgresjs', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 
 	test('all date and time columns without timezone first case mode string', async ({ db }) => {

@@ -47,6 +47,7 @@ import { drizzle as drizzleLibSQLHttp } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzleLibSQLNode } from 'drizzle-orm/libsql/node';
 import { drizzle as drizzleLibSQLSqlite3 } from 'drizzle-orm/libsql/sqlite3';
 import { drizzle as drizzleLibSQLWs } from 'drizzle-orm/libsql/ws';
+import { drizzle as drizzleNodeSQLite } from 'drizzle-orm/node-sqlite';
 import { drizzle as drizzleSqlJs } from 'drizzle-orm/sql-js';
 import { drizzle as drizzleSqliteCloud } from 'drizzle-orm/sqlite-cloud';
 import { BaseSQLiteDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
@@ -609,7 +610,8 @@ const testFor = (
 		| 'libsql-http'
 		| 'better-sqlite3'
 		| 'd1'
-		| 'sql-js',
+		| 'sql-js'
+		| 'node-sqlite',
 ) => {
 	return base.extend<{
 		provider: Provider;
@@ -733,6 +735,8 @@ const testFor = (
 					? drizzleD1(kit.client, { relations })
 					: vendor === 'sql-js'
 					? drizzleSqlJs(kit.client, { relations })
+					: vendor === 'node-sqlite'
+					? drizzleNodeSQLite(kit.client, { relations })
 					: '' as never;
 
 				await use(db);
@@ -771,6 +775,7 @@ const testFor = (
 					if (vendor === 'better-sqlite3') return drizzleBetterSqlite3({ client: kit.client, relations });
 					if (vendor === 'd1') return drizzleD1(kit.client, { relations });
 					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations });
+					if (vendor === 'node-sqlite') return drizzleNodeSQLite(kit.client, { relations });
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
@@ -844,6 +849,8 @@ const testFor = (
 					? drizzleD1(config1.client, { cache: config1.cache, relations: config1.relations })
 					: vendor === 'sql-js'
 					? drizzleSqlJs(config1.client, { cache: config1.cache, relations: config1.relations })
+					: vendor === 'node-sqlite'
+					? drizzleNodeSQLite(kit.client, { relations })
 					: '' as never;
 
 				const db2 = vendor === 'sqlite-cloud'
@@ -866,6 +873,8 @@ const testFor = (
 					? drizzleD1(config2.client, { cache: config2.cache, relations: config2.relations })
 					: vendor === 'sql-js'
 					? drizzleSqlJs(config2.client, { cache: config2.cache, relations: config2.relations })
+					: vendor === 'node-sqlite'
+					? drizzleNodeSQLite(kit.client, { relations })
 					: '' as never;
 
 				await use({ all: db1, explicit: db2 });
@@ -885,6 +894,7 @@ export const libSQLHttpTest = testFor('libsql-http');
 export const betterSqlite3Test = testFor('better-sqlite3');
 export const d1Test = testFor('d1');
 export const sqlJsTest = testFor('sql-js');
+export const nodeSQLiteTest = testFor('node-sqlite');
 export const libSQLTursoTest = testFor('libsql-turso').extend<{ db: LibSQLDatabase<never, typeof sqliteRelations> }>({
 	db: [
 		async ({ kit }, use) => {

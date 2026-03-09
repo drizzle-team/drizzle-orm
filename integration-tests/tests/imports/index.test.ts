@@ -12,7 +12,7 @@ const pj = JSON.parse(fs.readFileSync(folderPath, 'utf8'));
 fs.mkdirSync(IMPORTS_FOLDER, { recursive: true });
 
 afterAll(() => {
-	fs.rmdirSync(IMPORTS_FOLDER, { recursive: true });
+	fs.rmSync(IMPORTS_FOLDER, { recursive: true });
 });
 
 function chunk<T>(arr: T[], size: number): T[][] {
