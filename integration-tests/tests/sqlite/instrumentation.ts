@@ -54,6 +54,7 @@ import { BaseSQLiteDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-
 import { drizzle as drizzleProxy } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as drizzleTursoDatabase } from 'drizzle-orm/tursodatabase/database';
 import Keyv from 'keyv';
+import { DatabaseSync } from 'node:sqlite';
 import type { Database as SQLJsDatabase } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { test as base } from 'vitest';
@@ -471,17 +472,6 @@ export const prepareSqlJs = async () => {
 };
 
 export const prepareNodeSQLite = async () => {
-	let DatabaseSync: typeof import('node:sqlite')['DatabaseSync'];
-	{
-		try {
-			DatabaseSync = (await import('node:sqlite' as string) as typeof import('node:sqlite')).DatabaseSync;
-		} catch (e) {
-			console.error(
-				"Unable to test `node-sqlite`: import 'node:sqlite' is unavailable. Make sure you have at least Node v25.8.0 selected.",
-			);
-			throw e;
-		}
-	}
 	const client = new DatabaseSync(':memory:');
 
 	const all = (sql: string, params: any[] = []) => {
