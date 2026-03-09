@@ -4,7 +4,7 @@ import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
-import { sqlJsTest as test } from './instrumentation';
+import { nodeSQLiteTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 

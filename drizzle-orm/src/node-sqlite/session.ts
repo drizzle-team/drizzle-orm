@@ -193,7 +193,7 @@ export class NodeSQLitePreparedQuery<
 		logger.logQuery(query.sql, params);
 
 		stmt.setReturnArrays(false);
-		const rows = stmt.all(...params as SQLInputValue[]);
+		const rows = stmt.all(...params as SQLInputValue[]).map((row) => ({ ...row })); // [Object: null prototype] => Object
 
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],
@@ -251,7 +251,7 @@ export class NodeSQLitePreparedQuery<
 		return (customResultMapper as (
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([row]) as T['get'];
+		) => unknown)([{ ...row }]) as T['get']; // [Object: null prototype] => Object
 	}
 
 	values(placeholderValues: Record<string, unknown> = {}): T['values'] {

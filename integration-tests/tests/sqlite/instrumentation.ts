@@ -47,7 +47,7 @@ import { drizzle as drizzleLibSQLHttp } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzleLibSQLNode } from 'drizzle-orm/libsql/node';
 import { drizzle as drizzleLibSQLSqlite3 } from 'drizzle-orm/libsql/sqlite3';
 import { drizzle as drizzleLibSQLWs } from 'drizzle-orm/libsql/ws';
-import { drizzle as drizzleNodeSQLite } from 'drizzle-orm/node-sqlite';
+import { drizzle as drizzleNodeSQLite, NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
 import { drizzle as drizzleSqlJs } from 'drizzle-orm/sql-js';
 import { drizzle as drizzleSqliteCloud } from 'drizzle-orm/sqlite-cloud';
 import { BaseSQLiteDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
@@ -180,11 +180,13 @@ export const _push = async (
 	const res = await diff({}, schema, []);
 
 	for (const s of res.sqlStatements) {
-		await query(s, []).catch((e) => {
+		try {
+			await query(s, []);
+		} catch (e) {
 			console.error(s);
 			console.error(e);
 			throw e;
-		});
+		}
 	}
 };
 
@@ -468,6 +470,35 @@ export const prepareSqlJs = async () => {
 	return { client, all, run, batch };
 };
 
+export const prepareNodeSQLite = async () => {
+	let DatabaseSync: typeof import('node:sqlite')['DatabaseSync'];
+	{
+		try {
+			DatabaseSync = (await import('node:sqlite' as string) as typeof import('node:sqlite')).DatabaseSync;
+		} catch (e) {
+			console.error(
+				"Unable to test `node-sqlite`: import 'node:sqlite' is unavailable. Make sure you have at least Node v25.8.0 selected.",
+			);
+			throw e;
+		}
+	}
+	const client = new DatabaseSync(':memory:');
+
+	const all = (sql: string, params: any[] = []) => {
+		const stmt = client.prepare(sql);
+		return stmt.all(...params) as any;
+	};
+
+	const run = (sql: string, params: any[] = []) => {
+		const stmt = client.prepare(sql);
+		return stmt.run(...params) as any;
+	};
+
+	const batch = (statements: string[]) => [statements.map((s) => run(s))] as any;
+
+	return { client, all, run, batch };
+};
+
 const providerClosure = async <T>(items: T[]) => {
 	return async () => {
 		while (true) {
@@ -565,6 +596,11 @@ export const providerForSqlJs = async () => {
 
 	return providerClosure(clients);
 };
+export const providerForNodeSQLite = async () => {
+	const clients = [await prepareNodeSQLite()];
+
+	return providerClosure(clients);
+};
 
 type ProviderForSQLiteCloud = Awaited<ReturnType<typeof providerForSQLiteCloud>>;
 type ProviderForTursoDatabase = Awaited<ReturnType<typeof providerForTursoDatabase>>;
@@ -576,6 +612,7 @@ type ProviderForLibSQLHttp = Awaited<ReturnType<typeof providerForLibSQLHttp>>;
 type ProviderForBetterSqlite3 = Awaited<ReturnType<typeof providerForBetterSqlite3>>;
 type ProviderForD1 = Awaited<ReturnType<typeof providerForD1>>;
 type ProviderForSqlJs = Awaited<ReturnType<typeof providerForSqlJs>>;
+type ProviderForNodeSQLite = Awaited<ReturnType<typeof providerForNodeSQLite>>;
 
 type Provider =
 	| ProviderForSQLiteCloud
@@ -587,7 +624,8 @@ type Provider =
 	| ProviderForLibSQLHttp
 	| ProviderForBetterSqlite3
 	| ProviderForD1
-	| ProviderForSqlJs;
+	| ProviderForSqlJs
+	| ProviderForNodeSQLite;
 
 export type SqliteSchema_ = Record<
 	string,
@@ -628,7 +666,8 @@ const testFor = (
 			| LibSQLClient
 			| LibSQLWsClient
 			| D1Database
-			| SQLJsDatabase;
+			| SQLJsDatabase
+			| NodeSQLiteDatabase;
 		db: BaseSQLiteDatabase<'async' | 'sync', any, any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
@@ -673,6 +712,8 @@ const testFor = (
 					? await providerForD1()
 					: vendor === 'sql-js'
 					? await providerForSqlJs()
+					: vendor === 'node-sqlite'
+					? await providerForNodeSQLite()
 					: '' as never;
 
 				await use(provider);
@@ -736,7 +777,7 @@ const testFor = (
 					: vendor === 'sql-js'
 					? drizzleSqlJs(kit.client, { relations })
 					: vendor === 'node-sqlite'
-					? drizzleNodeSQLite(kit.client, { relations })
+					? drizzleNodeSQLite({ client: kit.client, relations })
 					: '' as never;
 
 				await use(db);
@@ -775,7 +816,7 @@ const testFor = (
 					if (vendor === 'better-sqlite3') return drizzleBetterSqlite3({ client: kit.client, relations });
 					if (vendor === 'd1') return drizzleD1(kit.client, { relations });
 					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations });
-					if (vendor === 'node-sqlite') return drizzleNodeSQLite(kit.client, { relations });
+					if (vendor === 'node-sqlite') return drizzleNodeSQLite({ client: kit.client, relations });
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
@@ -850,7 +891,7 @@ const testFor = (
 					: vendor === 'sql-js'
 					? drizzleSqlJs(config1.client, { cache: config1.cache, relations: config1.relations })
 					: vendor === 'node-sqlite'
-					? drizzleNodeSQLite(kit.client, { relations })
+					? drizzleNodeSQLite(config1)
 					: '' as never;
 
 				const db2 = vendor === 'sqlite-cloud'
@@ -874,7 +915,7 @@ const testFor = (
 					: vendor === 'sql-js'
 					? drizzleSqlJs(config2.client, { cache: config2.cache, relations: config2.relations })
 					: vendor === 'node-sqlite'
-					? drizzleNodeSQLite(kit.client, { relations })
+					? drizzleNodeSQLite(config2)
 					: '' as never;
 
 				await use({ all: db1, explicit: db2 });
