@@ -4345,6 +4345,101 @@ export function tests(test: Test, exclude: string[] = []) {
 		expect(columnField?.uniqueName).toBe(undefined);
 	});
 
+	test.concurrent.only('table configs: primary keys', () => {
+		const table = sqliteTable('primaryKeys and not nulls', {
+			integerPk: integer().primaryKey(),
+			integerPkNn: integer().primaryKey().notNull(),
+			integerPkIncr: integer().primaryKey({ autoIncrement: true }),
+			integerPkIncrNn: integer().primaryKey({ autoIncrement: true }).notNull(),
+			intPk: int().primaryKey(),
+			intPkNn: int().primaryKey().notNull(),
+			blobPk: blob().primaryKey(),
+			blobPkNn: blob().primaryKey().notNull(),
+			textPk: text().primaryKey(),
+			textPkNn: text().primaryKey().notNull(),
+			realPk: real().primaryKey(),
+			realPkNn: real().primaryKey().notNull(),
+			numericPk: numeric().primaryKey(),
+			numericPkNn: numeric().primaryKey().notNull(),
+		});
+
+		const tableConfig = getTableConfig(table);
+
+		expect(tableConfig.columns.map((it) => ({ name: it.name, notNull: it.notNull, primaryKey: it.primary })))
+			.toStrictEqual([
+				{
+					name: 'integerPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'integerPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'integerPkIncr',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'integerPkIncrNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'intPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'intPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'blobPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'blobPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'textPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'textPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'realPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'realPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+				{
+					name: 'numericPk',
+					notNull: false,
+					primaryKey: true,
+				},
+				{
+					name: 'numericPkNn',
+					notNull: true,
+					primaryKey: true,
+				},
+			]);
+	});
+
 	test.concurrent('update ... from', async ({ db }) => {
 		await db.run(sql`drop table if exists \`cities\``);
 		await db.run(sql`drop table if exists \`users2\``);

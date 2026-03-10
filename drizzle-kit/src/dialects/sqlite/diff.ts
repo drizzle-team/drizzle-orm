@@ -261,8 +261,11 @@ export const ddlDiff = async (
 
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
 		// if integer primary key and alters in not null -> skip
+		// SQLite has a special behavior for integer primary keys - they could be defined as nullable
+		// but if to try to manually insert null into such column, it will be auto converted to autoincrement value
+		// ORM generates not null types, but column config stores explicit values only
 		if (
-			isIntegerType(it.$left.type) && isIntegerType(it.$right.type) && it.notNull && !it.notNull.from && it.notNull.to
+			isIntegerType(it.$left.type) && isIntegerType(it.$right.type) && it.notNull
 			&& ddl2.pks.one({ table: it.table, columns: [it.name] })
 		) {
 			delete it.notNull;

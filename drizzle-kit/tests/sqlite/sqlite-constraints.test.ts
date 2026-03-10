@@ -1433,6 +1433,149 @@ test('composite pk multistep #2', async () => {
 	expect(pst2).toStrictEqual([]);
 });
 
+test('add implicit notNull to text pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			userId: text('userId').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const expected1 = [
+		`CREATE TABLE \`users\` (
+\t\`userId\` text PRIMARY KEY
+);\n`,
+	];
+	expect(st1).toStrictEqual(expected1);
+	expect(pst1).toStrictEqual(expected1);
+
+	const to = {
+		users: sqliteTable('users', {
+			userId: text('userId').primaryKey().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expected2 = [
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+	\`userId\` text PRIMARY KEY NOT NULL
+);\n`,
+		'INSERT INTO `__new_users`(`userId`) SELECT `userId` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st2).toStrictEqual(expected2);
+	expect(pst2).toStrictEqual(expected2);
+});
+test('drop implicit notNull to text pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			userId: text('userId').primaryKey().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const expected1 = [
+		`CREATE TABLE \`users\` (
+\t\`userId\` text PRIMARY KEY NOT NULL
+);\n`,
+	];
+	expect(st1).toStrictEqual(expected1);
+	expect(pst1).toStrictEqual(expected1);
+
+	const to = {
+		users: sqliteTable('users', {
+			userId: text('userId').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expected2 = [
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+	\`userId\` text PRIMARY KEY
+);\n`,
+		'INSERT INTO `__new_users`(`userId`) SELECT `userId` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st2).toStrictEqual(expected2);
+	expect(pst2).toStrictEqual(expected2);
+});
+test('add implicit notNull to integer pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			userId: integer('userId').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const expected1 = [
+		`CREATE TABLE \`users\` (
+\t\`userId\` integer PRIMARY KEY
+);\n`,
+	];
+	expect(st1).toStrictEqual(expected1);
+	expect(pst1).toStrictEqual(expected1);
+
+	const to = {
+		users: sqliteTable('users', {
+			userId: integer('userId').primaryKey().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expected2: string[] = [];
+	expect(st2).toStrictEqual(expected2);
+	expect(pst2).toStrictEqual(expected2);
+});
+test('drop implicit notNull to integer pk', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			userId: integer('userId').primaryKey().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const expected1 = [
+		`CREATE TABLE \`users\` (
+\t\`userId\` integer PRIMARY KEY
+);\n`,
+	];
+	expect(st1).toStrictEqual(expected1);
+	expect(pst1).toStrictEqual(expected1);
+
+	const to = {
+		users: sqliteTable('users', {
+			userId: integer('userId').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expected2: string[] = [];
+	expect(st2).toStrictEqual(expected2);
+	expect(pst2).toStrictEqual(expected2);
+});
+
 test('fk #0', async () => {
 	const users = sqliteTable('users', {
 		id: int().references((): AnySQLiteColumn => users.id2),

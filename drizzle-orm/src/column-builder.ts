@@ -210,10 +210,10 @@ export type HasDefault<T> = T & {
 	};
 };
 
-export type IsPrimaryKey<T> = T & {
+export type IsPrimaryKey<T, U extends boolean> = T & {
 	_: {
 		isPrimaryKey: true;
-		notNull: true;
+		notNull: U;
 	};
 };
 
@@ -365,16 +365,15 @@ export abstract class ColumnBuilder<
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
-	 *
-	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
-	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
-		: IsPrimaryKey<this>
+	primaryKey<U extends boolean = true>(): TExtraConfig['primaryKeyHasDefault'] extends true
+		? IsPrimaryKey<HasDefault<this>, U>
+		: IsPrimaryKey<this, U>
 	{
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
-			: IsPrimaryKey<this>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>, U>
+			: IsPrimaryKey<this, U>;
 	}
 
 	abstract generatedAlwaysAs(

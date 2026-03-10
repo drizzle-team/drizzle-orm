@@ -10,6 +10,7 @@ import {
 	customType,
 	foreignKey,
 	index,
+	int,
 	integer,
 	numeric,
 	primaryKey,
@@ -289,7 +290,7 @@ export const newYorkers = sqliteView('new_yorkers')
 
 	Expect<
 		Equal<{
-			id?: string;
+			id?: string | null;
 		}, typeof test.$inferInsert>
 	>;
 }
@@ -454,4 +455,62 @@ export const newYorkers = sqliteView('new_yorkers')
 		text5: text({ mode: 'json' }),
 		textdef: text().default(''),
 	});
+}
+
+{
+	const table = sqliteTable('primaryKeys and not nulls', {
+		integerPk: integer().primaryKey(),
+		integerPkNn: integer().primaryKey().notNull(),
+		integerPkIncr: integer().primaryKey({ autoIncrement: true }),
+		integerPkIncrNn: integer().primaryKey({ autoIncrement: true }).notNull(),
+		intPk: int().primaryKey(),
+		intPkNn: int().primaryKey().notNull(),
+		blobPk: blob().primaryKey(),
+		blobPkNn: blob().primaryKey().notNull(),
+		textPk: text().primaryKey(),
+		textPkNn: text().primaryKey().notNull(),
+		realPk: real().primaryKey(),
+		realPkNn: real().primaryKey().notNull(),
+		numericPk: numeric().primaryKey(),
+		numericPkNn: numeric().primaryKey().notNull(),
+	});
+
+	type a = typeof table.$inferSelect;
+	Expect<
+		Equal<{
+			integerPk: number;
+			integerPkNn: number;
+			integerPkIncr: number;
+			integerPkIncrNn: number;
+			intPk: number;
+			intPkNn: number;
+			blobPk: unknown | null;
+			blobPkNn: unknown;
+			textPk: string | null;
+			textPkNn: string;
+			realPk: number | null;
+			realPkNn: number;
+			numericPk: string | null;
+			numericPkNn: string;
+		}, typeof table.$inferSelect>
+	>;
+
+	Expect<
+		Equal<{
+			integerPk?: number | undefined;
+			integerPkNn?: number | undefined;
+			integerPkIncr?: number | undefined;
+			integerPkIncrNn?: number | undefined;
+			intPk?: number | undefined;
+			intPkNn?: number | undefined;
+			blobPk?: unknown;
+			blobPkNn: unknown;
+			textPk?: string | null | undefined;
+			textPkNn: string;
+			realPk?: number | null | undefined;
+			realPkNn: number;
+			numericPk?: string | null | undefined;
+			numericPkNn: string;
+		}, typeof table.$inferInsert>
+	>;
 }

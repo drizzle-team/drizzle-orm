@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnType, HasDefault, IsPrimaryKey, NotNull } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnType, HasDefault, IsPrimaryKey } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
@@ -27,12 +27,20 @@ export abstract class SQLiteBaseIntegerBuilder<
 		this.config.autoIncrement = false;
 	}
 
-	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<HasDefault<NotNull<this>>> {
+	/**
+	 * Adds a `primary key` clause to the column definition
+	 *
+	 * Adding a primary key to an `integer` column will make it auto-increment
+	 */
+	override primaryKey<U extends boolean = true>(
+		config?: PrimaryKeyConfig,
+	): IsPrimaryKey<HasDefault<this>, U> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		this.config.hasDefault = true;
-		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
+		this.config.primaryKey = true;
+		return this as IsPrimaryKey<HasDefault<this>, U>;
 	}
 }
 

@@ -56,12 +56,16 @@ export abstract class SQLiteColumnBuilder<
 		return this;
 	}
 
-	override primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
-		: IsPrimaryKey<this>
+	/**
+	 * Adds a `primary key` clause to the column definition
+	 */
+	override primaryKey<U extends boolean>(): TExtraConfig['primaryKeyHasDefault'] extends true
+		? IsPrimaryKey<HasDefault<this>, U>
+		: IsPrimaryKey<this, U>
 	{
 		this.config.primaryKey = true;
-		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
-			: IsPrimaryKey<this>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>, U>
+			: IsPrimaryKey<this, U>;
 	}
 
 	generatedAlwaysAs(as: SQL | (() => SQL), config?: SQLiteGeneratedColumnConfig): HasGenerated<this, {
