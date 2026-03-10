@@ -58,7 +58,6 @@
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
-		"@prisma/client": "*",
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
@@ -164,12 +163,6 @@
 			"optional": true
 		},
 		"@tidbcloud/serverless": {
-			"optional": true
-		},
-		"prisma": {
-			"optional": true
-		},
-		"@prisma/client": {
 			"optional": true
 		},
 		"@sinclair/typebox": {
