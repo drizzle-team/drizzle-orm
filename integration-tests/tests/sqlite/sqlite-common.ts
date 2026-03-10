@@ -4345,7 +4345,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		expect(columnField?.uniqueName).toBe(undefined);
 	});
 
-	test.concurrent.only('table configs: primary keys', () => {
+	test.concurrent('table configs: primary keys', () => {
 		const table = sqliteTable('primaryKeys and not nulls', {
 			integerPk: integer().primaryKey(),
 			integerPkNn: integer().primaryKey().notNull(),

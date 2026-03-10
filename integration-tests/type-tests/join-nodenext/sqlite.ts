@@ -12,7 +12,7 @@ const account = sqliteTable('accounts', {
 });
 
 const users = sqliteTable('users', {
-	id: text('id').primaryKey(),
+	id: text('id').primaryKey().notNull(),
 	name: text('name').notNull(),
 	username: text('username').notNull().unique(),
 });
