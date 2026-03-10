@@ -1,6 +1,6 @@
 {
-	"name": "@chronicstone/drizzle-vine",
-	"version": "0.1.1",
+	"name": "drizzle-vine",
+	"version": "0.1.0",
 	"description": "Generate VineJS schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
@@ -28,9 +28,12 @@
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
+	"publishConfig": {
+		"provenance": true
+	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/chronicstone/drizzle-vine.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
 	},
 	"keywords": [
 		"vinejs",
@@ -50,7 +53,7 @@
 		"typescript",
 		"ts"
 	],
-	"author": "Chronicstone",
+	"author": "Drizzle Team",
 	"license": "Apache-2.0",
 	"peerDependencies": {
 		"drizzle-orm": ">=0.36.0",
