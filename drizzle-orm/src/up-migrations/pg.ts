@@ -52,11 +52,12 @@ const upgradeFunctions: Record<
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
-	 * 1. Add `name` column (text)
-	 * 2. Add `applied_at` column (timestamp with time zone, defaults to now())
-	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
+	 * 1. Read all existing DB migrations
+	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
+	 * 3. Match each DB row to a local migration and backfill name
+	 * If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
+	 * 5. Create extra column and backfill names for matched migrations
 	 */
 	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
@@ -89,10 +90,9 @@ const upgradeFunctions: Record<
 
 		// 	3. Match each DB row to a local migration and backfill name
 		// 	Priority: millis -> hash
+		const toApply: { id: number; name: string }[] = [];
+		let unmatchedIds: number[] = [];
 
-		const map: { id: number; created_at: string; name: string | null }[] = [];
-
-		// fill map with entries
 		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
@@ -108,18 +108,25 @@ const upgradeFunctions: Record<
 				matched = byHash.get(dbRow.hash);
 			}
 
-			map.push({ id: dbRow.id, created_at: dbRow.created_at, name: matched?.name ?? null });
+			if (matched) toApply.push({ id: dbRow.id, name: matched.name });
+			else unmatchedIds.push(dbRow.id);
 		}
 
-		// if any entry was not found - warn the user and exit
-		const unmatchedMigrations = map.filter((it) => !localMigrations.some((lm) => lm.name === it.name));
-		for (const uMigration of unmatchedMigrations) {
+		// 4. Check for unmatched
+		// Out assumption on this migration flow is that all DB entries should be matched to a local migration
+		// (if same seconds - fallback to hash, if hash fails - corner case)
+		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
+		// which can lead to inconsistencies and potential issues when running future migrations
+		if (unmatchedIds.length > 0) {
 			console.log(
-				`Warning: could not find a match for local migration "${uMigration.name}" in the database. This migration will be ignored in the backfilling process, and its name will not be backfilled to the DB. Local migrations that do not have a match in the DB will still be applied to the DB in the future, but that could cause issues.`,
+				`Error: Found ${unmatchedIds.length} migrations (ids: ${
+					unmatchedIds.join(', ')
+				}) in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
 			);
+			process.exit(1);
 		}
 
-		// Backfill names for matched migrations
+		// 5. Create extra column and backfill names for matched migrations
 		try {
 			await execute(session, sql`BEGIN`);
 			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
@@ -128,7 +135,7 @@ const upgradeFunctions: Record<
 				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
 			);
 
-			for (const backfillEntry of map) {
+			for (const backfillEntry of toApply) {
 				await execute(
 					session,
 					sql`UPDATE ${table} SET name = ${backfillEntry.name}, applied_at = NULL WHERE id = ${backfillEntry.id}`,
@@ -194,19 +201,6 @@ export async function upgradeIfNeeded(
 	let version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
-		const [dbMigrations] = await session.all<{ count: number }>(
-			sql`select COUNT(*) as count from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-		);
-
-		if (dbMigrations!.count > localMigrations.length) {
-			console.log(
-				`Error: The database has more migrations (${
-					dbMigrations!.count
-				}) than the local migrations (${localMigrations.length}). This could indicate a mismatch between the local and database migration states. Make sure you have the latest local migrations that correspond to the database state`,
-			);
-			process.exit(1);
-		}
-
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
