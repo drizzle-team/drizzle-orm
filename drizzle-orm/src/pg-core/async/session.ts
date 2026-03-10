@@ -67,21 +67,26 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extend
 			: { type: 'skip' as const };
 
 		if (cacheStrat.type === 'skip') {
-			return query().catch((e) => {
+			try {
+				return await query();
+			} catch (e) {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
+			}
 		}
 
 		const cache = this.cache!;
 
 		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
+			try {
+				const [result] = await Promise.all([
+					query(),
+					cache.onMutate({ tables: cacheStrat.tables }),
+				]);
+				return result;
+			} catch (e) {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			});
+			}
 		}
 
 		if (cacheStrat.type === 'try') {
