@@ -3,7 +3,7 @@ import { SQLiteCloudDatabase } from 'drizzle-orm/sqlite-cloud';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { migrate } from 'drizzle-orm/sqlite-proxy/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
 import { proxyTest as test } from './instrumentation';
@@ -17,6 +17,9 @@ const skip = [
 	'insert via db.run + select via db.get',
 	'insert via db.get',
 	'insert via db.run + select via db.all',
+	// Uses async versions
+	'sync transaction rollback',
+	'sync nested transaction rollback',
 ];
 cacheTests(test, skip);
 tests(test, skip);
@@ -239,7 +242,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/sqlite-proxy';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -288,7 +291,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 test('insert via db.get w/ query builder', async ({ db }) => {

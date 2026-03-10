@@ -227,7 +227,7 @@
 		"@tursodatabase/database-common": "^0.2.1",
 		"@tursodatabase/database-wasm": "^0.2.1",
 		"@types/better-sqlite3": "^7.6.12",
-		"@types/node": "^20.2.5",
+		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",

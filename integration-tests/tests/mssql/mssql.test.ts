@@ -44,7 +44,7 @@ import {
 } from 'drizzle-orm/mssql-core';
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import { test } from './instrumentation';
@@ -1007,7 +1007,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/mssql';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -1044,7 +1044,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 test('insert via db.execute + select via db.execute', async ({ db }) => {

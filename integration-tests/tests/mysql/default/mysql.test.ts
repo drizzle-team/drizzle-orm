@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
@@ -148,7 +148,7 @@ describe('migrator', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/mysql';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -185,6 +185,6 @@ describe('migrator', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 });
