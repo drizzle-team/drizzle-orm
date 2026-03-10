@@ -119,7 +119,7 @@ const upgradeFunctions: Record<
 		// which can lead to inconsistencies and potential issues when running future migrations
 		if (unmatchedIds.length > 0) {
 			console.log(
-				`Error: Found ${unmatchedIds.length} migrations (ids: ${
+				`Error: While upgrading your database migrations table we found ${unmatchedIds.length} migrations (ids: ${
 					unmatchedIds.join(', ')
 				}) in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
 			);
