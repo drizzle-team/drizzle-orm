@@ -1,5 +1,5 @@
 import type { Column, Columns, GetColumnData } from './column.ts';
-import { entityKind } from './entity.ts';
+import { ChunkKind, chunkKind, entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
@@ -51,6 +51,9 @@ export class Table<out T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
 
 	declare readonly _: TableTypeConfig<T>;
+
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Table;
 
 	/** @internal */
 	static readonly Symbol = {

@@ -1,5 +1,25 @@
 export const entityKind = Symbol.for('drizzle:entityKind');
 export const hasOwnEntityKind = Symbol.for('drizzle:hasOwnEntityKind');
+export const chunkKind = Symbol.for('drizzle:chunkKind');
+
+/**
+ * Numeric discriminant constants for fast type dispatch in hot paths.
+ * Used as instance `[chunkKind]` (Symbol-keyed) property on SQL chunk types to replace
+ * sequential is() cascades with a single switch statement.
+ * @internal
+ */
+export const ChunkKind = {
+	StringChunk: 1,
+	Name: 2,
+	SQL: 3,
+	Table: 4,
+	Column: 5,
+	View: 6,
+	Param: 7,
+	Placeholder: 8,
+	SQLAliased: 9,
+	Subquery: 10,
+} as const;
 
 export interface DrizzleEntity {
 	[entityKind]: string;

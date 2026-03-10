@@ -1,5 +1,5 @@
 import type { CasingCache } from '~/casing.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { TableName } from '~/table.utils.ts';
@@ -89,6 +89,8 @@ function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
 export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
 
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.StringChunk;
 	readonly value: string[];
 
 	constructor(value: string | string[]) {
@@ -109,6 +111,9 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	};
 
 	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.SQL;
+
+	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
 	/** @internal */
 	public shouldInlineParams = false;
@@ -118,13 +123,14 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 	constructor(readonly queryChunks: SQLChunk[]) {
 		for (const chunk of queryChunks) {
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
+			if ((chunk as any)?.[chunkKind] === ChunkKind.Table) {
+				const tableChunk = chunk as Table;
+				const schemaName = tableChunk[Table.Symbol.Schema];
 
 				this.usedTables.push(
 					schemaName === undefined
-						? chunk[Table.Symbol.Name]
-						: schemaName + '.' + chunk[Table.Symbol.Name],
+						? tableChunk[Table.Symbol.Name]
+						: schemaName + '.' + tableChunk[Table.Symbol.Name],
 				);
 			}
 		}
@@ -163,14 +169,136 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		} = config;
 
 		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
-			if (is(chunk, StringChunk)) {
-				return { sql: chunk.value.join(''), params: [] };
+			// Fast-path: use numeric [chunkKind] discriminant to avoid sequential is() prototype-chain walks.
+			// Chunks that have [chunkKind] (all Drizzle entity classes) are dispatched via switch.
+			// Chunks without [chunkKind] (arrays, undefined, functions, raw primitives) fall to the default case.
+			switch ((chunk as any)?.[chunkKind]) {
+				case ChunkKind.StringChunk:
+					return { sql: (chunk as StringChunk).value.join(''), params: [] };
+
+				case ChunkKind.Name:
+					return { sql: escapeName((chunk as Name).value), params: [] };
+
+				case ChunkKind.SQL: {
+					const sqlChunk = chunk as SQL;
+					return this.buildQueryFromSourceParams(sqlChunk.queryChunks, {
+						...config,
+						inlineParams: inlineParams || sqlChunk.shouldInlineParams,
+					});
+				}
+
+				case ChunkKind.Table: {
+					const tableChunk = chunk as Table;
+					const schemaName = tableChunk[Table.Symbol.Schema];
+					const tableName = tableChunk[Table.Symbol.Name];
+
+					if (invokeSource === 'mssql-view-with-schemabinding') {
+						return {
+							sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+								+ escapeName(tableName),
+							params: [],
+						};
+					}
+
+					return {
+						sql: schemaName === undefined || tableChunk[IsAlias]
+							? escapeName(tableName)
+							: escapeName(schemaName) + '.' + escapeName(tableName),
+						params: [],
+					};
+				}
+
+				case ChunkKind.Column: {
+					const colChunk = chunk as Column;
+					const columnName = casing.getColumnCasing(colChunk);
+					if (_config.invokeSource === 'indexes') {
+						return { sql: escapeName(columnName), params: [] };
+					}
+
+					const schemaName = invokeSource === 'mssql-check' ? undefined : colChunk.table[Table.Symbol.Schema];
+					return {
+						sql: colChunk.isAlias ? escapeName(colChunk.name) : colChunk.table[IsAlias] || schemaName === undefined
+							? escapeName(colChunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
+							: escapeName(schemaName) + '.' + escapeName(colChunk.table[Table.Symbol.Name]) + '.'
+								+ escapeName(columnName),
+						params: [],
+					};
+				}
+
+				case ChunkKind.View: {
+					const viewChunk = chunk as View;
+					const schemaName = viewChunk[ViewBaseConfig].schema;
+					const viewName = viewChunk[ViewBaseConfig].name;
+					return {
+						sql: schemaName === undefined || viewChunk[ViewBaseConfig].isAlias
+							? escapeName(viewName)
+							: escapeName(schemaName) + '.' + escapeName(viewName),
+						params: [],
+					};
+				}
+
+				case ChunkKind.Param: {
+					const paramChunk = chunk as Param;
+					if ((paramChunk.value as any)?.[chunkKind] === ChunkKind.Placeholder) {
+						return { sql: escapeParam(paramStartIndex.value++, paramChunk), params: [paramChunk], typings: ['none'] };
+					}
+
+					const mappedValue = paramChunk.value === null ? null : paramChunk.encoder.mapToDriverValue(paramChunk.value);
+
+					if ((mappedValue as any)?.[chunkKind] === ChunkKind.SQL) {
+						return this.buildQueryFromSourceParams([mappedValue as SQL], config);
+					}
+
+					if (inlineParams) {
+						return { sql: this.mapInlineParam(mappedValue, config), params: [] };
+					}
+
+					let typings: QueryTypingsValue[] = ['none'];
+					if (prepareTyping) {
+						typings = [prepareTyping(paramChunk.encoder)];
+					}
+
+					return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				}
+
+				case ChunkKind.Placeholder:
+					return {
+						sql: escapeParam(paramStartIndex.value++, chunk as Placeholder),
+						params: [chunk as Placeholder],
+						typings: ['none'],
+					};
+
+				case ChunkKind.SQLAliased: {
+					const aliasedChunk = chunk as SQL.Aliased;
+					if (aliasedChunk.fieldAlias !== undefined) {
+						return {
+							sql: (aliasedChunk.origin !== undefined ? escapeName(aliasedChunk.origin) + '.' : '')
+								+ escapeName(aliasedChunk.fieldAlias),
+							params: [],
+						};
+					}
+					// fieldAlias is undefined - fall through to SQLWrapper handling below
+					break;
+				}
+
+				case ChunkKind.Subquery: {
+					const subqueryChunk = chunk as Subquery;
+					if (subqueryChunk._.isWith) {
+						return { sql: escapeName(subqueryChunk._.alias), params: [] };
+					}
+					return this.buildQueryFromSourceParams([
+						new StringChunk('('),
+						subqueryChunk._.sql,
+						new StringChunk(') '),
+						new Name(subqueryChunk._.alias),
+					], config);
+				}
+
+				default:
+					break;
 			}
 
-			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
-			}
-
+			// Fallback for chunks without [chunkKind]: undefined, arrays, functions (PgEnum), raw primitives, generic SQLWrapper
 			if (chunk === undefined) {
 				return { sql: '', params: [] };
 			}
@@ -185,106 +313,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				}
 				result.push(new StringChunk(')'));
 				return this.buildQueryFromSourceParams(result, config);
-			}
-
-			if (is(chunk, SQL)) {
-				return this.buildQueryFromSourceParams(chunk.queryChunks, {
-					...config,
-					inlineParams: inlineParams || chunk.shouldInlineParams,
-				});
-			}
-
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
-				const tableName = chunk[Table.Symbol.Name];
-
-				if (invokeSource === 'mssql-view-with-schemabinding') {
-					return {
-						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
-							+ escapeName(tableName),
-						params: [],
-					};
-				}
-
-				return {
-					sql: schemaName === undefined || chunk[IsAlias]
-						? escapeName(tableName)
-						: escapeName(schemaName) + '.' + escapeName(tableName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, Column)) {
-				const columnName = casing.getColumnCasing(chunk);
-				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(columnName), params: [] };
-				}
-
-				const schemaName = invokeSource === 'mssql-check' ? undefined : chunk.table[Table.Symbol.Schema];
-				return {
-					sql: chunk.isAlias ? escapeName(chunk.name) : chunk.table[IsAlias] || schemaName === undefined
-						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
-						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
-							+ escapeName(columnName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, View)) {
-				const schemaName = chunk[ViewBaseConfig].schema;
-				const viewName = chunk[ViewBaseConfig].name;
-				return {
-					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
-						? escapeName(viewName)
-						: escapeName(schemaName) + '.' + escapeName(viewName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, Param)) {
-				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-				}
-
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
-
-				if (is(mappedValue, SQL)) {
-					return this.buildQueryFromSourceParams([mappedValue], config);
-				}
-
-				if (inlineParams) {
-					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
-				}
-
-				let typings: QueryTypingsValue[] = ['none'];
-				if (prepareTyping) {
-					typings = [prepareTyping(chunk.encoder)];
-				}
-
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
-			}
-
-			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-			}
-
-			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
-				return {
-					sql: (chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.fieldAlias),
-					params: [],
-				};
-			}
-
-			if (is(chunk, Subquery)) {
-				if (chunk._.isWith) {
-					return { sql: escapeName(chunk._.alias), params: [] };
-				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk._.sql,
-					new StringChunk(') '),
-					new Name(chunk._.alias),
-				], config);
 			}
 
 			if (typeof chunk === 'function' && 'enumName' in chunk) {
@@ -396,6 +424,8 @@ export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
 export class Name implements SQLWrapper {
 	static readonly [entityKind]: string = 'Name';
 
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Name;
 	protected brand!: 'Name';
 
 	constructor(readonly value: string) {}
@@ -447,6 +477,8 @@ export const noopMapper: DriverValueMapper<any, any> = {
 export class Param<TDataType = unknown, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Param;
 	protected brand!: 'BoundParamValue';
 
 	/**
@@ -590,6 +622,9 @@ export namespace SQL {
 		};
 
 		/** @internal */
+		readonly [chunkKind]: number = ChunkKind.SQLAliased;
+
+		/** @internal */
 		isSelectionField = false;
 		/** @internal */
 		origin?: string;
@@ -613,6 +648,8 @@ export namespace SQL {
 export class Placeholder<TName extends string = string, TValue = any> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Placeholder';
 
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Placeholder;
 	declare protected: TValue;
 
 	constructor(readonly name: TName) {}
@@ -667,6 +704,9 @@ export abstract class View<
 		existing: TExisting;
 		selectedFields: TSelection;
 	};
+
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.View;
 
 	/** @internal */
 	[ViewBaseConfig]: {

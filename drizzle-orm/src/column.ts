@@ -5,7 +5,7 @@ import type {
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
 import { OriginalColumn } from './column-common.ts';
-import { entityKind } from './entity.ts';
+import { ChunkKind, chunkKind, entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
@@ -50,6 +50,9 @@ export abstract class Column<
 	static readonly [entityKind]: string = 'Column';
 
 	declare readonly _: T;
+
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Column;
 
 	readonly name: string;
 	readonly keyAsName: boolean;

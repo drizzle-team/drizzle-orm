@@ -1,4 +1,4 @@
-import { entityKind } from './entity.ts';
+import { ChunkKind, chunkKind, entityKind } from './entity.ts';
 import type { SQL, SQLWrapper } from './sql/sql.ts';
 
 export interface Subquery<
@@ -14,6 +14,9 @@ export class Subquery<
 	TSelectedFields extends Record<string, unknown> = Record<string, unknown>,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'Subquery';
+
+	/** @internal */
+	readonly [chunkKind]: number = ChunkKind.Subquery;
 
 	declare _: {
 		brand: 'Subquery';
