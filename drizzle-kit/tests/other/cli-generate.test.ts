@@ -222,6 +222,7 @@ test('generate #10 tsconfig paths', async () => {
 		if (res.type !== 'handler') assert.fail(res.type, 'handler');
 		expect(res.options).toStrictEqual({
 			dialect: 'postgresql',
+			ignoreConflicts: false,
 			name: undefined,
 			custom: false,
 			breakpoints: true,
