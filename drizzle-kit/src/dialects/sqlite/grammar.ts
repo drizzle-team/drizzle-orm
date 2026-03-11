@@ -610,6 +610,86 @@ export function parseSqliteFks(ddl: string): IFkConstraint[] {
 	return results;
 }
 
+function unwrapParentheses(expr: string): string {
+	expr = expr.trim();
+
+	// Remove outer parentheses if they wrap the whole string
+	while (expr.startsWith('(') && expr.endsWith(')')) {
+		// Check for balanced parentheses inside
+		let balance = 0;
+		let isBalanced = true;
+		for (let i = 0; i < expr.length; i++) {
+			if (expr[i] === '(') balance++;
+			if (expr[i] === ')') balance--;
+			if (balance === 0 && i < expr.length - 1) {
+				isBalanced = false;
+				break;
+			}
+		}
+		if (!isBalanced) break;
+		expr = expr.slice(1, -1).trim();
+	}
+
+	return expr;
+}
+
+interface IIndexConstraint {
+	name: string;
+	table: string;
+	unique: boolean;
+	columns: string[];
+	where: string | null;
+}
+
+export function parseSqliteIndex(ddl: string): IIndexConstraint | null {
+	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+
+	const cleanIdentifier = (identifier: string): string => {
+		return identifier.trim().replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	};
+
+	const splitColumns = (columnStr: string): string[] => {
+		const cols: string[] = [];
+		let parens = 0;
+		let buf = '';
+
+		for (const char of columnStr) {
+			if (char === '(') parens++;
+			if (char === ')') parens--;
+			if (char === ',' && parens === 0) {
+				cols.push(buf.trim());
+				buf = '';
+			} else {
+				buf += char;
+			}
+		}
+
+		if (buf.trim()) cols.push(buf.trim());
+		return cols.map(unwrapParentheses);
+	};
+
+	const normalizedDdl = ddl.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ');
+
+	const indexRegex = new RegExp(
+		`CREATE\\s+(UNIQUE\\s+)?INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${ident})\\s+ON\\s+(${ident})\\s*\\((.+)\\)(?:\\s+WHERE\\s+(.+))?`,
+		'gi',
+	);
+
+	const match = indexRegex.exec(normalizedDdl);
+	if (!match) {
+		return null;
+	}
+
+	const [, uniqueFlag, indexName, tableName, columnsStr, whereClause] = match;
+	return {
+		name: cleanIdentifier(indexName),
+		table: cleanIdentifier(tableName),
+		unique: !!uniqueFlag,
+		columns: splitColumns(columnsStr).map(cleanIdentifier),
+		where: whereClause ? whereClause.trim() : null,
+	};
+}
+
 // for integer mode timestamp | timestamp_ms
 function compareIntegerTimestamps(from: string, to: string): boolean {
 	from = trimChar(trimChar(from, "'"), '"');

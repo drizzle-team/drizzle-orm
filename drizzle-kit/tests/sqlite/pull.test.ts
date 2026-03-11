@@ -470,6 +470,23 @@ test('introspect unique constraint', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+test('introspect index', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table: sqliteTable('table', {
+			id: int().primaryKey(),
+			firstName: text('first_name').notNull(),
+			lastName: text('last_name').notNull(),
+		}, (t) => [
+			uniqueIndex('idx_users_name_lower').on(sql`lower(${t.firstName})`, sql`lower(${t.lastName})`),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_index');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3047
 test('create table with custom type column', async (t) => {
 	const sqlite = new Database(':memory:');

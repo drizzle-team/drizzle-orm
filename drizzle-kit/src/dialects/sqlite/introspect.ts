@@ -23,6 +23,7 @@ import {
 	parseDefault,
 	parseSqliteDdl,
 	parseSqliteFks,
+	parseSqliteIndex,
 	parseTableSQL,
 	parseViewSQL,
 	sqlTypeFrom,
@@ -254,26 +255,32 @@ export const fromDatabase = async (
 
 	const dbIndexes = await db.query<{
 		table: string;
-		sql: string;
+		tableSql: string;
+		indexSql: string | null; // can be null for auto indexes created for UNIQUE and PK constraints
 		name: string;
 		column: string;
 		isUnique: number;
 		origin: string; // u=auto c=manual pk
 		seq: string;
 		cid: number;
+		seqno: number; // column sequence in the index, starting from 0.
 	}>(`
 		SELECT 
 			m.tbl_name as "table",
-			m.sql,
+			m.sql as "tableSql",
+			im.sql as "indexSql",
 			il.name as "name",
 			ii.name as "column",
 			il.[unique] as "isUnique",
 			il.origin,
 			il.seq,
-			ii.cid
+			ii.cid,
+			ii.seqno
 		FROM sqlite_master AS m,
 			pragma_index_list(m.name) AS il,
 			pragma_index_info(il.name) AS ii
+		LEFT JOIN sqlite_master AS im 
+    		ON im.type = 'index' AND im.name = il.name
 		WHERE 
 			m.type = 'table' 
 			and m.tbl_name != '_cf_KV'
@@ -331,9 +338,17 @@ export const fromDatabase = async (
 
 	const tableToIndexColumns = dbIndexes.reduce(
 		(acc, it) => {
-			const whereIdx = it.sql.toLowerCase().indexOf(' where ');
-			const where = whereIdx < 0 ? null : it.sql.slice(whereIdx + 7);
-			const column = { value: it.column, isExpression: it.cid === -2 };
+			const parsedIndex = it.indexSql ? parseSqliteIndex(it.indexSql) : null;
+			const where = parsedIndex ? parsedIndex.where : null;
+			const isExpression = it.cid === -2;
+			let columnValue = it.column;
+			if (!columnValue && isExpression && parsedIndex) {
+				const expression = parsedIndex.columns[it.seqno];
+				if (expression) {
+					columnValue = expression;
+				}
+			}
+			const column = { value: columnValue, isExpression };
 			if (it.table in acc) {
 				if (it.name in acc[it.table]) {
 					const idx = acc[it.table][it.name];
@@ -416,7 +431,7 @@ export const fromDatabase = async (
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
+				const parsed = parseSqliteDdl(it.index.tableSql);
 
 				const constraint = parsed.uniques.find((parsedUnique) =>
 					areStringArraysEqual(it.columns.map((indexCol) => indexCol.value), parsedUnique.columns)
@@ -435,7 +450,7 @@ export const fromDatabase = async (
 				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
+				const parsed = parseSqliteDdl(it.index.tableSql);
 				if (parsed.pk.columns.length > 1) return;
 
 				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
@@ -613,16 +628,14 @@ export const fromDatabase = async (
 
 	const uniques: UniqueConstraint[] = [];
 	for (const [table, item] of Object.entries(tableToIndexColumns)) {
-		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
+		for (const { columns: baseColumns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
+			const columns = baseColumns.filter((col) => !col.isExpression);
 			if (columns.length === 1) continue;
-			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
-			}
 
 			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
 			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
 
-			const parsed = parseSqliteDdl(index.sql);
+			const parsed = parseSqliteDdl(index.tableSql);
 
 			const constraint = parsed.uniques.find((parsedUnique) =>
 				areStringArraysEqual(columns.map((it) => it.value), parsedUnique.columns)

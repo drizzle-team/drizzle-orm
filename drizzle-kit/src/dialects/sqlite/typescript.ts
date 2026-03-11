@@ -342,7 +342,12 @@ const createTableIndexes = (
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${withCasing(it.value, casing)}`)
+				.map((it) => {
+					if (it.isExpression) {
+						return `sql\`${it.value}\``;
+					}
+					return `table.${withCasing(it.value, casing)}`;
+				})
 				.join(', ')
 		}),`;
 		statement += `\n`;
