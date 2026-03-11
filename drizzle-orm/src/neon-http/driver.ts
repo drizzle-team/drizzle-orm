@@ -39,17 +39,10 @@ export class NeonHttpDatabase<
 		return new NeonHttpDatabase(this.dialect, session, this._.relations, this.schema) as any;
 	}
 
-	/** @internal */
-	declare readonly executor: NeonHttpSession<
-		TSchema,
-		TRelations,
-		V1.ExtractTablesWithRelations<TSchema>
-	>;
-
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
-		return this.executor.batch(batch) as Promise<BatchResponse<T>>;
+		return this.session.batch(batch) as Promise<BatchResponse<T>>;
 	}
 }
 
