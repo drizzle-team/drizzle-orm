@@ -6,9 +6,6 @@ import type { PgDialect } from './dialect.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
-	objects: unknown;
-	arrays: unknown;
-	raw: unknown;
 }
 
 export abstract class PgBasePreparedQuery implements PreparedQuery {
