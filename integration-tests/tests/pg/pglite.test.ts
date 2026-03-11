@@ -1,7 +1,7 @@
 import { Name, sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { tests } from './common';
 import { pgliteTest as test } from './instrumentation';
@@ -182,7 +182,7 @@ describe('pglite', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/pglite';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -217,6 +217,6 @@ describe('pglite', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 });

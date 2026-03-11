@@ -1,6 +1,6 @@
+import type { CockroachSession } from '~/cockroach-core/session.ts';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { SingleStoreSession } from '~/singlestore-core/session.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -15,23 +15,6 @@ function getVersion(columns: string[]) {
 	return 0;
 }
 
-// singlestore returns array of objects for .all, but singlestore-proxy -> array of arrays
-async function all<T>(
-	session: SingleStoreSession,
-	sqlQuery: SQL,
-	resultMapper: (row: any[]) => T = () => [] as T,
-): Promise<T[]> {
-	const result = await session.all(sqlQuery) as any[] | any[][];
-
-	if (result.length === 0) return [];
-
-	if (Array.isArray(result[0])) {
-		return (result as any[][]).map((row) => resultMapper(row));
-	}
-
-	return result as T[];
-}
-
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
  * and the function upgrades the table to the next version.
@@ -39,8 +22,9 @@ async function all<T>(
 const upgradeFunctions: Record<
 	number,
 	(
+		migrationsSchema: string,
 		migrationsTable: string,
-		session: SingleStoreSession,
+		session: CockroachSession,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
 > = {
@@ -53,19 +37,13 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, session, localMigrations) => {
-		const table = sql`${sql.identifier(migrationsTable)}`;
+	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
+		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await all<{ id: number; hash: string; created_at: string }>(
-			session,
+		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-			(row) => ({
-				id: row[0],
-				hash: row[1],
-				created_at: row[2],
-			}),
 		);
 
 		// 2. Sort ASC by millis and if the same - sort by name
@@ -121,18 +99,23 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.execute(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
-		await session.execute(
-			sql`ALTER TABLE ${table} ADD ${sql.identifier('applied_at')} TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
-		);
-
-		for (const backfillEntry of toApply) {
-			await session.execute(
-				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+		await session.transaction(async (tx) => {
+			// 1. Add new columns
+			await tx.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`);
+			await tx.execute(
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
 					sql.identifier('applied_at')
-				} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
+				} timestamp with time zone DEFAULT now()`,
 			);
-		}
+
+			for (const backfillEntry of toApply) {
+				await tx.execute(
+					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+						sql.identifier('applied_at')
+					} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
+				);
+			}
+		});
 	},
 };
 
@@ -143,40 +126,49 @@ const upgradeFunctions: Record<
  * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
 export async function upgradeIfNeeded(
+	migrationsSchema: string,
 	migrationsTable: string,
-	session: SingleStoreSession,
+	session: CockroachSession,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await all<{ '1': 1 }>(
-		session,
-		sql`SELECT 1 FROM information_schema.tables 
-			WHERE table_name = ${migrationsTable}`,
-		(row) => ({ '1': row[0] }),
+	const tableExists = await session.all<{ 1: '1' }>(
+		sql`SELECT 1 FROM information_schema.tables
+			WHERE table_schema = ${migrationsSchema}
+			AND table_name = ${migrationsTable}`,
 	);
 
-	if (result.length === 0) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	const rows = await all<{ column_name: string }>(
-		session,
-		sql`SELECT column_name as \`column_name\`
-		FROM information_schema.columns
-		WHERE table_name = ${migrationsTable}
-		ORDER BY ordinal_position`,
-		(row) => ({ column_name: row[0] }),
+	const rows = await session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
+		sql`SELECT
+            n.nspname AS "schema",
+            c.relname AS "table_name",
+            a.attname AS "column_name",
+            pg_catalog.format_type(a.atttypid, a.atttypmod) AS "type"
+        FROM
+            pg_catalog.pg_attribute a
+            JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE
+            a.attnum > 0
+            AND NOT a.attisdropped
+            AND n.nspname = ${migrationsSchema}
+            AND c.relname = ${migrationsTable}
+        ORDER BY a.attnum;`,
 	);
 
-	const version = getVersion(rows.map((r) => r.column_name));
+	let version = getVersion(rows.map((r) => r.column_name));
 
 	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };

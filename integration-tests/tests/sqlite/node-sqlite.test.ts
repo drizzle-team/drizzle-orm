@@ -1,58 +1,32 @@
 import { sql } from 'drizzle-orm';
-import type { LibSQLDatabase } from 'drizzle-orm/libsql';
-import { migrate } from 'drizzle-orm/libsql/migrator';
+import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
+import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
-import { randomString } from '~/utils';
-import { libSQLNodeTest as test } from './instrumentation';
+import { nodeSQLiteTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 
 test('migrator', async ({ db }) => {
-	await db.run(sql`drop table if exists another_users`);
-	await db.run(sql`drop table if exists users12`);
-	await db.run(sql`drop table if exists __drizzle_migrations`);
+	db.run(sql`drop table if exists another_users`);
+	db.run(sql`drop table if exists users12`);
+	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db as LibSQLDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
+	migrate(db as NodeSQLiteDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
-	const result = await db.select().from(usersMigratorTable).all();
+	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result = db.select().from(usersMigratorTable).all();
 
-	await db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
-	const result2 = await db.select().from(anotherUsersMigratorTable).all();
+	db.insert(anotherUsersMigratorTable).values({ name: 'John', email: 'email' }).run();
+	const result2 = db.select().from(anotherUsersMigratorTable).all();
 
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.run(sql`drop table another_users`);
-	await db.run(sql`drop table users12`);
-	await db.run(sql`drop table __drizzle_migrations`);
-});
-
-test('migrator : migrate with custom table', async ({ db }) => {
-	const customTable = randomString();
-	await db.run(sql`drop table if exists another_users`);
-	await db.run(sql`drop table if exists users12`);
-	await db.run(sql`drop table if exists ${sql.identifier(customTable)}`);
-
-	await migrate(db as LibSQLDatabase<never, typeof relations>, {
-		migrationsFolder: './drizzle2/sqlite',
-		migrationsTable: customTable,
-	});
-
-	// test if the custom migrations table was created
-	const res = await db.all(sql`select * from ${sql.identifier(customTable)};`);
-	expect(res.length > 0).toBeTruthy();
-
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.run(sql`drop table another_users`);
-	await db.run(sql`drop table users12`);
-	await db.run(sql`drop table ${sql.identifier(customTable)}`);
+	db.run(sql`drop table another_users`);
+	db.run(sql`drop table users12`);
+	db.run(sql`drop table __drizzle_migrations`);
 });
 
 test('migrator : --init', async ({ db }) => {
@@ -62,7 +36,7 @@ test('migrator : --init', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as LibSQLDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as NodeSQLiteDatabase<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
@@ -93,7 +67,7 @@ test('migrator : --init - local migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as LibSQLDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as NodeSQLiteDatabase<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -124,12 +98,12 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	await migrate(db as LibSQLDatabase<never, typeof relations>, {
+	migrate(db as NodeSQLiteDatabase<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 		migrationsTable,
 	});
 
-	const migratorRes = await migrate(db as LibSQLDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as NodeSQLiteDatabase<never, typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -173,7 +147,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	await db.run(sql`drop table if exists ${users2}`);
 
 	// create migration directory
-	const migrationDir = './migrations/libsql-node';
+	const migrationDir = './migrations/sql-js';
 	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
@@ -189,7 +163,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 	);
 
-	await migrate(db as LibSQLDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as NodeSQLiteDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
 	const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 	// second migration was not applied yet
@@ -201,7 +175,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`${migrationDir}/20240202020202_second/migration.sql`,
 		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 	);
-	await migrate(db as LibSQLDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as NodeSQLiteDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
 
 	const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
 
@@ -213,11 +187,11 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 });
 
 const skip = [
+	// Uses sync versions
+	'transaction rollback',
+	'nested transaction rollback',
+	// DB needs to be built in special way to support this
 	'delete with limit and order by',
 	'update with limit and order by',
-	// Uses async versions
-	'sync transaction rollback',
-	'sync nested transaction rollback',
 ];
-
 tests(test, skip);

@@ -4,7 +4,7 @@ import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { cockroachTable, getTableConfig, int4, text, timestamp } from 'drizzle-orm/cockroach-core';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
@@ -260,7 +260,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/cockroach';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -297,7 +297,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`drop table if exists ${users2}`);

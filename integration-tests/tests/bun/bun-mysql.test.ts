@@ -83,7 +83,7 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
@@ -1384,7 +1384,7 @@ describe('common', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/bun-mysql';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -1421,7 +1421,7 @@ describe('common', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 
 	test('insert via db.execute + select via db.execute', async () => {
