@@ -30,7 +30,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 	await db.session.execute(migrationTableCreate);
 
-	const dbMigrations = await db.session.execute<{ id: number; hash: string; created_at: string }>(
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string }>(
 		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} `,
 	);
 

@@ -61,13 +61,21 @@ export class NeonHttpSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		const executor = async (params?: unknown[]) => {
-			const q = (this.client as any).query ?? this.client as any;
-			return q(query.sql, params ?? [], {
-				arrayMode: mode === 'arrays' ? true : false,
+		const executor = (params?: unknown[]) => {
+			const q = ((this.client as any).query ?? this.client as any) as NeonHttpClient;
+			if (mode === 'raw') {
+				return q(query.sql, params, {
+					arrayMode: false,
+					fullResults: true,
+					authToken: this.options.authToken,
+				});
+			}
+
+			return q(query.sql, params, {
+				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
-			}).then((it: any) => mode === 'raw' ? it : it.rows);
+			}).then((it: any) => it.rows);
 		};
 
 		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);

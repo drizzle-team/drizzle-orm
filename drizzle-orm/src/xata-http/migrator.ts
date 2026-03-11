@@ -34,9 +34,9 @@ export interface MigrationConfig {
 			created_at bigint
 		)
 	`;
-	await db.executor.execute(migrationTableCreate);
+	await db.session.execute(migrationTableCreate);
 
-	const dbMigrations = await db.executor.execute<{
+	const dbMigrations = await db.session.objects<{
 		id: number;
 		hash: string;
 		created_at: string;
@@ -57,7 +57,7 @@ export interface MigrationConfig {
 
 		if (!migration) return;
 
-		await db.executor.execute(
+		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
@@ -69,10 +69,10 @@ export interface MigrationConfig {
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	for await (const migration of migrationsToRun) {
 		for (const stmt of migration.sql) {
-			await db.executor.execute(sql.raw(stmt));
+			await db.session.execute(sql.raw(stmt));
 		}
 
-		await db.executor.execute(
+		await db.session.execute(
 			sql`insert into ${
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
