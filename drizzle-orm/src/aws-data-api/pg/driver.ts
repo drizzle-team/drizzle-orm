@@ -108,7 +108,11 @@ function construct<
 ): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect({ casing: config.casing, codecs: awsDataApiPgCodecs });
+	const dialect = new AwsPgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: awsDataApiPgCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -134,7 +138,7 @@ function construct<
 		...config,
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
 	(<any> db).$client = client;

@@ -76,7 +76,7 @@ const db = drizzle({ client });
 	const session = new PlanetscaleSession(client, dialect, undefined, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new PlanetScaleDatabase(
 		dialect,

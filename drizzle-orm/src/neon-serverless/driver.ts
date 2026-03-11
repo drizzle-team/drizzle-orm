@@ -37,7 +37,11 @@ function construct<
 ): NeonDatabase<TSchema, TRelations> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: neonServerlessCodecs });
+	const dialect = new PgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: neonServerlessCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -61,7 +65,7 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new NeonSession(client, dialect, relations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper ?? false,
+		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<

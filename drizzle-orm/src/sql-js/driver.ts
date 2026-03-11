@@ -41,7 +41,7 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLJsSession(client, dialect, relations, schema, { logger, useJitMapper: config.useJitMapper });
+	const session = new SQLJsSession(client, dialect, relations, schema, { logger, useJitMapper: config.useJitMappers });
 	return new BaseSQLiteDatabase('sync', dialect, session, relations, schema) as SQLJsDatabase<
 		TSchema,
 		TRelations

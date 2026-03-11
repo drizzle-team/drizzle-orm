@@ -83,7 +83,7 @@ function construct<
 ): PgliteDatabase<TSchema, TRelations> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: pgliteCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: pgliteCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -107,7 +107,7 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new PgliteSession(client, dialect, relations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper ?? false,
+		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new PgliteDatabase(

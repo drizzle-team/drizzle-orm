@@ -69,9 +69,9 @@ export class PgEffectPreparedQuery<
 
 			const query = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
 
-			if (!mapper) return query;
+			if (!mapper) return yield* query;
 
-			return query.pipe(Effect.andThen((rows) => mapper(rows as unknown[])));
+			return yield* query.pipe(Effect.andThen((rows) => mapper(rows as unknown[])));
 		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 

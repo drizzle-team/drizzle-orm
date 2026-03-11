@@ -75,7 +75,7 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new GelDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
+	const driver = new GelDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMappers });
 	const session = driver.createSession(relations, schema);
 	const db = new GelJsDatabase(dialect, session, relations, schema as any) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;

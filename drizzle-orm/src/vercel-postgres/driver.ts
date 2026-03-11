@@ -35,7 +35,7 @@ function construct<
 ): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: vercelPgCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: vercelPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -59,7 +59,7 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new VercelPgSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper ?? false,
+		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new VercelPgDatabase(

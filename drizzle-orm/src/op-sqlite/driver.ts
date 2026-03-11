@@ -49,7 +49,7 @@ export function drizzle<
 	const session = new OPSQLiteSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new OPSQLiteDatabase(
 		'async',

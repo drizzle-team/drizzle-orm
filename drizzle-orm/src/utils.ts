@@ -370,7 +370,7 @@ export interface DrizzleConfig<
 	casing?: Casing | undefined;
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
-	useJitMapper?: boolean | undefined;
+	useJitMappers?: boolean | undefined;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

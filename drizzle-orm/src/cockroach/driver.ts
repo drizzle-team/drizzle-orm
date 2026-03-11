@@ -70,7 +70,7 @@ function construct<
 		};
 	}
 
-	const driver = new NodeCockroachDriver(client, dialect, { logger, useJitMapper: config.useJitMapper });
+	const driver = new NodeCockroachDriver(client, dialect, { logger, useJitMapper: config.useJitMappers });
 	const session = driver.createSession(schema);
 	const db = new NodeCockroachDatabase(dialect, session, schema as any) as NodeCockroachDatabase<TSchema>;
 	(<any> db).$client = client;
