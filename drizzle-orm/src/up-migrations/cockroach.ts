@@ -1,5 +1,5 @@
-import type { CockroachSession } from '~/cockroach-core';
-import type { MigrationMeta } from '~/migrator';
+import type { CockroachSession } from '~/cockroach-core/session.ts';
+import type { MigrationMeta } from '~/migrator.ts';
 import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
