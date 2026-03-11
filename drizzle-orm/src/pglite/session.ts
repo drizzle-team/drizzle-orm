@@ -1,149 +1,36 @@
-import type { PGlite, QueryOptions, Results, Row, Transaction } from '@electric-sql/pglite';
+import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
+import { types } from '@electric-sql/pglite';
 import type * as V1 from '~/_relations.ts';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
 import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
-
-import { types } from '@electric-sql/pglite';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
-import {
-	type AnyRelations,
-	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
-	type RelationalQueryMapperConfig,
-} from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 
 export type PgliteClient = PGlite;
 
-export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgAsyncPreparedQuery<T>
-{
-	static override readonly [entityKind]: string = 'PglitePreparedQuery';
-
-	private rawQueryConfig: QueryOptions;
-	private queryConfig: QueryOptions;
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
-
-	constructor(
-		private client: PgliteClient | Transaction,
-		private queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		private useJitMapper: boolean | undefined,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		private isRqbV2Query?: TIsRqbV2,
-		private rqbConfig?: RelationalQueryMapperConfig,
-	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQueryConfig = {
-			rowMode: 'object',
-			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
-				// numeric[]
-				[1231]: (value) => value,
-				// timestamp[]
-				[1115]: (value) => value,
-				// timestamp with timezone[]
-				[1185]: (value) => value,
-				// interval[]
-				[1187]: (value) => value,
-				// date[]
-				[1182]: (value) => value,
-			},
-		};
-		this.queryConfig = {
-			rowMode: 'array',
-			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
-				// numeric[]
-				[1231]: (value) => value,
-				// timestamp[]
-				[1115]: (value) => value,
-				// timestamp with timezone[]
-				[1185]: (value) => value,
-				// interval[]
-				[1187]: (value) => value,
-				// date[]
-				[1182]: (value) => value,
-			},
-		};
-	}
-
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
-
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.queryString, params);
-
-		const { fields, client, queryConfig, joinsNotNullableMap, customResultMapper, queryString, rawQueryConfig } = this;
-
-		if (!fields && !customResultMapper) {
-			return this.queryWithCache(queryString, params, async () => {
-				return await client.query<any[]>(queryString, params, rawQueryConfig);
-			});
-		}
-
-		const result = await this.queryWithCache(queryString, params, async () => {
-			return await client.query<any[]>(queryString, params, queryConfig);
-		});
-
-		if (customResultMapper) {
-			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
-		}
-
-		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
-				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
-			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.queryString, params);
-
-		const { rawQueryConfig, client, customResultMapper, queryString } = this;
-
-		const result = await client.query<Record<string, unknown>>(queryString, params, rawQueryConfig);
-
-		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result.rows)
-			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
-	}
-
-	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.queryWithCache(this.queryString, params, async () => {
-			return await this.client.query<any[]>(this.queryString, params, this.rawQueryConfig);
-		}).then((result) => result.rows);
-	}
-}
+const parsers: ParserOptions = {
+	[types.TIMESTAMP]: (value) => value,
+	[types.TIMESTAMPTZ]: (value) => value,
+	[types.INTERVAL]: (value) => value,
+	[types.DATE]: (value) => value,
+	// numeric[]
+	[1231]: (value) => value,
+	// timestamp[]
+	[1115]: (value) => value,
+	// timestamp with timezone[]
+	[1185]: (value) => value,
+	// interval[]
+	[1187]: (value) => value,
+	// date[]
+	[1182]: (value) => value,
+};
 
 export interface PgliteSessionOptions {
 	logger?: Logger;
@@ -175,51 +62,31 @@ export class PgliteSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		_name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		return new PglitePreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
+		const executor = async (params?: unknown[]) => {
+			return this.client.query(query.sql, params, {
+				rowMode: mode === 'arrays' ? 'array' : 'object',
+				parsers,
+			}).then((r) => mode === 'raw' ? r : r.rows);
+		};
+
+		return new PgAsyncPreparedQuery<T>(
+			executor,
+			query,
+			mapper,
+			mode,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			name,
-			this.options.useJitMapper,
-			customResultMapper,
-		);
-	}
-
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		config: RelationalQueryMapperConfig,
-	): PgAsyncPreparedQuery<T> {
-		return new PglitePreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			name,
-			this.options.useJitMapper,
-			customResultMapper,
-			true,
-			config,
 		);
 	}
 
@@ -240,6 +107,8 @@ export class PgliteSession<
 				session,
 				this.relations,
 				this.schema,
+				undefined,
+				false,
 			);
 			if (config) {
 				await tx.setTransaction(config);
@@ -256,16 +125,17 @@ export class PgliteTransaction<
 > extends PgAsyncTransaction<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgliteTransaction';
 
-	override async transaction<T>(
+	override transaction = async <T>(
 		transaction: (tx: PgliteTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T> {
+	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new PgliteTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
-			this.relations,
+			this._.relations,
 			this.schema,
 			this.nestedIndex + 1,
+			false,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
@@ -276,7 +146,7 @@ export class PgliteTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	}
+	};
 }
 
 export interface PgliteQueryResultHKT extends PgQueryResultHKT {

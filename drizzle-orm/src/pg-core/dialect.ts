@@ -70,6 +70,7 @@ import type { PgMaterializedView, PgView } from './view.ts';
 export interface PgDialectConfig {
 	casing?: Casing;
 	codecs?: PgCodecs;
+	useJitMappers?: boolean;
 }
 
 export class PgDialect {
@@ -78,10 +79,13 @@ export class PgDialect {
 	/** @internal */
 	readonly casing: CasingCache;
 	readonly codecs: PgCodecsCollection;
+	/** @internal */
+	readonly useJitMappers: boolean;
 
 	constructor(config?: PgDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
 		this.codecs = new PgCodecsCollection(config?.codecs);
+		this.useJitMappers = config?.useJitMappers ?? false;
 	}
 
 	escapeName(name: string): string {

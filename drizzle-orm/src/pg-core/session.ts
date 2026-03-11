@@ -8,6 +8,7 @@ export interface PreparedQueryConfig {
 	execute: unknown;
 	objects: unknown;
 	arrays: unknown;
+	raw: unknown;
 }
 
 export abstract class PgBasePreparedQuery implements PreparedQuery {
@@ -17,7 +18,7 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		protected query: Query,
 	) {}
 
-	// TODO: ? why
+	// TODO: remove after rewriting all dialects - bound to core interface
 	mapResult(_: unknown, __?: boolean): unknown {
 		throw new Error('Method not implemented.');
 	}
@@ -49,7 +50,7 @@ export abstract class PgSession {
 
 	abstract prepareQuery(
 		query: Query,
-		mode: 'arrays' | 'objects',
+		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: unknown[]) => any) | undefined,
 		queryMetadata?: {
@@ -60,7 +61,8 @@ export abstract class PgSession {
 	): PgBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;
-	abstract values(query: SQL): unknown;
+	abstract arrays(query: SQL): unknown;
+	abstract objects(query: SQL): unknown;
 }
 
 export interface PgQueryResultHKT {

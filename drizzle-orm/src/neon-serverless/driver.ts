@@ -18,28 +18,6 @@ export interface NeonDriverOptions {
 	useJitMapper?: boolean;
 }
 
-export class NeonDriver {
-	static readonly [entityKind]: string = 'NeonDriver';
-
-	constructor(
-		private client: NeonClient,
-		private dialect: PgDialect,
-		private options: NeonDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NeonSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			useJitMapper: this.options.useJitMapper ?? false,
-			cache: this.options.cache,
-		});
-	}
-}
-
 export class NeonDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -81,8 +59,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
-	const session = driver.createSession(relations, schema);
+	const session = new NeonSession(client, dialect, relations, schema, {
+		logger,
+		useJitMapper: config.useJitMapper ?? false,
+		cache: config.cache,
+	});
 	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<
 		TSchema
 	>;

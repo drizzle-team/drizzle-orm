@@ -11,7 +11,6 @@ import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
@@ -21,10 +20,14 @@ import { PgAsyncDatabase } from './db.ts';
 export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
+	/** @internal */
+	readonly mapper: ((rows: any[]) => any) | undefined;
+
 	constructor(
-		protected executor: (sql: string, params?: unknown[]) => Promise<any[]>,
+		protected executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
-		protected mapper: ((rows: any[]) => any) | undefined,
+		mapper: ((rows: any[]) => any) | undefined,
+		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
 		// cache instance
 		protected cache: Cache | undefined,
@@ -37,20 +40,13 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		protected cacheConfig: WithCacheConfig | undefined,
 	) {
 		super(query);
+		this.mapper = mapper;
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
 		}
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
-	}
-
-	/** @internal */
-	protected authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -72,7 +68,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 				});
 
 				// return await so tracer captures time accurately
-				return await this.queryWithCache(sql, params, () => this.executor(sql, params));
+				return await this.queryWithCache(sql, params, () => this.executor(params));
 			});
 
 			if (!mapper) return query;
@@ -150,13 +146,9 @@ export abstract class PgAsyncSession<
 > extends PgSession {
 	static override readonly [entityKind]: string = 'PgAsyncSession';
 
-	constructor(dialect: PgDialect) {
-		super(dialect);
-	}
-
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects',
+		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
@@ -166,24 +158,42 @@ export abstract class PgAsyncSession<
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T>;
 
-	override execute<T>(query: SQL): Promise<T[]>;
-	/** @internal */
-	override execute<T>(query: SQL, token?: NeonAuthToken): Promise<T[]>;
-	/** @internal */
-	override execute<T>(query: SQL, token?: NeonAuthToken): Promise<T[]> {
+	override execute<T>(query: SQL): Promise<T[]> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), 'objects', false);
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'raw',
+					false,
+				);
 			});
 
-			return prepared.setToken(token).execute();
+			return prepared.execute();
 		});
 	}
 
-	override values<T>(query: SQL): Promise<T[]> {
+	override arrays<T>(query: SQL): Promise<T[]> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(this.dialect.sqlToQuery(query), 'arrays', false);
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'arrays',
+					false,
+				);
+			});
+
+			return prepared.execute();
+		});
+	}
+
+	override objects<T>(query: SQL): Promise<T[]> {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'objects',
+					false,
+				);
 			});
 
 			return prepared.execute();
@@ -207,14 +217,14 @@ export abstract class PgAsyncTransaction<
 	constructor(
 		dialect: PgDialect,
 		session: PgAsyncSession<any, any, any, any>,
-		protected relations: TRelations,
-		protected schema: {
+		relations: TRelations,
+		schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
-		parseRqbJson?: boolean,
+		parseRqbJson: boolean | undefined,
 	) {
 		super(dialect, session, relations, schema, parseRqbJson);
 	}
@@ -242,9 +252,9 @@ export abstract class PgAsyncTransaction<
 		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
 
-	abstract override transaction<T>(
+	abstract override transaction: <T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T>;
+	) => Promise<T>;
 }
 
 export async function migrate(
@@ -266,7 +276,7 @@ export async function migrate(
 	await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 	await session.execute(migrationTableCreate);
 
-	const dbMigrations = await session.execute<{ id: number; hash: string; created_at: string }>(
+	const dbMigrations = await session.objects<{ id: number; hash: string; created_at: string }>(
 		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 

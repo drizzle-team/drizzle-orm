@@ -2,7 +2,6 @@ import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -33,8 +32,8 @@ export class PgEffectRefreshMaterializedView<
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		return this.session.prepareQuery(
 			query,
-			undefined,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			'raw',
+			name ?? generateName,
 		);
 	}
 

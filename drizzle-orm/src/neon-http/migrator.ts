@@ -27,10 +27,10 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 			created_at bigint
 		)
 	`;
-	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-	await db.session.execute(migrationTableCreate);
+	await db.executor.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	await db.executor.execute(migrationTableCreate);
 
-	const dbMigrations = await db.session.execute<{ id: number; hash: string; created_at: string }>(
+	const dbMigrations = await db.executor.execute<{ id: number; hash: string; created_at: string }>(
 		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} `,
 	);
 
@@ -47,7 +47,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 
 		if (!migration) return;
 
-		await db.session.execute(
+		await db.executor.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
@@ -60,7 +60,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const rowsToInsert: SQL[] = [];
 	for await (const migration of migrationsToRun) {
 		for (const stmt of migration.sql) {
-			await db.session.execute(sql.raw(stmt));
+			await db.executor.execute(sql.raw(stmt));
 		}
 
 		rowsToInsert.push(
@@ -71,6 +71,6 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	}
 
 	for await (const rowToInsert of rowsToInsert) {
-		await db.session.execute(rowToInsert);
+		await db.executor.execute(rowToInsert);
 	}
 }

@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres';
+import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -11,20 +11,7 @@ import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-
-export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T, Sql> {
-	static override readonly [entityKind]: string = 'PostgresJsPreparedQuery';
-
-	/** @internal */
-	override objects(params?: any[]): Promise<T['objects']> {
-		return this.client.unsafe(this.query.sql, params).then((rows) => Object.values(rows));
-	}
-
-	/** @internal */
-	override arrays(params?: any[]): Promise<T['arrays']> {
-		return this.client.unsafe(this.query.sql, params).values();
-	}
-}
+import type { Assume } from '~/utils.ts';
 
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
@@ -58,28 +45,34 @@ export class PostgresJsSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		arrayMode: boolean,
-		name: string | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): PgAsyncPreparedQuery<T> {
-		return new PostgresJsPreparedQuery(
-			this.client,
+	) {
+		const executor = async (params?: unknown[]) => {
+			if (mode === 'objects') {
+				return this.client.unsafe(query.sql, params ?? [] as any[]).then((rows) => Object.values(rows));
+			}
+			if (mode === 'raw') return this.client.unsafe(query.sql, params ?? [] as any[]);
+			return this.client.unsafe(query.sql, params ?? [] as any[]).values();
+		};
+
+		return new PgAsyncPreparedQuery<T>(
+			executor,
 			query,
-			arrayMode,
 			mapper,
-			name,
+			mode,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
 		);
 	}
-
 	override transaction<T>(
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
@@ -116,17 +109,17 @@ export class PostgresJsTransaction<
 		relations: TRelations,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, relations, schema, nestedIndex);
+		super(dialect, session, relations, schema, nestedIndex, false);
 	}
 
-	override transaction<T>(
+	override transaction = <T>(
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T> {
+	): Promise<T> => {
 		return this.session.client.savepoint((client) => {
 			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
-				this.relations,
+				this._.relations,
 				this.schema,
 				this.session.options,
 			);
@@ -134,13 +127,13 @@ export class PostgresJsTransaction<
 				this.dialect,
 				session,
 				this.schema,
-				this.relations,
+				this._.relations,
 			);
 			return transaction(tx);
 		}) as Promise<T>;
-	}
+	};
 }
 
 export interface PostgresJsQueryResultHKT extends PgQueryResultHKT {
-	type: this['row'][];
+	type: RowList<Assume<this['row'], Row>[]>;
 }

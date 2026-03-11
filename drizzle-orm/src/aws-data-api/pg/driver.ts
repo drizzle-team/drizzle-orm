@@ -4,15 +4,16 @@ import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import type { PgAsyncRaw } from '~/pg-core/async/raw.ts';
 import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { PgColumn } from '~/pg-core/columns/common.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { PgColumn, type PgInsertConfig, type PgTable, type TableConfig } from '~/pg-core/index.ts';
+import type { PgInsertConfig } from '~/pg-core/query-builders/insert.ts';
+import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { Param, type SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
-import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
+import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
@@ -37,12 +38,6 @@ export class AwsDataApiPgDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
 > extends PgAsyncDatabase<AwsDataApiPgQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
-
-	override execute<
-		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper | string): PgAsyncRaw<AwsDataApiPgQueryResult<TRow>> {
-		return super.execute(query);
-	}
 }
 
 export class AwsPgDialect extends PgDialect {

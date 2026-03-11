@@ -24,28 +24,6 @@ export interface PgDriverOptions {
 	useJitMapper?: boolean;
 }
 
-export class PgliteDriver {
-	static readonly [entityKind]: string = 'PgliteDriver';
-
-	constructor(
-		private client: PgliteClient,
-		private dialect: PgDialect,
-		private options: PgDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): PgliteSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new PgliteSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			useJitMapper: this.options.useJitMapper ?? false,
-			cache: this.options.cache,
-		});
-	}
-}
-
 export class PgliteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -127,8 +105,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache, useJitMapper: config.useJitMapper });
-	const session = driver.createSession(relations, schema);
+	const session = new PgliteSession(client, dialect, relations, schema, {
+		logger,
+		useJitMapper: config.useJitMapper ?? false,
+		cache: config.cache,
+	});
 	const db = new PgliteDatabase(
 		dialect,
 		session,

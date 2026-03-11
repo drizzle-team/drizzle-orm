@@ -11,7 +11,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
@@ -67,7 +67,8 @@ export class PgAsyncDatabase<
 		/** @internal */
 		readonly session: PgAsyncSession<any, any, any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		/** @internal */
+		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
 	) {
 		this._ = schema
@@ -654,22 +655,12 @@ export class PgAsyncDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
-	/** @internal */
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper | string,
-		authToken: NeonAuthToken,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
-	/** @internal */
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper | string,
-		authToken?: NeonAuthToken,
 	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
-		>(builtQuery, 'objects', false).setToken(authToken);
+		>(builtQuery, 'raw', false);
 		return new PgAsyncRaw(
 			() => prepared.execute(),
 			sequel,
@@ -678,15 +669,10 @@ export class PgAsyncDatabase<
 		);
 	}
 
-	transaction<T>(
+	transaction: <T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
-	): Promise<T> {
-		return this.session.transaction(
-			transaction,
-			config,
-		);
-	}
+	) => Promise<T> = (tx, cfg) => this.session.transaction(tx, cfg);
 }
 
 export type PgAsyncWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
@@ -719,6 +705,7 @@ export const withReplicas = <
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
+
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
 

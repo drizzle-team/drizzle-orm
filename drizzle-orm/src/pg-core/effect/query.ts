@@ -1,8 +1,7 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
-import { mapRelationalRow } from '~/relations.ts';
+import { makeRqbJitMapper, mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -34,27 +33,30 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
 		const { query, builtQuery } = this._toSQL();
 
-		return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
-			builtQuery,
-			undefined,
-			name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-			(rows, mapColumnValue) => {
+		const mapper = this.dialect.useJitMappers
+			? makeRqbJitMapper({
+				isFirst: this.mode === 'first',
+				parseJson: this.parseJson,
+				parseJsonIfString: false,
+				rootJsonMappers: false,
+				selection: query.selection,
+			})
+			: (rows: Record<string, unknown>[]) => {
 				for (let i = 0; i < rows.length; ++i) {
-					mapRelationalRow(rows[i]!, query.selection, mapColumnValue, this.parseJson, undefined, false);
+					mapRelationalRow(rows[i]!, query.selection, undefined, this.parseJson, undefined, false);
 				}
 
 				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;
-			},
-			{
-				isFirst: this.mode === 'first',
-				parseJson: this.parseJson,
-				parseJsonIfString: false,
-				rootJsonMappers: false,
-				selection: query.selection,
-			},
+			};
+
+		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
+			builtQuery,
+			'objects',
+			name ?? generateName,
+			mapper,
 		);
 	}
 
