@@ -3,6 +3,7 @@ import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
 	bigint,
+	binary,
 	blob,
 	boolean,
 	char,
@@ -806,15 +807,16 @@ test('datetime #2', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('introspect varbinary', async () => {
+test('introspect varbinary and binary', async () => {
 	const table1 = mysqlTable('table1', {
 		col1: varbinary({ length: 16 }),
+		col2: binary({ length: 16 }).default(''),
 	});
 
 	const { sqlStatements } = await diffIntrospect(
 		db,
 		{ table1 },
-		'varbinary',
+		'varbinary-and-binary',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
