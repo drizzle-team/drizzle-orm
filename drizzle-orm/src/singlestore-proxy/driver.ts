@@ -60,7 +60,7 @@ export function drizzle<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SingleStoreRemoteSession(callback, dialect, relations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	return new SingleStoreRemoteDatabase(dialect, session, relations, schema as any) as SingleStoreRemoteDatabase<
 		TSchema,

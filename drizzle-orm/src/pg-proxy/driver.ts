@@ -28,7 +28,12 @@ export function drizzle<
 >(
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
-	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing, codecs: config.codecs ?? genericPgCodecs }),
+	_dialect: () => PgDialect = () =>
+		new PgDialect({
+			casing: config.casing,
+			useJitMappers: config.useJitMappers,
+			codecs: config.codecs ?? genericPgCodecs,
+		}),
 ): PgRemoteDatabase<TSchema, TRelations> {
 	const dialect = _dialect();
 	let logger;
@@ -55,7 +60,7 @@ export function drizzle<
 	const session = new PgRemoteSession(callback, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new PgRemoteDatabase(
 		dialect,

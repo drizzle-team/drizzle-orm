@@ -71,7 +71,7 @@ function construct<
 		logger,
 		mode,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
 		TSchema,

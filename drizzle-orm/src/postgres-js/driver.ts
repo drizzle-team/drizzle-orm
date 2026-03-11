@@ -56,7 +56,11 @@ function construct<
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
 
-	const dialect = new PgDialect({ casing: config.casing, codecs: postgresJsCodecs });
+	const dialect = new PgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: postgresJsCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -81,7 +85,7 @@ function construct<
 	const session = new PostgresJsSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new PostgresJsDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;

@@ -78,7 +78,10 @@ function construct<
 		};
 	}
 
-	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, { logger, useJitMapper: config.useJitMapper });
+	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
+		logger,
+		useJitMapper: config.useJitMappers,
+	});
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
 	(<any> db).$client = client;

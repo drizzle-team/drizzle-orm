@@ -57,7 +57,7 @@ function construct<
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new TiDBServerlessDatabase(
 		dialect,

@@ -37,7 +37,7 @@ function construct<
 ): NodePgDatabase<TSchema, TRelations> & {
 	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: nodePgCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: nodePgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -62,7 +62,7 @@ function construct<
 	const session = new NodePgSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 
 	const db = new NodePgDatabase(

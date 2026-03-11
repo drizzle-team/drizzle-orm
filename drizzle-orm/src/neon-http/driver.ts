@@ -65,7 +65,7 @@ function construct<
 ): NeonHttpDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: neonHttpCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: neonHttpCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -90,7 +90,7 @@ function construct<
 
 	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper ?? false,
+		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 

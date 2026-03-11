@@ -42,7 +42,7 @@ export function drizzle<
 ): XataHttpDatabase<TSchema, TRelations> & {
 	$client: XataHttpClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: xataHttpCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: xataHttpCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -63,7 +63,7 @@ export function drizzle<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
-		useJitMapper: config.useJitMapper ?? false,
+		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 

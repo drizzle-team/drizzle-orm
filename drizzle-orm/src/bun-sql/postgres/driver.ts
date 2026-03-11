@@ -112,7 +112,7 @@ function construct<
 ): BunSQLDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new PgDialect({ casing: config.casing, codecs: bunSqlPgCodecs });
+	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: bunSqlPgCodecs });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -137,7 +137,7 @@ function construct<
 	const session = new BunSQLSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const db = new BunSQLDatabase(dialect, session, relations, schema as any) as BunSQLDatabase<
 		TSchema,

@@ -103,7 +103,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
+		useJitMapper: config.useJitMappers,
 	});
 	const session = driver.createSession(schema, relations);
 	const db = new SingleStoreDriverDatabase(dialect, session, relations, schema as any) as SingleStoreDriverDatabase<

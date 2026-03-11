@@ -61,7 +61,7 @@ export function construct<
 		dialect,
 		relations,
 		schema,
-		{ logger, cache: config.cache, useJitMapper: config.useJitMapper },
+		{ logger, cache: config.cache, useJitMapper: config.useJitMappers },
 	);
 	const db = new TursoDatabaseDatabase(
 		'async',

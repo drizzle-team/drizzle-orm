@@ -82,7 +82,11 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
-		const dialect = new PgDialect({ casing: config.casing, codecs: effectPgCodecs });
+		const dialect = new PgDialect({
+			casing: config.casing,
+			useJitMappers: config.useJitMappers,
+			codecs: effectPgCodecs,
+		});
 
 		let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 		if (config.schema) {
@@ -101,7 +105,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const session = new EffectPgSession(client, dialect, relations, schema, {
 			logger,
 			cache,
-			useJitMapper: config.useJitMapper,
+			useJitMapper: config.useJitMappers,
 		});
 		const db = new EffectPgDatabase(
 			dialect,
