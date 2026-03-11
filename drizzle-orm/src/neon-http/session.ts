@@ -64,11 +64,13 @@ export class NeonHttpSession<
 		const executor = (params?: unknown[]) => {
 			const q = ((this.client as any).query ?? this.client as any) as NeonHttpClient;
 			if (mode === 'raw') {
-				return q(query.sql, params, {
-					arrayMode: false,
-					fullResults: true,
-					authToken: this.options.authToken,
-				});
+				// otherwise raw queries with .then crash due to .then not existing on raw mode queries
+				return (async () =>
+					q(query.sql, params, {
+						arrayMode: false,
+						fullResults: true,
+						authToken: this.options.authToken,
+					}))();
 			}
 
 			return q(query.sql, params, {

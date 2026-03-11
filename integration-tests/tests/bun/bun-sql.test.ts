@@ -6768,7 +6768,7 @@ test('all types ~codecs~', async () => {
 			relationRes: normalizeDataWithDbCodecs({
 				db,
 				columns: getColumns(allTypesTable),
-				data: relationRaw,
+				data: relationRaw as any,
 				mode: 'jsonNormalize',
 			})[0]!,
 			rootRes: normalizeDataWithDbCodecs({
