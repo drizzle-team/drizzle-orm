@@ -1,6 +1,6 @@
 import type { CockroachSession } from '~/cockroach-core';
 import type { MigrationMeta } from '~/migrator';
-import { sql } from '~/sql';
+import { sql } from '~/sql/sql.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -45,10 +45,6 @@ const upgradeFunctions: Record<
 		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
-
-		if (dbRows.length === 0) {
-			return;
-		}
 
 		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
@@ -105,9 +101,11 @@ const upgradeFunctions: Record<
 		// 5. Create extra column and backfill names for matched migrations
 		await session.transaction(async (tx) => {
 			// 1. Add new columns
-			await tx.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
+			await tx.execute(sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`);
 			await tx.execute(
-				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+					sql.identifier('applied_at')
+				} timestamp with time zone DEFAULT now()`,
 			);
 
 			for (const backfillEntry of toApply) {
@@ -134,15 +132,13 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await session.all<{ exists: boolean }>(
-		sql`SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = ${migrationsSchema}
-            AND table_name = ${migrationsTable}
-        )`,
+	const tableExists = await session.all<{ 1: '1' }>(
+		sql`SELECT 1 FROM information_schema.tables
+			WHERE table_schema = ${migrationsSchema}
+			AND table_name = ${migrationsTable}`,
 	);
 
-	if (!tableExists[0]?.exists) {
+	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
