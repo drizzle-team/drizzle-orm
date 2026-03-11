@@ -4,10 +4,9 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -95,22 +94,28 @@ export class PgEffectDeleteBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		return this.session.prepareQuery<
-			PreparedQueryConfig & {
-				execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
+		const { session, config, dialect, cacheConfig } = this;
+		const { returning: fields } = config;
+
+		const query = dialect.sqlToQuery(this.getSQL());
+		const mapper = fields
+			? this.dialect.useJitMappers ? makeJitQueryMapper(fields, undefined) : (rows: any[]) => {
+				return rows.map((it) => {
+					return mapResultRow(fields, it, undefined);
+				});
 			}
-		>(
+			: undefined;
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			undefined,
-			{
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			},
-			this.cacheConfig,
+			fields ? 'arrays' : 'raw',
+			name ?? generateName,
+			mapper,
+			{ type: 'delete', tables: [...extractUsedTable(this.config.table)] },
+			cacheConfig,
 		);
+
+		return preparedQuery;
 	}
 
 	prepare(name?: string): PgEffectDeletePrepare<this, TEffectHKT> {

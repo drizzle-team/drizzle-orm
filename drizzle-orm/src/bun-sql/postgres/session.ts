@@ -45,8 +45,8 @@ export class BunSQLSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects',
-		_: string | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -54,14 +54,27 @@ export class BunSQLSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		const executor = async (sql: string, params?: unknown[]) => {
+		const executor = async (params?: unknown[]) => {
 			if (mode === 'arrays') {
-				return this.client.unsafe(sql, params).values();
+				return this.client.unsafe(query.sql, params).values();
 			}
-			return this.client.unsafe(sql, params);
+			if (mode === 'objects') {
+				return this.client.unsafe(query.sql, params);
+			}
+
+			return this.client.unsafe(query.sql, params);
 		};
 
-		return new PgAsyncPreparedQuery<T>(executor, query, mapper, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery<T>(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+		);
 	}
 
 	override transaction<T>(
@@ -105,29 +118,29 @@ export class BunSQLTransaction<
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, relations, schema, nestedIndex);
+		super(dialect, session, relations, schema, nestedIndex, false);
 	}
 
-	override transaction<T>(
+	override transaction = <T>(
 		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T> {
+	): Promise<T> => {
 		return (this.session.client as TransactionSQL).savepoint((client) => {
 			const session = new BunSQLSession<SavepointSQL, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
-				this.relations,
+				this._.relations,
 				this.schema,
 				this.session.options,
 			);
 			const tx = new BunSQLTransaction<TFullSchema, TRelations, TSchema>(
 				this.dialect,
 				session,
-				this.relations,
+				this._.relations,
 				this.schema,
 			);
 			return transaction(tx);
 		}) as Promise<T>;
-	}
+	};
 }
 
 export interface BunSQLQueryResultHKT extends PgQueryResultHKT {

@@ -7,9 +7,8 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, orderSelectedFields } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
@@ -119,22 +118,25 @@ export class PgEffectSelectBase<
 			undefined,
 			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
 		);
-		const preparedQUery = session.prepareQuery<
-			PreparedQueryConfig & { execute: TResult }
-		>(
+
+		const mapper = this.dialect.useJitMappers
+			? makeJitQueryMapper(fieldsList, joinsNotNullableMap)
+			: (rows: any[]) => {
+				return rows.map((it) => {
+					return mapResultRow(fieldsList, it, joinsNotNullableMap);
+				});
+			};
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			fieldsList,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			undefined,
-			{
-				type: 'select',
-				tables: [...usedTables],
-			},
+			'arrays',
+			name ?? generateName,
+			mapper,
+			{ type: 'select', tables: [...usedTables] },
 			cacheConfig,
 		);
-		preparedQUery.joinsNotNullableMap = joinsNotNullableMap;
 
-		return preparedQUery;
+		return preparedQuery;
 	}
 
 	/**

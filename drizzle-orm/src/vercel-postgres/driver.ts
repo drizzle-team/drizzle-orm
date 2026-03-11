@@ -6,7 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
-import { PgDialect } from '~/pg-core/index.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
@@ -15,28 +15,6 @@ export interface VercelPgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
 	useJitMapper?: boolean;
-}
-
-export class VercelPgDriver {
-	static readonly [entityKind]: string = 'VercelPgDriver';
-
-	constructor(
-		private client: VercelPgClient,
-		private dialect: PgDialect,
-		private options: VercelPgDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): VercelPgSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new VercelPgSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			useJitMapper: this.options.useJitMapper ?? false,
-			cache: this.options.cache,
-		});
-	}
 }
 
 export class VercelPgDatabase<
@@ -79,12 +57,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new VercelPgDriver(client, dialect, {
+	const session = new VercelPgSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
+		useJitMapper: config.useJitMapper ?? false,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
 	});
-	const session = driver.createSession(relations, schema);
 	const db = new VercelPgDatabase(
 		dialect,
 		session,

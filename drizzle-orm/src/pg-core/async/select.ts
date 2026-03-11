@@ -8,7 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, mapResultRow, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { applyMixins, type Assume, makeJitQueryMapper, mapResultRow, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
@@ -101,8 +101,8 @@ export class PgAsyncSelectBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name: string | boolean): PgAsyncSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
+	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
@@ -113,22 +113,24 @@ export class PgAsyncSelectBase<
 				(column) => this.dialect.codecs.get(column, 'queryNormalize'),
 			);
 
-			const mapper = (rows: any[]) => {
-				return rows.map((it) => {
-					return mapResultRow(fieldsList, it, joinsNotNullableMap);
-				});
-			};
+			const mapper = this.dialect.useJitMappers
+				? makeJitQueryMapper(fieldsList, joinsNotNullableMap)
+				: (rows: any[]) => {
+					return rows.map((it) => {
+						return mapResultRow(fieldsList, it, joinsNotNullableMap);
+					});
+				};
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
 				'arrays',
-				name,
+				name ?? generateName,
 				mapper,
 				{ type: 'select', tables: [...usedTables] },
 				cacheConfig,
 			);
 
-			return preparedQuery.setToken(authToken);
+			return preparedQuery;
 		});
 	}
 
@@ -142,20 +144,12 @@ export class PgAsyncSelectBase<
 	prepare(
 		name?: string,
 	): PgAsyncSelectPrepare<this> {
-		return this._prepare(name ?? true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+		return this._prepare(name, true);
 	}
 
 	execute(placeholderValues?: Record<string, unknown>) {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare(false).execute(placeholderValues);
+			return this._prepare().execute(placeholderValues);
 		});
 	}
 }

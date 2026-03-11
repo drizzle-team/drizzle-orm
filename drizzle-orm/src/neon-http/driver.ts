@@ -11,82 +11,12 @@ import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
+import { type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
 	useJitMapper?: boolean;
-}
-
-export class NeonHttpDriver {
-	static readonly [entityKind]: string = 'NeonHttpDriver';
-
-	constructor(
-		private client: NeonHttpClient,
-		private dialect: PgDialect,
-		private options: NeonDriverOptions = {},
-	) {
-		this.initMappers();
-	}
-
-	createSession(
-		relations: AnyRelations | undefined,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NeonHttpSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
-		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
-			logger: this.options.logger,
-			useJitMapper: this.options.useJitMapper ?? false,
-			cache: this.options.cache,
-		});
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-		types.setTypeParser(1231, (val) => val);
-		types.setTypeParser(1115, (val) => val);
-		types.setTypeParser(1185, (val) => val);
-		types.setTypeParser(1187, (val) => val);
-		types.setTypeParser(1182, (val) => val);
-	}
-}
-
-function wrap<T extends object>(
-	target: T,
-	token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
-	cb: (target: any, p: string | symbol, res: any) => any,
-	deep?: boolean,
-) {
-	return new Proxy(target, {
-		get(target, p) {
-			const element = target[p as keyof typeof p];
-			if (typeof element !== 'function' && (typeof element !== 'object' || element === null)) return element;
-
-			if (deep) return wrap(element, token, cb);
-			if (p === 'query' || p === '_query') return wrap(element, token, cb, true);
-
-			if (p === 'execute') {
-				return new Proxy(element as any, {
-					apply(target, thisArg, argArray) {
-						return target.call(thisArg, ...argArray, token);
-					},
-				});
-			}
-
-			return new Proxy(element as any, {
-				apply(target, thisArg, argArray) {
-					const res = target.call(thisArg, ...argArray);
-					if (typeof res === 'object' && res !== null && 'setToken' in res && typeof res.setToken === 'function') {
-						res.setToken(token);
-					}
-					return cb(target, p, res);
-				},
-			});
-		},
-	});
 }
 
 export class NeonHttpDatabase<
@@ -95,36 +25,22 @@ export class NeonHttpDatabase<
 > extends PgAsyncDatabase<NeonHttpQueryResultHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'NeonHttpDatabase';
 
+	/** @intenal */
+	declare session: NeonHttpSession<TSchema, TRelations, V1.ExtractTablesWithRelations<TSchema>>;
+
 	$withAuth(
 		token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
-	): Omit<
-		this,
-		Exclude<
-			keyof this,
-			| '$count'
-			| 'delete'
-			| 'select'
-			| 'selectDistinct'
-			| 'selectDistinctOn'
-			| 'update'
-			| 'insert'
-			| 'with'
-			| '_query'
-			| 'query'
-			| 'execute'
-			| 'refreshMaterializedView'
-		>
-	> {
-		return wrap(this, token, (target, p, res) => {
-			if (p === 'with') {
-				return wrap(res, token, (_, __, res) => res);
-			}
-			return res;
+	): Omit<this, '$withAuth'> {
+		const session = new NeonHttpSession(this.session.client, this.dialect, this._.relations, this.schema, {
+			...this.session.options,
+			authToken: token,
 		});
+
+		return new NeonHttpDatabase(this.dialect, session, this._.relations, this.schema) as any;
 	}
 
 	/** @internal */
-	declare readonly session: NeonHttpSession<
+	declare readonly executor: NeonHttpSession<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
@@ -133,7 +49,7 @@ export class NeonHttpDatabase<
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
-		return this.session.batch(batch) as Promise<BatchResponse<T>>;
+		return this.executor.batch(batch) as Promise<BatchResponse<T>>;
 	}
 }
 
@@ -172,18 +88,28 @@ function construct<
 
 	const relations = config.relations ?? {} as TRelations;
 
-	const driver = new NeonHttpDriver(client, dialect, {
+	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
+		useJitMapper: config.useJitMapper ?? false,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
 	});
-	const session = driver.createSession(relations, schema);
+
+	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+	types.setTypeParser(types.builtins.DATE, (val) => val);
+	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+	types.setTypeParser(1231, (val) => val);
+	types.setTypeParser(1115, (val) => val);
+	types.setTypeParser(1185, (val) => val);
+	types.setTypeParser(1187, (val) => val);
+	types.setTypeParser(1182, (val) => val);
 
 	const db = new NeonHttpDatabase(
 		dialect,
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
+		undefined,
 	);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

@@ -7,15 +7,15 @@ import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
+import { EffectLogger } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import {
 	PgBasePreparedQuery,
 	type PgQueryResultHKT,
@@ -25,29 +25,54 @@ import {
 } from '../session.ts';
 import { PgEffectDatabase } from './db.ts';
 
-export abstract class PgEffectPreparedQuery<
+export class PgEffectPreparedQuery<
 	T extends PreparedQueryConfig,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgEffectPreparedQuery';
 
+	/** @internal */
+	readonly mapper: ((rows: any[]) => any) | undefined;
+
 	constructor(
+		protected executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
 		query: Query,
-		private cache: EffectCache,
-		private queryMetadata: {
+		mapper: ((rows: any[]) => any) | undefined,
+		readonly mode: 'arrays' | 'objects' | 'raw',
+		private logger: EffectLogger,
+		// cache instance
+		protected cache: EffectCache,
+		// per query related metadata
+		protected queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		} | undefined,
-		private cacheConfig?: WithCacheConfig,
+		// config that was passed through $withCache
+		protected cacheConfig: WithCacheConfig | undefined,
 	) {
 		super(query);
-
+		this.mapper = mapper;
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
 		}
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
+	}
+
+	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
+		return Effect.gen(this, function*() {
+			const params = fillPlaceholders(this.query.params, placeholderValues);
+			const { query: { sql }, mapper } = this;
+
+			yield* EffectLogger.logQuery(sql, params);
+
+			const query = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
+
+			if (!mapper) return query;
+
+			return query.pipe(Effect.andThen((rows) => mapper(rows as unknown[])));
+		}).pipe(Effect.provideService(EffectLogger, this.logger));
 	}
 
 	protected override queryWithCache<A, E, R>(
@@ -109,15 +134,6 @@ export abstract class PgEffectPreparedQuery<
 			}),
 		);
 	}
-
-	abstract override execute(
-		placeholderValues?: Record<string, unknown>,
-	): QueryEffectKind<TEffectHKT, T['execute']>;
-
-	/** @internal */
-	abstract override objects(
-		placeholderValues?: Record<string, unknown>,
-	): QueryEffectKind<TEffectHKT, T['objects']>;
 }
 
 export abstract class PgEffectSession<
@@ -135,9 +151,9 @@ export abstract class PgEffectSession<
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -145,27 +161,34 @@ export abstract class PgEffectSession<
 		cacheConfig?: WithCacheConfig,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 
-	abstract override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => T['execute'],
-		config: RelationalQueryMapperConfig,
-	): PgEffectPreparedQuery<T, TEffectHKT>;
-
 	override execute<T>(query: SQL) {
-		const { sql, params } = this.dialect.sqlToQuery(query);
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>({ sql, params }, undefined, undefined)
-			.execute();
+		const prepared = this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+			this.dialect.sqlToQuery(query),
+			'raw',
+			false,
+		);
+
+		return prepared.execute();
 	}
 
-	override execute<T>(query: SQL) {
-		const { sql, params } = this.dialect.sqlToQuery(query);
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>({ sql, params }, undefined, undefined)
-			.objects();
+	override arrays<T>(query: SQL) {
+		const prepared = this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+			this.dialect.sqlToQuery(query),
+			'arrays',
+			false,
+		);
+
+		return prepared.execute();
+	}
+
+	override objects<T>(query: SQL) {
+		const prepared = this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+			this.dialect.sqlToQuery(query),
+			'objects',
+			false,
+		);
+
+		return prepared.execute();
 	}
 
 	abstract transaction<A, E, R>(

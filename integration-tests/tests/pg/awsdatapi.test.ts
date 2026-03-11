@@ -1082,7 +1082,7 @@ test('mock', () => {});
 // 		.returning()
 // 		.then((rows) => rows[0]!);
 
-// 	await db.transaction(async (tx) => {
+// 	await  db.transaction(async (tx) => {
 // 		await tx
 // 			.update(users)
 // 			.set({ balance: user.balance - product.price })
@@ -1114,7 +1114,7 @@ test('mock', () => {});
 // 	);
 
 // 	await expect(
-// 		db.transaction(async (tx) => {
+// 		 db.transaction(async (tx) => {
 // 			await tx.insert(users).values({ balance: 100 });
 // 			tx.rollback();
 // 		}),
@@ -1139,7 +1139,7 @@ test('mock', () => {});
 // 		sql`create table users_nested_transactions (id serial not null primary key, balance integer not null)`,
 // 	);
 
-// 	await db.transaction(async (tx) => {
+// 	await  db.transaction(async (tx) => {
 // 		await tx.insert(users).values({ balance: 100 });
 
 // 		await tx.transaction(async (tx) => {
@@ -1166,7 +1166,7 @@ test('mock', () => {});
 // 		sql`create table users_nested_transactions_rollback (id serial not null primary key, balance integer not null)`,
 // 	);
 
-// 	await db.transaction(async (tx) => {
+// 	await  db.transaction(async (tx) => {
 // 		await tx.insert(users).values({ balance: 100 });
 
 // 		await expect(
@@ -1921,7 +1921,7 @@ test('mock', () => {});
 // 	try {
 // 		await init(db);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbUser.findFirst();
 
 // 			expect(result).toStrictEqual(undefined);
@@ -1947,7 +1947,7 @@ test('mock', () => {});
 // 			name: 'Second',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbUser.findFirst({
 // 				orderBy: {
 // 					id: 'desc',
@@ -1993,7 +1993,7 @@ test('mock', () => {});
 // 			content: 'Has message this time',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbUser.findFirst({
 // 				with: {
 // 					posts: {
@@ -2045,7 +2045,7 @@ test('mock', () => {});
 // 			name: 'Second',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const query = db.query.rqbUser.findFirst({
 // 				where: {
 // 					id: {
@@ -2076,7 +2076,7 @@ test('mock', () => {});
 // 	try {
 // 		await init(db);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbUser.findMany();
 
 // 			expect(result).toStrictEqual([]);
@@ -2102,7 +2102,7 @@ test('mock', () => {});
 // 			name: 'Second',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbUser.findMany({
 // 				orderBy: {
 // 					id: 'desc',
@@ -2152,7 +2152,7 @@ test('mock', () => {});
 // 			content: 'Has message this time',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const result = await db.query.rqbPost.findMany({
 // 				with: {
 // 					author: true,
@@ -2205,7 +2205,7 @@ test('mock', () => {});
 // 			name: 'Second',
 // 		}]);
 
-// 		await db.transaction(async (db) => {
+// 		await  db.transaction(async (db) => {
 // 			const query = db.query.rqbUser.findMany({
 // 				where: {
 // 					id: {

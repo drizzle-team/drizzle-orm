@@ -1,9 +1,8 @@
 import {
 	type Client,
+	type CustomTypesConfig,
 	Pool,
 	type PoolClient,
-	type QueryArrayConfig,
-	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
 	types,
@@ -16,198 +15,46 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import {
-	type AnyRelations,
-	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
-	type RelationalQueryMapperConfig,
-} from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
 
-export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgAsyncPreparedQuery<T>
-{
-	static override readonly [entityKind]: string = 'NeonPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
-
-	private rawQueryConfig: QueryConfig;
-	private queryConfig: QueryArrayConfig;
-
-	constructor(
-		private client: NeonClient,
-		queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		private useJitMapper: boolean | undefined,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		private isRqbV2Query?: TIsRqbV2,
-		private rqbConfig?: RelationalQueryMapperConfig,
-	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQueryConfig = {
-			name,
-			text: queryString,
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
-					}
-					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
-					}
-					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-		this.queryConfig = {
-			name,
-			text: queryString,
-			rowMode: 'array',
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
-					}
-					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
-					}
-					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-	}
-
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
-
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-
-		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
-			this;
-		if (!fields && !customResultMapper) {
-			return await this.queryWithCache(rawQuery.text, params, async () => {
-				return await client.query(rawQuery, params);
-			});
+const noop = (val: any) => val;
+const typeConfig: CustomTypesConfig = {
+	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
+		switch (typeId as number) {
+			case types.builtins.TIMESTAMPTZ:
+				return noop;
+			case types.builtins.TIMESTAMP:
+				return noop;
+			case types.builtins.DATE:
+				return noop;
+			case types.builtins.INTERVAL:
+				return noop;
+			// numeric[]
+			case 1231:
+				return noop;
+			// timestamp[]
+			case 1115:
+				return noop;
+			// timestamp with timezone[]
+			case 1185:
+				return noop;
+			// interval[]
+			case 1187:
+				return noop;
+			// date[]
+			case 1182:
+				return noop;
+			default:
+				return types.getTypeParser(typeId, format as any);
 		}
-
-		const result = await this.queryWithCache(query.text, params, async () => {
-			return await client.query(query, params);
-		});
-
-		if (customResultMapper) {
-			return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
-		}
-
-		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
-				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result.rows)
-			: result.rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-
-		const { client, rawQueryConfig: rawQuery, customResultMapper } = this;
-
-		const result = await client.query(rawQuery, params);
-
-		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result.rows)
-			: customResultMapper!(result.rows);
-	}
-
-	objects(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
-			return await this.client.query(this.rawQueryConfig, params);
-		}).then((result) => result.rows);
-	}
-
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['arrays']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.queryWithCache(this.queryConfig.text, params, async () => {
-			return await this.client.query(this.queryConfig, params);
-		}).then((result) => result.rows);
-	}
-}
+	}),
+};
 
 export interface NeonSessionOptions {
 	logger?: Logger;
@@ -239,69 +86,40 @@ export class NeonSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		return new NeonPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
+		const queryName = typeof name === 'string'
+			? name
+			: name === true
+			? preparedStatementName(query.sql, query.params)
+			: undefined;
+
+		const executor = async (params?: unknown[]) => {
+			return this.client.query({
+				name: queryName,
+				rowMode: mode === 'arrays' ? 'array' : undefined as any,
+				text: query.sql,
+				types: typeConfig,
+			}, params).then((r) => mode === 'raw' ? r : r.rows);
+		};
+
+		return new PgAsyncPreparedQuery<T>(
+			executor,
+			query,
+			mapper,
+			mode,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			name,
-			this.options.useJitMapper,
-			customResultMapper,
 		);
-	}
-
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		config: RelationalQueryMapperConfig,
-	): PgAsyncPreparedQuery<T> {
-		return new NeonPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			name,
-			this.options.useJitMapper,
-			customResultMapper,
-			true,
-			config,
-		);
-	}
-
-	async query(query: string, params: unknown[]): Promise<QueryResult> {
-		this.logger.logQuery(query, params);
-		const result = await this.client.query({
-			rowMode: 'array',
-			text: query,
-			values: params,
-		});
-		return result;
-	}
-
-	async queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>> {
-		return this.client.query<T>(query, params);
 	}
 
 	override async transaction<T>(
@@ -316,6 +134,8 @@ export class NeonSession<
 			session,
 			this.relations,
 			this.schema,
+			undefined,
+			false,
 		);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
@@ -340,16 +160,17 @@ export class NeonTransaction<
 > extends PgAsyncTransaction<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NeonTransaction';
 
-	override async transaction<T>(
+	override transaction = async <T>(
 		transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T> {
+	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NeonTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
-			this.relations,
+			this._.relations,
 			this.schema,
 			this.nestedIndex + 1,
+			false,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
@@ -360,7 +181,7 @@ export class NeonTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
-	}
+	};
 }
 
 export interface NeonQueryResultHKT extends PgQueryResultHKT {

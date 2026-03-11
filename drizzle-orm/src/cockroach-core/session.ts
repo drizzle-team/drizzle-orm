@@ -67,7 +67,7 @@ export abstract class CockroachSession<
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		name: string | boolean,
+		name: string | undefined,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): CockroachPreparedQuery<T>;
 
@@ -81,7 +81,7 @@ export abstract class CockroachSession<
 				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 					this.dialect.sqlToQuery(query),
 					undefined,
-					false,
+					undefined,
 					undefined,
 				);
 			});
@@ -94,7 +94,7 @@ export abstract class CockroachSession<
 		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
 			this.dialect.sqlToQuery(query),
 			undefined,
-			false,
+			undefined,
 			undefined,
 		).all();
 	}

@@ -1,10 +1,9 @@
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { mapRelationalRow } from '~/relations.ts';
+import { makeRqbJitMapper, mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -28,45 +27,44 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			const queryName = name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name);
-			const mapper = (rows: any[]) => {
-				for (let i = 0; i < rows.length; ++i) {
-					mapRelationalRow(
-						rows[i]!,
-						query.selection,
-						(it) => it, // TODO: remove, backward comp
-						this.parseJson,
-						undefined,
-						false,
-					);
-				}
+			const mapper = this.dialect.useJitMappers
+				? makeRqbJitMapper({
+					isFirst: this.mode === 'first',
+					parseJson: this.parseJson,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+				})
+				: (rows: any[]) => {
+					for (let i = 0; i < rows.length; ++i) {
+						mapRelationalRow(
+							rows[i]!,
+							query.selection,
+							(it) => it, // TODO: remove, backward comp
+							this.parseJson,
+							undefined,
+							false,
+						);
+					}
 
-				if (this.mode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			};
+					if (this.mode === 'first') {
+						return rows[0] as TResult;
+					}
+					return rows as TResult;
+				};
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				'objects',
-				queryName,
+				name ?? generateName,
 				mapper,
 				// TODO: implement cache
-			).setToken(this.authToken);
+			);
 		});
 	}
 
 	prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name, true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): Promise<TResult> {

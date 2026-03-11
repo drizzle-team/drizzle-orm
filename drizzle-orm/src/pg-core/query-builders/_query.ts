@@ -1,6 +1,5 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -91,12 +90,10 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
-				undefined,
-				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) =>
-						V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-					);
+				'arrays',
+				name ?? generateName,
+				(rawRows) => {
+					const rows = rawRows.map((row) => V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}

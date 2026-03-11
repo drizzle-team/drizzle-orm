@@ -17,33 +17,6 @@ export interface XataDriverOptions {
 	useJitMapper?: boolean;
 }
 
-export class XataHttpDriver {
-	static readonly [entityKind]: string = 'XataDriver';
-
-	constructor(
-		private client: XataHttpClient,
-		private dialect: PgDialect,
-		private options: XataDriverOptions = {},
-	) {
-		this.initMappers();
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): XataHttpSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new XataHttpSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			cache: this.options.cache,
-			useJitMapper: this.options.useJitMapper,
-		});
-	}
-
-	initMappers() {
-		// TODO: Add custom type parsers
-	}
-}
-
 export class XataHttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -51,7 +24,7 @@ export class XataHttpDatabase<
 	static override readonly [entityKind]: string = 'XataHttpDatabase';
 
 	/** @internal */
-	declare readonly session: XataHttpSession<
+	declare readonly executor: XataHttpSession<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
@@ -88,12 +61,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new XataHttpDriver(client, dialect, {
+	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, schema, {
 		logger,
+		useJitMapper: config.useJitMapper ?? false,
 		cache: config.cache,
-		useJitMapper: config.useJitMapper,
 	});
-	const session = driver.createSession(relations, schema);
 
 	const db = new XataHttpDatabase(
 		dialect,

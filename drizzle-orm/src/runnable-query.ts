@@ -9,5 +9,4 @@ export interface RunnableQuery<T, TDialect extends Dialect> {
 
 	/** @internal */
 	_prepare(): PreparedQuery;
-	mode: "arrays" | "objects"
 }

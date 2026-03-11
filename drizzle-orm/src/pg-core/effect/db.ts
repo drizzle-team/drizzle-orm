@@ -1,3 +1,4 @@
+import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
@@ -658,8 +659,8 @@ export class PgEffectDatabase<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
 		>(
 			builtQuery,
-			undefined,
-			undefined,
+			'raw',
+			false,
 		);
 		return new PgEffectRaw(
 			() => prepared.execute(),
@@ -669,15 +670,11 @@ export class PgEffectDatabase<
 		);
 	}
 
-	transaction<A, E, R>(
+	transaction: <A, E, R>(
 		transaction: (
 			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
 		) => Effect.Effect<A, E, R>,
-	) {
-		return this.session.transaction(
-			transaction,
-		);
-	}
+	) => Effect.Effect<A, E | SqlError, R> = (tx) => this.session.transaction(tx);
 }
 
 export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
@@ -711,7 +708,7 @@ export const withReplicas = <
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
-	// const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
+	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
 
@@ -721,7 +718,7 @@ export const withReplicas = <
 		insert,
 		delete: $delete,
 		execute,
-		// transaction,
+		transaction,
 		refreshMaterializedView,
 		$primary: primary,
 		$replicas: replicas,

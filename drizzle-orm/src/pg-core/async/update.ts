@@ -2,12 +2,12 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { applyMixins, type Assume, type NeonAuthToken } from '~/utils.ts';
+import { tracer } from '~/tracing.ts';
+import { applyMixins, type Assume, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -102,34 +102,34 @@ export class PgAsyncUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		const preparedQuery = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: TReturning[] }
-		>(
-			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			undefined,
-			{
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			},
-			this.cacheConfig,
-		);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
-		return preparedQuery.setToken(this.authToken);
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig } = this;
+		const { returning: fields } = config;
+
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = dialect.sqlToQuery(this.getSQL());
+			const mapper = fields
+				? this.dialect.useJitMappers ? makeJitQueryMapper(fields, joinsNotNullableMap) : (rows: any[]) => {
+					return rows.map((it) => {
+						return mapResultRow(fields, it, joinsNotNullableMap);
+					});
+				}
+				: undefined;
+
+			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
+				query,
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				mapper,
+				{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
+				cacheConfig,
+			);
+
+			return preparedQuery;
+		});
 	}
 
 	prepare(name?: string): PgAsyncUpdatePrepare<this> {
 		return this._prepare(name, true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {

@@ -32,12 +32,13 @@ export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryE
 	execute(placeholderValues?: Record<string, unknown>) {
 		return this.session.prepareQuery<{
 			execute: number;
-			all: unknown;
-			values: unknown;
+			objects: unknown;
+			arrays: unknown;
+			raw: unknown;
 		}>(
 			this.build(),
-			undefined,
-			undefined,
+			'arrays',
+			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;
