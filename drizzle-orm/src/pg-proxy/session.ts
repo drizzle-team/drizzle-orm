@@ -52,7 +52,9 @@ export class PgRemoteSession<
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
-			return this.client(query.sql, params as any[], 'execute', query.typings);
+			if (mode === 'arrays') return this.client(query.sql, params as any[], 'all', query.typings).then((r) => r.rows);
+
+			return this.client(query.sql, params as any[], 'execute', query.typings).then((r) => r.rows);
 		};
 
 		return new PgAsyncPreparedQuery<T>(
