@@ -232,10 +232,9 @@ const upgradeSyncFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		try {
-			session.run(sql`BEGIN`);
-			session.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
-			session.run(
+		session.transaction((tx) => {
+			tx.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
+			tx.run(
 				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
 			);
 
@@ -252,13 +251,9 @@ const upgradeSyncFunctions: Record<
 					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
 				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
 
-				session.run(updateQuery);
+				tx.run(updateQuery);
 			}
-			session.run(sql`COMMIT`);
-		} catch (err: any) {
-			session.run(sql`ROLLBACK`);
-			throw err;
-		}
+		});
 	},
 };
 
@@ -430,10 +425,9 @@ const upgradeAsyncFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		try {
-			await session.run(sql`BEGIN`);
-			await session.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
-			await session.run(
+		await session.transaction(async (tx) => {
+			await tx.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
+			await tx.run(
 				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
 			);
 
@@ -450,12 +444,8 @@ const upgradeAsyncFunctions: Record<
 					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
 				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
 
-				await session.run(updateQuery);
+				await tx.run(updateQuery);
 			}
-			await session.run(sql`COMMIT`);
-		} catch (err: any) {
-			await session.run(sql`ROLLBACK`);
-			throw err;
-		}
+		});
 	},
 };
