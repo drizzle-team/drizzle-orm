@@ -26,6 +26,7 @@ import { and, eq, View } from '~/sql/index.ts';
 import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachSession } from './session.ts';
@@ -55,18 +56,29 @@ export class CockroachDialect {
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
 		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-		const migrationTableCreate = sql`
+
+		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
+		const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+
+		if (newDb) {
+			const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id INT GENERATED ALWAYS AS IDENTITY,
 				hash text NOT NULL,
-				created_at bigint
+				created_at bigint,
+				name text,
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+			await session.execute(migrationTableCreate);
+		}
+
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			}`,
 		);
 
 		if (typeof config === 'object' && config.init) {
@@ -85,7 +97,8 @@ export class CockroachDialect {
 			await session.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+				} ("hash", "created_at", "name") 
+				values (${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
 
 			return;
@@ -100,7 +113,7 @@ export class CockroachDialect {
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		});

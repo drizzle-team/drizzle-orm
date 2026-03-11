@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { betterSqlite3Test as test } from './instrumentation';
 import relations from './relations';
@@ -148,7 +148,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/bettersqlite3';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -183,15 +183,11 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 const skip = [
-	/**
-	 * doesn't work properly:
-	 * 	Expect: should rollback transaction and don't insert/ update data
-	 * 	Received: data inserted/ updated
-	 */
+	// Uses sync versions
 	'transaction rollback',
 	'nested transaction rollback',
 ];

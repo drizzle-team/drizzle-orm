@@ -288,19 +288,6 @@ export interface JsonMoveTable {
 	to: string;
 }
 
-export interface JsonAlterTableRemoveFromSchema {
-	type: 'remove_from_schema';
-	table: string;
-	schema: string;
-}
-
-export interface JsonAlterTableSetNewSchema {
-	type: 'set_new_schema';
-	table: string;
-	from: string;
-	to: string;
-}
-
 export interface JsonDropIndex {
 	type: 'drop_index';
 	index: Index;
@@ -433,8 +420,6 @@ export type JsonStatement =
 	| JsonDropSchema
 	| JsonRenameSchema
 	| JsonMoveTable
-	| JsonAlterTableRemoveFromSchema
-	| JsonAlterTableSetNewSchema
 	| JsonAlterSequence
 	| JsonDropSequence
 	| JsonCreateSequence
@@ -456,8 +441,8 @@ export type JsonStatement =
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView
-	| JsonAlterCheck
 	| JsonDropValueFromEnum
+	| JsonAlterCheck
 	| JsonRecreateIndex;
 
 export const prepareStatement = <

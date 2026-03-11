@@ -11,16 +11,14 @@ export function formatToMillis(dateStr: string): number {
 	return Date.UTC(year, month, day, hour, minute, second);
 }
 
-// postgres - string
-// mysql - bigint
 export function getMigrationsToRun(params: {
 	localMigrations: MigrationMeta[];
-	dbMigrations: { id: number; hash: string; created_at: string }[];
+	dbMigrations: { id: number; hash: string; created_at: string; name: string | null }[];
 }): MigrationMeta[] {
 	const { localMigrations, dbMigrations } = params;
 
-	const dbMigrationsSet = new Set(dbMigrations.map((dbMigration) => Number(dbMigration.created_at)));
-	const migrationsToRun = localMigrations.filter((lMigration) => !dbMigrationsSet.has(lMigration.folderMillis));
-
-	return migrationsToRun;
+	const dbNamesSet = new Set(
+		dbMigrations.map((m) => m.name).filter((n): n is string => n !== null),
+	);
+	return localMigrations.filter((lm) => !lm.name || !dbNamesSet.has(lm.name));
 }
