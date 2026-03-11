@@ -610,6 +610,14 @@ export function parseSqliteFks(ddl: string): IFkConstraint[] {
 	return results;
 }
 
+/**
+ * Removes parentheses that wrap an entire expression, but only if they are balanced and enclose
+ * the entire expression.
+ *
+ * For example:
+ *   "(a + b)" -> "a + b"
+ *   "((a))"   -> "a"
+ */
 function unwrapParentheses(expr: string): string {
 	expr = expr.trim();
 
@@ -633,6 +641,44 @@ function unwrapParentheses(expr: string): string {
 	return expr;
 }
 
+/**
+ * Finds the position of the closing parenthesis that matches the opening
+ * parenthesis at the given index.
+ *
+ * The function scans the string while tracking nested parentheses depth
+ * and ignores parentheses that appear inside quoted strings.
+ *
+ * Returns the index of the matching `)` or null if no match is found.
+ */
+function findMatchingParen(str: string, start: number) {
+	let depth = 0;
+	let inString: string | null = null;
+
+	for (let i = start; i < str.length; i++) {
+		const c = str[i];
+
+		if (inString) {
+			if (c === inString && str[i - 1] !== '\\') {
+				inString = null;
+			}
+			continue;
+		}
+
+		if (c === "'" || c === '"') {
+			inString = c;
+			continue;
+		}
+
+		if (c === '(') depth++;
+		if (c === ')') {
+			depth--;
+			if (depth === 0) return i;
+		}
+	}
+
+	return null; // No matching parenthesis found
+}
+
 interface IIndexConstraint {
 	name: string;
 	table: string;
@@ -643,6 +689,10 @@ interface IIndexConstraint {
 
 export function parseSqliteIndex(ddl: string): IIndexConstraint | null {
 	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+	const prefix = new RegExp(
+		`CREATE\\s+(UNIQUE\\s+)?INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${ident})\\s+ON\\s+(${ident})\\s*\\(`,
+		'i',
+	);
 
 	const cleanIdentifier = (identifier: string): string => {
 		return identifier.trim().replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
@@ -670,23 +720,31 @@ export function parseSqliteIndex(ddl: string): IIndexConstraint | null {
 
 	const normalizedDdl = ddl.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ');
 
-	const indexRegex = new RegExp(
-		`CREATE\\s+(UNIQUE\\s+)?INDEX\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${ident})\\s+ON\\s+(${ident})\\s*\\((.+)\\)(?:\\s+WHERE\\s+(.+))?`,
-		'gi',
-	);
+	const match = prefix.exec(normalizedDdl);
+	if (!match) return null;
 
-	const match = indexRegex.exec(normalizedDdl);
-	if (!match) {
-		return null;
+	const [, uniqueFlag, indexName, tableName] = match;
+
+	const start = match.index + match[0].length - 1; // position of '('
+	const end = findMatchingParen(normalizedDdl, start);
+	if (end === null) return null;
+
+	const columns = normalizedDdl.slice(start + 1, end).trim();
+	const rest = normalizedDdl.slice(end + 1).trim();
+
+	let where: string | undefined;
+
+	const whereMatch = /^\s*WHERE\s+(.+?);?$/i.exec(rest);
+	if (whereMatch) {
+		where = whereMatch[1];
 	}
 
-	const [, uniqueFlag, indexName, tableName, columnsStr, whereClause] = match;
 	return {
 		name: cleanIdentifier(indexName),
 		table: cleanIdentifier(tableName),
 		unique: !!uniqueFlag,
-		columns: splitColumns(columnsStr).map(cleanIdentifier),
-		where: whereClause ? whereClause.trim() : null,
+		columns: splitColumns(columns).map(cleanIdentifier),
+		where: where ? unwrapParentheses(where) : null,
 	};
 }
 
