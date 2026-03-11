@@ -89,7 +89,7 @@ export function upgradeSyncIfNeeded(
 	// Check if the table exists at all
 	// sqlite-proxy returns [ [1] ]
 	// sqlite returns [{ '1': 1 }]
-	let tableExists = allSync(
+	const tableExists = allSync(
 		session,
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 		(row) => ({ '1': row[0] }),
@@ -135,26 +135,19 @@ const upgradeSyncFunctions: Record<
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
-	 * 1. Add `name` column (text)
-	 * 2. Add `applied_at` column (text)
-	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
+	 * 1. Read all existing DB migrations
+	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
+	 * 3. Match each DB row to a local migration
+	 * If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
+	 * 5. Create extra column and backfill names for matched migrations
 	 */
 	0: (migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
-		// 1. Add new columns
-		session.run(sql`ALTER TABLE ${table} ADD COLUMN "name" text`);
-		session.run(
-			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TEXT`,
-		);
-
-		// 2. Read all existing DB migrations
+		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-
-		// sqlite returns array of objects for .all, but sqlite-proxy -> array of arrays
 		const dbRows = allSync<{ id: number | null; hash: string; created_at: number }>(
 			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
@@ -165,11 +158,7 @@ const upgradeSyncFunctions: Record<
 			}),
 		);
 
-		if (dbRows.length === 0) {
-			return;
-		}
-
-		// 3. Sort ASC by millis and if the same - sort by name
+		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
 			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
 		);
@@ -184,8 +173,22 @@ const upgradeSyncFunctions: Record<
 			byHash.set(lm.hash, lm);
 		}
 
-		// 4. Match each DB row to a local migration and backfill name
-		//    Priority: millis -> hash -> serial position
+		// 	3. Match each DB row to a local migration
+		// 	Priority: millis -> hash
+
+		// id can be null from legacy implementation where id was serial
+		const toApply: {
+			id: number | null;
+			name: string;
+			hash: string;
+			created_at: string;
+			matchedBy: 'id' | 'hash' | 'millis';
+		}[] = [];
+
+		// id can be null from legacy implementation where id was serial
+		// hash can only be '' for bun-sqlite journal entries
+		let unmatched: { id: number | null; hash: string; created_at: number }[] = [];
+
 		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
@@ -204,14 +207,57 @@ const upgradeSyncFunctions: Record<
 				if (matched) matchedBy = 'hash';
 			}
 
-			const updateQuery = sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE`;
+			if (matched) {
+				toApply.push({
+					id: dbRow.id,
+					name: matched.name,
+					hash: dbRow.hash,
+					created_at: stringified,
+					matchedBy: dbRow.id ? 'id' : matchedBy!,
+				});
+			} else unmatched.push(dbRow);
+		}
 
-			if (dbRow.id) updateQuery.append(sql` id = ${dbRow.id}`);
-			else if (matchedBy === 'millis') updateQuery.append(sql` created_at = ${dbRow.created_at}`);
-			else if (matchedBy === 'hash') updateQuery.append(sql` hash = ${dbRow.hash}`);
-			else continue; // do not update anything
+		// 4. Check for unmatched
+		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
+		// (if same seconds - fallback to hash, if hash fails - corner case)
+		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
+		// which can lead to inconsistencies and potential issues when running future migrations
+		if (unmatched.length > 0) {
+			throw Error(
+				`While upgrading your database migrations table we found ${unmatched.length} (${
+					unmatched.map((it) => `[id: ${it.id}, created_at: ${it.created_at}]`).join(', ')
+				}) migrations in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
+			);
+		}
 
-			session.run(updateQuery);
+		// 5. Create extra column and backfill names for matched migrations
+		try {
+			session.run(sql`BEGIN`);
+			session.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
+			session.run(
+				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
+			);
+
+			for (const backfillEntry of toApply) {
+				const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+					sql.identifier('applied_at')
+				} = NULL WHERE`;
+
+				// id
+				// created_at
+				// hash
+				if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
+				else if (backfillEntry.matchedBy === 'millis') {
+					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
+				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
+
+				session.run(updateQuery);
+			}
+			session.run(sql`COMMIT`);
+		} catch (err: any) {
+			session.run(sql`ROLLBACK`);
+			throw err;
 		}
 	},
 };
@@ -239,7 +285,7 @@ export async function upgradeAsyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	let tableExists = await allAsync(
+	const tableExists = await allAsync(
 		session,
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 		(row) => ({ '1': row[0] }),
@@ -287,35 +333,30 @@ const upgradeAsyncFunctions: Record<
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
-	 * 1. Add `name` column (text)
-	 * 2. Add `applied_at` column (text)
-	 * 3. Backfill `name` for existing rows by matching `created_at` (millis) to local migration folder timestamps
-	 * 4. If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> 5. If hash matching fails, fall back to serial id ordering
+	 * 1. Read all existing DB migrations
+	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
+	 * 3. Match each DB row to a local migration
+	 * If multiple migrations share the same second, use hash matching as a tiebreaker
+	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
+	 * 5. Create extra column and backfill names for matched migrations
 	 */
 	0: async (migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
-		// 1. Add new columns
-		await session.run(sql`ALTER TABLE ${table} ADD COLUMN "name" text`);
-		await session.run(
-			sql`ALTER TABLE ${table} ADD COLUMN "applied_at" TEXT`,
-		);
-
-		// 2. Read all existing DB migrations
+		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
 		const dbRows = await allAsync<{ id: number | null; hash: string; created_at: number }>(
 			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-			(row) => ({ id: row[0], hash: row[1], created_at: row[2] }),
+			(row) => ({
+				id: row[0],
+				hash: row[1],
+				created_at: row[2],
+			}),
 		);
 
-		if (dbRows.length === 0) {
-			return;
-		}
-
-		// 3. Sort ASC by millis and if the same - sort by name
+		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
 			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
 		);
@@ -330,8 +371,22 @@ const upgradeAsyncFunctions: Record<
 			byHash.set(lm.hash, lm);
 		}
 
-		// 4. Match each DB row to a local migration and backfill name
-		//    Priority: millis -> hash -> serial position
+		// 	3. Match each DB row to a local migration
+		// 	Priority: millis -> hash
+
+		// id can be null from legacy implementation where id was serial
+		const toApply: {
+			id: number | null;
+			name: string;
+			hash: string;
+			created_at: string;
+			matchedBy: 'id' | 'hash' | 'millis';
+		}[] = [];
+
+		// id can be null from legacy implementation where id was serial
+		// hash can only be '' for bun-sqlite journal entries
+		let unmatched: { id: number | null; hash: string; created_at: number }[] = [];
+
 		for (const dbRow of dbRows) {
 			const stringified = String(dbRow.created_at);
 			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
@@ -350,14 +405,57 @@ const upgradeAsyncFunctions: Record<
 				if (matched) matchedBy = 'hash';
 			}
 
-			const updateQuery = sql`UPDATE ${table} SET name = ${matched?.name ?? null}, applied_at = NULL WHERE`;
+			if (matched) {
+				toApply.push({
+					id: dbRow.id,
+					name: matched.name,
+					hash: dbRow.hash,
+					created_at: stringified,
+					matchedBy: dbRow.id ? 'id' : matchedBy!,
+				});
+			} else unmatched.push(dbRow);
+		}
 
-			if (dbRow.id) updateQuery.append(sql` id = ${dbRow.id}`);
-			else if (matchedBy === 'millis') updateQuery.append(sql` created_at = ${dbRow.created_at}`);
-			else if (matchedBy === 'hash') updateQuery.append(sql` hash = ${dbRow.hash}`);
-			else continue; // do not update anything
+		// 4. Check for unmatched
+		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
+		// (if same seconds - fallback to hash, if hash fails - corner case)
+		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
+		// which can lead to inconsistencies and potential issues when running future migrations
+		if (unmatched.length > 0) {
+			throw Error(
+				`While upgrading your database migrations table we found ${unmatched.length} (${
+					unmatched.map((it) => `[id: ${it.id}, created_at: ${it.created_at}]`).join(', ')
+				}) migrations in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
+			);
+		}
 
-			await session.run(updateQuery);
+		// 5. Create extra column and backfill names for matched migrations
+		try {
+			await session.run(sql`BEGIN`);
+			await session.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
+			await session.run(
+				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
+			);
+
+			for (const backfillEntry of toApply) {
+				const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+					sql.identifier('applied_at')
+				} = NULL WHERE`;
+
+				// id
+				// created_at
+				// hash
+				if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
+				else if (backfillEntry.matchedBy === 'millis') {
+					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
+				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
+
+				await session.run(updateQuery);
+			}
+			await session.run(sql`COMMIT`);
+		} catch (err: any) {
+			await session.run(sql`ROLLBACK`);
+			throw err;
 		}
 	},
 };

@@ -49,10 +49,9 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 	if (fs.existsSync(`${config.migrationsFolder}/meta/_journal.json`)) {
 		// it means user has folders V2
 		// we need to warn to up the folders
-		console.error(
-			'\nError: We detected that you have old drizzle-kit migration folders. You must upgrade drizzle-kit and run "drizzle-kit up"\n',
+		throw Error(
+			'We detected that you have old drizzle-kit migration folders. You must upgrade drizzle-kit and run "drizzle-kit up"',
 		);
-		process.exit(0);
 	}
 
 	const migrationFolderTo = config.migrationsFolder;

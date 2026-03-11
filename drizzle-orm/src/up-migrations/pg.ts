@@ -54,7 +54,7 @@ const upgradeFunctions: Record<
 	 * Upgrade from version 0 to version 1:
 	 * 1. Read all existing DB migrations
 	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
-	 * 3. Match each DB row to a local migration and backfill name
+	 * 3. Match each DB row to a local migration
 	 * If multiple migrations share the same second, use hash matching as a tiebreaker
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
@@ -68,10 +68,6 @@ const upgradeFunctions: Record<
 			session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
-
-		if (dbRows.length === 0) {
-			return;
-		}
 
 		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
@@ -88,7 +84,7 @@ const upgradeFunctions: Record<
 			byHash.set(lm.hash, lm);
 		}
 
-		// 	3. Match each DB row to a local migration and backfill name
+		// 	3. Match each DB row to a local migration
 		// 	Priority: millis -> hash
 		const toApply: { id: number; name: string }[] = [];
 		let unmatchedIds: number[] = [];
@@ -113,32 +109,35 @@ const upgradeFunctions: Record<
 		}
 
 		// 4. Check for unmatched
-		// Out assumption on this migration flow is that all DB entries should be matched to a local migration
+		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
 		// (if same seconds - fallback to hash, if hash fails - corner case)
 		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
 		// which can lead to inconsistencies and potential issues when running future migrations
 		if (unmatchedIds.length > 0) {
-			console.log(
-				`Error: While upgrading your database migrations table we found ${unmatchedIds.length} migrations (ids: ${
+			throw Error(
+				`While upgrading your database migrations table we found ${unmatchedIds.length} migrations (ids: ${
 					unmatchedIds.join(', ')
 				}) in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
 			);
-			process.exit(1);
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
 		try {
 			await execute(session, sql`BEGIN`);
-			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "name" text`);
+			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`);
 			await execute(
 				session,
-				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS "applied_at" timestamp with time zone DEFAULT now()`,
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+					sql.identifier('applied_at')
+				} timestamp with time zone DEFAULT now()`,
 			);
 
 			for (const backfillEntry of toApply) {
 				await execute(
 					session,
-					sql`UPDATE ${table} SET name = ${backfillEntry.name}, applied_at = NULL WHERE id = ${backfillEntry.id}`,
+					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+						sql.identifier('applied_at')
+					} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
 				);
 			}
 			await execute(session, sql`COMMIT`);
