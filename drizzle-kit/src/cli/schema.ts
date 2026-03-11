@@ -11,6 +11,7 @@ import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
+import { upDsqlHandler } from './commands/up-dsql';
 import { upMssqlHandler } from './commands/up-mssql';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
@@ -33,7 +34,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb', 'mssql', 'dsql' or 'cockroach'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -118,6 +119,9 @@ export const generate = command({
 				error(`You can't use 'generate' command with DuckDb dialect`),
 			);
 			process.exit(1);
+		} else if (dialect === 'dsql') {
+			const { handle } = await import('./commands/generate-dsql');
+			await handle(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -246,9 +250,17 @@ export const migrate = command({
 					migrationsSchema: schema,
 				}),
 			);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'migrate' command with Gel dialect`);
+		} else if (dialect === 'dsql') {
+			const { handle } = await import('./commands/migrate-dsql');
+			await handle({
+				out,
+				credentials: credentials as Parameters<typeof handle>[0]['credentials'],
+				table,
+				schema,
+			});
 		} else {
+			// gel and duckdb are handled in prepareMigrateConfig with process.exit(1)
+			// so they should never reach here
 			assertUnreachable(dialect);
 		}
 	},
@@ -440,6 +452,18 @@ export const push = command({
 				explain,
 				migrations,
 			);
+		} else if (dialect === 'dsql') {
+			const { handle } = await import('./commands/push-dsql');
+			await handle(
+				schemaPath,
+				verbose,
+				credentials,
+				filters,
+				force,
+				casing,
+				explain,
+				migrations,
+			);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
 			await handle(
@@ -530,6 +554,10 @@ export const up = command({
 
 		if (dialect === 'mssql') {
 			upMssqlHandler(out);
+		}
+
+		if (dialect === 'dsql') {
+			upDsqlHandler(out);
 		}
 
 		if (dialect === 'gel') {
@@ -727,6 +755,19 @@ export const pull = command({
 			migrate = db.migrate;
 
 			const { handle } = await import('./commands/pull-cockroach');
+			await handle(
+				casing,
+				out,
+				breakpoints,
+				credentials,
+				filters,
+				migrations,
+				db,
+			);
+		} else if (dialect === 'dsql') {
+			const { handle, prepareDsqlDB } = await import('./commands/pull-dsql');
+			const db = await prepareDsqlDB(credentials);
+			// DSQL doesn't support migrate --init due to one-DDL-per-transaction limitation
 			await handle(
 				casing,
 				out,
@@ -990,6 +1031,9 @@ export const exportRaw = command({
 		} else if (dialect === 'duckdb') {
 			console.log(error(`You can't use 'export' command with DuckDb dialect`));
 			process.exit(1);
+		} else if (dialect === 'dsql') {
+			const { handleExport } = await import('./commands/generate-dsql');
+			await handleExport(opts);
 		} else {
 			assertUnreachable(dialect);
 		}

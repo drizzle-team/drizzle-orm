@@ -53,7 +53,11 @@ export const SmallInt: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		const { value: def } = numberForTs(value);
+		return { default: def };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -190,7 +194,11 @@ export const Real: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		const { value: def } = numberForTs(value);
+		return { default: def };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -235,7 +243,11 @@ export const Boolean: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (value === 'true' || value === 'false') return { default: value };
+		return { default: `sql\`${escapeForTsLiteral(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 

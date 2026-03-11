@@ -241,7 +241,7 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
-	mode: 'pg' | 'gel',
+	mode: 'pg' | 'gel' | 'dsql',
 ) => {
 	const tableFn = `${mode}Table`;
 	for (const fk of ddl.fks.list()) {
@@ -437,11 +437,17 @@ export const ddlToTypeScript = (
 
 	const uniquePgImports = [...imports];
 
+	const coreModule = {
+		pg: 'drizzle-orm/pg-core',
+		gel: 'drizzle-orm/gel-core',
+		dsql: 'drizzle-orm/dsql-core',
+	}[mode];
+
 	const importsTs = `import { ${
 		uniquePgImports.join(
 			', ',
 		)
-	} } from "drizzle-orm/pg-core"
+	} } from "${coreModule}"
 import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;

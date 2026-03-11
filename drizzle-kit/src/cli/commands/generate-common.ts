@@ -3,6 +3,7 @@ import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
 import type { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
+import type { DSQLSnapshot } from 'src/dialects/dsql/snapshot';
 import type { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import type { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
@@ -13,7 +14,14 @@ import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver } from '../validations/common';
 
 export const writeResult = (config: {
-	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
+	snapshot:
+		| SqliteSnapshot
+		| PostgresSnapshot
+		| MysqlSnapshot
+		| MssqlSnapshot
+		| CockroachSnapshot
+		| SingleStoreSnapshot
+		| DSQLSnapshot;
 	sqlStatements: string[];
 	outFolder: string;
 	breakpoints: boolean;
