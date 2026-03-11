@@ -24,7 +24,7 @@ export class XataHttpDatabase<
 	static override readonly [entityKind]: string = 'XataHttpDatabase';
 
 	/** @internal */
-	declare readonly executor: XataHttpSession<
+	declare readonly session: XataHttpSession<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>

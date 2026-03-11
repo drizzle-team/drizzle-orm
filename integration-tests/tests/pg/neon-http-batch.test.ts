@@ -355,7 +355,7 @@ describe('batch', () => {
 			id: 1,
 		}]);
 
-		expect(batchResponse[1]).toMatchObject({ rowAsArray: true, rows: [], rowCount: 1 });
+		expect(batchResponse[1]).toMatchObject({ rowAsArray: false, rows: [], rowCount: 1 });
 
 		expect(batchResponse[2]).toEqual([
 			{ id: 1, name: 'John', verified: 0, invitedBy: null },
