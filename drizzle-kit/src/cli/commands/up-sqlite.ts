@@ -65,6 +65,9 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				table: table.name,
 				name: column.name,
 				type: column.type,
+				// should be implicitly nullable
+				// since old orm generated notNull on all primaryKeys ( .primaryKey() === .primaryKey().notNull() )
+				// and after fixing orm, we assume that most of people didn't have explicit notNull on primary keys
 				notNull: column.notNull && !column.primaryKey,
 				default: def,
 				autoincrement: column.autoincrement,
