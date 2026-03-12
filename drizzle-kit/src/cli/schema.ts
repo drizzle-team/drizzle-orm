@@ -342,7 +342,6 @@ export const push = command({
 
 		const {
 			dialect,
-			schemaPath,
 			verbose,
 			credentials,
 			force,
@@ -350,12 +349,13 @@ export const push = command({
 			filters,
 			explain,
 			migrations,
+			filenames,
 		} = config;
 
 		if (dialect === 'mysql') {
 			const { handle } = await import('./commands/push-mysql');
 			await handle(
-				schemaPath,
+				filenames,
 				credentials,
 				verbose,
 				force,
@@ -383,7 +383,7 @@ export const push = command({
 
 			const { handle } = await import('./commands/push-postgres');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -395,7 +395,7 @@ export const push = command({
 		} else if (dialect === 'sqlite') {
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
 			await sqlitePush(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -407,7 +407,7 @@ export const push = command({
 		} else if (dialect === 'turso') {
 			const { handle: libSQLPush } = await import('./commands/push-libsql');
 			await libSQLPush(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -419,7 +419,7 @@ export const push = command({
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
 			await handle(
-				schemaPath,
+				filenames,
 				credentials,
 				filters,
 				verbose,
@@ -431,7 +431,7 @@ export const push = command({
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -443,7 +443,7 @@ export const push = command({
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,

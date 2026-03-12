@@ -2470,3 +2470,108 @@ test('introspect policies without schemaFilter', async (t) => {
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5056
+test('#5056', async () => {
+	await db.query(`CREATE TABLE public.responses (
+    id          uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+    prompt_id   uuid            NOT NULL,
+    content     text            NOT NULL,
+    model       text,
+    created_at  timestamptz     NOT NULL DEFAULT now(),
+    updated_at  timestamptz     NOT NULL DEFAULT now()
+);`);
+	await db.query(`CREATE INDEX idx_responses_prompt_created
+    ON public.responses
+    USING btree (prompt_id uuid_ops, model text_pattern_ops, created_at timestamptz_ops DESC);`);
+
+	const fromDb = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: 'drizzle',
+		schema: '__drizzle_migrations',
+	});
+
+	await db.query(`DROP TABLE responses CASCADE`);
+
+	expect(fromDb.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'prompt_id',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'btree',
+					},
+					value: 'model',
+				},
+				{
+					asc: false,
+					isExpression: false,
+					nullsFirst: true,
+					opclass: null,
+					value: 'created_at',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'idx_responses_prompt_created',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'responses',
+			where: null,
+			with: '',
+		},
+	]);
+
+	const schema = {
+		responses: pgTable(
+			'responses',
+			{
+				id: uuid().primaryKey().defaultRandom(),
+				prompt_id: uuid().notNull(),
+				content: text().notNull(),
+				model: text(),
+				created_at: timestamp({ withTimezone: true }).defaultNow(),
+				updated_at: timestamp({ withTimezone: true }).defaultNow(),
+			},
+			(
+				t,
+			) => [
+				index('idx_responses_prompt_created').using(
+					'btree',
+					t.prompt_id.op('uuid_ops'),
+					t.model.op('text_pattern_ops'),
+					t.created_at.op('timestamptz_ops').desc(),
+				),
+			],
+		),
+	};
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
+		db,
+		schema,
+		'#5056',
+		[],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});

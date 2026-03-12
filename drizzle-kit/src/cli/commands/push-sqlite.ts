@@ -8,7 +8,6 @@ import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteDB } from '../../utils';
-import { prepareFilenames } from '../../utils/utils-node';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -18,7 +17,7 @@ import type { SqliteCredentials } from '../validations/sqlite';
 import { explain, ProgressView, sqliteSchemaError } from '../views';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	verbose: boolean,
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
@@ -35,8 +34,7 @@ export const handle = async (
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
 	const db = sqliteDB ?? await connectToSQLite(credentials);
-	const files = prepareFilenames(schemaPath);
-	const res = await prepareFromSchemaFiles(files);
+	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
