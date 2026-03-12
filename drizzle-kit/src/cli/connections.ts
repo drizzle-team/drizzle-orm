@@ -2287,6 +2287,7 @@ export const connectToSQLite = async (
 						stmt.run();
 					}
 				}
+				client.prepare('COMMIT').run();
 			} catch (error: any) {
 				client.prepare('ROLLBACK').run();
 				results.push(error as Error);
