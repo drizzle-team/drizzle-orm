@@ -8,8 +8,8 @@ import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
@@ -22,7 +22,7 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
@@ -188,7 +188,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
 	private method: SQLiteExecuteMethod;
-	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -240,7 +240,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			}
 
 			return this.useJitMapper
-				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
 				: (this.customResultMapper as (
 					rows: Record<string, unknown>[],
@@ -253,7 +253,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper(this.fields!, this.joinsNotNullableMap))(rows as unknown[][])
 			: (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
@@ -325,7 +325,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 
 		if (this.isRqbV2Query) {
 			return this.useJitMapper
-				? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([JSON.parse(row as string) as Record<string, unknown>])
 				: (this.customResultMapper as (
 					rows: Record<string, unknown>[],
@@ -340,7 +340,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(this.fields!, this.joinsNotNullableMap))(
 					[row as unknown[]],
 				)[0]

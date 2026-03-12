@@ -6,7 +6,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -80,11 +80,7 @@ export class PgAsyncDeleteBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const query = dialect.sqlToQuery(this.getSQL());
 			const mapper = fields
-				? this.dialect.useJitMappers ? makeJitQueryMapper(fields, undefined) : (rows: any[]) => {
-					return rows.map((it) => {
-						return mapResultRow(fields, it, undefined);
-					});
-				}
+				? this.dialect.mapperGenerators.rows(fields, undefined)
 				: undefined;
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(

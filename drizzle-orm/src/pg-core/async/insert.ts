@@ -5,7 +5,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -81,11 +81,7 @@ export class PgAsyncInsertBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const query = dialect.sqlToQuery(this.getSQL());
 			const mapper = fields
-				? this.dialect.useJitMappers ? makeJitQueryMapper(fields, undefined) : (rows: any[]) => {
-					return rows.map((it) => {
-						return mapResultRow(fields, it, undefined);
-					});
-				}
+				? this.dialect.mapperGenerators.rows(fields, undefined)
 				: undefined;
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(

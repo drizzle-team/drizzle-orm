@@ -38,8 +38,11 @@ import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
+	makeRqbJitMapper,
+	makeRqbMapper,
 	One,
 	type Relation,
+	type RelationalRowsMapperGenerator,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
@@ -61,14 +64,21 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	makeInterpretedQueryMapper,
+	makeJitQueryMapper,
+	orderSelectedFields,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type PgCodecs, PgCodecsCollection } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
 export interface PgDialectConfig {
-	casing?: Casing;
+	casing?: Casing | CasingCache;
 	codecs?: PgCodecs;
 	useJitMappers?: boolean;
 }
@@ -76,16 +86,25 @@ export interface PgDialectConfig {
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
 	readonly codecs: PgCodecsCollection;
-	/** @internal */
-	readonly useJitMappers: boolean;
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+	};
 
 	constructor(config?: PgDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
+		this.casing = typeof config?.casing === 'object' ? config.casing : new CasingCache(config?.casing);
 		this.codecs = new PgCodecsCollection(config?.codecs);
-		this.useJitMappers = config?.useJitMappers ?? false;
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeRqbJitMapper,
+			}
+			: {
+				rows: makeInterpretedQueryMapper,
+				relationalRows: makeRqbMapper,
+			};
 	}
 
 	escapeName(name: string): string {

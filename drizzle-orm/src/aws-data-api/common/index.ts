@@ -98,6 +98,10 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 	} else if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
 		// TODO: check if this clause is needed? Seems like date value always comes as string
 		response.value = { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
+	} else if (typeof value === 'bigint') {
+		response.value = { stringValue: value.toString() };
+	} else if ((typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) || value instanceof Uint8Array) { // oxlint-disable-line drizzle-internal/no-instanceof
+		response.value = { blobValue: value };
 	} else {
 		throw new Error(`Unknown type for ${value}`);
 	}

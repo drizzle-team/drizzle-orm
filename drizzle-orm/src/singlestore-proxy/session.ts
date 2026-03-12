@@ -7,8 +7,8 @@ import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import { SingleStoreTransaction } from '~/singlestore-core/index.ts';
@@ -23,7 +23,7 @@ import type {
 import { SingleStorePreparedQuery as PreparedQueryBase, SingleStoreSession } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
@@ -140,7 +140,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 	extends PreparedQueryBase<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreProxyPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -211,7 +211,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
@@ -227,7 +227,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		const rows = res[0];
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
 			: customResultMapper!(rows);
 	}

@@ -12,6 +12,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
+import { noopPgCodecs } from '../codecs.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
@@ -155,7 +156,6 @@ export class PgAsyncDatabase<
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -163,9 +163,15 @@ export class PgAsyncDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
+				qb = qb(
+					new QueryBuilder(
+						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
+							casing: this.dialect.casing,
+							codecs: noopPgCodecs,
+						}),
+					),
+				);
 			}
-
 			return new Proxy(
 				new WithSubquery(
 					qb.getSQL(),

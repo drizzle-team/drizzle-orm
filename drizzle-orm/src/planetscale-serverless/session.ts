@@ -19,17 +19,17 @@ import {
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	private rawQuery = { as: 'object' } as const;
 	private query = { as: 'array' } as const;
@@ -119,7 +119,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
 					rows as unknown[][],
 				)
@@ -141,7 +141,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		const res = await client.execute(queryString, params, rawQuery);
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(res.rows as any as Record<string, unknown>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 				res.rows as any as Record<string, unknown>[],

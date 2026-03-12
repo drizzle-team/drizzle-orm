@@ -62,7 +62,9 @@ export class AwsPgDialect extends PgDialect {
 						&& is(column, PgColumn) && column.dimensions
 						&& Array.isArray(colValue.value)
 					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())})`;
+						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())}${
+							column.dimensions ? sql.raw('[]'.repeat(column.dimensions)) : undefined
+						})`;
 					}
 				}
 			}
@@ -81,7 +83,9 @@ export class AwsPgDialect extends PgDialect {
 				&& is(currentColumn, PgColumn) && currentColumn.dimensions
 				&& Array.isArray(colValue.value)
 			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())})`;
+				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())}${
+					currentColumn.dimensions ? sql.raw('[]'.repeat(currentColumn.dimensions)) : undefined
+				})`;
 			}
 		}
 		return super.buildUpdateSet(table, set);

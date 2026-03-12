@@ -8,7 +8,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, makeJitQueryMapper, mapResultRow, orderSelectedFields } from '~/utils.ts';
+import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
@@ -119,13 +119,7 @@ export class PgEffectSelectBase<
 			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
 		);
 
-		const mapper = this.dialect.useJitMappers
-			? makeJitQueryMapper(fieldsList, joinsNotNullableMap)
-			: (rows: any[]) => {
-				return rows.map((it) => {
-					return mapResultRow(fieldsList, it, joinsNotNullableMap);
-				});
-			};
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,

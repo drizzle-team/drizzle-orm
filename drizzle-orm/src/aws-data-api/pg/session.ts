@@ -124,6 +124,8 @@ export class AwsDataApiSession<
 				}
 				return row;
 			});
+
+			if (mode === 'objects') return mappedRows;
 			return Object.assign(result, { rows: mappedRows });
 		};
 

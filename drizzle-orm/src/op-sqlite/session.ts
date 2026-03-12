@@ -8,8 +8,8 @@ import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -22,7 +22,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
@@ -157,7 +157,7 @@ export class OPSQLitePreparedQuery<
 	{ type: 'async'; run: QueryResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'OPSQLitePreparedQuery';
-	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private client: OPSQLiteConnection,
@@ -209,7 +209,7 @@ export class OPSQLitePreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
@@ -223,7 +223,7 @@ export class OPSQLitePreparedQuery<
 		const rows = client.execute(query.sql, params).rows?._array || [];
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
 	}
@@ -253,7 +253,7 @@ export class OPSQLitePreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
 					[row],
 				)[0]
@@ -274,7 +274,7 @@ export class OPSQLitePreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}

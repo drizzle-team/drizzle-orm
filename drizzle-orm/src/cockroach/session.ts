@@ -14,7 +14,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 const { Pool, types } = pg;
 
@@ -25,7 +25,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
-	private jitMapper?: JitMapper<T['execute']>;
+	private jitMapper?: RowsMapper<T['execute']>;
 
 	constructor(
 		private client: NodeCockroachClient,

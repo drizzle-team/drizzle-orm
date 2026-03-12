@@ -11,12 +11,12 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export type GelClient = Client | Transaction;
 
@@ -24,7 +24,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 	extends GelPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'GelPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: GelClient,
@@ -87,7 +87,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 				}
 
 				return this.useJitMapper
-					? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+					? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 						?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(result)
 					: result.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
@@ -113,7 +113,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return this.useJitMapper
-					? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+					? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
 					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 						result as Record<string, unknown>[],
