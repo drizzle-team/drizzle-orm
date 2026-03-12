@@ -932,15 +932,20 @@ export class SeedService {
 			&& schema[tableName] !== undefined
 		) {
 			const tableConfig = getTableConfigPg(schema[tableName] as PgTable);
+			const dbCasing =
+				(db as PgAsyncDatabase<any> & { dialect: { casing: { getColumnCasing: (col: unknown) => string } } }).dialect
+					.casing;
 			for (const column of tableConfig.columns) {
 				// TODO should I filter only primary key columns?
 				// should I filter column by dataType or by column drizzle type?
 				// column.dataType === 'number' || column.dataType === 'bigint'
 				if (isPostgresColumnIntLike(column)) {
+					// Use dialect casing to resolve the actual DB column name (e.g. camelCase -> snake_case)
+					const dbColumnName = dbCasing.getColumnCasing(column);
 					columnsToUpdateSeq.set(column.name, {
 						schemaName: tableConfig.schema,
 						tableName: tableConfig.name,
-						columnName: column.name,
+						columnName: dbColumnName,
 						valueToUpdate: undefined,
 					});
 				}
