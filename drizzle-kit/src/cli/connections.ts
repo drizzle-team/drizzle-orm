@@ -2307,7 +2307,9 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases"
+			+ '\n'
+			+ "To use 'node:sqlite' driver, ensure you're running Node.js v22.5.0 or higher",
 	);
 	console.warn("For the 'bun' driver, run your script using: bun --bun");
 	process.exit(1);
