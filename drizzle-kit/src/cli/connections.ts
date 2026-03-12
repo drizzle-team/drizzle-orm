@@ -1742,7 +1742,8 @@ export const connectToSQLite = async (
 			| 'better-sqlite3'
 			| '@sqlitecloud/drivers'
 			| '@tursodatabase/database'
-			| 'bun';
+			| 'bun'
+			| 'node:sqlite';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -2220,6 +2221,82 @@ export const connectToSQLite = async (
 
 		return {
 			packageName: 'bun',
+			query,
+			run,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
+	}
+
+	if (await checkPackage('node:sqlite')) {
+		console.log(withStyle.info(`Using 'node:sqlite' driver for database querying`));
+		const { DatabaseSync } = await import('node:sqlite');
+		const { drizzle } = await import('drizzle-orm/node-sqlite');
+		const { migrate } = await import('drizzle-orm/node-sqlite/migrator');
+
+		const client = new DatabaseSync(credentials.url);
+
+		const db = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			const result = client.prepare(sql).all(...(params || []));
+			return result as T[];
+		};
+		const run = async (sql: string) => {
+			client.prepare(sql).run();
+		};
+
+		const proxy: Proxy = async (params) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+
+			const stmt = client.prepare(params.sql);
+			if (
+				params.method === 'values'
+				|| params.method === 'get'
+				|| params.method === 'all'
+			) {
+				stmt.setReturnArrays(params.mode === 'array');
+				return stmt.all(...preparedParams);
+			}
+
+			stmt.run(...preparedParams);
+
+			return [];
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+
+			try {
+				client.prepare('BEGIN').run();
+
+				for (const query of queries) {
+					const stmt = client.prepare(query.sql);
+					if (
+						query.method === 'values'
+						|| query.method === 'get'
+						|| query.method === 'all'
+					) {
+						const res = stmt.all();
+						results.push(res);
+					} else {
+						stmt.run();
+					}
+				}
+			} catch (error: any) {
+				client.prepare('ROLLBACK').run();
+				results.push(error as Error);
+			}
+
+			return results;
+		};
+
+		return {
+			packageName: 'node:sqlite',
 			query,
 			run,
 			proxy,
