@@ -20,11 +20,11 @@ import {
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
@@ -33,7 +33,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'TiDBPreparedQuery';
-	private jitMapper?: JitMapper<T['execute']> | RelationalQueryJitMapper<T['execute']>;
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: Tx | Connection,
@@ -110,7 +110,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
@@ -125,7 +125,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 
 		const { rows } = res;
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 				(rows ?? []) as Record<string, any>[],

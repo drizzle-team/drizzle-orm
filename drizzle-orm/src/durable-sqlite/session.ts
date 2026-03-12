@@ -5,8 +5,8 @@ import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -18,7 +18,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
@@ -152,7 +152,7 @@ export class SQLiteDOPreparedQuery<
 	execute: T['execute'];
 }> {
 	static override readonly [entityKind]: string = 'SQLiteDOPreparedQuery';
-	private jitMapper?: JitMapper<any> | RelationalQueryJitMapper<any>;
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private client: DurableObjectStorage,
@@ -199,7 +199,7 @@ export class SQLiteDOPreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['all']>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
@@ -215,7 +215,7 @@ export class SQLiteDOPreparedQuery<
 			: client.sql.exec(query.sql).toArray();
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['all']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
 	}
@@ -243,7 +243,7 @@ export class SQLiteDOPreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<T['get'][]>
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
 					[row],
 				)[0]
@@ -263,7 +263,7 @@ export class SQLiteDOPreparedQuery<
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['get'][]>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}

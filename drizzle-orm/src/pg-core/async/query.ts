@@ -1,6 +1,5 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { makeRqbJitMapper, mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins } from '~/utils.ts';
@@ -27,31 +26,13 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			const mapper = this.dialect.useJitMappers
-				? makeRqbJitMapper({
-					isFirst: this.mode === 'first',
-					parseJson: this.parseJson,
-					parseJsonIfString: false,
-					rootJsonMappers: false,
-					selection: query.selection,
-				})
-				: (rows: any[]) => {
-					for (let i = 0; i < rows.length; ++i) {
-						mapRelationalRow(
-							rows[i]!,
-							query.selection,
-							(it) => it, // TODO: remove, backward comp
-							this.parseJson,
-							undefined,
-							false,
-						);
-					}
-
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				};
+			const mapper = this.dialect.mapperGenerators.relationalRows({
+				isFirst: this.mode === 'first',
+				parseJson: this.parseJson,
+				parseJsonIfString: false,
+				rootJsonMappers: false,
+				selection: query.selection,
+			});
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,

@@ -24,20 +24,20 @@ import {
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'BunMySqlPreparedQuery';
 	private jitMapper?:
-		| JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-		| RelationalQueryJitMapper<T['execute']>;
+		| RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: BunSQL,
@@ -127,7 +127,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 
 		return this.useJitMapper
 			? (this.jitMapper =
-				this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 						fields!,
 						joinsNotNullableMap,
@@ -144,7 +144,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		const rows = await client.unsafe(query, params);
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
@@ -166,7 +166,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 
 			if (this.isRqbV2Query) {
 				if (this.useJitMapper) {
-					yield (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+					yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row]);
 				} else {
 					const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([row]);
@@ -179,7 +179,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 					yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 				} else {
 					yield this.useJitMapper
-						? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+						? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 							: T['execute'])[]>
 							?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 								fields!,

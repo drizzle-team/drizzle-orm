@@ -54,15 +54,16 @@ export class BunSQLSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
+		// Have to `return await` due to bun's handling of queries - https://github.com/drizzle-team/drizzle-orm/issues/5451
 		const executor = async (params?: unknown[]) => {
 			if (mode === 'arrays') {
-				return this.client.unsafe(query.sql, params).values();
+				return await this.client.unsafe(query.sql, params).values();
 			}
 			if (mode === 'objects') {
-				return this.client.unsafe(query.sql, params);
+				return await this.client.unsafe(query.sql, params);
 			}
 
-			return this.client.unsafe(query.sql, params);
+			return await this.client.unsafe(query.sql, params);
 		};
 
 		return new PgAsyncPreparedQuery<T>(

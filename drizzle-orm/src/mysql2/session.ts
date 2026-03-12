@@ -33,12 +33,12 @@ import {
 import {
 	type AnyRelations,
 	makeRqbJitMapper,
-	type RelationalQueryJitMapper,
 	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
 } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, type JitMapper, makeJitQueryMapper, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
 
@@ -56,8 +56,8 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
 	private jitMapper?:
-		| JitMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-		| RelationalQueryJitMapper<T['execute']>;
+		| RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: MySql2Client,
@@ -158,7 +158,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		}
 
 		return this.useJitMapper
-			? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+			? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 				: T['execute'])[]>
 				?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number]
 					: T['execute'])[]>(fields!, joinsNotNullableMap))(rows)
@@ -212,7 +212,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 				} else {
 					if (this.isRqbV2Query) {
 						if (this.useJitMapper) {
-							yield (this.jitMapper = this.jitMapper as RelationalQueryJitMapper<T['execute']>
+							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 								?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
 						} else {
 							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
@@ -227,7 +227,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
 							yield this.useJitMapper
-								? (this.jitMapper = this.jitMapper as JitMapper<(T['execute'] extends any[] ? T['execute'][number]
+								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 									: T['execute'])[]>
 									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 										fields!,

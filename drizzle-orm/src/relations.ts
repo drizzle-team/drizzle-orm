@@ -811,7 +811,27 @@ export function mapRelationalRow(
 	return row;
 }
 
-export type RelationalQueryJitMapper<T = unknown> = (rows: Record<string, unknown>[]) => T;
+export type RelationalRowsMapper<T = any> = (rows: Record<string, unknown>[]) => T;
+export type RelationalRowsMapperGenerator<T = any> = (
+	config: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+) => (rows: Record<string, unknown>[]) => T;
+
+export function makeRqbMapper<T = any>(
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+): RelationalRowsMapper<T> {
+	const mapRow: RelationalRowsMapper = (rows) => {
+		for (let i = 0; i < rows.length; ++i) {
+			mapRelationalRow(rows[i]!, selection, mapColumnValue, parseJson, parseJsonIfString, rootJsonMappers);
+		}
+
+		if (isFirst) return rows[0];
+		return rows;
+	};
+
+	return mapRow;
+}
 
 function makeRqbJitMapperInner(
 	selection: BuildRelationalQueryResult['selection'],
@@ -901,16 +921,20 @@ function makeRqbJitMapperInner(
 
 export interface RelationalQueryMapperConfig {
 	selection: BuildRelationalQueryResult['selection'];
+	/** Used for `db.query.table.findFirst(...)` */
 	isFirst: boolean;
+	/** Used by SQLite & drivers that return JSON-s as strings by default */
 	parseJson: boolean;
+	/** Used by SingleStore to fix malformed outputs for empty JSON arrays */
 	parseJsonIfString: boolean;
+	/** Enable for non-reworked dialects & drivers with JSON-ified root level of relational query */
 	rootJsonMappers: boolean;
 }
 
 export function makeRqbJitMapper<T = unknown>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
-): RelationalQueryJitMapper<T> {
+): RelationalRowsMapper<T> {
 	const fn = [] as string[];
 	const innerCode = makeRqbJitMapperInner(
 		selection,
@@ -940,7 +964,7 @@ export function makeRqbJitMapper<T = unknown>(
 	).bind({
 		selection,
 		mapColumnValue,
-	}) as RelationalQueryJitMapper<T>;
+	}) as RelationalRowsMapper<T>;
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {
