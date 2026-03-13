@@ -24,7 +24,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 
 	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 
-	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations, 'execute');
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations, 'batch');
 
 	if (newDb) {
 		const migrationTableCreate = sql`

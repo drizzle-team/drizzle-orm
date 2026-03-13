@@ -1,11 +1,11 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
 import type { BatchItem } from '~/batch.ts';
-import { entityKind } from '~/entity.ts';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { NeonHttpDatabase } from '~/neon-http';
+import type { NeonHttpDatabase } from '~/neon-http/driver.ts';
 import type { NeonHttpSession } from '~/neon-http/session.ts';
-import type { PgAsyncDatabase, PgQueryResultHKT } from '~/pg-core';
+import type { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import type { XataHttpSession } from '~/xata-http/session.ts';
@@ -49,7 +49,7 @@ const upgradeFunctions: Record<
 		migrationsTable: string,
 		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'execute',
+		mode: 'transaction' | 'execute' | 'batch',
 	) => Promise<void>
 > = {
 	/**
@@ -140,15 +140,15 @@ const upgradeFunctions: Record<
 
 		// check if http
 		// execute -> proxy, http drivers
-		// transaction -> others
+		// transaction -> other
 		if (mode === 'transaction') {
 			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
 				for (const sql of sqls) {
 					await tx.execute(sql);
 				}
 			});
-		} else if (Object.getPrototypeOf(db)?.constructor[entityKind] === 'NeonHttpDatabase') {
-			const database: NeonHttpDatabase = db as NeonHttpDatabase;
+		} else if (mode === 'batch') {
+			const database = db as NeonHttpDatabase;
 
 			await database.batch(
 				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
@@ -172,7 +172,7 @@ export async function upgradeIfNeeded(
 	migrationsTable: string,
 	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	localMigrations: MigrationMeta[],
-	mode: 'transaction' | 'execute' = 'transaction',
+	mode: 'transaction' | 'execute' | 'batch' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(
