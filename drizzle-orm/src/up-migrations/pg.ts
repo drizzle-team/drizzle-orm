@@ -1,9 +1,12 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
+import type { BatchItem } from '~/batch.ts';
+import { entityKind } from '~/entity.ts';
 import type { MigrationMeta } from '~/migrator.ts';
+import type { NeonHttpDatabase } from '~/neon-http';
 import type { NeonHttpSession } from '~/neon-http/session.ts';
-import type { PgQueryResultHKT } from '~/pg-core';
+import type { PgAsyncDatabase, PgQueryResultHKT } from '~/pg-core';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import type { XataHttpSession } from '~/xata-http/session.ts';
 
@@ -44,10 +47,7 @@ const upgradeFunctions: Record<
 	(
 		migrationsSchema: string,
 		migrationsTable: string,
-		session:
-			| PgAsyncSession
-			| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-			| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 		localMigrations: MigrationMeta[],
 		type?: 'http',
 	) => Promise<void>
@@ -61,13 +61,13 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsSchema, migrationsTable, session, localMigrations, type) => {
+	0: async (migrationsSchema, migrationsTable, db, localMigrations, type) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		const dbRows = await execute<{ id: number; hash: string; created_at: string }[]>(
-			session,
+			db.session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -124,35 +124,39 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		const addNameColumnSql = sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`;
-		const addAppliedAtColumnSql = sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
-			sql.identifier('applied_at')
-		} timestamp with time zone DEFAULT now()`;
+		const sqls: SQL[] = [
+			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`,
+			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+				sql.identifier('applied_at')
+			} timestamp with time zone DEFAULT now()`,
+		];
+		for (const { id, name } of toApply) {
+			sqls.push(
+				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+					sql.identifier('id')
+				} = ${id}`,
+			);
+		}
 
-		const runUpgrade = async (
-			executor: { execute: (query: SQL) => Promise<unknown> },
-		) => {
-			await executor.execute(addNameColumnSql);
-			await executor.execute(addAppliedAtColumnSql);
-
-			for (const { id, name } of toApply) {
-				await executor.execute(
-					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
-						sql.identifier('id')
-					} = ${id}`,
-				);
-			}
-		};
-
+		// check if http
+		// neon-http -> batch
+		// others http use execute
 		if (type !== 'http') {
-			await session.transaction(
-				async (tx: PgAsyncTransaction<PgQueryResultHKT, Record<string, unknown>, EmptyRelations>) => {
-					await runUpgrade(tx);
-				},
+			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
+				for (const sql of sqls) {
+					await tx.execute(sql);
+				}
+			});
+		} else if (Object.getPrototypeOf(db.session)[entityKind] === 'NeonHttpSession') {
+			const database: NeonHttpDatabase = db as NeonHttpDatabase;
+
+			await database.batch(
+				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
 			);
 		} else {
-			// neon-http batch can run only db.insert(), ...
-			await runUpgrade(session);
+			for (const sql of sqls) {
+				await db.execute(sql);
+			}
 		}
 	},
 };
@@ -166,16 +170,13 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	session:
-		| PgAsyncSession
-		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	localMigrations: MigrationMeta[],
 	type?: 'http',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(
-		session,
+		db.session,
 		sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -189,7 +190,7 @@ export async function upgradeIfNeeded(
 	const rows = await execute<
 		{ schema: string; table_name: string; column_name: string; type: string }[]
 	>(
-		session,
+		db.session,
 		sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",
@@ -214,7 +215,7 @@ export async function upgradeIfNeeded(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations, type);
+		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, type);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };

@@ -30,7 +30,7 @@ export interface MigrationConfig {
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded('public', migrationsTable, db.session, migrations, 'http');
+	const { newDb } = await upgradeIfNeeded('public', migrationsTable, db, migrations, 'http');
 
 	if (newDb) {
 		const migrationTableCreate = sql`
