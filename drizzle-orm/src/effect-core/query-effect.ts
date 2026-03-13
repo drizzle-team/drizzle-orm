@@ -1,5 +1,4 @@
 import type * as Effect from 'effect/Effect';
-import * as Effectable from 'effect/Effectable';
 
 export interface QueryEffectHKTBase {
 	readonly $brand: 'QueryEffectHKT';
@@ -15,9 +14,10 @@ export type QueryEffectKind<
 > = Effect.Effect<TSuccess, TKind['error'] | TError, TKind['context'] | TContext>;
 
 export function applyEffectWrapper(baseClass: any) {
-	Object.assign(baseClass.prototype, Effectable.CommitPrototype);
-
-	baseClass.prototype.commit = function(this: { execute(): Effect.Effect<any, any, any> }) {
+	baseClass.prototype.asEffect = function(this: { execute(): Effect.Effect<any, any, any> }) {
 		return this.execute();
+	};
+	baseClass.prototype[Symbol.iterator] = function(this: { asEffect(): Effect.Effect<any, any, any> }) {
+		return (this.asEffect() as any)[Symbol.iterator]();
 	};
 }

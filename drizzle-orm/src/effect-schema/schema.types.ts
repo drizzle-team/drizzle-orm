@@ -1,4 +1,4 @@
-import type { Literal } from 'effect/Schema';
+import type { Literals } from 'effect/Schema';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
@@ -26,7 +26,7 @@ export interface CreateSelectSchema {
 
 	<TEnum extends PgEnum<any> | CockroachEnum<any>>(
 		enum_: TEnum,
-	): Literal<TEnum['enumValues']>;
+	): Literals<TEnum['enumValues']>;
 }
 
 export interface CreateInsertSchema {

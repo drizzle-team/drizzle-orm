@@ -1,8 +1,8 @@
-import type { SqlError } from '@effect/sql/SqlError';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type * as V1 from '~/_relations.ts';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
+import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
@@ -34,7 +34,7 @@ export abstract class PgEffectPreparedQuery<
 
 	constructor(
 		query: Query,
-		private cache: EffectCache,
+		private cache: EffectCacheShape,
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -56,7 +56,7 @@ export abstract class PgEffectPreparedQuery<
 		params: any[],
 		query: Effect.Effect<A, E, R>,
 	) {
-		return Effect.gen(this, function*() {
+		return Effect.gen({ self: this }, function*() {
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
 
@@ -104,9 +104,9 @@ export abstract class PgEffectPreparedQuery<
 
 			assertUnreachable(cacheStrat);
 		}).pipe(
-			Effect.provideService(EffectCache, this.cache),
-			Effect.catchAll((e) => {
-				return new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) });
+			Effect.provideService(EffectCache, this.cache as any),
+			Effect.catch((e) => {
+				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
 			}),
 		);
 	}
