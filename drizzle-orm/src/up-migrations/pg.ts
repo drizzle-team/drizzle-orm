@@ -49,7 +49,7 @@ const upgradeFunctions: Record<
 		migrationsTable: string,
 		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 		localMigrations: MigrationMeta[],
-		type?: 'http',
+		mode: 'transaction' | 'execute',
 	) => Promise<void>
 > = {
 	/**
@@ -61,7 +61,7 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsSchema, migrationsTable, db, localMigrations, type) => {
+	0: async (migrationsSchema, migrationsTable, db, localMigrations, mode) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
@@ -139,9 +139,9 @@ const upgradeFunctions: Record<
 		}
 
 		// check if http
-		// neon-http -> batch
-		// others http use execute
-		if (type !== 'http') {
+		// execute -> proxy, http drivers
+		// transaction -> others
+		if (mode === 'transaction') {
 			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
 				for (const sql of sqls) {
 					await tx.execute(sql);
@@ -172,7 +172,7 @@ export async function upgradeIfNeeded(
 	migrationsTable: string,
 	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	localMigrations: MigrationMeta[],
-	type?: 'http',
+	mode: 'transaction' | 'execute' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(
@@ -215,7 +215,7 @@ export async function upgradeIfNeeded(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, type);
+		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, mode);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };

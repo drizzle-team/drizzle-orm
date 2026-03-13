@@ -26,7 +26,7 @@ export async function migrate<
 		: config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations);
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations, 'execute');
 
 	if (newDb) {
 		const migrationTableCreate = sql`
