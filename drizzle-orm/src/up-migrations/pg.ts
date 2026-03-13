@@ -1,8 +1,10 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
+import { is } from '~/entity';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { NeonHttpSession } from '~/neon-http/session.ts';
-import type { PgAsyncSession } from '~/pg-core/async/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import { NeonHttpSession } from '~/neon-http/session.ts';
+import type { PgQueryResultHKT } from '~/pg-core';
+import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import type { XataHttpSession } from '~/xata-http/session.ts';
 
@@ -122,28 +124,35 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		try {
-			await execute(session, sql`BEGIN`);
-			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`);
-			await execute(
-				session,
-				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
-					sql.identifier('applied_at')
-				} timestamp with time zone DEFAULT now()`,
-			);
+		const addNameColumnSql = sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`;
+		const addAppliedAtColumnSql = sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+			sql.identifier('applied_at')
+		} timestamp with time zone DEFAULT now()`;
 
-			for (const backfillEntry of toApply) {
-				await execute(
-					session,
-					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
-						sql.identifier('applied_at')
-					} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
+		const runUpgrade = async (
+			executor: { execute: (query: SQL) => Promise<unknown> },
+		) => {
+			await executor.execute(addNameColumnSql);
+			await executor.execute(addAppliedAtColumnSql);
+
+			for (const { id, name } of toApply) {
+				await executor.execute(
+					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+						sql.identifier('id')
+					} = ${id}`,
 				);
 			}
-			await execute(session, sql`COMMIT`);
-		} catch (err: any) {
-			await execute(session, sql`ROLLBACK`);
-			throw err;
+		};
+
+		if (!is(session, NeonHttpSession) && !is(session, NeonHttpSession)) {
+			await session.transaction(
+				async (tx: PgAsyncTransaction<PgQueryResultHKT, Record<string, unknown>, EmptyRelations>) => {
+					await runUpgrade(tx);
+				},
+			);
+		} else {
+			// neon-http batch can run only db.insert(), ...
+			await runUpgrade(session);
 		}
 	},
 };
