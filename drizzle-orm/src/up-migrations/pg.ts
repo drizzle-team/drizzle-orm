@@ -1,7 +1,6 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import { is } from '~/entity';
 import type { MigrationMeta } from '~/migrator.ts';
-import { NeonHttpSession } from '~/neon-http/session.ts';
+import type { NeonHttpSession } from '~/neon-http';
 import type { PgQueryResultHKT } from '~/pg-core';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -50,6 +49,7 @@ const upgradeFunctions: Record<
 			| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
 			| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
 		localMigrations: MigrationMeta[],
+		type?: 'http',
 	) => Promise<void>
 > = {
 	/**
@@ -61,7 +61,7 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
+	0: async (migrationsSchema, migrationsTable, session, localMigrations, type) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
@@ -144,7 +144,7 @@ const upgradeFunctions: Record<
 			}
 		};
 
-		if (!is(session, NeonHttpSession) && !is(session, NeonHttpSession)) {
+		if (type !== 'http') {
 			await session.transaction(
 				async (tx: PgAsyncTransaction<PgQueryResultHKT, Record<string, unknown>, EmptyRelations>) => {
 					await runUpgrade(tx);
@@ -171,6 +171,7 @@ export async function upgradeIfNeeded(
 		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
 		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
 	localMigrations: MigrationMeta[],
+	type?: 'http',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(
@@ -213,7 +214,7 @@ export async function upgradeIfNeeded(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations, type);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
