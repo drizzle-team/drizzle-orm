@@ -258,7 +258,7 @@ export class PgDeleteBase<
 		this.config.returning = orderSelectedFields<PgColumn>(
 			fields,
 			undefined,
-			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+			this.dialect.codecs,
 		);
 		return this as any;
 	}

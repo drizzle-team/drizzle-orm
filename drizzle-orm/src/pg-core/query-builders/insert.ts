@@ -372,7 +372,7 @@ export class PgInsertBase<
 		this.config.returning = orderSelectedFields<PgColumn>(
 			this.config.returningFields,
 			undefined,
-			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+			this.dialect.codecs,
 		);
 		return this as any;
 	}

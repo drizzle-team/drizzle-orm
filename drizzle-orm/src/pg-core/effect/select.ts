@@ -116,7 +116,7 @@ export class PgEffectSelectBase<
 		const fieldsList = orderSelectedFields<PgColumn>(
 			fields,
 			undefined,
-			(column) => this.dialect.codecs.get(column, 'queryNormalize'),
+			this.dialect.codecs,
 		);
 
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);

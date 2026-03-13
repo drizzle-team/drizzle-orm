@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
+import { noopCodecs } from '~/codecs.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -19,7 +20,6 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import { noopPgCodecs } from '../codecs.ts';
 import type { PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
@@ -153,7 +153,7 @@ export class PgEffectDatabase<
 					new QueryBuilder(
 						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
 							casing: this.dialect.casing,
-							codecs: noopPgCodecs,
+							codecs: noopCodecs,
 						}),
 					),
 				);

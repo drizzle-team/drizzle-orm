@@ -1,5 +1,6 @@
 import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
+import { noopCodecs } from '~/codecs.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -12,7 +13,6 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import { noopPgCodecs } from '../codecs.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
@@ -167,7 +167,7 @@ export class PgAsyncDatabase<
 					new QueryBuilder(
 						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
 							casing: this.dialect.casing,
-							codecs: noopPgCodecs,
+							codecs: noopCodecs,
 						}),
 					),
 				);

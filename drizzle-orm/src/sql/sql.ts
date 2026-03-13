@@ -1,4 +1,5 @@
 import type { CasingCache } from '~/casing.ts';
+import type { CodecsCollection } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
@@ -35,6 +36,7 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
+	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
@@ -157,6 +159,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			escapeName,
 			escapeParam,
 			prepareTyping,
+			codecs,
 			inlineParams,
 			paramStartIndex,
 			invokeSource,
@@ -242,14 +245,46 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			if (is(chunk, Param)) {
-				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				if (is(chunk.value, SQL)) {
+					return this.buildQueryFromSourceParams([chunk.value], config);
 				}
 
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				const useCodecs = codecs && is(chunk.encoder, Column);
 
-				if (is(mappedValue, SQL)) {
-					return this.buildQueryFromSourceParams([mappedValue], config);
+				if (is(chunk.value, Placeholder)) {
+					const escaped = escapeParam(paramStartIndex.value++, chunk);
+					chunk.codec = useCodecs
+						? undefined
+						: (value) => codecs!.apply(chunk.encoder as Column, 'paramNormalize', value);
+
+					return {
+						sql: useCodecs
+							? codecs.apply(chunk.encoder, 'paramCast', escaped)
+							: escaped,
+						params: [chunk],
+						typings: ['none'],
+					};
+				}
+
+				let mappedValue: any;
+				if (chunk.value === null) {
+					mappedValue = chunk.value;
+				} else {
+					mappedValue = chunk.encoder.mapToDriverValue.isNoop
+						? chunk.value
+						: chunk.encoder.mapToDriverValue(chunk.value);
+
+					if (is(mappedValue, SQL)) {
+						return this.buildQueryFromSourceParams([mappedValue], config);
+					}
+
+					if (useCodecs) {
+						mappedValue = codecs.apply(
+							chunk.encoder,
+							'paramNormalize',
+							mappedValue,
+						);
+					}
 				}
 
 				if (inlineParams) {
@@ -261,7 +296,14 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
+				return {
+					sql: useCodecs
+						? codecs.apply(chunk.encoder, 'paramCast', escaped)
+						: escaped,
+					params: [mappedValue],
+					typings,
+				};
 			}
 
 			if (is(chunk, Placeholder)) {
@@ -476,6 +518,7 @@ export class Param<TDataType = any, TDriverParamType = TDataType> implements SQL
 	constructor(
 		readonly value: TDataType,
 		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
+		public codec?: (value: any) => any,
 	) {}
 
 	getSQL(): SQL<unknown> {
@@ -662,7 +705,13 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			return p.encoder.mapToDriverValue(values[p.value.name]);
+			if (values[p.value.name] === null) return values[p.value.name];
+
+			const mapped = p.encoder.mapToDriverValue.isNoop
+				? values[p.value.name]
+				: p.encoder.mapToDriverValue(values[p.value.name]);
+
+			return p.codec ? p.codec(mapped) : mapped;
 		}
 
 		return p;
