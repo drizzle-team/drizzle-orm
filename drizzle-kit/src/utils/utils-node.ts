@@ -21,18 +21,40 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
+	const skippedFiles: string[] = [];
+
 	const result = path.reduce((result, cur) => {
 		const globbed = globSync(`${prefix}${cur}`);
 
 		for (const it of globbed) {
-			const fileName = lstatSync(it).isDirectory() ? null : resolve(it);
+			const stats = lstatSync(it);
+
+			const fileName = stats.isDirectory() ? null : resolve(it);
 
 			const filenames = fileName
-				? [fileName!]
-				: readdirSync(it).map((file) => join(resolve(it), file));
+				? [{ path: fileName, stat: stats }]
+				: readdirSync(it).map((file) => {
+					const fullPath = join(resolve(it), file);
+					return { path: fullPath, stat: lstatSync(fullPath) };
+				});
 
-			for (const file of filenames.filter((file) => !lstatSync(file).isDirectory())) {
-				result.add(file);
+			for (const { path: file, stat } of filenames) {
+				if (stat.isDirectory()) continue;
+
+				if (
+					file.endsWith('.js')
+					|| file.endsWith('.mjs')
+					|| file.endsWith('.cjs')
+					|| file.endsWith('.jsx')
+					|| file.endsWith('.ts')
+					|| file.endsWith('.mts')
+					|| file.endsWith('.cts')
+					|| file.endsWith('.tsx')
+				) {
+					result.add(file);
+				} else {
+					skippedFiles.push(file);
+				}
 			}
 		}
 
@@ -40,17 +62,10 @@ export const prepareFilenames = (path: string | string[]) => {
 	}, new Set<string>());
 	const res = [...result];
 
-	// TODO: properly handle and test
-	// const errors = res.filter((it) => {
-	// 	return !(
-	// 		it.endsWith('.ts')
-	// 		|| it.endsWith('.js')
-	// 		|| it.endsWith('.cjs')
-	// 		|| it.endsWith('.mjs')
-	// 		|| it.endsWith('.mts')
-	// 		|| it.endsWith('.cts')
-	// 	);
-	// });
+	// TODO can be added. Need approve on this
+	// if (skippedFiles.length > 0) {
+	// 	console.log(info(` ⚠ Skipped ${chalk.blue(skippedFiles.join(', '))} file(s)`));
+	// }
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
@@ -130,9 +145,40 @@ export const prepareOutFolder = (out: string) => {
 	return { snapshots };
 };
 
-type ValidationResult = { status: 'valid' | 'unsupported' | 'nonLatest' } | { status: 'malformed'; errors: string[] };
+/**
+ * Reads all snapshot files and returns the IDs of leaf nodes (nodes that are
+ * not referenced as a parent by any other node). When generating a new migration,
+ * these leaf IDs should be used as `prevIds` to merge all open branches.
+ */
+export const findLeafSnapshotIds = (snapshots: string[]): string[] => {
+	if (snapshots.length === 0) return [];
 
-const assertVersion = (obj: object, current: number): 'unsupported' | 'nonLatest' | null => {
+	const allIds = new Set<string>();
+	const referencedAsParent = new Set<string>();
+
+	for (const file of snapshots) {
+		const raw = JSON.parse(readFileSync(file, 'utf8')) as {
+			id: string;
+			prevIds: string[];
+		};
+		allIds.add(raw.id);
+		for (const pid of raw.prevIds) {
+			referencedAsParent.add(pid);
+		}
+	}
+
+	const leafIds = [...allIds].filter((id) => !referencedAsParent.has(id));
+	return leafIds.length > 0 ? leafIds : [Array.from(allIds).pop()!];
+};
+
+type ValidationResult =
+	| { status: 'valid' | 'unsupported' | 'nonLatest' }
+	| { status: 'malformed'; errors: string[] };
+
+const assertVersion = (
+	obj: object,
+	current: number,
+): 'unsupported' | 'nonLatest' | null => {
 	const version = 'version' in obj ? Number(obj['version']) : undefined;
 	if (!version) return 'unsupported';
 	if (version > current) return 'unsupported';
@@ -165,9 +211,7 @@ const cockroachSnapshotValidator = (snapshot: object): ValidationResult => {
 	return { status: 'valid' };
 };
 
-const mysqlValidator = (
-	snapshot: object,
-): ValidationResult => {
+const mysqlValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 6);
 	if (versionError) return { status: versionError };
 
@@ -177,9 +221,7 @@ const mysqlValidator = (
 	return { status: 'valid' };
 };
 
-const mssqlSnapshotValidator = (
-	snapshot: object,
-): ValidationResult => {
+const mssqlSnapshotValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
@@ -189,9 +231,7 @@ const mssqlSnapshotValidator = (
 	return { status: 'valid' };
 };
 
-const sqliteValidator = (
-	snapshot: object,
-): ValidationResult => {
+const sqliteValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 7);
 	if (versionError) return { status: versionError };
 
@@ -203,9 +243,7 @@ const sqliteValidator = (
 	return { status: 'valid' };
 };
 
-const singlestoreValidator = (
-	snapshot: object,
-): ValidationResult => {
+const singlestoreValidator = (snapshot: object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
@@ -216,7 +254,9 @@ const singlestoreValidator = (
 	return { status: 'valid' };
 };
 
-export const validatorForDialect = (dialect: Dialect): (snapshot: object) => ValidationResult => {
+export const validatorForDialect = (
+	dialect: Dialect,
+): (snapshot: object) => ValidationResult => {
 	switch (dialect) {
 		case 'postgresql':
 			return postgresValidator;
@@ -319,7 +359,11 @@ export const normaliseSQLiteUrl = (
 		}
 	}
 
-	if (type === 'better-sqlite' || type === '@tursodatabase/database' || type === 'bun') {
+	if (
+		type === 'better-sqlite'
+		|| type === '@tursodatabase/database'
+		|| type === 'bun'
+	) {
 		if (it.startsWith('file:')) {
 			return it.substring(5);
 		}
@@ -356,7 +400,9 @@ export class InMemoryMutex {
 const isBun = typeof (globalThis as any).Bun !== 'undefined';
 const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
-export const loadModule = async <T = unknown>(modulePath: string): Promise<T> => {
+export const loadModule = async <T = unknown>(
+	modulePath: string,
+): Promise<T> => {
 	if (isBun || isDeno) {
 		const fileUrl = pathToFileURL(modulePath).href;
 		const mod = await import(fileUrl);
@@ -369,13 +415,17 @@ export const loadModule = async <T = unknown>(modulePath: string): Promise<T> =>
 		|| major >= 21;
 
 	if (!supportsModuleRegister) {
-		console.error(`Node.js ${process.version} does not support the required module.register() API.`);
+		console.error(
+			`Node.js ${process.version} does not support the required module.register() API.`,
+		);
 		console.error(`Please upgrade to Node.js v18.19+, v20.6+, or v21+.`);
 		process.exit(1);
 	}
 
 	const path = require('path');
-	const absoluteModulePath = path.isAbsolute(modulePath) ? modulePath : path.resolve(modulePath);
+	const absoluteModulePath = path.isAbsolute(modulePath)
+		? modulePath
+		: path.resolve(modulePath);
 	const ext = path.extname(modulePath);
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 

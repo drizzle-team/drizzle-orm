@@ -3,6 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { NeonHttpDatabase } from './driver.ts';
 
 /**
@@ -20,18 +21,27 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
-	const migrationTableCreate = sql`
+
+	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db.session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
-			created_at bigint
+			created_at bigint,
+			name text,
+			applied_at timestamp with time zone DEFAULT now()
 		)
 	`;
-	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-	await db.session.execute(migrationTableCreate);
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} `,
+		await db.session.execute(migrationTableCreate);
+	}
+
+	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} `,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -50,7 +60,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await db.session.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 
 		return;
@@ -66,7 +76,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		rowsToInsert.push(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 	}
 

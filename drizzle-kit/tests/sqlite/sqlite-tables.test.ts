@@ -1058,3 +1058,44 @@ test('push after migrate with custom migrations table #2', async () => {
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5360
+test('recreate table and add unique column', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+			// New column, NULLABLE but unique, meaning should default to NULL on migration which satisfies unique constraint. While the unique() does not change anything, this will error now, where otherwise it fails silently with the behavior below
+			referralCode: text('referral_code').unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: [] });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `referral_code` text;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` text PRIMARY KEY,
+\t\`email\` text NOT NULL,
+\t\`referral_code\` text UNIQUE
+);\n`,
+		`INSERT INTO \`__new_users\`(\`id\`, \`email\`) SELECT \`id\`, \`email\` FROM \`users\`;`,
+		`DROP TABLE \`users\`;`,
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual([]);
+});

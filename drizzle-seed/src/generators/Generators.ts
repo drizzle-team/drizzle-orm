@@ -115,8 +115,8 @@ export abstract class AbstractGenerator<T = {}> {
 		return;
 	}
 
-	replaceIfArray(): AbstractGenerator<any> | undefined {
-		this.updateProperties();
+	replaceIfArray() {
+		this.updateParams();
 		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
 			const uniqueGen = this.replaceIfUnique();
 			const baseColumnGen = uniqueGen === undefined ? this : uniqueGen;

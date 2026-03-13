@@ -1212,6 +1212,7 @@ export const fromDatabase = async (
 	// TODO: drizzle link
 	const resultRoles = roles.filter((x) => filter({ type: 'role', name: x.name }));
 	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultPolicies = policies.filter((p) => resultTables.some((t) => t.schema === p.schema && t.name === p.table));
 	const resultViewColumns = viewColumns.filter((x) =>
 		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
 	);
@@ -1229,7 +1230,7 @@ export const fromDatabase = async (
 		sequences: resultSequences,
 		roles: resultRoles,
 		privileges,
-		policies,
+		policies: resultPolicies,
 		views: resultViews,
 		viewColumns: resultViewColumns,
 	} satisfies InterimSchema;
