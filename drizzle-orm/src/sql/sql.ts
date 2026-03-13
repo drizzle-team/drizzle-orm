@@ -254,9 +254,8 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				if (is(chunk.value, Placeholder)) {
 					const escaped = escapeParam(paramStartIndex.value++, chunk);
 					chunk.codec = useCodecs
-						? undefined
-						: (value) => codecs!.apply(chunk.encoder as Column, 'paramNormalize', value);
-
+						? (value) => codecs.apply(chunk.encoder as Column, 'paramNormalize', value)
+						: undefined;
 					return {
 						sql: useCodecs
 							? codecs.apply(chunk.encoder, 'paramCast', escaped)
