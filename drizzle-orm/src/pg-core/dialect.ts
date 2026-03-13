@@ -7,6 +7,7 @@ import {
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -73,7 +74,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type PgCodecs, PgCodecsCollection } from './codecs.ts';
+import { type PgCodecs, type PostgresType, resolvePgType } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -87,7 +88,7 @@ export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
 	readonly casing: CasingCache;
-	readonly codecs: PgCodecsCollection;
+	readonly codecs: CodecsCollection<PostgresType>;
 	readonly mapperGenerators: {
 		rows: RowsMapperGenerator;
 		relationalRows: RelationalRowsMapperGenerator;
@@ -95,7 +96,7 @@ export class PgDialect {
 
 	constructor(config?: PgDialectConfig) {
 		this.casing = typeof config?.casing === 'object' ? config.casing : new CasingCache(config?.casing);
-		this.codecs = new PgCodecsCollection(config?.codecs);
+		this.codecs = new CodecsCollection<PostgresType>(resolvePgType, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -368,7 +369,7 @@ export class PgDialect {
 		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat
-			?? orderSelectedFields<PgColumn>(fields, undefined, (column) => this.codecs.get(column, 'queryNormalize'));
+			?? orderSelectedFields<PgColumn>(fields, undefined, this.codecs);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -627,6 +628,7 @@ export class PgDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			codecs: this.codecs,
 			invokeSource,
 		});
 	}

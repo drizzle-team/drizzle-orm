@@ -1,11 +1,16 @@
-import type { CastArrayCodec, CastCodec, NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
-import type { Column } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import {
+	type CastArrayCodec,
+	type CastCodec,
+	type Codecs,
+	extendCodecs,
+	type NormalizeArrayCodec,
+	type NormalizeCodec,
+} from '~/codecs.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
 import { parsePgArray } from './utils/array.ts';
 
-export type PostgresOriginalType =
+export type PostgresType =
 	// Numeric
 	| 'smallint'
 	| 'int'
@@ -123,10 +128,10 @@ export type PostgresAliasType =
 	| 'bit varying'; // varbit;
 
 export type PostgresColumnType =
-	| PostgresOriginalType
+	| PostgresType
 	| PostgresAliasType;
 
-const PG_ALIAS_TO_TYPE_MAP: Record<PostgresAliasType, PostgresOriginalType> = {
+const PG_ALIAS_TO_TYPE_MAP: Record<PostgresAliasType, PostgresType> = {
 	int2: 'smallint',
 	integer: 'int',
 	int4: 'int',
@@ -150,51 +155,7 @@ export function resolvePgType(type: string) {
 	return PG_ALIAS_TO_TYPE_MAP[type as keyof typeof PG_ALIAS_TO_TYPE_MAP] ?? type;
 }
 
-export interface PgCodecs {
-	jsonCast: PartialWithUndefined<
-		Record<
-			PostgresOriginalType,
-			{
-				array?: CastArrayCodec | undefined;
-				item?: CastCodec | undefined;
-			}
-		>
-	>;
-	jsonNormalize: PartialWithUndefined<
-		Record<
-			PostgresOriginalType,
-			{
-				array?: NormalizeArrayCodec | undefined;
-				item?: NormalizeCodec | undefined;
-			}
-		>
-	>;
-	queryCast: PartialWithUndefined<
-		Record<
-			PostgresOriginalType,
-			{
-				array?: CastArrayCodec | undefined;
-				item?: CastCodec | undefined;
-			}
-		>
-	>;
-	queryNormalize: PartialWithUndefined<
-		Record<
-			PostgresOriginalType,
-			{
-				array?: NormalizeArrayCodec | undefined;
-				item?: NormalizeCodec | undefined;
-			}
-		>
-	>;
-}
-
-export const noopPgCodecs: PgCodecs = {
-	jsonCast: {},
-	jsonNormalize: {},
-	queryCast: {},
-	queryNormalize: {},
-};
+export type PgCodecs = Codecs<PostgresType>;
 
 export const castToText: CastCodec = (name) => sql`${name}::text`;
 export const castToTextArr: CastArrayCodec = (name, arrayDimensions) =>
@@ -338,115 +299,9 @@ export const genericPgCodecs: PgCodecs = {
 			array: parsePgArray,
 		},
 	},
+	paramCast: {},
+	paramNormalize: {},
 };
 
-export class PgCodecsCollection {
-	static readonly [entityKind]: string = 'PgCodecsCollection';
-
-	constructor(readonly codecs: PgCodecs = noopPgCodecs) {}
-
-	get<TCodecType extends keyof PgCodecs>(
-		column: Column,
-		type: TCodecType,
-	):
-		| Exclude<PgCodecs[TCodecType][PostgresOriginalType], undefined>['array' | 'item']
-		| undefined
-	{
-		const columnMeta = column.sqlTypeMeta;
-		const sqlType = resolvePgType(columnMeta.type);
-
-		return this.codecs[type]![sqlType]?.[columnMeta.arrayDimensions ? 'array' : 'item'] as any;
-	}
-
-	apply<TCodecType extends keyof PgCodecs>(
-		column: Column,
-		type: TCodecType,
-		value: CastCodec | CastArrayCodec extends
-			Exclude<PgCodecs[TCodecType][PostgresOriginalType], undefined>['array' | 'item'] ? SQLChunk
-			: unknown,
-	): CastCodec | CastArrayCodec extends Exclude<PgCodecs[TCodecType][PostgresOriginalType], undefined>['array' | 'item']
-		? SQLChunk
-		: unknown
-	{
-		const columnMeta = column.sqlTypeMeta;
-		const sqlType = resolvePgType(columnMeta.type);
-
-		const codec = this.codecs[type]![sqlType]?.[columnMeta.arrayDimensions ? 'array' : 'item'];
-		return (codec ? codec(value as any, columnMeta.arrayDimensions) : value) as any;
-	}
-}
-
-export function extendGenericPgCodecs(codecs: PartialWithUndefined<PgCodecs> = {}): PgCodecs {
-	const result: PgCodecs = {
-		jsonCast: {},
-		jsonNormalize: {},
-		queryCast: {},
-		queryNormalize: {},
-	};
-
-	const sections = Object.keys(noopPgCodecs) as (keyof PgCodecs)[];
-
-	for (const section of sections) {
-		const aSection = genericPgCodecs[section];
-
-		if (!(section in codecs)) {
-			result[section] = Object.fromEntries(
-				Object.entries(aSection).map(([k, v]) => [
-					k,
-					v
-						? {
-							array: v.array,
-							item: v.item,
-						}
-						: v,
-				]),
-			);
-			continue;
-		}
-
-		const bSection = codecs[section];
-		if (bSection === undefined) {
-			result[section] = {};
-			continue;
-		}
-
-		const targetSection = result[section];
-
-		const keys = new Set([
-			...Object.keys(aSection) as PostgresOriginalType[],
-			...Object.keys(bSection) as PostgresOriginalType[],
-		]);
-
-		for (const key of keys) {
-			const aEntry = aSection[key];
-			const bEntry = bSection[key];
-
-			if (key in bSection) {
-				if (bEntry === undefined) {
-					targetSection[key] = undefined;
-					continue;
-				}
-
-				targetSection[key] = {
-					array: 'array' in bEntry
-						? bEntry.array
-						: aEntry?.array,
-					item: 'item' in bEntry
-						? bEntry.item
-						: aEntry?.item,
-				};
-
-				continue;
-			}
-
-			if (aEntry !== undefined) {
-				targetSection[key] = {
-					array: aEntry.array,
-					item: aEntry.item,
-				};
-			}
-		}
-	}
-
-	return result;
-}
+export const extendGenericPgCodecs = (extension?: PartialWithUndefined<PgCodecs>): PgCodecs =>
+	extendCodecs<PostgresType>(genericPgCodecs, extension);
