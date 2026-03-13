@@ -2575,3 +2575,49 @@ test('#5056', async () => {
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect nextval defaults on integer columns in non-public schema', async () => {
+	const musicbrainz = pgSchema('musicbrainz');
+
+	const schema = {
+		musicbrainz,
+		usersIdSeq: musicbrainz.sequence('users_id_seq'),
+		users: musicbrainz.table('users', {
+			id: integer('id').notNull().default(sql`nextval('musicbrainz.users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-nextval-default-integer-non-public-schema',
+		['musicbrainz'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect pg_catalog.nextval defaults on integer columns', async () => {
+	const schema = {
+		usersIdSeq: pgSequence('users_id_seq'),
+		users: pgTable('users', {
+			id: integer('id').notNull().default(sql`pg_catalog.nextval('users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-pg-catalog-nextval-default-integer',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
