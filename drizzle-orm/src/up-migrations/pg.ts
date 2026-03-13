@@ -147,7 +147,7 @@ const upgradeFunctions: Record<
 					await tx.execute(sql);
 				}
 			});
-		} else if (Object.getPrototypeOf(db.session)[entityKind] === 'NeonHttpSession') {
+		} else if (Object.getPrototypeOf(db)?.constructor[entityKind] === 'NeonHttpDatabase') {
 			const database: NeonHttpDatabase = db as NeonHttpDatabase;
 
 			await database.batch(
