@@ -442,6 +442,12 @@ export abstract class PgColumn<
 		this.table = table;
 		this.dimensions = config.dimensions ?? 0;
 
+		// Override columnType and dataType to reflect array nature when dimensions > 0
+		if (this.dimensions) {
+			(this as any).columnType = 'PgArray';
+			(this as any).dataType = 'array';
+		}
+
 		// Wrap mapFromDriverValue/mapToDriverValue with array handling if this is an array column
 		if (this.dimensions) {
 			const originalFromDriver = this.mapFromDriverValue.bind(this);
