@@ -1,6 +1,6 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { NeonHttpSession } from '~/neon-http';
+import type { NeonHttpSession } from '~/neon-http/session.ts';
 import type { PgQueryResultHKT } from '~/pg-core';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
