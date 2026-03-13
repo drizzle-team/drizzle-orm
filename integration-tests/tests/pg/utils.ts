@@ -1,7 +1,7 @@
 import { Column } from 'drizzle-orm';
 import { CasingCache } from 'drizzle-orm/casing';
+import { CodecsCollection } from 'drizzle-orm/codecs';
 import { PgAsyncDatabase, PgDialect } from 'drizzle-orm/pg-core';
-import { PgCodecsCollection } from 'drizzle-orm/pg-core/codecs';
 import { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
 
 export function normalizeDataWithDbCodecs(
@@ -15,7 +15,7 @@ export function normalizeDataWithDbCodecs(
 	const { db, data, columns, mode } = cfg;
 	const dialect = (<any> db).dialect as PgDialect;
 	const casing = (<any> dialect).casing as CasingCache;
-	const codecs = (<any> dialect).codecs as PgCodecsCollection;
+	const codecs = (<any> dialect).codecs as CodecsCollection;
 
 	const dbNamedColumns = Object.values(columns).map((c) => {
 		return [casing.getColumnCasing(c), c];
