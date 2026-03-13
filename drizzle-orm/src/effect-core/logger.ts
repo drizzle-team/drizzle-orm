@@ -1,7 +1,12 @@
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import * as ServiceMap from 'effect/ServiceMap';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
+
+export interface EffectLoggerShape {
+	readonly logQuery: (query: string, params: unknown[]) => Effect.Effect<void, never, never>;
+}
 
 /**
  * Effect service for logging SQL queries in Drizzle ORM.
@@ -30,21 +35,23 @@ import type { Logger } from '~/logger.ts';
  * );
  * ```
  */
-export class EffectLogger extends Effect.Service<EffectLogger>()('drizzle-orm/EffectLogger', {
-	sync: () => {
-		const logQuery = (_query: string, _params: unknown[]) => Effect.void;
-
-		return { logQuery };
-	},
-	accessors: true,
+export class EffectLogger extends ServiceMap.Service<EffectLogger>()('drizzle-orm/EffectLogger', {
+	make: Effect.sync((): EffectLoggerShape => ({
+		logQuery: (_query: string, _params: unknown[]) => Effect.void,
+	})),
 }) {
-	static readonly [entityKind]: string = this.Service._tag;
+	static readonly [entityKind]: string = 'drizzle-orm/EffectLogger';
 
 	/**
-	 * Creates an EffectLogger instance from a standard Drizzle logger.
+	 * The default layer providing a no-op logger.
+	 */
+	static readonly Default = Layer.effect(EffectLogger, EffectLogger.make);
+
+	/**
+	 * Creates an EffectLoggerShape from a standard Drizzle logger.
 	 *
 	 * @param logger - A Drizzle logger instance implementing the `Logger` interface.
-	 * @returns A new EffectLogger that delegates to the provided Drizzle logger.
+	 * @returns A new EffectLoggerShape that delegates to the provided Drizzle logger.
 	 *
 	 * @example
 	 * ```ts
@@ -52,12 +59,12 @@ export class EffectLogger extends Effect.Service<EffectLogger>()('drizzle-orm/Ef
 	 * const effectLogger = EffectLogger.fromDrizzle(drizzleLogger);
 	 * ```
 	 */
-	static fromDrizzle(logger: Logger) {
-		return new EffectLogger({
+	static fromDrizzle(logger: Logger): EffectLoggerShape {
+		return {
 			logQuery: (query: string, params: unknown[]) => {
 				return Effect.sync(() => logger.logQuery(query, params));
 			},
-		});
+		};
 	}
 
 	/**
@@ -96,7 +103,7 @@ export class EffectLogger extends Effect.Service<EffectLogger>()('drizzle-orm/Ef
 	 */
 	static layer = Layer.succeed(
 		EffectLogger,
-		new EffectLogger({
+		{
 			logQuery: Effect.fn('EffectLogger.logQuery')(function*(query: string, params: unknown[]) {
 				const stringifiedParams = params.map((p) => {
 					try {
@@ -112,6 +119,6 @@ export class EffectLogger extends Effect.Service<EffectLogger>()('drizzle-orm/Ef
 					}),
 				);
 			}),
-		}),
+		} satisfies EffectLoggerShape,
 	);
 }
