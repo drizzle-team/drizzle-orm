@@ -81,7 +81,7 @@ export const assertOrmCoreVersion = async () => {
 
 		await import('drizzle-orm/_relations');
 
-		if (compatibilityVersion && compatibilityVersion === requiredApiVersion) {
+		if (compatibilityVersion && compatibilityVersion as number === requiredApiVersion as number) {
 			return;
 		}
 
