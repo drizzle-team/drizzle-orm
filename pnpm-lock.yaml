@@ -259,9 +259,6 @@ importers:
       env-paths:
         specifier: ^3.0.0
         version: 3.0.0
-      esbuild-register:
-        specifier: ^3.6.0
-        version: 3.6.0(esbuild@0.25.12)
       gel:
         specifier: ^2.0.0
         version: 2.2.0
@@ -272,8 +269,8 @@ importers:
         specifier: ^8.1.0
         version: 8.1.0
       hanji:
-        specifier: ^0.0.5
-        version: 0.0.5
+        specifier: ^0.0.8
+        version: 0.0.8
       hono:
         specifier: ^4.7.9
         version: 4.10.7
@@ -3902,6 +3899,7 @@ packages:
 
   '@xata.io/client@0.29.5':
     resolution: {integrity: sha512-b55dmPVNVFOE5nj2F2G6t9l/d5yYBhIu5X5w3rznhhsriGHkrzn93tqJexIZPS77E7f/yDXcFz06KbvR3bHK5w==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     peerDependencies:
       typescript: '>=4.5'
 
@@ -5838,8 +5836,8 @@ packages:
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
 
-  hanji@0.0.5:
-    resolution: {integrity: sha512-Abxw1Lq+TnYiL4BueXqMau222fPSPMFtya8HdpWsz/xVAhifXou71mPh/kY2+08RgFcVccjG3uZHs6K5HAe3zw==}
+  hanji@0.0.8:
+    resolution: {integrity: sha512-Z1n2OGhZGnNjrbI4FRSAla2wGcu+mafkTi0al0NSfsQN5ccka7n+rK/x2YISB4oYU8WGejjQWoyWyukRmbFVUA==}
 
   has-flag@3.0.0:
     resolution: {integrity: sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==}
@@ -15030,7 +15028,7 @@ snapshots:
 
   graphemer@1.4.0: {}
 
-  hanji@0.0.5:
+  hanji@0.0.8:
     dependencies:
       lodash.throttle: 4.1.1
       sisteransi: 1.0.5
