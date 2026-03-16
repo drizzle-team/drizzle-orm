@@ -51,7 +51,7 @@ async function buildBundle(options: {
 		dir: 'dist',
 		format: options.format,
 		entryFileNames: options.outputName,
-		inlineDynamicImports: true,
+		codeSplitting: false,
 		banner: options.banner,
 	});
 
@@ -72,7 +72,7 @@ async function buildCli() {
 		format: 'cjs',
 		entryFileNames: 'bin.cjs',
 		banner: '#!/usr/bin/env node',
-		inlineDynamicImports: true,
+		codeSplitting: false,
 	});
 
 	await build.close();
@@ -94,7 +94,7 @@ async function buildDeclarations() {
 	await tsdown({
 		entry: ['./src/index.ts'],
 		outDir: './dist',
-		deps: { neverBundle: [...driversPackages, /^drizzle-orm\/?/] },
+		external: [...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
@@ -110,7 +110,7 @@ async function buildDeclarations() {
 	await tsdown({
 		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
 		outDir: './dist',
-		deps: { neverBundle: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/] },
+		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
