@@ -5,6 +5,7 @@ import {
 	integer,
 	numeric,
 	pgSchema,
+	pgTable,
 	serial,
 	smallint,
 	smallserial,
@@ -157,4 +158,14 @@ export const testSequences = schema.table(
 
 export const uuidTest = schema.table('uuid_test', {
 	col1: uuid(),
+});
+
+export const schemaCasingTest = schema.table('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
+});
+
+export const casingTest = pgTable('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
 });
