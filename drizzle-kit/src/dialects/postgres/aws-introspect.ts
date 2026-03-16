@@ -965,13 +965,12 @@ export const fromDatabase = async (
 			SELECT
 			  pg_catalog.json_build_object(
 				'oid', opclass.oid,
-				'name', pg_am.amname,
+				'name', pg_opclass.opcname,
 				'default', pg_opclass.opcdefault
 			  )
 			FROM
 			  pg_catalog.unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
 			JOIN pg_catalog.pg_opclass ON opclass.oid OPERATOR(pg_catalog.=) pg_opclass.oid
-			JOIN pg_catalog.pg_am ON pg_opclass.opcmethod OPERATOR(pg_catalog.=) pg_am.oid
 			ORDER BY opclass.ordinality
 		  ) as "opclasses"
         FROM
