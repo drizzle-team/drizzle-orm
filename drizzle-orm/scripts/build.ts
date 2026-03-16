@@ -68,7 +68,6 @@ async function main() {
 		sourcemap: true,
 		dts: true,
 		clean: false,
-		silent: true,
 		alias: {
 			'~': './src',
 		},
