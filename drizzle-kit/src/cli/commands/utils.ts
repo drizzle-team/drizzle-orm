@@ -94,7 +94,6 @@ export type GenerateConfig = {
 
 export type ExportConfig = {
 	dialect: Dialect;
-	schema: string | string[];
 	sql: boolean;
 	casing?: CasingType;
 	filenames: string[];
@@ -178,7 +177,6 @@ export const prepareExportConfig = async (
 	return {
 		casing: config.casing,
 		dialect: dialect,
-		schema: schema,
 		sql: sql,
 		filenames: fileNames,
 	};
