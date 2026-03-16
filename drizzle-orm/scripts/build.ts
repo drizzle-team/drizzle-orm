@@ -63,9 +63,7 @@ async function main() {
 		format: ['cjs', 'es'],
 		unbundle: true,
 		platform: 'node',
-		deps: {
-			neverBundle: [/^[^./]/], // everything?
-		},
+		externals: [/^[^./]/], // everything?
 		tsconfig: 'tsconfig.json',
 		sourcemap: true,
 		dts: true,
