@@ -7,7 +7,7 @@ import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
-import type { SQLiteDB } from '../../utils';
+import type { LibSQLDB, SQLiteDB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
@@ -29,12 +29,12 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
-	sqliteDB?: SQLiteDB,
+	sqliteDB?: SQLiteDB | LibSQLDB,
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
-	const db = sqliteDB ?? await connectToSQLite(credentials);
+	const db: SQLiteDB | LibSQLDB = sqliteDB ?? await connectToSQLite(credentials);
 	const files = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(files);
 
@@ -89,23 +89,39 @@ export const handle = async (
 	if (sqlStatements.length === 0) {
 		render(`\n[${chalk.blue('i')}] No changes detected`);
 	} else {
-		if (!('driver' in credentials)) {
-			// D1-HTTP does not support transactions
-			// there might a be a better way to fix this
-			// in the db connection itself
-			const isD1 = 'driver' in credentials && credentials.driver === 'd1-http';
-			if (!isD1) await db.run('begin');
-			try {
-				for (const statement of [...lossStatements, ...sqlStatements]) {
-					if (verbose) console.log(highlightSQL(statement));
+		const allStatements = [...lossStatements, ...sqlStatements];
+		if (verbose) allStatements.forEach((s) => console.log(highlightSQL(s)));
 
-					await db.run(statement);
-				}
-				if (!isD1) await db.run('commit');
+		if ('batchWithPragma' in db && db.batchWithPragma) {
+			// libSQL/Turso HTTP connections use client.migrate() for DDL batches;
+			// manual begin/commit via execute() doesn't work over HTTP
+			try {
+				await db.batchWithPragma(allStatements);
 			} catch (e) {
 				console.error(e);
-
-				if (!isD1) await db.run('rollback');
+				process.exit(1);
+			}
+		} else if (!('driver' in credentials) || credentials.driver !== 'd1-http') {
+			// D1-HTTP does not support transactions; all other SQLite drivers do
+			await db.run('begin');
+			try {
+				for (const statement of allStatements) {
+					await db.run(statement);
+				}
+				await db.run('commit');
+			} catch (e) {
+				console.error(e);
+				await db.run('rollback');
+				process.exit(1);
+			}
+		} else {
+			// D1-HTTP: run statements individually without transaction
+			try {
+				for (const statement of allStatements) {
+					await db.run(statement);
+				}
+			} catch (e) {
+				console.error(e);
 				process.exit(1);
 			}
 		}
