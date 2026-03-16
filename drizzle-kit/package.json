@@ -117,7 +117,6 @@
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",
-		"rolldown": "^1.0.0-beta.57",
 		"semver": "^7.7.2",
 		"tsdown": "^0.18.3",
 		"tsx": "^4.20.6",
