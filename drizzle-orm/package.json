@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"p": "prisma generate --schema src/prisma/schema.prisma",
-		"build": "pnpm p && scripts/build.ts",
+		"build": "pnpm p && bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",

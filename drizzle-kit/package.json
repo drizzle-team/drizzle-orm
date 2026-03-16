@@ -37,7 +37,7 @@
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
 		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
-		"build": "tsx scripts/build.ts",
+		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
