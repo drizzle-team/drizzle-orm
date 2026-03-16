@@ -776,7 +776,7 @@ test('index in other schema', async () => {
 	};
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 
 	const expectedSt1 = [
 		'CREATE SCHEMA "common";\n',
@@ -803,4 +803,30 @@ test('index in other schema', async () => {
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5495
+test('access method issue', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable(
+			'table',
+			{
+				id: integer(),
+				name: vector({ dimensions: 1536 }),
+			},
+			(table) => [index('idx_claims_embedding').using('ivfflat', table.name.asc().nullsLast().op('vector_cosine_ops'))],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1 = [
+		'CREATE TABLE "table" (\n\t"id" integer,\n\t"name" vector(1536)\n);\n',
+		'CREATE INDEX "idx_claims_embedding" ON "table" USING ivfflat ("name" vector_cosine_ops);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

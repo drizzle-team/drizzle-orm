@@ -933,7 +933,7 @@ export const fromDatabase = async (
 			expression: string | null;
 			where: string;
 			columnOrdinals: number[];
-			opclasses: { oid: number | string; name: string; default: boolean }[];
+			opclasses: { oid: number | string; access_method_name: string; op_class_name: string; default: boolean }[];
 			options: number[];
 			isUnique: boolean;
 			isPrimary: boolean;
@@ -963,7 +963,8 @@ export const fromDatabase = async (
 			SELECT
 			  pg_catalog.json_build_object(
 				'oid', opclass.oid,
-				'name', pg_am.amname,
+				'access_method_name', pg_am.amname,
+				'op_class_name', pg_opclass.opcname,
 				'default', pg_opclass.opcdefault
 			  )
 			FROM
@@ -1028,7 +1029,7 @@ export const fromDatabase = async (
 				| { type: 'expression'; value: string }
 				| { type: 'column'; value: DBColumn }
 			)
-			& { options: (typeof opts)[number]; opclass: { name: string; default: boolean } }
+			& { options: (typeof opts)[number]; opclass: { op_class_name: string; default: boolean } }
 		)[];
 
 		let k = 0;
@@ -1050,7 +1051,7 @@ export const fromDatabase = async (
 
 				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
 				const options = opts[i] as typeof opts[number] | undefined;
-				const opclass = metadata.opclasses[i] as { name: string; default: boolean } | undefined;
+				const opclass = metadata.opclasses[i] as { op_class_name: string; default: boolean } | undefined;
 				if (options && opclass) {
 					res.push({
 						type: 'column',
@@ -1067,7 +1068,7 @@ export const fromDatabase = async (
 				asc: !it.options.descending,
 				nullsFirst: it.options.nullsFirst,
 				opclass: it.opclass.default ? null : {
-					name: it.opclass.name,
+					name: it.opclass.op_class_name,
 					default: it.opclass.default,
 				},
 				isExpression: it.type === 'expression',

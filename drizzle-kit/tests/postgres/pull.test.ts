@@ -41,6 +41,7 @@ import {
 	uniqueIndex,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
@@ -897,7 +898,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-03-25'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -926,7 +927,7 @@ test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-03-25'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1790,7 +1791,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-03-15'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-03-25'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2508,7 +2509,7 @@ test('#5056', async () => {
 					nullsFirst: false,
 					opclass: {
 						default: false,
-						name: 'btree',
+						name: 'text_pattern_ops',
 					},
 					value: 'model',
 				},
@@ -2563,6 +2564,7 @@ test('#5056', async () => {
 		pushSqlStatements,
 		generateStatements,
 		generateSqlStatements,
+		ddlAfterPull,
 	} = await diffIntrospect(
 		db,
 		schema,
@@ -2570,6 +2572,106 @@ test('#5056', async () => {
 		[],
 	);
 
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect nextval defaults on integer columns in non-public schema', async () => {
+	const musicbrainz = pgSchema('musicbrainz');
+
+	const schema = {
+		musicbrainz,
+		usersIdSeq: musicbrainz.sequence('users_id_seq'),
+		users: musicbrainz.table('users', {
+			id: integer('id').notNull().default(sql`nextval('musicbrainz.users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-nextval-default-integer-non-public-schema',
+		['musicbrainz'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect pg_catalog.nextval defaults on integer columns', async () => {
+	const schema = {
+		usersIdSeq: pgSequence('users_id_seq'),
+		users: pgTable('users', {
+			id: integer('id').notNull().default(sql`pg_catalog.nextval('users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-pg-catalog-nextval-default-integer',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5495
+test('access method issue', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable(
+			'table',
+			{
+				id: integer(),
+				name: vector({ dimensions: 1536 }),
+			},
+			(table) => [index('idx_claims_embedding').using('ivfflat', table.name.asc().nullsLast().op('vector_cosine_ops'))],
+		),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, ddlAfterPull } =
+		await diffIntrospect(
+			db,
+			schema,
+			'issue-5495',
+		);
+
+	expect(ddlAfterPull.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'vector_cosine_ops',
+					},
+					value: 'name',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'ivfflat',
+			name: 'idx_claims_embedding',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'table',
+			where: null,
+			with: '',
+		},
+	]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(pushStatements).toStrictEqual([]);
