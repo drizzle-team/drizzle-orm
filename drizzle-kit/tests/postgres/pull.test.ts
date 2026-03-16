@@ -2677,3 +2677,42 @@ test('access method issue', async () => {
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5493
+test('relations issue', async () => {
+	await db.query(`
+	CREATE TABLE customer (
+	customer_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY	
+);`);
+	await db.query(`CREATE TABLE billing_account (
+	billing_account_id int8 GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	customer_id int8 NOT NULL
+);`);
+	await db.query(
+		`ALTER TABLE billing_account ADD CONSTRAINT billing_account_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id);`,
+	);
+	await db.query(`CREATE TABLE contract (
+	contract_id int8 GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	customer_id int8 NOT NULL,
+	billing_account_id int8 NOT NULL
+);`);
+	await db.query(
+		`ALTER TABLE contract ADD CONSTRAINT contract_billing_account_id_fkey FOREIGN KEY (billing_account_id) REFERENCES billing_account(billing_account_id);`,
+	);
+	await db.query(
+		`ALTER TABLE contract ADD CONSTRAINT contract_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);`,
+	);
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, relationsError } =
+		await diffIntrospect(
+			db,
+			{},
+			'issue-5493',
+		);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(relationsError).toBeNull();
+});
