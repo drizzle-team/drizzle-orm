@@ -94,7 +94,9 @@ async function buildDeclarations() {
 	await tsdown({
 		entry: ['./src/index.ts'],
 		outDir: './dist',
-		external: [...driversPackages, /^drizzle-orm\/?/],
+		deps: {
+			neverBundle: [...driversPackages, /^drizzle-orm\/?/],
+		},
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
@@ -110,7 +112,9 @@ async function buildDeclarations() {
 	await tsdown({
 		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
 		outDir: './dist',
-		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
+		deps: {
+			neverBundle: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
+		},
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
