@@ -204,7 +204,7 @@ async function main() {
 	console.log(`Build completed successfully in ${elapsed}s`);
 }
 
-main().catch((e) => {
+await main().catch((e) => {
 	console.error(e);
 	process.exit(1);
-}).then(process.exit(0));
+}).then(() => process.exit(0));
