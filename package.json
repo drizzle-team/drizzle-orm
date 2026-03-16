@@ -35,7 +35,7 @@
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
 		"rolldown": "1.0.0-rc.9",
-		"tsdown": "^0.21.3",
+		"tsdown": "^0.20.3",
 		"tsup": "^8.3.5",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
