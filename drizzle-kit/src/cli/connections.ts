@@ -1867,7 +1867,6 @@ export const connectToSQLite = async (
 				await remoteCallback(query, [], 'run');
 			};
 			const batch = async (queries: string[]) => {
-				// no transactions in http
 				await remoteBatchCallback(queries.map((sql) => ({ sql })));
 			};
 
@@ -1921,12 +1920,6 @@ export const connectToSQLite = async (
 				});
 			};
 			const batch = async (queries: string[]) => {
-				await new Promise<void>((resolve, reject) => {
-					client.exec('BEGIN', (e: Error | null) => {
-						if (e) return reject(e);
-						return resolve();
-					});
-				});
 				for (const query of queries) {
 					await new Promise<void>((resolve, reject) => {
 						client.exec(query, (e: Error | null) => {
@@ -1935,12 +1928,6 @@ export const connectToSQLite = async (
 						});
 					});
 				}
-				await new Promise<void>((resolve, reject) => {
-					client.exec('COMMIT', (e: Error | null) => {
-						if (e) return reject(e);
-						return resolve();
-					});
-				});
 			};
 
 			const proxy = async (params: ProxyParams) => {
@@ -2031,7 +2018,6 @@ export const connectToSQLite = async (
 			await client.execute(query);
 		};
 		const batch = async (queries: string[]) => {
-			// transaction under the hood
 			await client.migrate(queries);
 		};
 
@@ -2092,13 +2078,10 @@ export const connectToSQLite = async (
 			const res = await stmt.all();
 			return res as T[];
 		};
-		const batch = async (statements: string[]) => {
-			const tx = client.transaction(async (queries) => {
-				for (const query of queries) {
-					await client.prepare(query).all();
-				}
-			});
-			await tx(statements);
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				await client.prepare(query).all();
+			}
 		};
 
 		const proxy = async (params: ProxyParams) => {
@@ -2160,16 +2143,10 @@ export const connectToSQLite = async (
 			run: async (query: string) => {
 				sqlite.prepare(query).run();
 			},
-			batch: async (statements: string[]) => {
-				const tx = sqlite.transaction(
-					(queries: string[]) => {
-						for (const query of queries) {
-							sqlite.prepare(query).run();
-						}
-					},
-				);
-
-				tx(statements);
+			batch: async (queries: string[]) => {
+				for (const query of queries) {
+					sqlite.prepare(query).run();
+				}
 			},
 		};
 
@@ -2256,11 +2233,9 @@ export const connectToSQLite = async (
 			await client.unsafe(sql);
 		};
 		const batch = async (queries: string[]) => {
-			await client.transaction(async (tx) => {
-				for (const query of queries) {
-					await tx.unsafe(query);
-				}
-			});
+			for (const query of queries) {
+				await client.unsafe(query);
+			}
 		};
 
 		const proxy: Proxy = async (params) => {
