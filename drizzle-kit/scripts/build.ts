@@ -51,7 +51,7 @@ async function buildBundle(options: {
 		dir: 'dist',
 		format: options.format,
 		entryFileNames: options.outputName,
-		inlineDynamicImports: true,
+		codeSplitting: false,
 		banner: options.banner,
 	});
 
@@ -72,7 +72,7 @@ async function buildCli() {
 		format: 'cjs',
 		entryFileNames: 'bin.cjs',
 		banner: '#!/usr/bin/env node',
-		inlineDynamicImports: true,
+		codeSplitting: false,
 	});
 
 	await build.close();
@@ -204,7 +204,7 @@ async function main() {
 	console.log(`Build completed successfully in ${elapsed}s`);
 }
 
-main().catch((e) => {
+await main().catch((e) => {
 	console.error(e);
 	process.exit(1);
-});
+}).then(() => process.exit(0));

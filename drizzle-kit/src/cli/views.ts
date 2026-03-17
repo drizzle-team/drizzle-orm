@@ -1734,8 +1734,8 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
@@ -1766,8 +1766,8 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}
