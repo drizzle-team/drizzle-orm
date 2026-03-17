@@ -7,7 +7,7 @@ import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
-import type { LibSQLDB, SQLiteDB } from '../../utils';
+import type { SQLiteClient } from '../../utils';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -17,6 +17,7 @@ import type { SqliteCredentials } from '../validations/sqlite';
 import { explain, ProgressView, sqliteSchemaError } from '../views';
 
 export const handle = async (
+	db: SQLiteClient,
 	filenames: string[],
 	verbose: boolean,
 	credentials: SqliteCredentials,
@@ -28,12 +29,9 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
-	libSQLDB?: LibSQLDB,
 ) => {
-	const { connectToSQLite } = await import('../connections');
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
-	const db = libSQLDB ?? await connectToSQLite(credentials);
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractSqliteExisting(res.views);
@@ -88,40 +86,13 @@ export const handle = async (
 
 	if (verbose) console.log(highlightSQL(allStatements.join('\n')));
 
-	if (libSQLDB && 'batchWithPragma' in db && db.batchWithPragma) {
-		try {
-			await db.batchWithPragma(allStatements);
-		} catch (e) {
-			console.error(e);
-			process.exit(1);
-		}
-	} else {
-		// D1-HTTP does not support transactions
-		// there might a be a better way to fix this
-		// in the db connection itself
-		const isD1 = 'driver' in credentials && credentials.driver === 'd1-http';
-
-		if (!isD1) await db.run('begin');
-
-		try {
-			for (const statement of allStatements) {
-				await db.run(statement);
-			}
-
-			if (!isD1) await db.run('commit');
-		} catch (e) {
-			console.error(e);
-
-			if (!isD1) await db.run('rollback');
-			process.exit(1);
-		}
-	}
+	await db.batch(allStatements);
 
 	render(`[${chalk.green('✓')}] Changes applied`);
 };
 
 export const suggestions = async (
-	connection: SQLiteDB,
+	connection: SQLiteClient,
 	jsonStatements: JsonStatement[],
 ) => {
 	const grouped: { hint: string; statement?: string }[] = [];
