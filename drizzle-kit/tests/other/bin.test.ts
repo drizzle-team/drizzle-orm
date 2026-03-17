@@ -23,6 +23,7 @@ test('imports-issues', () => {
 		localPaths: ['src'],
 		whiteList: [
 			'@drizzle-team/brocli',
+			'get-tsconfig',
 			'path',
 			'fs',
 			'fs/*',

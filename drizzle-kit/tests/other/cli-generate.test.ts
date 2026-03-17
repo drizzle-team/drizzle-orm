@@ -217,6 +217,33 @@ test('generate #9', async (t) => {
 	});
 });
 
+test('generate #10 tsconfig paths', async () => {
+	const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+	process.env.TEST_CONFIG_PATH_PREFIX = './tests/fixtures/tsconfig-paths/';
+	try {
+		const res = await brotest(generate, '--config=drizzle.config.ts');
+		if (res.type !== 'handler') assert.fail(res.type, 'handler');
+		expect(res.options).toStrictEqual({
+			dialect: 'postgresql',
+			ignoreConflicts: false,
+			name: undefined,
+			custom: false,
+			breakpoints: true,
+			schema: './entry.ts',
+			out: 'drizzle',
+			bundle: false,
+			casing: undefined,
+			driver: undefined,
+		});
+	} finally {
+		if (originalPrefix === undefined) {
+			delete process.env.TEST_CONFIG_PATH_PREFIX;
+		} else {
+			process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+		}
+	}
+});
+
 // --- errors ---
 test('err #1', async (t) => {
 	const res = await brotest(generate, '--schema=src/schema.ts');

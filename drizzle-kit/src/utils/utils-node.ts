@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
+import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
-import { join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
@@ -143,6 +144,62 @@ export const prepareOutFolder = (out: string) => {
 	snapshots.sort();
 
 	return { snapshots };
+};
+
+const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
+
+const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefined => {
+	const cached = tsconfigAliasCache.get(baseDir);
+	if (cached !== undefined || tsconfigAliasCache.has(baseDir)) {
+		return cached;
+	}
+
+	const tsconfig = getTsconfig(baseDir);
+	const tsconfigPaths = tsconfig?.config?.compilerOptions?.paths as Record<string, string[]> | undefined;
+	if (!tsconfigPaths || !tsconfig?.path) {
+		tsconfigAliasCache.set(baseDir, undefined);
+		return undefined;
+	}
+
+	const tsconfigBaseUrl = tsconfig.config.compilerOptions?.baseUrl ?? '.';
+	const tsconfigDir = dirname(tsconfig.path);
+
+	const aliases = Object.fromEntries(
+		Object.entries(tsconfigPaths).flatMap(([key, values]) => {
+			const targets = (values ?? []).filter((value): value is string => Boolean(value));
+			if (targets.length === 0) return [];
+
+			const hasWildcard = key.includes('*') || targets.some((target) => target.includes('*'));
+			const supportsTrailingWildcard = key.endsWith('/*') && targets.every((target) => target.endsWith('/*'));
+			if (hasWildcard && !supportsTrailingWildcard) {
+				console.warn(
+					chalk.yellow(
+						`[drizzle-kit] Unsupported tsconfig "paths" mapping "${key}": [${
+							targets
+								.map((target) => `"${target}"`)
+								.join(', ')
+						}]. Only trailing "/*" patterns are supported; this mapping will be ignored.`,
+					),
+				);
+				return [];
+			}
+
+			const aliasKey = key.endsWith('/*') ? key.slice(0, -1) : key;
+			const resolvedTargets = targets.map((target) => {
+				if (supportsTrailingWildcard) {
+					const targetPrefix = target.slice(0, -1);
+					return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
+				}
+				return resolve(tsconfigDir, tsconfigBaseUrl, target);
+			});
+
+			const selectedTarget = resolvedTargets.find((candidate) => existsSync(candidate)) ?? resolvedTargets[0]!;
+			return [[aliasKey, selectedTarget]];
+		}),
+	);
+
+	tsconfigAliasCache.set(baseDir, aliases);
+	return aliases;
 };
 
 /**
@@ -430,13 +487,16 @@ export const loadModule = async <T = unknown>(
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
 	if (isTS) {
-		const jiti = require('jiti')(path.dirname(absoluteModulePath), {
+		const baseDir = path.dirname(absoluteModulePath);
+		const aliases = getAliasesForTsconfig(baseDir);
+		// oxlint-disable-next-line consistent-type-imports
+		const { createJiti } = require('jiti') as typeof import('jiti');
+		const jiti = createJiti(baseDir, {
 			interopDefault: true,
-			esmResolve: true,
+			alias: aliases,
 			requireCache: false,
 		});
-		const mod = await jiti.import(absoluteModulePath);
-		return mod;
+		return jiti.import(absoluteModulePath);
 	}
 
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
