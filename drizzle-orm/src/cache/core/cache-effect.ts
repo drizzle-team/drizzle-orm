@@ -1,8 +1,29 @@
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
+import * as ServiceMap from 'effect/ServiceMap';
 import { entityKind } from '~/entity.ts';
 import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './cache.ts';
+import type { CacheConfig } from './types.ts';
+
+export interface EffectCacheShape {
+	readonly strategy: () => 'explicit' | 'all';
+	readonly get: (
+		key: string,
+		tables: string[],
+		isTag: boolean,
+		isAutoInvalidate?: boolean,
+	) => Effect.Effect<any[] | undefined, EffectCacheError, never>;
+	readonly put: (
+		hashedQuery: string,
+		response: any,
+		tables: string[],
+		isTag: boolean,
+		config?: CacheConfig,
+	) => Effect.Effect<void, EffectCacheError, never>;
+	readonly onMutate: (params: MutationOption) => Effect.Effect<void, EffectCacheError, never>;
+	readonly cache: DrizzleCache;
+}
 
 /**
  * Effect service for caching query results in Drizzle ORM.
@@ -24,17 +45,21 @@ import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './ca
  * );
  * ```
  */
-export class EffectCache extends Effect.Service<EffectCache>()('drizzle-orm/EffectCache', {
-	sync: () => make(new NoopCache()),
-	accessors: true,
+export class EffectCache extends ServiceMap.Service<EffectCache>()('drizzle-orm/EffectCache', {
+	make: Effect.sync((): EffectCacheShape => make(new NoopCache())),
 }) {
-	static readonly [entityKind]: string = this.Service._tag;
+	static readonly [entityKind]: string = 'drizzle-orm/EffectCache';
 
 	/**
-	 * Creates an EffectCache instance from a standard Drizzle cache.
+	 * The default layer providing a no-op cache.
+	 */
+	static readonly Default = Layer.effect(EffectCache, EffectCache.make);
+
+	/**
+	 * Creates an EffectCacheShape from a standard Drizzle cache.
 	 *
 	 * @param cache - A Drizzle cache instance implementing the `Cache` interface.
-	 * @returns A new EffectCache that delegates to the provided Drizzle cache.
+	 * @returns A new EffectCacheShape that delegates to the provided Drizzle cache.
 	 *
 	 * @example
 	 * ```ts
@@ -42,8 +67,8 @@ export class EffectCache extends Effect.Service<EffectCache>()('drizzle-orm/Effe
 	 * const effectCache = EffectCache.fromDrizzle(drizzleCache);
 	 * ```
 	 */
-	static fromDrizzle(cache: DrizzleCache) {
-		return new EffectCache(make(cache));
+	static fromDrizzle(cache: DrizzleCache): EffectCacheShape {
+		return make(cache);
 	}
 
 	/**
@@ -66,7 +91,7 @@ export class EffectCache extends Effect.Service<EffectCache>()('drizzle-orm/Effe
 	}
 }
 
-function make(cache: DrizzleCache) {
+function make(cache: DrizzleCache): EffectCacheShape {
 	const strategy = () => cache.strategy();
 
 	const get = (...args: Parameters<DrizzleCache['get']>) =>
@@ -102,7 +127,7 @@ function make(cache: DrizzleCache) {
  * This error is thrown when any cache operation (get, put, onMutate) fails.
  * The original error is available in the `cause` property.
  */
-export class EffectCacheError extends Schema.TaggedError<EffectCacheError>()('EffectCacheError', {
+export class EffectCacheError extends Schema.TaggedErrorClass<EffectCacheError>()('EffectCacheError', {
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectCacheError';

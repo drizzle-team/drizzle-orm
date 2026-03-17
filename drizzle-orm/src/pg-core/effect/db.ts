@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import type * as V1 from '~/_relations.ts';
-import type { EffectCache } from '~/cache/core/cache-effect.ts';
+import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
@@ -164,7 +164,7 @@ export class PgEffectDatabase<
 		return { as };
 	};
 
-	$cache: { invalidate: EffectCache['onMutate'] };
+	$cache: { invalidate: EffectCacheShape['onMutate'] };
 
 	$count(
 		source: PgTable | PgViewBase | SQL | SQLWrapper,

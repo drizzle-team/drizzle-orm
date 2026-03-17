@@ -1,5 +1,5 @@
 import { Schema as S } from 'effect';
-import type { Schema } from 'effect/Schema';
+import type { Schema, Top as SchemaTop } from 'effect/Schema';
 import {
 	type ColumnDataArrayConstraint,
 	type ColumnDataBigIntConstraint,
@@ -12,28 +12,25 @@ import { type Column, getColumnTable } from '~/column.ts';
 import { getTableName } from '~/table.ts';
 import { CONSTANTS, type Json } from '../utils.ts';
 
-export const literalSchema = S.Union(
+export const literalSchema = S.Union([
 	S.String,
 	S.Number,
 	S.Boolean,
 	S.Null,
-);
+]);
 
-export const jsonSchema = S.Union(
+export const jsonSchema = S.Union([
 	literalSchema,
-	S.Record({
-		key: S.String,
-		value: S.Any,
-	}),
+	S.Record(S.String, S.Any),
 	S.Array(S.Any),
-) satisfies Schema<Json>;
+]) satisfies Schema<Json>;
 
 export const bufferSchema = S.instanceOf(Buffer) satisfies Schema<Buffer>;
 
 export function columnToSchema(
 	column: Column,
-): Schema.Any {
-	let schema!: Schema.Any;
+): SchemaTop {
+	let schema!: SchemaTop;
 
 	// Check for PG array columns (have dimensions property instead of changing dataType)
 	const dimensions = (<{ dimensions?: number }> column).dimensions;
@@ -83,7 +80,7 @@ export function columnToSchema(
 function numberColumnToSchema(
 	column: Column,
 	constraint: ColumnDataNumberConstraint | undefined,
-): Schema.Any {
+): SchemaTop {
 	let min!: number;
 	let max!: number;
 	let integer = false;
@@ -190,27 +187,27 @@ function numberColumnToSchema(
 	let schema = integer
 		? S.Int
 		: S.Number;
-	schema = schema.pipe(
-		S.greaterThanOrEqualTo(min),
-		S.lessThanOrEqualTo(max),
+	schema = schema.check(
+		S.isGreaterThanOrEqualTo(min),
+		S.isLessThanOrEqualTo(max),
 	);
 	return schema;
 }
 
-export const bigintStringModeSchema = S.BigInt.pipe(
-	S.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-	S.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
+export const bigintStringModeSchema = S.BigInt.check(
+	S.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
+	S.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
 );
 
-export const unsignedBigintStringModeSchema = S.BigInt.pipe(
-	S.greaterThanOrEqualToBigInt(0n),
-	S.lessThanOrEqualToBigInt(CONSTANTS.INT64_UNSIGNED_MAX),
+export const unsignedBigintStringModeSchema = S.BigInt.check(
+	S.isGreaterThanOrEqualToBigInt(0n),
+	S.isLessThanOrEqualToBigInt(CONSTANTS.INT64_UNSIGNED_MAX),
 );
 
 function bigintColumnToSchema(
 	column: Column,
 	constraint: ColumnDataBigIntConstraint | undefined,
-): Schema.Any {
+): SchemaTop {
 	let min!: bigint | undefined;
 	let max!: bigint | undefined;
 
@@ -227,21 +224,21 @@ function bigintColumnToSchema(
 		}
 	}
 
-	let schema: Schema<bigint, bigint> = S.BigIntFromSelf;
+	let schema: Schema<bigint> = S.BigInt;
 
-	if (min !== undefined) schema = schema.pipe(S.greaterThanOrEqualToBigInt(min));
-	if (max !== undefined) schema = schema.pipe(S.lessThanOrEqualToBigInt(max));
+	if (min !== undefined) schema = schema.check(S.isGreaterThanOrEqualToBigInt(min));
+	if (max !== undefined) schema = schema.check(S.isLessThanOrEqualToBigInt(max));
 	return schema;
 }
 
 function pgArrayColumnToSchema(
 	column: Column,
 	dimensions: number,
-): Schema.Any {
+): SchemaTop {
 	// PG style: the column IS the base type, with dimensions indicating array depth
 	// Get the base schema from the column's own dataType
 	const [baseType, baseConstraint] = column.dataType.split(' ');
-	let baseSchema: Schema.Any;
+	let baseSchema: SchemaTop;
 
 	switch (baseType) {
 		case 'number':
@@ -269,7 +266,7 @@ function pgArrayColumnToSchema(
 
 	// Wrap in arrays based on dimensions
 	// Note: For PG arrays, column.length is the base type's length (e.g., varchar(10)), not array size
-	let schema: Schema.Any = S.Array(baseSchema);
+	let schema: SchemaTop = S.Array(baseSchema);
 	for (let i = 1; i < dimensions; i++) {
 		schema = S.Array(schema);
 	}
@@ -279,33 +276,33 @@ function pgArrayColumnToSchema(
 function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
-): Schema.Any {
+): SchemaTop {
 	switch (constraint) {
 		case 'geometry':
 		case 'point': {
-			return S.Tuple(S.Number, S.Number);
+			return S.Tuple([S.Number, S.Number]);
 		}
 		case 'line': {
-			return S.Tuple(S.Number, S.Number, S.Number);
+			return S.Tuple([S.Number, S.Number, S.Number]);
 		}
 		case 'vector':
 		case 'halfvector': {
 			const length = column.length;
 			const schema = S.Array(S.Number);
 			return length
-				? schema.pipe(S.itemsCount(length))
+				? schema.check(S.isLengthBetween(length, length))
 				: schema;
 		}
 		case 'int64vector': {
 			const length = column.length;
 			const schema = S.Array(
-				S.BigIntFromSelf.pipe(
-					S.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-					S.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
+				S.BigInt.check(
+					S.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
+					S.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
 				),
 			);
 			return length
-				? schema.pipe(S.itemsCount(length))
+				? schema.check(S.isLengthBetween(length, length))
 				: schema;
 		}
 		case 'basecolumn': {
@@ -315,9 +312,9 @@ function arrayColumnToSchema(
 				const baseSchema = columnToSchema(baseColumn);
 				// For CockroachDB style, column.length is the array size
 				const length = column.length;
-				const schema: Schema.Any = S.Array(baseSchema);
+				const schema = S.Array(baseSchema);
 				if (length) {
-					return schema.pipe(S.itemsCount(length));
+					return schema.check(S.isLengthBetween(length, length));
 				}
 				return schema;
 			}
@@ -332,7 +329,7 @@ function arrayColumnToSchema(
 function objectColumnToSchema(
 	column: Column,
 	constraint: ColumnDataObjectConstraint | undefined,
-): Schema.Any {
+): SchemaTop {
 	switch (constraint) {
 		case 'buffer': {
 			return bufferSchema;
@@ -358,7 +355,7 @@ function objectColumnToSchema(
 			});
 		}
 		default: {
-			return S.Object;
+			return S.ObjectKeyword;
 		}
 	}
 }
@@ -366,14 +363,14 @@ function objectColumnToSchema(
 function stringColumnToSchema(
 	column: Column<any>,
 	constraint: ColumnDataStringConstraint | undefined,
-): Schema.Any {
+): SchemaTop {
 	const { name: columnName, length, isLengthExact } = column;
 	let regex: RegExp | undefined;
 
 	if (constraint === 'binary') {
 		regex = /^[01]*$/;
 	}
-	if (constraint === 'uuid') return S.UUID;
+	if (constraint === 'uuid') return S.String.check(S.isUUID());
 	if (constraint === 'enum') {
 		const enumValues = column.enumValues as [string, ...string[]] | undefined;
 		if (!enumValues) {
@@ -381,7 +378,7 @@ function stringColumnToSchema(
 				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
 			);
 		}
-		return S.Literal(...enumValues);
+		return S.Literals(enumValues);
 	}
 	if (constraint === 'int64') {
 		return bigintStringModeSchema;
@@ -391,10 +388,10 @@ function stringColumnToSchema(
 	}
 
 	let schema = S.String;
-	schema = regex ? schema.pipe(S.pattern(regex)) : schema;
+	schema = regex ? schema.check(S.isPattern(regex)) : schema;
 	return length && isLengthExact
-		? schema.pipe(S.length(length))
+		? schema.check(S.isLengthBetween(length, length))
 		: length
-		? schema.pipe(S.maxLength(length))
+		? schema.check(S.isMaxLength(length))
 		: schema;
 }

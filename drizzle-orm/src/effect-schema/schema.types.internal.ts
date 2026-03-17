@@ -1,6 +1,5 @@
 import type { Schema as s } from 'effect';
-import type { Struct, UndefinedOr } from 'effect/Schema';
-import type { Schema } from 'effect/Schema';
+import type { Schema, Struct, Top as SchemaTop, UndefinedOr } from 'effect/Schema';
 import type { Column } from '~/column.ts';
 import type { SelectedFieldsFlat } from '~/operations.ts';
 import type { View } from '~/sql/sql.ts';
@@ -15,7 +14,7 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
-type BuildRefineField<T> = T extends Schema.Any ? ((schema: T) => Schema.Any) | Schema.Any
+type BuildRefineField<T> = T extends SchemaTop ? ((schema: T) => SchemaTop) | SchemaTop
 	: never;
 
 export type BuildRefine<
@@ -30,8 +29,8 @@ type HandleRefinement<
 	TType extends 'select' | 'insert' | 'update',
 	TRefinement,
 	TColumn extends Column,
-> = TRefinement extends (((schema: any) => infer R extends Schema.Any)) ? (TColumn['_']['notNull'] extends true ? R
-		: (s.NullOr<R>)) extends infer TSchema extends Schema.Any
+> = TRefinement extends (((schema: any) => infer R extends SchemaTop)) ? (TColumn['_']['notNull'] extends true ? R
+		: (s.NullOr<R>)) extends infer TSchema extends SchemaTop
 		? TType extends 'update' ? s.optional<UndefinedOr<TSchema>>
 		: TSchema
 	: typeof s.Any
@@ -42,7 +41,7 @@ type IsRefinementDefined<
 	TKey extends string | symbol | number,
 > = TRefinements extends object
 	? TRefinements[TKey] extends
-		Schema.Any | s.optional<Schema.Any> | s.optionalWith<Schema.Any, any> | ((schema: any) => any) ? true
+		SchemaTop | s.optional<SchemaTop> | s.optionalKey<SchemaTop> | ((schema: any) => any) ? true
 	: false
 	: false;
 
@@ -59,7 +58,7 @@ export type BuildSchema<
 					: K
 			]: TColumns[K] extends infer TColumn extends Column ? IsRefinementDefined<TRefinements, K> extends true ? Assume<
 						HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>,
-						Schema.Any | s.optional<Schema.Any> | s.optionalWith<Schema.Any, any>
+						SchemaTop | s.optional<SchemaTop> | s.optionalKey<SchemaTop>
 					>
 				: HandleColumn<TType, TColumn>
 				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
@@ -77,7 +76,7 @@ export type NoUnknownKeys<
 	TCompare extends Record<string, any>,
 > = {
 	[K in keyof TRefinement]: K extends keyof TCompare
-		? TRefinement[K] extends Record<string, Schema.Any> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
+		? TRefinement[K] extends Record<string, SchemaTop> ? NoUnknownKeys<TRefinement[K], TCompare[K]>
 		: TRefinement[K]
 		: DrizzleTypeError<`Found unknown key in refinement: "${K & string}"`>;
 };
