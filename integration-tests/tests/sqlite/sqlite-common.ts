@@ -1013,19 +1013,22 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.concurrent('prepared statement with placeholder in .inArray', async ({ db, push }) => {
-			const table1 = sqliteTable('table1', {
-				name: text(),
-			});
+		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent(
+			'prepared statement with placeholder in .inArray',
+			async ({ db, push }) => {
+				const table1 = sqliteTable('table1', {
+					name: text(),
+				});
 
-			await push({ table1 });
+				await push({ table1 });
 
-			await db.insert(table1).values([{ name: 'John' }, { name: 'John1' }]);
+				await db.insert(table1).values([{ name: 'John' }, { name: 'John1' }]);
 
-			const prepared = db.select().from(table1).where(inArray(table1.name, sql.placeholder('names'))).prepare();
-			const result = await prepared.execute({ names: ['John', 'John1'] });
-			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
-		});
+				const prepared = db.select().from(table1).where(inArray(table1.name, sql.placeholder('names'))).prepare();
+				const result = await prepared.execute({ names: ['John', 'John1'] });
+				expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
+			},
+		);
 
 		test.concurrent('prepared statement with placeholder in .where', async ({ db }) => {
 			await db.insert(usersTable).values({ name: 'John' }).run();

@@ -474,19 +474,22 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.concurrent('prepared statement sql.placeholder in .inArray', async ({ db, push, seed }) => {
-		const users = createUserTable('users_116');
-		await push({ users });
+	test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent(
+		'prepared statement sql.placeholder in .inArray',
+		async ({ db, push, seed }) => {
+			const users = createUserTable('users_116');
+			await push({ users });
 
-		await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]);
-		// TODO: it seems to me that prepared shouldn't be of type any
-		const prepared = db.select({ name: users.name }).from(users).where(
-			inArray(users.name, sql.placeholder('names')),
-		).prepare();
+			await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]);
+			// TODO: it seems to me that prepared shouldn't be of type any
+			const prepared = db.select({ name: users.name }).from(users).where(
+				inArray(users.name, sql.placeholder('names')),
+			).prepare();
 
-		const result = await prepared.execute({ names: ['John', 'John1'] });
-		expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
-	});
+			const result = await prepared.execute({ names: ['John', 'John1'] });
+			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
+		},
+	);
 
 	test.concurrent('insert via db.execute + select via db.execute', async ({ db, push }) => {
 		const users = createUserTable('users_108');

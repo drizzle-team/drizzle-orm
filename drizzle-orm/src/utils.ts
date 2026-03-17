@@ -224,13 +224,11 @@ export function getColumns<T extends Table | View | Subquery>(
 	: T extends Subquery ? T['_']['selectedFields']
 	: never
 {
-	return Object.freeze(
-		is(table, Table)
-			? table[Table.Symbol.Columns]
-			: is(table, View)
-			? table[ViewBaseConfig].selectedFields
-			: table._.selectedFields,
-	) as any;
+	return (is(table, Table)
+		? table[Table.Symbol.Columns]
+		: is(table, View)
+		? table[ViewBaseConfig].selectedFields
+		: table._.selectedFields) as any;
 }
 
 /** @internal */

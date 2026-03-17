@@ -2293,6 +2293,11 @@ export const connectToSQLite = async (
 		const run = async (sql: string) => {
 			client.prepare(sql).run();
 		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				client.prepare(query).run();
+			}
+		};
 
 		const proxy: Proxy = async (params) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
@@ -2344,6 +2349,7 @@ export const connectToSQLite = async (
 			packageName: 'node:sqlite',
 			query,
 			run,
+			batch,
 			proxy,
 			transactionProxy,
 			migrate: migrateFn,

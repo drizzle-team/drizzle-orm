@@ -229,11 +229,11 @@ test('generate #10 tsconfig paths', async () => {
 			name: undefined,
 			custom: false,
 			breakpoints: true,
-			schema: './entry.ts',
 			out: 'drizzle',
 			bundle: false,
 			casing: undefined,
 			driver: undefined,
+			filenames: [filename],
 		});
 	} finally {
 		if (originalPrefix === undefined) {

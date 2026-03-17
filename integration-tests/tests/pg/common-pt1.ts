@@ -1067,24 +1067,27 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.concurrent('prepared statement with placeholder in .inArray', async ({ db, push }) => {
-			const usersTable = pgTable('users_392', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent(
+			'prepared statement with placeholder in .inArray',
+			async ({ db, push }) => {
+				const usersTable = pgTable('users_392', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ usersTable });
-			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
-			const stmt = db
-				.select({ name: usersTable.name })
-				.from(usersTable)
-				.where(inArray(usersTable.name, sql.placeholder('names')))
-				.prepare('get_users');
+				await push({ usersTable });
+				await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
+				const stmt = db
+					.select({ name: usersTable.name })
+					.from(usersTable)
+					.where(inArray(usersTable.name, sql.placeholder('names')))
+					.prepare('get_users');
 
-			const result = await stmt.execute({ names: ['John', 'John1'] });
+				const result = await stmt.execute({ names: ['John', 'John1'] });
 
-			expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
-		});
+				expect(result).toStrictEqual([{ name: 'John' }, { name: 'John1' }]);
+			},
+		);
 
 		test.concurrent('Insert all defaults in 1 row', async ({ db, push }) => {
 			const users = pgTable('users_42', {

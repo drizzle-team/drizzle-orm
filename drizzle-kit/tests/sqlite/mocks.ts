@@ -359,6 +359,16 @@ export const prepareTestDatabase = () => {
 				throw newError;
 			}
 		},
+		batch: async (sqlStatements: string[]) => {
+			for (const sql of sqlStatements) {
+				try {
+					const stmt = client.prepare(sql).run();
+				} catch (error) {
+					const newError = new Error(`batch error: ${sql}\n\n${(error as Error).message}`);
+					throw newError;
+				}
+			}
+		},
 	};
 	const close = async () => {
 		client.close();
