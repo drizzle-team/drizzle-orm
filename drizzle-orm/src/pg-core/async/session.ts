@@ -239,7 +239,7 @@ export abstract class PgAsyncTransaction<
 
 export async function migrate(
 	migrations: MigrationMeta[],
-	session: PgAsyncSession,
+	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	config: string | MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrationsTable = typeof config === 'string'
@@ -247,10 +247,10 @@ export async function migrate(
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-	await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations);
 
 	// Create table with latest schema (version 1) if this is a new database
 	if (newDb) {
@@ -263,10 +263,10 @@ export async function migrate(
 				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
-		await session.execute(migrationTableCreate);
+		await db.execute(migrationTableCreate);
 	}
 
-	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string }>(
+	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string }>(
 		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
@@ -283,7 +283,7 @@ export async function migrate(
 
 		if (!migration) return;
 
-		await session.execute(
+		await db.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name ?? null})`,
@@ -293,7 +293,7 @@ export async function migrate(
 	}
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	await session.transaction(async (tx) => {
+	await db.transaction(async (tx) => {
 		for (const migration of migrationsToRun) {
 			for (const stmt of migration.sql) {
 				await tx.execute(sql.raw(stmt));
