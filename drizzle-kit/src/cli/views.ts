@@ -148,7 +148,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray('create column')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.data.items.length - 1 ? '\n' : '';
+			text += idx !== this.data.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -178,7 +178,6 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
 		this.state.bind(this);
-		this.base = base;
 	}
 
 	render(status: 'idle' | 'submitted' | 'aborted'): string {
@@ -225,7 +224,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -296,7 +295,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -359,7 +358,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 				: `${chalk.green('+')} ${title} ${chalk.gray('create schema')}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
-			text += idx != this.state.items.length - 1 ? '\n' : '';
+			text += idx !== this.state.items.length - 1 ? '\n' : '';
 		});
 		return text;
 	}
@@ -389,7 +388,7 @@ class Spinner {
 	};
 }
 
-const frames = function(values: string[]): () => string {
+const _frames = function(values: string[]): () => string {
 	let index = 0;
 	const iterator = () => {
 		const frame = values[index];
@@ -540,8 +539,8 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
@@ -566,8 +565,8 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}
@@ -612,7 +611,7 @@ export class DropMigrationView<T extends { tag: string }> extends Prompt<T> {
 			title = isSelected ? chalk.yellow(title) : title;
 
 			text += isSelected ? `${selectedPrefix}${title}` : `  ${title}`;
-			text += idx != this.data.items.length - 1 ? '\n' : '';
+			text += idx !== this.data.items.length - 1 ? '\n' : '';
 		});
 
 		text += data.endTrimmed ? '  ...\n' : '';
