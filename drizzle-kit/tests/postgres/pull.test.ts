@@ -1977,3 +1977,28 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5495
+test('ivfflat index opclass introspection returns operator class name not access method name', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	await db.query(`
+		CREATE TABLE public.items (
+			id integer NOT NULL,
+			embedding vector(3) NOT NULL
+		);
+	`);
+	await db.query(`
+		CREATE INDEX items_embedding_idx ON public.items USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+	`);
+
+	const { indexes } = await fromDatabase(db, () => true);
+
+	const vectorIdx = indexes.find((idx) => idx.name === 'items_embedding_idx');
+	expect(vectorIdx).toBeDefined();
+	expect(vectorIdx!.method).toBe('ivfflat');
+	expect(vectorIdx!.columns[0]!.opclass).toStrictEqual({
+		name: 'vector_cosine_ops',
+		default: false,
+	});
+});
