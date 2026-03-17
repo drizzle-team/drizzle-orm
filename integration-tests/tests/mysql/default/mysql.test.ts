@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { createConnection } from 'mysql2/promise';
 import { describe, expect } from 'vitest';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
@@ -186,5 +188,60 @@ describe('migrator', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+
+	test('managing multiple databases #1', async ({ db }) => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('create database drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle2;');
+
+		await db.execute(`use drizzle1`);
+		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+
+		await db.execute(`use drizzle2`);
+		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle2
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db.select().from(usersMigratorTable);
+
+		// drizzle1
+		await db.execute(`use drizzle1`);
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db.select().from(usersMigratorTable);
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	});
+
+	test('managing multiple databases #2', async () => {
+		const client1 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		await client1.query('drop database if exists drizzle1;');
+		await client1.query('create database drizzle1;');
+		await client1.query('use drizzle1;');
+
+		const client2 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		await client2.query('drop database if exists drizzle2;');
+		await client2.query('create database drizzle2;');
+		await client2.query('use drizzle2;');
+
+		const db1 = drizzle({ client: client1 });
+		const db2 = drizzle({ client: client2 });
+
+		await migrate(db1, { migrationsFolder: './drizzle2/mysql' });
+
+		await migrate(db2, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle1
+		await db1.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db1.select().from(usersMigratorTable);
+
+		// drizzle2
+		await db2.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db2.select().from(usersMigratorTable);
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
 });

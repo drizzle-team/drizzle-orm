@@ -151,7 +151,8 @@ export async function upgradeIfNeeded(
 	const result = await all<{ '1': 1 }>(
 		session,
 		sql`SELECT 1 FROM information_schema.tables 
-			WHERE table_name = ${migrationsTable}`,
+			WHERE table_name = ${migrationsTable}
+			AND table_schema = DATABASE()`,
 		(row) => ({ '1': row[0] }),
 	);
 
@@ -165,6 +166,7 @@ export async function upgradeIfNeeded(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
+		AND table_schema = DATABASE()
 		ORDER BY ordinal_position`,
 		(row) => ({ column_name: row[0] }),
 	);
