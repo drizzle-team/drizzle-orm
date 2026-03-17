@@ -39,7 +39,6 @@ describe('migrator', () => {
 
 		const migratorRes = await migrate(db, {
 			migrationsFolder: './drizzle2/mysql',
-
 			migrationsTable,
 			// @ts-ignore - internal param
 			init: true,
@@ -54,6 +53,7 @@ describe('migrator', () => {
                 SELECT 1
                 FROM INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
+				AND TABLE_SCHEMA = DATABASE()
             ) as ${sql.identifier('tableExists')};`);
 
 		expect(migratorRes).toStrictEqual(undefined);
@@ -86,6 +86,7 @@ describe('migrator', () => {
                 SELECT 1
                 FROM INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
+				AND TABLE_SCHEMA = DATABASE()
             ) as ${sql.identifier('tableExists')};`);
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
@@ -123,6 +124,7 @@ describe('migrator', () => {
                 SELECT 1
                 FROM INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_NAME = ${getTableConfig(usersMigratorTable).name}
+				AND TABLE_SCHEMA = DATABASE()
             ) as ${sql.identifier('tableExists')};`);
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
