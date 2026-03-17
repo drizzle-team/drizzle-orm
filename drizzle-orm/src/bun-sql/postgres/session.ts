@@ -71,7 +71,7 @@ export class BunSQLPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 				});
 
 				return await this.queryWithCache(query, params, async () => {
-					return client.unsafe(query, params as any[]).values();
+					return await client.unsafe(query, params as any[]).values();
 				});
 			});
 
