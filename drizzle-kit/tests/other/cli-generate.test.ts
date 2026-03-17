@@ -220,6 +220,8 @@ test('generate #9', async (t) => {
 test('generate #10 tsconfig paths', async () => {
 	const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
 	process.env.TEST_CONFIG_PATH_PREFIX = './tests/fixtures/tsconfig-paths/';
+
+	const filename = join(process.cwd(), 'tests/fixtures/tsconfig-paths/entry.ts');
 	try {
 		const res = await brotest(generate, '--config=drizzle.config.ts');
 		if (res.type !== 'handler') assert.fail(res.type, 'handler');

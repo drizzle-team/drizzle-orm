@@ -75,6 +75,11 @@ export const dbFrom = (client: Database) => {
 		run: async (query: string) => {
 			client.prepare(query).run();
 		},
+		batch: async (sqlStatements: string[]) => {
+			for (const sql of sqlStatements) {
+				client.prepare(sql).run();
+			}
+		},
 	};
 };
 
