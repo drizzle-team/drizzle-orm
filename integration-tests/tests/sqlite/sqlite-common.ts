@@ -1915,6 +1915,31 @@ export function tests(test: Test, exclude: string[] = []) {
 			await db.run(sql`drop table ${users}`);
 		});
 
+		test.concurrent('sync transaction rollback', ({ db }) => {
+			const users = sqliteTable('users_transactions_rollback', {
+				id: integer('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			db.run(sql`drop table if exists ${users}`);
+
+			db.run(
+				sql`create table users_transactions_rollback (id integer not null primary key, balance integer not null)`,
+			);
+			expect(() => {
+				db.transaction((tx) => {
+					tx.insert(users).values({ balance: 100 }).run();
+					tx.rollback();
+				});
+			}).toThrowError(TransactionRollbackError);
+
+			const result = db.select().from(users).all();
+
+			expect(result).toEqual([]);
+
+			db.run(sql`drop table ${users}`);
+		});
+
 		test.concurrent('nested transaction', async ({ db }) => {
 			const users = sqliteTable('users_nested_transactions', {
 				id: integer('id').primaryKey(),
@@ -1970,6 +1995,36 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(result).toEqual([{ id: 1, balance: 100 }]);
 
 			await db.run(sql`drop table ${users}`);
+		});
+
+		test.concurrent('sync nested transaction rollback', ({ db }) => {
+			const users = sqliteTable('users_nested_transactions_rollback', {
+				id: integer('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			db.run(sql`drop table if exists ${users}`);
+
+			db.run(
+				sql`create table users_nested_transactions_rollback (id integer not null primary key, balance integer not null)`,
+			);
+
+			db.transaction((tx) => {
+				tx.insert(users).values({ balance: 100 }).run();
+
+				expect(() => {
+					tx.transaction((tx) => {
+						tx.update(users).set({ balance: 200 }).run();
+						tx.rollback();
+					});
+				}).toThrowError(TransactionRollbackError);
+			});
+
+			const result = db.select().from(users).all();
+
+			expect(result).toEqual([{ id: 1, balance: 100 }]);
+
+			db.run(sql`drop table ${users}`);
 		});
 
 		test.concurrent('join subquery with join', async ({ db }) => {
