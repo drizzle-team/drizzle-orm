@@ -4,7 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql, type SqlCommenterInput, stringifyComment } from '~/sql/sql.ts';
+import { type Query, type SQL, sql, sqlCommenterEncode, type SqlCommenterInput } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MySqlDatabase } from './db.ts';
 import type { MySqlDialect } from './dialect.ts';
@@ -160,7 +160,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
 	comment(comment: SqlCommenterInput): Omit<this, 'comment'> {
-		this.query.sql = `${this.query.sql} ${stringifyComment(comment)}`;
+		this.query.sql = `${this.query.sql} ${sqlCommenterEncode(comment)}`;
 
 		return this;
 	}
