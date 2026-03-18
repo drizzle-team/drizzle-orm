@@ -1434,7 +1434,7 @@ describe('common', () => {
 		await migrate.mysql(db, { migrationsFolder: './drizzle2/mysql' });
 
 		// drizzle1
-		// The migration process (specifically session.transaction() which calls client.begin()) spawns a new connection that resets the database context back to the default db from connection string
+		// session.transaction(), which calls client.begin(), spawns a new connection that resets the database context back to the default db from connection string
 		// After the migration completes, subsequent queries on db are running against the default db from connection string, not drizzle1
 		await db.execute(`use drizzle1`);
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -1444,7 +1444,7 @@ describe('common', () => {
 		await migrate.mysql(db, { migrationsFolder: './drizzle2/mysql' });
 
 		// drizzle2
-		// The migration process (specifically session.transaction() which calls client.begin()) spawns a new connection that resets the database context back to the default db from connection string
+		// session.transaction(), which calls client.begin(), spawns a new connection that resets the database context back to the default db from connection string
 		// After the migration completes, subsequent queries on db are running against the default db from connection string, not drizzle2
 		await db.execute(`use drizzle2`);
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
