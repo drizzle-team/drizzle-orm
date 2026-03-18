@@ -1072,7 +1072,6 @@ test('recreate table and add unique column', async (t) => {
 		users: sqliteTable('users', {
 			id: text('id').primaryKey(),
 			email: text('email').notNull(),
-			// New column, NULLABLE but unique, meaning should default to NULL on migration which satisfies unique constraint. While the unique() does not change anything, this will error now, where otherwise it fails silently with the behavior below
 			referralCode: text('referral_code').unique(),
 		}),
 	};

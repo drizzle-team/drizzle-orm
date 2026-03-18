@@ -909,7 +909,7 @@ test('introspect cyclic foreign key', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('introspect cyclic foreign key', async () => {
+test('double-quote-issue', async () => {
 	const content = mysqlTable('content', {
 		id: int('id').notNull(),
 		virtualPath: varchar('virtual_path', { length: 255 }).notNull(),
