@@ -1109,7 +1109,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const selectQPrepared = db.select().from(ctbl).comment({
 			select: `com'ment`,
 		}).prepare();
-		expect(selectQPrepared.getQuery().sql).toContain(` /*select='com\\'ment'*/`);
+		expect((<any> selectQPrepared).query.sql).toContain(` /*select='com\\'ment'*/`);
 
 		await insertQ;
 		await updateQ;
