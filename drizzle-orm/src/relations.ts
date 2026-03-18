@@ -32,7 +32,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
+import { noopDecoder, Placeholder, SQL, sql, type SqlCommenterInput, type SQLWrapper, View } from './sql/sql.ts';
 import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
@@ -563,6 +563,37 @@ export type DBQueryConfig<
 		}
 		: {});
 
+export type DBQueryConfigWithComment<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> =
+	& (TTableConfig['relations'] extends Record<string, never> ? {}
+		: {
+			with?:
+				| DBQueryConfigWith<TSchema, TTableConfig['relations']>
+				| undefined;
+		})
+	& {
+		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
+		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
+		extras?:
+			| DBQueryConfigExtras<TTableConfig['table']>
+			| undefined;
+		orderBy?:
+			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
+			| undefined;
+		offset?: number | Placeholder | undefined;
+		/**
+		 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+		 */
+		comment?: SqlCommenterInput | undefined;
+	}
+	& (TRelationType extends 'many' ? {
+			limit?: number | Placeholder | undefined;
+		}
+		: {});
+
 export type AnyDBQueryConfig = {
 	columns?:
 		| DBQueryConfigColumns<GetTableViewFieldSelection<TableRelationalConfig['table']>>
@@ -579,6 +610,7 @@ export type AnyDBQueryConfig = {
 		| undefined;
 	offset?: number | Placeholder | undefined;
 	limit?: number | Placeholder | undefined;
+	comment?: SqlCommenterInput | undefined;
 };
 
 export interface TableRelationalConfig {

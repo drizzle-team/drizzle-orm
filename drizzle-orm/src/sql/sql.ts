@@ -578,7 +578,47 @@ export namespace sql {
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
 	}
+
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	export function comment(
+		input: SqlCommenterInput,
+	): SQL | undefined {
+		const encoded = sqlCommenterEncode(input);
+		if (!encoded) return undefined;
+
+		return sql.raw(encoded);
+	}
 }
+
+function sqlCommenterValueEncode(key: string): string {
+	const urlEncoded = encodeURIComponent(key);
+	return urlEncoded.replace(/'/g, `\\'`);
+}
+
+/** @internal */
+export function sqlCommenterEncode(input: SqlCommenterInput): string {
+	const parts: string[] = [];
+
+	for (const [key, value] of Object.entries(input)) {
+		if (value === null || value === undefined || value === '') continue;
+
+		const encodedKey = sqlCommenterValueEncode(key);
+		const encodedValue = sqlCommenterValueEncode(String(value));
+
+		parts.push(`${encodedKey}='${encodedValue}'`);
+	}
+
+	if (!parts.length) return '';
+
+	return `/*${parts.sort().join(',')}*/`;
+}
+
+export type SqlCommenterInput = Record<
+	string,
+	string | number | bigint | boolean | null | undefined
+>;
 
 export namespace SQL {
 	export class Aliased<T = unknown> implements SQLWrapper<T> {

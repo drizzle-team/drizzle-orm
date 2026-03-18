@@ -27,7 +27,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql } from './sql/sql.ts';
+import { type Placeholder, SQL, sql, type SqlCommenterInput } from './sql/sql.ts';
 import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
@@ -245,6 +245,76 @@ export type DBQueryConfig<
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>)
 			| undefined;
+	}
+	& (TRelationType extends 'many' ?
+			& {
+				where?:
+					| SQL
+					| undefined
+					| ((
+						fields: Simplify<
+							[TTableConfig['columns']] extends [never] ? {}
+								: TTableConfig['columns']
+						>,
+						operators: Operators,
+					) => SQL | undefined);
+				orderBy?:
+					| ValueOrArray<AnyColumn | SQL>
+					| ((
+						fields: Simplify<
+							[TTableConfig['columns']] extends [never] ? {}
+								: TTableConfig['columns']
+						>,
+						operators: OrderByOperators,
+					) => ValueOrArray<AnyColumn | SQL>)
+					| undefined;
+				limit?: number | Placeholder | undefined;
+			}
+			& (TIsRoot extends true ? {
+					offset?: number | Placeholder | undefined;
+				}
+				: {})
+		: {});
+
+export type DBQueryConfigWithComment<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TIsRoot extends boolean = boolean,
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> =
+	& {
+		columns?:
+			| {
+				[K in keyof TTableConfig['columns']]?: boolean;
+			}
+			| undefined;
+		with?:
+			| {
+				[K in keyof TTableConfig['relations']]?:
+					| true
+					| DBQueryConfig<
+						TTableConfig['relations'][K] extends One ? 'one' : 'many',
+						false,
+						TSchema,
+						FindTableByDBName<
+							TSchema,
+							TTableConfig['relations'][K]['referencedTableName']
+						>
+					>
+					| undefined;
+			}
+			| undefined;
+		extras?:
+			| Record<string, SQL.Aliased>
+			| ((
+				fields: Simplify<
+					[TTableConfig['columns']] extends [never] ? {}
+						: TTableConfig['columns']
+				>,
+				operators: { sql: Operators['sql'] },
+			) => Record<string, SQL.Aliased>)
+			| undefined;
+		comment?: SqlCommenterInput | undefined;
 	}
 	& (TRelationType extends 'many' ?
 			& {

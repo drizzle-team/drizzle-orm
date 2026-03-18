@@ -16,7 +16,7 @@ import type {
 	AnyOne,
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
-	DBQueryConfig,
+	DBQueryConfigWithComment,
 	Relation,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -164,7 +164,7 @@ export class MySqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, limit, orderBy, comment }: MySqlDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -177,7 +177,9 @@ export class MySqlDialect {
 
 		const limitSql = this.buildLimit(limit);
 
-		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
+		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}${
+			comment !== undefined ? sql` ${comment}` : undefined
+		}`;
 	}
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
@@ -202,7 +204,7 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy, comment }: MySqlUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -217,7 +219,9 @@ export class MySqlDialect {
 
 		const limitSql = this.buildLimit(limit);
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}`;
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}${
+			comment !== undefined ? sql` ${comment}` : undefined
+		}`;
 	}
 
 	/**
@@ -345,6 +349,7 @@ export class MySqlDialect {
 			useIndex,
 			forceIndex,
 			ignoreIndex,
+			comment,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -478,7 +483,9 @@ export class MySqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}${
+				comment !== undefined ? sql` ${comment}` : undefined
+			}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -551,7 +558,7 @@ export class MySqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, ignore, onConflict, select }: MySqlInsertConfig,
+		{ table, values: valuesOrSelect, ignore, onConflict, select, comment }: MySqlInsertConfig,
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
@@ -619,7 +626,9 @@ export class MySqlDialect {
 		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
 
 		return {
-			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} ${valuesSql}${onConflictSql}`,
+			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${
+				comment !== undefined ? sql` ${comment}` : undefined
+			}`,
 			generatedIds: generatedIdsResponse,
 		};
 	}
@@ -651,7 +660,7 @@ export class MySqlDialect {
 		tableNamesMap: Record<string, string>;
 		table: MySqlTable;
 		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfig<'many', true>;
+		queryConfig: true | V1.DBQueryConfigWithComment<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
@@ -721,7 +730,7 @@ export class MySqlDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				queryConfig: true | V1.DBQueryConfigWithComment<'many', false>;
 				relation: V1.Relation;
 			}[] = [];
 
@@ -926,6 +935,11 @@ export class MySqlDialect {
 			});
 		}
 
+		if (config !== true && config.comment !== undefined) {
+			const comment = sql.comment(config.comment);
+			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+		}
+
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
@@ -950,7 +964,7 @@ export class MySqlDialect {
 		tableNamesMap: Record<string, string>;
 		table: MySqlTable;
 		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfig<'many', true>;
+		queryConfig: true | V1.DBQueryConfigWithComment<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
@@ -1019,7 +1033,7 @@ export class MySqlDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				queryConfig: true | V1.DBQueryConfigWithComment<'many', false>;
 				relation: V1.Relation;
 			}[] = [];
 
@@ -1222,6 +1236,11 @@ export class MySqlDialect {
 			});
 		}
 
+		if (config !== true && config.comment !== undefined) {
+			const comment = sql.comment(config.comment);
+			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+		}
+
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
@@ -1329,7 +1348,7 @@ export class MySqlDialect {
 	private buildColumns = (
 		table: MySqlTable | MySqlView,
 		selection: BuildRelationalQueryResult['selection'],
-		params?: DBQueryConfig<'many'>,
+		params?: DBQueryConfigWithComment<'many'>,
 	) =>
 		params?.columns
 			? (() => {
@@ -1368,7 +1387,7 @@ export class MySqlDialect {
 			schema: TablesRelationalConfig;
 			table: MySqlTable | MySqlView;
 			tableConfig: TableRelationalConfig;
-			queryConfig?: DBQueryConfig<'many'> | true;
+			queryConfig?: DBQueryConfigWithComment<'many'> | true;
 			relationWhere?: SQL;
 			mode: 'first' | 'many';
 			errorPath?: string;
@@ -1450,7 +1469,7 @@ export class MySqlDialect {
 							table: targetTable as MySqlTable,
 							mode: isSingle ? 'first' : 'many',
 							schema,
-							queryConfig: join as DBQueryConfig,
+							queryConfig: join as DBQueryConfigWithComment,
 							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
@@ -1503,7 +1522,7 @@ export class MySqlDialect {
 			sql` where ${where}`.if(where)
 		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
 			sql` offset ${offset}`.if(offset !== undefined)
-		}`;
+		}${config !== true && config?.comment !== undefined ? sql` ${sql.comment(config.comment)}` : undefined}`;
 
 		return {
 			sql: query,

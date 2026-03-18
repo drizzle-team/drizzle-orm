@@ -3612,5 +3612,87 @@ export function tests(test: Test) {
 			const result2 = await db.select({ id: table1.id }).from(table1).where(eq(table1.rowCreatedAt, rowCreatedAt));
 			expect(result2).toStrictEqual([{ id: 1 }]);
 		});
+
+		test.concurrent('comments', async ({ createDB, push }) => {
+			const ctbl = pgTable('comments_test', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+
+			await push({ ctbl });
+			const db = createDB({ ctbl });
+
+			const insertQ = db.insert(ctbl).values([{
+				id: 1,
+				name: 'First',
+			}, {
+				id: 2,
+				name: 'Second',
+			}]).comment({ insert: '*/ comment /*', '/* n': 1 });
+
+			console.log(insertQ.toSQL().sql);
+
+			expect(insertQ.toSQL().sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
+
+			const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
+			expect(deleteQ.toSQL().sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
+
+			const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
+				update: 'here /**',
+			});
+			expect(updateQ.toSQL().sql).toContain(` /*update='here%20%2F**'*/`);
+
+			const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
+			expect(selectQ.toSQL().sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
+
+			const rqbQ = db.query.ctbl.findFirst({
+				columns: {
+					id: true,
+				},
+				comment: {
+					fieldOne: '_valueOne',
+					_fieldTwo: 'value two',
+				},
+			});
+			expect(rqbQ.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+
+			const rqbv1Q = db._query.ctbl.findFirst({
+				columns: {
+					name: true,
+				},
+				comment: {
+					fieldOne: '_valueOne',
+					_fieldTwo: 'value two',
+				},
+			});
+			expect(rqbv1Q.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+
+			const selectQPrepared = db.select().from(ctbl).comment({
+				select: `com'ment`,
+			}).prepare();
+			expect(selectQPrepared.getQuery().sql).toContain(` /*select='com\\'ment'*/`);
+
+			await insertQ;
+			await updateQ;
+			await deleteQ;
+
+			const [res1, res2, res3, res4] = [await selectQ, await rqbQ, await rqbv1Q, await selectQPrepared.execute()];
+
+			expectTypeOf(res2).toEqualTypeOf<
+				{
+					id: number;
+				} | undefined
+			>();
+			expectTypeOf(res3).toEqualTypeOf<
+				{
+					name: string;
+				} | undefined
+			>();
+
+			expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
+			expect(res2).toStrictEqual({ id: 1 });
+			expect(res3).toStrictEqual({ name: 'Updated' });
+			expect(res4).toStrictEqual([{ id: 1, name: 'Updated' }]);
+		});
 	});
 }

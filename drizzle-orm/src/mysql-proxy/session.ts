@@ -72,8 +72,7 @@ export class MySqlRemoteSession<
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -94,8 +93,7 @@ export class MySqlRemoteSession<
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,
@@ -149,8 +147,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 
 	constructor(
 		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -168,22 +165,21 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
-			this;
+		const { fields, client, query, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
 
-		logger.logQuery(queryString, params);
+		logger.logQuery(query.sql, params);
 
 		if (!fields && !customResultMapper) {
-			const { rows: data } = await this.queryWithCache(queryString, params, async () => {
-				return await client(queryString, params, 'execute');
+			const { rows: data } = await this.queryWithCache(query.sql, params, async () => {
+				return await client(query.sql, params, 'execute');
 			});
 
 			const insertId = data[0].insertId as number;
@@ -215,8 +211,8 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 			return data;
 		}
 
-		const { rows } = await this.queryWithCache(queryString, params, async () => {
-			return await client(queryString, params, 'all');
+		const { rows } = await this.queryWithCache(query.sql, params, async () => {
+			return await client(query.sql, params, 'all');
 		});
 
 		if (customResultMapper) {
@@ -227,13 +223,13 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		const { client, queryString, logger, customResultMapper } = this;
+		const { client, query, logger, customResultMapper } = this;
 
-		logger.logQuery(queryString, params);
+		logger.logQuery(query.sql, params);
 
-		const { rows: res } = await client(queryString, params, 'execute');
+		const { rows: res } = await client(query.sql, params, 'execute');
 		const rows = res[0];
 
 		return customResultMapper!(rows);

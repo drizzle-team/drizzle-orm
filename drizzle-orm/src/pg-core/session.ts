@@ -1,7 +1,7 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
-import type { Query, SQL } from '~/sql/index.ts';
+import { type Query, type SQL, type SqlCommenterInput, stringifyComment } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
@@ -41,6 +41,15 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		params: any[],
 		query: unknown,
 	): unknown;
+
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: SqlCommenterInput): Omit<this, 'comment'> {
+		this.query.sql = `${this.query.sql} ${stringifyComment(comment)}`;
+
+		return this;
+	}
 }
 
 export interface PgTransactionConfig {
