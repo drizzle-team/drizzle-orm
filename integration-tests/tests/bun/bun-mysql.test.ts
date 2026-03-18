@@ -1424,6 +1424,78 @@ describe('common', () => {
 		rmSync(migrationDir, { recursive: true });
 	});
 
+	test('managing multiple databases #1', async () => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('create database drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle2;');
+
+		await db.execute(`use drizzle1`);
+		await migrate.mysql(db, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle1
+		// The migration process (specifically session.transaction() which calls client.begin()) spawns a new connection that resets the database context back to the default db from connection string
+		// After the migration completes, subsequent queries on db are running against the default db from connection string, not drizzle1
+		await db.execute(`use drizzle1`);
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db.select().from(usersMigratorTable);
+
+		await db.execute(`use drizzle2`);
+		await migrate.mysql(db, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle2
+		// The migration process (specifically session.transaction() which calls client.begin()) spawns a new connection that resets the database context back to the default db from connection string
+		// After the migration completes, subsequent queries on db are running against the default db from connection string, not drizzle2
+		await db.execute(`use drizzle2`);
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db.select().from(usersMigratorTable);
+
+		await db.execute('drop database drizzle1;');
+		await db.execute('drop database drizzle2;');
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	});
+
+	test('managing multiple databases #2', async () => {
+		db.execute('create database if not exists drizzle1;');
+		db.execute('create database if not exists drizzle2;');
+
+		const client1 = await new SQL({
+			url: process.env['MYSQL_CONNECTION_STRING'],
+			adapter: 'mysql',
+			bigint: true,
+			database: 'drizzle1',
+		}).connect();
+
+		const client2 = await new SQL({
+			url: process.env['MYSQL_CONNECTION_STRING'],
+			adapter: 'mysql',
+			bigint: true,
+			database: 'drizzle2',
+		}).connect();
+
+		const db1 = drizzle.mysql({ client: client1 });
+		const db2 = drizzle.mysql({ client: client2 });
+
+		await migrate.mysql(db1, { migrationsFolder: './drizzle2/mysql' });
+		await migrate.mysql(db2, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle1
+		await db1.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db1.select().from(usersMigratorTable);
+
+		// drizzle2
+		await db2.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db2.select().from(usersMigratorTable);
+
+		await client1.unsafe('drop database drizzle1;');
+		await client2.unsafe('drop database drizzle2;');
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	});
+
 	test('insert via db.execute + select via db.execute', async () => {
 		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 

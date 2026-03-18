@@ -212,16 +212,14 @@ describe('migrator', () => {
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
 
-	test('managing multiple databases #2', async () => {
-		const client1 = connect({ url: process.env['PLANETSCALE_CONNECTION_STRING'] });
-		await client1.execute('drop database if exists drizzle1;');
-		await client1.execute('create database drizzle1;');
-		await client1.execute('use drizzle1;');
+	test('managing multiple databases #2', async ({ db }) => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle1;');
+		await db.execute('create database drizzle2;');
 
-		const client2 = connect({ url: process.env['PLANETSCALE_CONNECTION_STRING'] });
-		await client2.execute('drop database if exists drizzle2;');
-		await client2.execute('create database drizzle2;');
-		await client2.execute('use drizzle2;');
+		const client1 = connect({ url: process.env['TIDB_CONNECTION_STRING'], database: 'drizzle1' });
+		const client2 = connect({ url: process.env['TIDB_CONNECTION_STRING'], database: 'drizzle2' });
 
 		const db1 = drizzle({ client: client1 });
 		const db2 = drizzle({ client: client2 });
@@ -236,6 +234,9 @@ describe('migrator', () => {
 		// drizzle2
 		await db2.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 		const result2 = await db2.select().from(usersMigratorTable);
+
+		await db.execute('drop database drizzle1;');
+		await db.execute('drop database drizzle2;');
 
 		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);

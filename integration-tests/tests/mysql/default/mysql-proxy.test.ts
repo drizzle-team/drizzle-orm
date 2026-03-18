@@ -227,18 +227,16 @@ describe('migrator', () => {
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
 
-	test('managing multiple databases #2', async ({ createDB, createSimulator }) => {
+	test('managing multiple databases #2', async ({ db, createDB, createSimulator }) => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('create database drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle2;');
+
 		const migrationsTable = 'drzl_init';
 
-		const client1 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
-		await client1.query('drop database if exists drizzle1;');
-		await client1.query('create database drizzle1;');
-		await client1.query('use drizzle1;');
-
-		const client2 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
-		await client2.query('drop database if exists drizzle2;');
-		await client2.query('create database drizzle2;');
-		await client2.query('use drizzle2;');
+		const client1 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'], database: 'drizzle1' });
+		const client2 = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'], database: 'drizzle2' });
 
 		const db1 = createDB({ proxyClient: client1 });
 		const db2 = createDB({ proxyClient: client2 });
@@ -274,6 +272,9 @@ describe('migrator', () => {
 		// drizzle2
 		await db2.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 		const result2 = await db2.select().from(usersMigratorTable);
+
+		await db.execute('drop database drizzle1;');
+		await db.execute('drop database drizzle2;');
 
 		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
