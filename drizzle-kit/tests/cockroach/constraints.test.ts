@@ -1928,7 +1928,7 @@ test('index in other schema', async ({ dbc: db }) => {
 
 	const expectedSt1 = [
 		'CREATE SCHEMA "common";\n',
-		'CREATE TABLE "common"."filesystems_directories" (\n\t"filesystemId" text\n);\n',
+		'CREATE TABLE "common"."filesystems_directories" (\n\t"filesystemId" string\n);\n',
 		`CREATE INDEX "filesystems_directories_filesystemId_index" ON "common"."filesystems_directories" ("filesystemId");`,
 	];
 	expect(st1).toStrictEqual(expectedSt1);
