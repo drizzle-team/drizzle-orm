@@ -183,7 +183,8 @@ describe('migrator', () => {
 		expect(!!(Number(res.rows[0]?.tableExists ?? 0))).toStrictEqual(true);
 	});
 
-	test('managing multiple databases #1', async ({ db }) => {
+	// databases should manually be created in PlanetScale dashboard
+	test.skip('managing multiple databases #1', async ({ db }) => {
 		await db.execute('drop database if exists drizzle1;');
 		await db.execute('create database drizzle1;');
 		await db.execute('drop database if exists drizzle2;');
@@ -207,8 +208,7 @@ describe('migrator', () => {
 		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
-
-	test('managing multiple databases #2', async () => {
+	test.skip('managing multiple databases #2', async () => {
 		const client1 = new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING'] });
 		await client1.execute('drop database if exists drizzle1;');
 		await client1.execute('create database drizzle1;');
