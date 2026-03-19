@@ -54,6 +54,7 @@
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
+		"@netlify/db": ">=0.4.0",
 		"@neondatabase/serverless": ">=0.10.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
@@ -125,6 +126,9 @@
 			"optional": true
 		},
 		"postgres": {
+			"optional": true
+		},
+		"@netlify/db": {
 			"optional": true
 		},
 		"@neondatabase/serverless": {
@@ -214,6 +218,7 @@
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
+		"@netlify/db": "^0.4.0",
 		"@neondatabase/serverless": "^0.10.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",
