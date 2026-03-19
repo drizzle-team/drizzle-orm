@@ -77,6 +77,9 @@ export class PgAsyncDeleteBase<
 	_prepare(name?: string, generateName = false): PgAsyncDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const query = this.dialect.sqlToQuery(this.getSQL());
+			if (this.config.comment) {
+				query.comment = this.config.comment;
+			}
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];

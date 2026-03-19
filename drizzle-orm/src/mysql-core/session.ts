@@ -4,7 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql, sqlCommenterEncode, type SqlCommenterInput } from '~/sql/sql.ts';
+import { type CommentInput, type Query, type SQL, sql, sqlCommenter } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MySqlDatabase } from './db.ts';
 import type { MySqlDialect } from './dialect.ts';
@@ -48,6 +48,9 @@ export type PreparedQueryKind<
 export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
+	private commentlessSql: string;
+	private originalComment?: CommentInput;
+
 	constructor(
 		protected query: Query,
 		// cache instance
@@ -60,6 +63,14 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig,
 	) {
+		this.commentlessSql = query.sql;
+		this.originalComment = query.comment;
+		if (query.comment) {
+			const encodedComment = sqlCommenter(query.comment);
+			if (encodedComment) {
+				query.sql = `${query.sql} ${encodedComment}`;
+			}
+		}
 		// it means that no $withCache options were passed and it should be just enabled
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
@@ -159,10 +170,10 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): Omit<this, 'comment'> {
-		this.query.sql = `${this.query.sql} ${sqlCommenterEncode(comment)}`;
-
-		return this;
+	comment(comment: CommentInput): Omit<this, 'comment'> {
+		const merged = sqlCommenter.merge(this.originalComment, comment);
+		this.query.sql = merged ? `${this.commentlessSql} ${merged}` : this.commentlessSql;
+		return this as any;
 	}
 
 	/** @internal */

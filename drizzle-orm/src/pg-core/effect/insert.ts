@@ -91,6 +91,10 @@ export class PgEffectInsertBase<
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
 		const query = this.dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			query.comment = this.config.comment;
+		}
+
 		return this.session.prepareQuery<
 			PreparedQueryConfig & {
 				execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];

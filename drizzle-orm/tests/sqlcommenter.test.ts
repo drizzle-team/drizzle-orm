@@ -1,16 +1,16 @@
-import { expect, it } from 'vitest';
-import { sqlCommenterEncode } from '~/sql/sql.ts';
+import { expect, test } from 'vitest';
+import { sqlCommenter } from '~/sql/sql.ts';
 
-it('simple encode', () => {
-	const result = sqlCommenterEncode({
+test('simple encode', () => {
+	const result = sqlCommenter({
 		route: '/users',
 	});
 
 	expect(result).toBe("/*route='%2Fusers'*/");
 });
 
-it('sort keys lexicographically', () => {
-	const result = sqlCommenterEncode({
+test('sort keys lexicographically', () => {
+	const result = sqlCommenter({
 		b: '2',
 		a: '1',
 	});
@@ -18,8 +18,8 @@ it('sort keys lexicographically', () => {
 	expect(result).toBe("/*a='1',b='2'*/");
 });
 
-it('skip null, undefined and empty string values', () => {
-	const result = sqlCommenterEncode({
+test('skip null, undefined and empty string values', () => {
+	const result = sqlCommenter({
 		a: '1',
 		b: null,
 		c: undefined,
@@ -30,32 +30,32 @@ it('skip null, undefined and empty string values', () => {
 	expect(result).toBe("/*a='1',d='0'*/");
 });
 
-it('encode special characters', () => {
-	const result = sqlCommenterEncode({
+test('encode special characters', () => {
+	const result = sqlCommenter({
 		email: 'john@example.com',
 	});
 
 	expect(result).toBe("/*email='john%40example.com'*/");
 });
 
-it('escape single quotes', () => {
-	const result = sqlCommenterEncode({
+test('escape single quotes', () => {
+	const result = sqlCommenter({
 		name: "O'Reilly",
 	});
 
 	expect(result).toBe("/*name='O\\'Reilly'*/");
 });
 
-it('encode slashes', () => {
-	const result = sqlCommenterEncode({
+test('encode slashes', () => {
+	const result = sqlCommenter({
 		test: '*/',
 	});
 
 	expect(result).toBe("/*test='*%2F'*/");
 });
 
-it('prevent comment closure injection', () => {
-	const result = sqlCommenterEncode({
+test('prevent comment closure injection', () => {
+	const result = sqlCommenter({
 		attack: 'abc*/DROP TABLE users--',
 	});
 
@@ -63,24 +63,24 @@ it('prevent comment closure injection', () => {
 	expect(result).toContain('*%2FDROP');
 });
 
-it('encode commas and equals signs', () => {
-	const result = sqlCommenterEncode({
+test('encode commas and equals signs', () => {
+	const result = sqlCommenter({
 		tricky: 'a,b=c',
 	});
 
 	expect(result).toBe("/*tricky='a%2Cb%3Dc'*/");
 });
 
-it('encode keys', () => {
-	const result = sqlCommenterEncode({
+test('encode keys', () => {
+	const result = sqlCommenter({
 		'user id': '123',
 	});
 
 	expect(result).toBe("/*user%20id='123'*/");
 });
 
-it('handle boolean and number values', () => {
-	const result = sqlCommenterEncode({
+test('handle boolean and number values', () => {
+	const result = sqlCommenter({
 		flag: true,
 		count: 42,
 		bigint: 25n,
@@ -89,13 +89,13 @@ it('handle boolean and number values', () => {
 	expect(result).toBe("/*bigint='25',count='42',flag='true'*/");
 });
 
-it('return empty string for empty input', () => {
-	const result = sqlCommenterEncode({});
+test('return empty string for empty input', () => {
+	const result = sqlCommenter({});
 	expect(result).toBe('');
 });
 
-it('never emit raw single quote', () => {
-	const result = sqlCommenterEncode({
+test('never emit raw single quote', () => {
+	const result = sqlCommenter({
 		test: "a'b",
 	});
 
@@ -103,8 +103,8 @@ it('never emit raw single quote', () => {
 	expect(result).toContain("'a\\'b'");
 });
 
-it('never emit comment terminator', () => {
-	const result = sqlCommenterEncode({
+test('never emit comment terminator', () => {
+	const result = sqlCommenter({
 		test: '*/',
 	}).slice(2, -2);
 
@@ -112,16 +112,112 @@ it('never emit comment terminator', () => {
 	expect(result).toContain('*%2F');
 });
 
-it('decode', () => {
+test('decode', () => {
 	const input = {
 		key: "a'b*/c",
 	};
 
-	const encoded = sqlCommenterEncode(input);
+	const encoded = sqlCommenter(input);
 
 	const match = encoded.match(/key='(.*)'/);
 	expect(match).not.toBeNull();
 
 	const decoded = decodeURIComponent(match?.[1] ?? '');
 	expect(decoded).toBe("a\\'b*/c");
+});
+
+test('merge strings', () => {
+	const encoded = sqlCommenter.merge('somestr*/', 'str2');
+
+	expect(encoded).toStrictEqual(`/*somestr* /,str2*/`);
+});
+
+test('merge objects', () => {
+	const encoded = sqlCommenter.merge({ a: 1, c: '3' }, {
+		b: 2,
+		x: 9,
+	});
+
+	expect(encoded).toStrictEqual(`/*a='1',b='2',c='3',x='9'*/`);
+});
+
+test('merge string with object', () => {
+	const encoded = sqlCommenter.merge('somestr*/', {
+		b: 2,
+		x: 9,
+	});
+
+	expect(encoded).toStrictEqual(`/*somestr* /,b='2',x='9'*/`);
+});
+
+test('merge object with string', () => {
+	const encoded = sqlCommenter.merge({ a: 1, c: '3' }, 'str2');
+
+	expect(encoded).toStrictEqual(`/*a='1',c='3',str2*/`);
+});
+
+test('merge undefined with string', () => {
+	const encoded = sqlCommenter.merge(undefined, 'str2');
+
+	expect(encoded).toStrictEqual(`/*str2*/`);
+});
+
+test('merge undefined with object', () => {
+	const encoded = sqlCommenter.merge(undefined, {
+		b: 2,
+		x: 9,
+	});
+
+	expect(encoded).toStrictEqual(`/*b='2',x='9'*/`);
+});
+
+test('merge empty string with object', () => {
+	const encoded = sqlCommenter.merge('', {
+		b: 2,
+		x: 9,
+	});
+
+	expect(encoded).toStrictEqual(`/*b='2',x='9'*/`);
+});
+
+test('merge empty string with string', () => {
+	const encoded = sqlCommenter.merge('', 'str2');
+
+	expect(encoded).toStrictEqual(`/*str2*/`);
+});
+
+test('merge string with undefined', () => {
+	const encoded = sqlCommenter.merge('str2', undefined);
+
+	expect(encoded).toStrictEqual(`/*str2*/`);
+});
+
+test('merge object with undefined', () => {
+	const encoded = sqlCommenter.merge({
+		b: 2,
+		x: 9,
+	}, undefined);
+
+	expect(encoded).toStrictEqual(`/*b='2',x='9'*/`);
+});
+
+test('merge object with empty string', () => {
+	const encoded = sqlCommenter.merge({
+		b: 2,
+		x: 9,
+	}, '');
+
+	expect(encoded).toStrictEqual(`/*b='2',x='9'*/`);
+});
+
+test('merge string with empty string', () => {
+	const encoded = sqlCommenter.merge('str2', '');
+
+	expect(encoded).toStrictEqual(`/*str2*/`);
+});
+
+test('escape comments in string', () => {
+	const encoded = sqlCommenter('com*/*//*ment');
+
+	expect(encoded).toStrictEqual('/*com* / * // *ment*/');
 });

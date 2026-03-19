@@ -32,7 +32,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { noopDecoder, Placeholder, SQL, sql, type SqlCommenterInput, type SQLWrapper, View } from './sql/sql.ts';
+import { type CommentInput, noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
 import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
@@ -587,7 +587,7 @@ export type DBQueryConfigWithComment<
 		/**
 		 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 		 */
-		comment?: SqlCommenterInput | undefined;
+		comment?: CommentInput | undefined;
 	}
 	& (TRelationType extends 'many' ? {
 			limit?: number | Placeholder | undefined;
@@ -610,7 +610,7 @@ export type AnyDBQueryConfig = {
 		| undefined;
 	offset?: number | Placeholder | undefined;
 	limit?: number | Placeholder | undefined;
-	comment?: SqlCommenterInput | undefined;
+	comment?: CommentInput | undefined;
 };
 
 export interface TableRelationalConfig {

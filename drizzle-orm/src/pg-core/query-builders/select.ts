@@ -18,8 +18,8 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, sql, View } from '~/sql/sql.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -1010,8 +1010,8 @@ export class PgSelectBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgSelectWithout<this, TDynamic, 'comment'> {
-		this.config.comment = sql.comment(comment);
+	comment(comment: CommentInput): PgSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 
@@ -1022,8 +1022,12 @@ export class PgSelectBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			rest.comment = this.config.comment;
+		}
 		return rest;
 	}
+
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {

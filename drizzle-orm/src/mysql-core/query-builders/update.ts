@@ -14,7 +14,7 @@ import type {
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type Placeholder, type Query, type SQL, sql, type SqlCommenterInput, type SQLWrapper } from '~/sql/sql.ts';
+import type { CommentInput, Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
@@ -30,7 +30,7 @@ export interface MySqlUpdateConfig {
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	comment?: SQL;
+	comment?: CommentInput;
 }
 
 export type MySqlUpdateSetSource<
@@ -221,8 +221,8 @@ export class MySqlUpdateBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlUpdateWithout<this, TDynamic, 'comment'> {
-		this.config.comment = sql.comment(comment);
+	comment(comment: CommentInput): MySqlUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 
@@ -233,12 +233,20 @@ export class MySqlUpdateBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			rest.comment = this.config.comment;
+		}
 		return rest;
 	}
 
 	prepare(): MySqlUpdatePrepare<this> {
+		const builtQuery = this.dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			builtQuery.comment = this.config.comment;
+		}
+
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			builtQuery,
 			undefined,
 			undefined,
 			undefined,

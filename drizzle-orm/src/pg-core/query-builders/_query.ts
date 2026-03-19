@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { CommentInput, Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
@@ -45,7 +45,7 @@ export class _RelationalQueryBuilder<
 
 	findFirst<TSelection extends Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>> & {
-			comment?: SqlCommenterInput;
+			comment?: CommentInput;
 		},
 	): _PgRelationalQuery<V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new _PgRelationalQuery(
@@ -134,6 +134,9 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		if (this.config !== true && this.config.comment) {
+			builtQuery.comment = this.config.comment;
+		}
 
 		return { query, builtQuery };
 	}

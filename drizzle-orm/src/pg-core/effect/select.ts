@@ -114,6 +114,10 @@ export class PgEffectSelectBase<
 		const { fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			query.comment = this.config.comment;
+		}
+
 		const fieldsList = orderSelectedFields<PgColumn>(fields);
 		const preparedQUery = session.prepareQuery<
 			PreparedQueryConfig & { execute: TResult }

@@ -27,7 +27,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql, type SqlCommenterInput } from './sql/sql.ts';
+import { type CommentInput, type Placeholder, SQL, sql } from './sql/sql.ts';
 import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
@@ -314,7 +314,7 @@ export type DBQueryConfigWithComment<
 				operators: { sql: Operators['sql'] },
 			) => Record<string, SQL.Aliased>)
 			| undefined;
-		comment?: SqlCommenterInput | undefined;
+		comment?: CommentInput | undefined;
 	}
 	& (TRelationType extends 'many' ?
 			& {

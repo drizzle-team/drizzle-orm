@@ -6,7 +6,7 @@ import type {
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { CommentInput, Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession } from '../session.ts';
@@ -46,7 +46,7 @@ export class RelationalQueryBuilder<
 
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>> & {
-			comment?: SqlCommenterInput;
+			comment?: CommentInput;
 		},
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
@@ -63,7 +63,7 @@ export class RelationalQueryBuilder<
 
 	findFirst<TConfig extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'one', TSchema, TFields>> & {
-			comment?: SqlCommenterInput;
+			comment?: CommentInput;
 		},
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
@@ -133,7 +133,10 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		if (this.config !== true && this.config.comment) {
+			builtQuery.comment = this.config.comment;
+		}
 
 		return { query, builtQuery };
 	}

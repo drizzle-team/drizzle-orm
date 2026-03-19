@@ -6,14 +6,7 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import {
-	type ColumnsSelection,
-	type Query,
-	type SQL,
-	sql,
-	type SqlCommenterInput,
-	type SQLWrapper,
-} from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
@@ -51,7 +44,7 @@ export interface PgDeleteConfig {
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	comment?: SQL;
+	comment?: CommentInput;
 }
 
 export type PgDeleteReturningAll<
@@ -270,8 +263,8 @@ export class PgDeleteBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgDeleteWithout<this, TDynamic, 'comment'> {
-		this.config.comment = sql.comment(comment);
+	comment(comment: CommentInput): PgDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = comment;
 		return this as any;
 	}
 
@@ -282,6 +275,9 @@ export class PgDeleteBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
+		if (this.config.comment) {
+			rest.comment = this.config.comment;
+		}
 		return rest;
 	}
 
