@@ -87,6 +87,21 @@ test('$type override preserves effect schema output type', (t) => {
 	Expect<Equal<s.Schema.Type<typeof result>['id'], MyBrandedId>>();
 });
 
+test('$type literal override preserves effect schema output type', (t) => {
+	const fooLiteral = s.Literal('Foo');
+	type Foo = s.Schema.Type<typeof fooLiteral>;
+
+	const table = pgTable('test', ({ varchar }) => ({
+		value: varchar().$type<Foo>().notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const runtimeExpected = s.Struct({ value: s.String });
+
+	expectSchemaShape(t, runtimeExpected).from(result);
+	Expect<Equal<s.Schema.Type<typeof result>['value'], Foo>>();
+});
+
 test('table - insert', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),

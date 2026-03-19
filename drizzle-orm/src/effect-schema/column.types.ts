@@ -17,8 +17,8 @@ type WrapInEffectSchemaArray<TSchema extends Schema.Any, TDepth extends number> 
 	: TDepth extends 5 ? Array$<Array$<Array$<Array$<Array$<TSchema>>>>>
 	: Array$<typeof s.Any>;
 
-type IsPgArrayColumn<TColumn extends Column<any>, TType extends ColumnTypeData> = TType['type'] extends 'array' ? false // Already handled as explicit array type
-	: GetArrayDepth<TColumn['_']['data']> extends 0 ? false
+type IsPgArrayColumn<TData, TType extends ColumnTypeData> = TType['type'] extends 'array' ? false // Already handled as explicit array type
+	: GetArrayDepth<TData> extends 0 ? false
 	: true;
 
 type ApplyTypeOverride<TSchema extends Schema.Any, TData> = Equal<s.Schema.Type<TSchema>, TData> extends true ? TSchema
@@ -26,14 +26,15 @@ type ApplyTypeOverride<TSchema extends Schema.Any, TData> = Equal<s.Schema.Type<
 
 export type GetEffectSchemaType<
 	TColumn extends Column<any>,
+	TData = TColumn['_']['data'],
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
 > = ApplyTypeOverride<
-	IsPgArrayColumn<TColumn, TType> extends true ? WrapInEffectSchemaArray<
+	IsPgArrayColumn<TData, TType> extends true ? WrapInEffectSchemaArray<
 			GetBaseEffectSchemaType<TColumn, TType>,
-			GetArrayDepth<TColumn['_']['data']>
+			GetArrayDepth<TData>
 		>
 		: GetBaseEffectSchemaType<TColumn, TType>,
-	TColumn['_']['data']
+	TData
 >;
 
 type GetBaseEffectSchemaType<
