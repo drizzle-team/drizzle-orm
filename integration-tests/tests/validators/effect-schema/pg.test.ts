@@ -15,7 +15,7 @@ import {
 	text,
 } from 'drizzle-orm/pg-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
-import { Schema as s } from 'effect';
+import { type Brand, Schema as s } from 'effect';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Equal, Expect } from '~/utils';
@@ -74,7 +74,7 @@ test('table in schema - select', (tc) => {
 });
 
 test('$type override preserves effect schema output type', (t) => {
-	type MyBrandedId = string & { readonly __brand: 'MyBrandedId' };
+	type MyBrandedId = string & Brand.Brand<'MyBrandedId'>;
 
 	const table = pgTable('test', ({ uuid }) => ({
 		id: uuid().$type<MyBrandedId>().notNull(),
