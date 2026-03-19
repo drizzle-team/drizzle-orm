@@ -240,7 +240,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return row;
 		}
 
-		if (!row) {
+		if (!row || (Array.isArray(row) && row.length === 0)) {
 			return undefined;
 		}
 
