@@ -1068,18 +1068,18 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			id: 2,
 			name: 'Second',
 		}]).comment({ insert: '*/ comment /*', '/* n': 1 });
-		expect((<any> insertQ)._prepare().query.sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
+		expect((<any> insertQ).prepare().query.sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
 
 		const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
-		expect((<any> deleteQ)._prepare().query.sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
+		expect((<any> deleteQ).prepare().query.sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
 
 		const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
 			update: 'here /**',
 		});
-		expect((<any> updateQ)._prepare().query.sql).toContain(` /*update='here%20%2F**'*/`);
+		expect((<any> updateQ).prepare().query.sql).toContain(` /*update='here%20%2F**'*/`);
 
 		const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
-		expect((<any> selectQ)._prepare().query.sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
+		expect((<any> selectQ).prepare().query.sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
 
 		const rqbQ = db.query.ctbl.findFirst({
 			columns: {
@@ -1090,7 +1090,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				_fieldTwo: 'value two',
 			},
 		});
-		expect((<any> rqbQ)._prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+		expect((<any> rqbQ).prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
 
 		const rqbv1Q = db._query.ctbl.findFirst({
 			columns: {
@@ -1101,7 +1101,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				_fieldTwo: 'value two',
 			},
 		});
-		expect((<any> rqbv1Q)._prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+		expect((<any> rqbv1Q).prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
 
 		const selectQPrepared = db.select().from(ctbl).prepare().comment({
 			select: `com'ment`,
