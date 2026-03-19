@@ -14,7 +14,7 @@ import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import type { Placeholder, Query, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table, TableColumns } from '~/table.ts';
@@ -32,7 +32,7 @@ export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
-	comment?: CommentInput;
+	comment?: SQL;
 }
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
@@ -303,8 +303,8 @@ export class MySqlInsertBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: CommentInput): MySqlInsertWithout<this, TDynamic, 'comment'> {
-		this.config.comment = comment;
+	comment(comment: SqlCommenterInput): MySqlInsertWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
@@ -315,21 +315,13 @@ export class MySqlInsertBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			rest.comment = this.config.comment;
-		}
 		return rest;
 	}
 
 	prepare(): MySqlInsertPrepare<this, TReturning> {
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
-		const builtQuery = this.dialect.sqlToQuery(sql);
-		if (this.config.comment) {
-			builtQuery.comment = this.config.comment;
-		}
-
 		return this.session.prepareQuery(
-			builtQuery,
+			this.dialect.sqlToQuery(sql),
 			undefined,
 			undefined,
 			generatedIds,

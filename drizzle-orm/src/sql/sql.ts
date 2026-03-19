@@ -45,7 +45,6 @@ export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uui
 export interface Query {
 	sql: string;
 	params: unknown[];
-	comment?: CommentInput;
 }
 
 export interface QueryWithTypings extends Query {
@@ -583,9 +582,7 @@ export namespace sql {
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	export function comment(
-		input: SqlCommenterInput,
-	): SQL | undefined {
+	export function comment(input: CommentInput): SQL | undefined {
 		const encoded = sqlCommenter(input);
 		if (!encoded.length) return undefined;
 

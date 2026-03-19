@@ -1,7 +1,7 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { type CommentInput, type Query, type SQL, sqlCommenter } from '~/sql/index.ts';
+import type { Query, SQL } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
@@ -14,19 +14,7 @@ export interface PreparedQueryConfig {
 export abstract class PgBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'PgBasePreparedQuery';
 
-	private commentlessSql: string;
-	private originalComment?: CommentInput;
-
-	constructor(protected query: Query) {
-		this.commentlessSql = query.sql;
-		this.originalComment = query.comment;
-		if (query.comment) {
-			const encodedComment = sqlCommenter(query.comment);
-			if (encodedComment) {
-				query.sql = `${query.sql} ${encodedComment}`;
-			}
-		}
-	}
+	constructor(protected query: Query) {}
 
 	getQuery(): Query {
 		return this.query;
@@ -53,19 +41,6 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		params: any[],
 		query: unknown,
 	): unknown;
-
-	/**
-	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
-	 *
-	 * If comment was already set prior to preparation - extends it
-	 *
-	 * If both prior and current comments are objects - they get merged
-	 */
-	comment(comment: CommentInput): Omit<this, 'comment'> {
-		const merged = sqlCommenter.merge(this.originalComment, comment);
-		this.query.sql = merged ? `${this.commentlessSql} ${merged}` : this.commentlessSql;
-		return this as any;
-	}
 }
 
 export interface PgTransactionConfig {

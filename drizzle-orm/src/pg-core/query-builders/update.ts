@@ -18,10 +18,11 @@ import type {
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import {
 	type ColumnsSelection,
-	type CommentInput,
 	type Placeholder,
 	type Query,
 	SQL,
+	sql,
+	type SqlCommenterInput,
 	type SQLWrapper,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -56,7 +57,7 @@ export interface PgUpdateConfig {
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	comment?: CommentInput;
+	comment?: SQL;
 }
 
 export type PgUpdateSetSource<
@@ -671,8 +672,8 @@ export class PgUpdateBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: CommentInput): PgUpdateWithout<this, TDynamic, 'comment'> {
-		this.config.comment = comment;
+	comment(comment: SqlCommenterInput): PgUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
@@ -683,9 +684,6 @@ export class PgUpdateBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			rest.comment = this.config.comment;
-		}
 		return rest;
 	}
 

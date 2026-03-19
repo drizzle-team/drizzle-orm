@@ -1068,18 +1068,19 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			id: 2,
 			name: 'Second',
 		}]).comment({ insert: '*/ comment /*', '/* n': 1 });
-		expect((<any> insertQ).prepare().query.sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
+
+		expect(insertQ.toSQL().sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
 
 		const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
-		expect((<any> deleteQ).prepare().query.sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
+		expect(deleteQ.toSQL().sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
 
 		const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
 			update: 'here /**',
 		});
-		expect((<any> updateQ).prepare().query.sql).toContain(` /*update='here%20%2F**'*/`);
+		expect(updateQ.toSQL().sql).toContain(` /*update='here%20%2F**'*/`);
 
 		const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
-		expect((<any> selectQ).prepare().query.sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
+		expect(selectQ.toSQL().sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
 
 		const rqbQ = db.query.ctbl.findFirst({
 			columns: {
@@ -1090,7 +1091,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				_fieldTwo: 'value two',
 			},
 		});
-		expect((<any> rqbQ).prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+		expect(rqbQ.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
 
 		const rqbv1Q = db._query.ctbl.findFirst({
 			columns: {
@@ -1101,29 +1102,18 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				_fieldTwo: 'value two',
 			},
 		});
-		expect((<any> rqbv1Q).prepare().query.sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+		expect(rqbv1Q.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
 
-		const selectQPrepared = db.select().from(ctbl).prepare().comment({
+		const selectQPrepared = db.select().from(ctbl).comment({
 			select: `com'ment`,
-		});
-		expect(selectQPrepared.query.sql).toContain(` /*select='com\\'ment'*/`);
-
-		const selectQPreparedMerge = db.select().from(ctbl).comment({
-			select: `com'ment`,
-		}).prepare().comment({ extended: 'comment' });
-		expect(selectQPreparedMerge.query.sql).toContain(` /*extended='comment',select='com\\'ment'*/`);
+		}).prepare();
+		expect((<any> selectQPrepared).query.sql).toContain(` /*select='com\\'ment'*/`);
 
 		await insertQ;
 		await updateQ;
 		await deleteQ;
 
-		const [res1, res2, res3, res4, res5] = [
-			await selectQ,
-			await rqbQ,
-			await rqbv1Q,
-			await selectQPrepared.execute(),
-			await selectQPreparedMerge.execute(),
-		];
+		const [res1, res2, res3, res4] = [await selectQ, await rqbQ, await rqbv1Q, await selectQPrepared.execute()];
 
 		expectTypeOf(res2).toEqualTypeOf<
 			{
@@ -1140,6 +1130,5 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(res2).toStrictEqual({ id: 1 });
 		expect(res3).toStrictEqual({ name: 'Updated' });
 		expect(res4).toStrictEqual([{ id: 1, name: 'Updated' }]);
-		expect(res5).toStrictEqual([{ id: 1, name: 'Updated' }]);
 	});
 }

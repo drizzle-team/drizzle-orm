@@ -36,7 +36,7 @@ import {
 	type AnyOne,
 	// AggregatedField,
 	type BuildRelationalQueryResult,
-	type DBQueryConfig,
+	type DBQueryConfigWithComment,
 	getTableAsAliasSQL,
 	One,
 	type Relation,
@@ -106,7 +106,7 @@ export class PgDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: PgDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, comment }: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -115,7 +115,9 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		return sql`${withSql}delete from ${table}${whereSql}${returningSql}${
+			comment !== undefined ? sql` ${comment}` : undefined
+		}`;
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
@@ -140,7 +142,7 @@ export class PgDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: PgUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, returning, withList, from, joins, comment }: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const tableName = table[PgTable.Symbol.Name];
@@ -163,7 +165,9 @@ export class PgDialect {
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}`;
+		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${
+			comment !== undefined ? sql` ${comment}` : undefined
+		}`;
 	}
 
 	/**
@@ -336,6 +340,7 @@ export class PgDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			comment,
 		}: PgSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
@@ -422,7 +427,9 @@ export class PgDialect {
 			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}${
+				comment !== undefined ? sql` ${comment}` : undefined
+			}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -495,7 +502,8 @@ export class PgDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_ }: PgInsertConfig,
+		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_, comment }:
+			PgInsertConfig,
 	): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
@@ -560,7 +568,9 @@ export class PgDialect {
 
 		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
 
-		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
+		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}${
+			comment !== undefined ? sql` ${comment}` : undefined
+		}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
@@ -618,7 +628,7 @@ export class PgDialect {
 		tableNamesMap: Record<string, string>;
 		table: PgTable;
 		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfig<'many', true>;
+		queryConfig: true | V1.DBQueryConfigWithComment<'many', true>;
 		tableAlias: string;
 		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
@@ -690,7 +700,7 @@ export class PgDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				queryConfig: true | V1.DBQueryConfigWithComment<'many', false>;
 				relation: V1.Relation;
 			}[] = [];
 
@@ -891,6 +901,11 @@ export class PgDialect {
 			});
 		}
 
+		if (config !== true && config.comment !== undefined) {
+			const comment = sql.comment(config.comment);
+			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+		}
+
 		return {
 			tableTsKey: tableConfig.tsName,
 			sql: result,
@@ -967,7 +982,7 @@ export class PgDialect {
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
-		config?: DBQueryConfig<'many'>,
+		config?: DBQueryConfigWithComment<'many'>,
 	) =>
 		config?.columns
 			? (() => {
@@ -1025,7 +1040,7 @@ export class PgDialect {
 		schema: TablesRelationalConfig;
 		table: PgTable | PgView;
 		tableConfig: TableRelationalConfig;
-		queryConfig?: DBQueryConfig<'many'> | true;
+		queryConfig?: DBQueryConfigWithComment<'many'> | true;
 		relationWhere?: SQL;
 		mode: 'first' | 'many';
 		errorPath?: string;
@@ -1108,7 +1123,7 @@ export class PgDialect {
 							table: targetTable as PgTable | PgView,
 							mode: isSingle ? 'first' : 'many',
 							schema,
-							queryConfig: join as DBQueryConfig,
+							queryConfig: join as DBQueryConfigWithComment,
 							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
@@ -1146,11 +1161,13 @@ export class PgDialect {
 		}
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
 
+		const comment = config !== true && config?.comment !== undefined ? sql.comment(config.comment) : undefined;
+
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			sql` ${joins}`.if(joins)
 		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
 			sql` limit ${limit}`.if(limit !== undefined)
-		}${sql` offset ${offset}`.if(offset !== undefined)}`;
+		}${sql` offset ${offset}`.if(offset !== undefined)}${sql` ${comment}`.if(comment)}`;
 
 		return {
 			sql: query,

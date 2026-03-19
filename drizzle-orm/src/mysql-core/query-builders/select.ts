@@ -17,8 +17,8 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
@@ -1035,8 +1035,8 @@ export abstract class MySqlSelectQueryBuilderBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: CommentInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
-		this.config.comment = comment;
+	comment(comment: SqlCommenterInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
@@ -1047,9 +1047,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			rest.comment = this.config.comment;
-		}
 		return rest;
 	}
 
@@ -1145,15 +1142,10 @@ export class MySqlSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
-		const builtQuery = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			builtQuery.comment = this.config.comment;
-		}
-
 		const query = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(builtQuery, fieldsList, undefined, undefined, undefined, {
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, undefined, undefined, undefined, {
 			type: 'select',
 			tables: [...this.usedTables],
 		}, this.cacheConfig);

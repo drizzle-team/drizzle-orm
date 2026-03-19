@@ -1,7 +1,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { CommentInput, Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { Query, QueryWithTypings, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type {
@@ -33,7 +33,7 @@ export class _RelationalQueryBuilder<
 
 	findMany<TConfig extends V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>> & {
-			comment?: CommentInput;
+			comment?: SqlCommenterInput;
 		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
@@ -52,7 +52,7 @@ export class _RelationalQueryBuilder<
 
 	findFirst<TSelection extends Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>>(
 		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>> & {
-			comment?: CommentInput;
+			comment?: SqlCommenterInput;
 		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
@@ -135,9 +135,6 @@ export class MySqlRelationalQuery<
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
-		if (this.config !== true && this.config.comment) {
-			builtQuery.comment = this.config.comment;
-		}
 
 		return { builtQuery, query };
 	}

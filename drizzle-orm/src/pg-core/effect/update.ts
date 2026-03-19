@@ -119,9 +119,6 @@ export class PgEffectUpdateBase<
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			query.comment = this.config.comment;
-		}
 		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(

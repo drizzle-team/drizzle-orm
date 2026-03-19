@@ -111,10 +111,6 @@ export class PgAsyncSelectBase<
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const query = dialect.sqlToQuery(this.getSQL());
-			if (this.config.comment) {
-				query.comment = this.config.comment;
-			}
-
 			const fieldsList = orderSelectedFields<PgColumn>(fields);
 			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: any }

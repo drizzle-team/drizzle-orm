@@ -103,10 +103,6 @@ export class PgAsyncUpdateBase<
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			query.comment = this.config.comment;
-		}
-
 		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(

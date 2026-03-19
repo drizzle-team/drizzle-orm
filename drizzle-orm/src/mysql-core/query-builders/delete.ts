@@ -12,7 +12,7 @@ import type {
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { CommentInput, Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type Placeholder, type Query, type SQL, sql, type SqlCommenterInput, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
@@ -49,7 +49,7 @@ export interface MySqlDeleteConfig {
 	table: MySqlTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	comment?: CommentInput;
+	comment?: SQL;
 }
 
 export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = PreparedQueryKind<
@@ -176,8 +176,8 @@ export class MySqlDeleteBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: CommentInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
-		this.config.comment = comment;
+	comment(comment: SqlCommenterInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
@@ -188,20 +188,12 @@ export class MySqlDeleteBase<
 
 	toSQL(): Query {
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			rest.comment = this.config.comment;
-		}
 		return rest;
 	}
 
 	prepare(): MySqlDeletePrepare<this> {
-		const builtQuery = this.dialect.sqlToQuery(this.getSQL());
-		if (this.config.comment) {
-			builtQuery.comment = this.config.comment;
-		}
-
 		return this.session.prepareQuery(
-			builtQuery,
+			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			undefined,
 			undefined,

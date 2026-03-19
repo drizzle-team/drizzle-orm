@@ -20,7 +20,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, CommentInput, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
@@ -76,7 +76,7 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
-	comment?: CommentInput;
+	comment?: SQL;
 }
 
 export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery

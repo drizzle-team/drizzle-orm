@@ -18,7 +18,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, CommentInput, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
@@ -82,7 +82,7 @@ export interface MySqlSelectConfig {
 	useIndex?: string[];
 	forceIndex?: string[];
 	ignoreIndex?: string[];
-	comment?: CommentInput;
+	comment?: SQL;
 }
 
 export type MySqlJoin<
