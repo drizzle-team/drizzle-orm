@@ -73,6 +73,20 @@ test('table in schema - select', (tc) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('$type override preserves effect schema output type', (t) => {
+	type MyBrandedId = string & { readonly __brand: 'MyBrandedId' };
+
+	const table = pgTable('test', ({ uuid }) => ({
+		id: uuid().$type<MyBrandedId>().notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const runtimeExpected = s.Struct({ id: s.UUID });
+
+	expectSchemaShape(t, runtimeExpected).from(result);
+	Expect<Equal<s.Schema.Type<typeof result>['id'], MyBrandedId>>();
+});
+
 test('table - insert', (t) => {
 	const table = pgTable('test', {
 		id: integer().generatedAlwaysAsIdentity().primaryKey(),

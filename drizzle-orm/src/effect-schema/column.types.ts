@@ -2,7 +2,7 @@ import type { Schema as s } from 'effect';
 import type { Array$, Literal, NullOr, optional, Schema, Struct, Tuple, Tuple2, UndefinedOr } from 'effect/Schema';
 import type { ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
-import type { Assume } from '~/utils.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import type { bigintStringModeSchema, bufferSchema, jsonSchema, unsignedBigintStringModeSchema } from './column.ts';
 
 type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
@@ -21,14 +21,20 @@ type IsPgArrayColumn<TColumn extends Column<any>, TType extends ColumnTypeData> 
 	: GetArrayDepth<TColumn['_']['data']> extends 0 ? false
 	: true;
 
+type ApplyTypeOverride<TSchema extends Schema.Any, TData> = Equal<s.Schema.Type<TSchema>, TData> extends true ? TSchema
+	: Schema<TData, s.Schema.Encoded<TSchema>, s.Schema.Context<TSchema>>;
+
 export type GetEffectSchemaType<
 	TColumn extends Column<any>,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = IsPgArrayColumn<TColumn, TType> extends true ? WrapInEffectSchemaArray<
-		GetBaseEffectSchemaType<TColumn, TType>,
-		GetArrayDepth<TColumn['_']['data']>
-	>
-	: GetBaseEffectSchemaType<TColumn, TType>;
+> = ApplyTypeOverride<
+	IsPgArrayColumn<TColumn, TType> extends true ? WrapInEffectSchemaArray<
+			GetBaseEffectSchemaType<TColumn, TType>,
+			GetArrayDepth<TColumn['_']['data']>
+		>
+		: GetBaseEffectSchemaType<TColumn, TType>,
+	TColumn['_']['data']
+>;
 
 type GetBaseEffectSchemaType<
 	TColumn extends Column<any>,
