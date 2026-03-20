@@ -388,7 +388,7 @@ export class MySqlDialect {
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+				return sql`${table[Table.Symbol.Schema] ? sql`${sql.identifier(table[Table.Symbol.Schema]!)}.` : undefined}${
 					sql.identifier(table[Table.Symbol.OriginalName])
 				} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
@@ -935,9 +935,9 @@ export class MySqlDialect {
 			});
 		}
 
-		if (config !== true && config.comment !== undefined) {
+		if (config !== true && config.comment) {
 			const comment = sql.comment(config.comment);
-			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+			result = comment ? sql`${result} ${comment}` : result;
 		}
 
 		return {
@@ -1236,9 +1236,9 @@ export class MySqlDialect {
 			});
 		}
 
-		if (config !== true && config.comment !== undefined) {
+		if (config !== true && config.comment) {
 			const comment = sql.comment(config.comment);
-			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+			result = comment ? sql`${result} ${comment}` : result;
 		}
 
 		return {
@@ -1517,12 +1517,13 @@ export class MySqlDialect {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);
+		const comment = config !== true && config?.comment ? sql.comment(config.comment) : undefined;
 
-		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${sql`${joins}`.if(joins)}${
-			sql` where ${where}`.if(where)
-		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
-			sql` offset ${offset}`.if(offset !== undefined)
-		}${config !== true && config?.comment !== undefined ? sql` ${sql.comment(config.comment)}` : undefined}`;
+		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+			joins ? sql`${joins}` : undefined
+		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
+			limit !== undefined ? sql` limit ${limit}` : undefined
+		}${offset !== undefined ? sql` offset ${offset}` : undefined}${comment ? sql` ${comment}` : undefined}`;
 
 		return {
 			sql: query,

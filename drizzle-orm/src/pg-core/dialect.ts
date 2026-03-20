@@ -901,9 +901,9 @@ export class PgDialect {
 			});
 		}
 
-		if (config !== true && config.comment !== undefined) {
+		if (config !== true && config.comment) {
 			const comment = sql.comment(config.comment);
-			result = sql`${result}${sql` ${comment}`.if(comment)}`;
+			result = comment ? sql`${result} ${comment}` : result;
 		}
 
 		return {
@@ -1160,14 +1160,13 @@ export class PgDialect {
 			});
 		}
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
-
-		const comment = config !== true && config?.comment !== undefined ? sql.comment(config.comment) : undefined;
+		const comment = config !== true && config?.comment ? sql.comment(config.comment) : undefined;
 
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
-			sql` ${joins}`.if(joins)
-		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${
-			sql` limit ${limit}`.if(limit !== undefined)
-		}${sql` offset ${offset}`.if(offset !== undefined)}${sql` ${comment}`.if(comment)}`;
+			joins ? sql` ${joins}` : undefined
+		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
+			limit !== undefined ? sql` limit ${limit}` : undefined
+		}${offset !== undefined ? sql` offset ${offset}` : undefined}${comment ? sql` ${comment}` : undefined}`;
 
 		return {
 			sql: query,
