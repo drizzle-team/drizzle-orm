@@ -15,6 +15,7 @@ import type {
 	SQLiteExecuteMethod,
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
+import { validateTransactionBehavior } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
@@ -93,7 +94,8 @@ export class SQLiteRemoteSession<
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.schema);
-		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		const behavior = validateTransactionBehavior(config?.behavior);
+		await this.run(sql.raw(`begin${behavior ? ' ' + behavior : ''}`));
 		try {
 			const result = await transaction(tx);
 			await this.run(sql`commit`);
