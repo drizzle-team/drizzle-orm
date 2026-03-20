@@ -16,6 +16,7 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
+import { validateTransactionBehavior } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
 export interface OPSQLiteSessionOptions {
@@ -76,7 +77,8 @@ export class OPSQLiteSession<
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.schema);
-		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		const behavior = validateTransactionBehavior(config?.behavior);
+		this.run(sql.raw(`begin${behavior ? ' ' + behavior : ''}`));
 		try {
 			const result = transaction(tx);
 			this.run(sql`commit`);

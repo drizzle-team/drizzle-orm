@@ -17,6 +17,7 @@ import type {
 	SQLiteExecuteMethod,
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
+import { validateTransactionBehavior } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
@@ -113,7 +114,8 @@ export class SQLiteD1Session<
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const tx = new D1Transaction('async', this.dialect, this, this.schema);
-		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		const behavior = validateTransactionBehavior(config?.behavior);
+		await this.run(sql.raw(`begin${behavior ? ' ' + behavior : ''}`));
 		try {
 			const result = await transaction(tx);
 			await this.run(sql`commit`);

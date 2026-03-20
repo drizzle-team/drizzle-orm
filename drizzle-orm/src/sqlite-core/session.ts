@@ -207,6 +207,19 @@ export interface SQLiteTransactionConfig {
 	behavior?: 'deferred' | 'immediate' | 'exclusive';
 }
 
+const validBehaviors = new Set(['deferred', 'immediate', 'exclusive']);
+
+/** Validate transaction behavior to prevent SQL injection via raw interpolation. */
+export function validateTransactionBehavior(behavior: string | undefined): string | undefined {
+	if (behavior === undefined) return undefined;
+	if (!validBehaviors.has(behavior)) {
+		throw new Error(
+			`Invalid transaction behavior: '${behavior}'. Expected 'deferred', 'immediate', or 'exclusive'.`,
+		);
+	}
+	return behavior;
+}
+
 export type SQLiteExecuteMethod = 'run' | 'all' | 'get';
 
 export abstract class SQLiteSession<
