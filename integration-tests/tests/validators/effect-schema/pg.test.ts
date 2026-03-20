@@ -85,6 +85,9 @@ test('$type override preserves effect schema output type', (t) => {
 
 	expectSchemaShape(t, runtimeExpected).from(result);
 	Expect<Equal<s.Schema.Type<typeof result>['id'], MyBrandedId>>();
+	Expect<Equal<s.Schema.Type<typeof result.fields.id>, MyBrandedId>>();
+	Expect<Equal<s.Schema.Context<typeof result>, never>>();
+	Expect<Equal<s.Schema.Context<typeof result.fields.id>, never>>();
 });
 
 test('$type literal override preserves effect schema output type', (t) => {
@@ -100,6 +103,9 @@ test('$type literal override preserves effect schema output type', (t) => {
 
 	expectSchemaShape(t, runtimeExpected).from(result);
 	Expect<Equal<s.Schema.Type<typeof result>['value'], Foo>>();
+	Expect<Equal<s.Schema.Type<typeof result.fields.value>, Foo>>();
+	Expect<Equal<s.Schema.Context<typeof result>, never>>();
+	Expect<Equal<s.Schema.Context<typeof result.fields.value>, never>>();
 });
 
 test('table - insert', (t) => {

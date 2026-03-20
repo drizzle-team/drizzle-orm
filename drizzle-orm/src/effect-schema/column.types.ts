@@ -21,8 +21,12 @@ type IsPgArrayColumn<TData, TType extends ColumnTypeData> = TType['type'] extend
 	: GetArrayDepth<TData> extends 0 ? false
 	: true;
 
+type RebuildEffectSchema<TSchema extends Schema.Any, TData> =
+	& Omit<TSchema, keyof Schema.Any>
+	& Schema<TData, s.Schema.Encoded<TSchema>, s.Schema.Context<TSchema>>;
+
 type ApplyTypeOverride<TSchema extends Schema.Any, TData> = Equal<s.Schema.Type<TSchema>, TData> extends true ? TSchema
-	: Schema<TData, s.Schema.Encoded<TSchema>, s.Schema.Context<TSchema>>;
+	: RebuildEffectSchema<TSchema, TData>;
 
 export type GetEffectSchemaType<
 	TColumn extends Column<any>,
