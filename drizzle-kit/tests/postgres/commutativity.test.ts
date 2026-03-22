@@ -1010,4 +1010,198 @@ describe('commutativity integration (postgres)', () => {
 		// Expect conflicts between B and C (s1 drop vs s1 operations)
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
+
+	test('merged branch followed by new fork: should detect only the open branch, not the already-merged one', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		// Shared root: a single "users" table
+		const root = createDDL();
+		root.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' } as any);
+		root.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Branch A (from root): adds "orders" table
+		const branchA = createDDL();
+		branchA.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' } as any);
+		branchA.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		branchA.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' } as any);
+		branchA.columns.push({
+			schema: 'public',
+			table: 'orders',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Branch B (from root): adds "products" table
+		const branchB = createDDL();
+		branchB.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' } as any);
+		branchB.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		branchB.tables.push({ schema: 'public', isRlsEnabled: false, name: 'products' } as any);
+		branchB.columns.push({
+			schema: 'public',
+			table: 'products',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Merge point: has users + orders + products (merges both branches)
+		const merged = createDDL();
+		merged.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' } as any);
+		merged.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		merged.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' } as any);
+		merged.columns.push({
+			schema: 'public',
+			table: 'orders',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		merged.tables.push({ schema: 'public', isRlsEnabled: false, name: 'products' } as any);
+		merged.columns.push({
+			schema: 'public',
+			table: 'products',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Branch C (from merge): adds "shipments" table
+		const branchC = createDDL();
+		for (const e of merged.entities.list()) branchC.entities.push(e);
+		branchC.tables.push({ schema: 'public', isRlsEnabled: false, name: 'shipments' } as any);
+		branchC.columns.push({
+			schema: 'public',
+			table: 'shipments',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Branch D (from merge): adds "reviews" table
+		const branchD = createDDL();
+		for (const e of merged.entities.list()) branchD.entities.push(e);
+		branchD.tables.push({ schema: 'public', isRlsEnabled: false, name: 'reviews' } as any);
+		branchD.columns.push({
+			schema: 'public',
+			table: 'reviews',
+			name: 'id',
+			type: 'serial',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+
+		// Graph:
+		//   root ─┬─ branchA ──┐
+		//         └─ branchB ──┴─ merged ─┬─ branchC (leaf)
+		//                                 └─ branchD (leaf)
+		files.push(
+			writeTempSnapshot(tmp, '000_root', makeSnapshot('root', [ORIGIN], root.entities.list())),
+			writeTempSnapshot(tmp, '001_branchA', makeSnapshot('branchA', ['root'], branchA.entities.list())),
+			writeTempSnapshot(tmp, '002_branchB', makeSnapshot('branchB', ['root'], branchB.entities.list())),
+			writeTempSnapshot(tmp, '003_merged', makeSnapshot('merged', ['branchA', 'branchB'], merged.entities.list())),
+			writeTempSnapshot(tmp, '004_branchC', makeSnapshot('branchC', ['merged'], branchC.entities.list())),
+			writeTempSnapshot(tmp, '005_branchD', makeSnapshot('branchD', ['merged'], branchD.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'postgresql');
+
+		// No conflicts — branches C and D touch different tables
+		expect(report.conflicts).toHaveLength(0);
+
+		// The already-merged branch (root -> branchA/branchB) should NOT appear
+		// as a commutative branch candidate. Only the open fork (merged -> branchC/branchD)
+		// should be reported, so selectOpenCommutativeBranch can correctly merge them.
+		expect(report.commutativeBranches).toHaveLength(1);
+		expect(report.commutativeBranches![0].parentId).toBe('merged');
+
+		// Both leaves should be present
+		expect(report.leafNodes).toHaveLength(2);
+		expect(report.leafNodes).toContain('branchC');
+		expect(report.leafNodes).toContain('branchD');
+	});
 });
