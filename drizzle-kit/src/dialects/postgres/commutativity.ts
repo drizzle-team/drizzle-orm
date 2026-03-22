@@ -1003,6 +1003,7 @@ export const detectNonCommutative = async (
 		}
 
 		let hasConflict = false;
+		let hasUnmergedPair = false;
 
 		for (let i = 0; i < childIds.length; i++) {
 			for (let j = i + 1; j < childIds.length; j++) {
@@ -1013,6 +1014,7 @@ export const detectNonCommutative = async (
 				if (hasMergedOverlap) {
 					continue;
 				}
+				hasUnmergedPair = true;
 				for (const aId of groupA) {
 					for (const bId of groupB) {
 						if (aId === bId) {
@@ -1074,7 +1076,7 @@ export const detectNonCommutative = async (
 			continue;
 		}
 
-		if (uniqueLeafIds.length <= 1) {
+		if (uniqueLeafIds.length <= 1 || !hasUnmergedPair) {
 			continue;
 		}
 
