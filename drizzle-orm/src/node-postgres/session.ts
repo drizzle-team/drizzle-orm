@@ -59,6 +59,12 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					if (typeId === types.builtins.INTERVAL) {
 						return (val) => val;
 					}
+					if (typeId === types.builtins.JSON) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.JSONB) {
+						return (val) => val;
+					}
 					// numeric[]
 					if (typeId === 1231) {
 						return (val) => val;
@@ -101,6 +107,12 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 						return (val) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.JSON) {
+						return (val) => val;
+					}
+					if (typeId === types.builtins.JSONB) {
 						return (val) => val;
 					}
 					// numeric[]
