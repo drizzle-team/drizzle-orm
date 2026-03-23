@@ -5,6 +5,26 @@ import type { Assume } from '~/utils.ts';
 import type { HasBaseColumn, Json, RemoveNeverElements } from '../utils.ts';
 import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './column.ts';
 
+type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
+	: T extends readonly (infer U)[] ? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]>
+	: Depth;
+
+type WrapInValibotArray<TSchema extends v.GenericSchema, TDepth extends number> = TDepth extends 0 ? TSchema
+	: TDepth extends 1 ? v.ArraySchema<TSchema, undefined>
+	: TDepth extends 2 ? v.ArraySchema<v.ArraySchema<TSchema, undefined>, undefined>
+	: TDepth extends 3 ? v.ArraySchema<v.ArraySchema<v.ArraySchema<TSchema, undefined>, undefined>, undefined>
+	: TDepth extends 4
+		? v.ArraySchema<v.ArraySchema<v.ArraySchema<v.ArraySchema<TSchema, undefined>, undefined>, undefined>, undefined>
+	: TDepth extends 5 ? v.ArraySchema<
+			v.ArraySchema<v.ArraySchema<v.ArraySchema<v.ArraySchema<TSchema, undefined>, undefined>, undefined>, undefined>,
+			undefined
+		>
+	: v.ArraySchema<v.AnySchema, undefined>;
+
+type IsPgArrayColumn<TColumn extends Column<any>, TType extends ColumnDataType> = TType extends 'array' ? false // Already handled as explicit array type
+	: GetArrayDepth<TColumn['_']['data']> extends 0 ? false
+	: true;
+
 export type ExtractAdditionalProperties<
 	TColumn extends Column,
 > = {
@@ -29,6 +49,14 @@ type GetArraySchema<
 	HasBaseColumn<TColumn> extends true ? Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] : undefined,
 	ExtractAdditionalProperties<TColumn>
 >;
+
+export type WrapValibotIfArray<
+	TColumn extends Column,
+	TDataType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
+	TBaseSchema extends v.BaseSchema<any, any, v.BaseIssue<any>> = GetValibotTypeFromColumn<TColumn, TDataType>,
+> = IsPgArrayColumn<TColumn, TDataType['type']> extends true
+	? WrapInValibotArray<TBaseSchema, GetArrayDepth<TColumn['_']['data']>>
+	: TBaseSchema;
 
 export type GetValibotType<
 	TData,
@@ -121,14 +149,17 @@ export type GetValibotType<
 export type GetValibotTypeFromColumn<
 	TColumn extends Column,
 	TDataType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = GetValibotType<
-	TColumn['_']['data'],
-	TDataType['type'],
-	TDataType['constraint'],
-	TColumn['_']['enumValues'],
-	HasBaseColumn<TColumn> extends true ? Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] : undefined,
-	ExtractAdditionalProperties<TColumn>
->;
+	TBaseSchema extends v.BaseSchema<any, any, v.BaseIssue<any>> = GetValibotType<
+		TColumn['_']['data'],
+		TDataType['type'],
+		TDataType['constraint'],
+		TColumn['_']['enumValues'],
+		HasBaseColumn<TColumn> extends true ? Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] : undefined,
+		ExtractAdditionalProperties<TColumn>
+	>,
+> = IsPgArrayColumn<TColumn, TDataType['type']> extends true
+	? WrapInValibotArray<TBaseSchema, GetArrayDepth<TColumn['_']['data']>>
+	: TBaseSchema;
 
 type HandleSelectColumn<
 	TSchema extends v.GenericSchema,
