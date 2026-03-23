@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { createDDL, type DefaultConstraint, interimToDDL } from '../../dialects/mssql/ddl';
 import type {
 	CheckConstraint,
@@ -22,10 +22,10 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, schema: schemaPath, casing } = config;
+	const { out: outFolder, filenames, casing } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
 	if (config.custom) {
 		writeResult({
@@ -87,8 +87,7 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 
 	// TODO: do we want to respect config filter here?
 	// cc: @AleksandrSherman

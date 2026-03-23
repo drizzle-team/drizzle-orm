@@ -22,22 +22,40 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
+	const skippedFiles: string[] = [];
+
 	const result = path.reduce((result, cur) => {
 		const globbed = globSync(`${prefix}${cur}`);
 
 		for (const it of globbed) {
-			const fileName = lstatSync(it).isDirectory() ? null : resolve(it);
+			const stats = lstatSync(it);
+
+			const fileName = stats.isDirectory() ? null : resolve(it);
 
 			const filenames = fileName
-				? [fileName!]
-				: readdirSync(it).map((file) => join(resolve(it), file));
+				? [{ path: fileName, stat: stats }]
+				: readdirSync(it).map((file) => {
+					const fullPath = join(resolve(it), file);
+					return { path: fullPath, stat: lstatSync(fullPath) };
+				});
 
-			for (
-				const file of filenames.filter(
-					(file) => !lstatSync(file).isDirectory(),
-				)
-			) {
-				result.add(file);
+			for (const { path: file, stat } of filenames) {
+				if (stat.isDirectory()) continue;
+
+				if (
+					file.endsWith('.js')
+					|| file.endsWith('.mjs')
+					|| file.endsWith('.cjs')
+					|| file.endsWith('.jsx')
+					|| file.endsWith('.ts')
+					|| file.endsWith('.mts')
+					|| file.endsWith('.cts')
+					|| file.endsWith('.tsx')
+				) {
+					result.add(file);
+				} else {
+					skippedFiles.push(file);
+				}
 			}
 		}
 
@@ -45,17 +63,10 @@ export const prepareFilenames = (path: string | string[]) => {
 	}, new Set<string>());
 	const res = [...result];
 
-	// TODO: properly handle and test
-	// const errors = res.filter((it) => {
-	// 	return !(
-	// 		it.endsWith('.ts')
-	// 		|| it.endsWith('.js')
-	// 		|| it.endsWith('.cjs')
-	// 		|| it.endsWith('.mjs')
-	// 		|| it.endsWith('.mts')
-	// 		|| it.endsWith('.cts')
-	// 	);
-	// });
+	// TODO can be added. Need approve on this
+	// if (skippedFiles.length > 0) {
+	// 	console.log(info(` ⚠ Skipped ${chalk.blue(skippedFiles.join(', '))} file(s)`));
+	// }
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {

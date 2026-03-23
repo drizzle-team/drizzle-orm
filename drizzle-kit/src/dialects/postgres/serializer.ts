@@ -2,7 +2,6 @@ import type { CheckHandlerResult } from '../../cli/commands/check';
 import type { CasingType } from '../../cli/validations/common';
 import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
-import { prepareFilenames } from '../../utils/utils-node';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -12,7 +11,7 @@ import type { JsonStatement } from './statements';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
+	filenames: string[],
 	casing: CasingType | undefined,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
@@ -47,8 +46,6 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
-
 	const res = await prepareFromSchemaFiles(filenames);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config

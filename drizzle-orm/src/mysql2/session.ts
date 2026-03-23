@@ -324,7 +324,7 @@ export class MySql2Session<
 	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
+		return this.client.query(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
 	}
 
 	override async transaction<T>(
