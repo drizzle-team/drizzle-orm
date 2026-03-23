@@ -3630,18 +3630,26 @@ export function tests(test: Test) {
 				name: 'Second',
 			}]).comment({ insert: '*/ comment /*', '/* n': 1 });
 
-			expect(insertQ.toSQL().sql).toContain(` /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`);
+			expect(insertQ.toSQL().sql).toStrictEqual(
+				`insert into "comments_test" ("id", "name") values ($1, $2), ($3, $4) /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`,
+			);
 
 			const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
-			expect(deleteQ.toSQL().sql).toContain(` /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`);
+			expect(deleteQ.toSQL().sql).toStrictEqual(
+				`delete from "comments_test" where "comments_test"."id" = $1 /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`,
+			);
 
 			const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
 				update: 'here /**',
 			});
-			expect(updateQ.toSQL().sql).toContain(` /*update='here%20%2F**'*/`);
+			expect(updateQ.toSQL().sql).toStrictEqual(
+				`update "comments_test" set "name" = $1 where "comments_test"."id" = $2 /*update='here%20%2F**'*/`,
+			);
 
 			const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
-			expect(selectQ.toSQL().sql).toContain(` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`);
+			expect(selectQ.toSQL().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`,
+			);
 
 			const rqbQ = db.query.ctbl.findFirst({
 				columns: {
@@ -3652,7 +3660,9 @@ export function tests(test: Test) {
 					_fieldTwo: 'value two',
 				},
 			});
-			expect(rqbQ.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+			expect(rqbQ.toSQL().sql).toStrictEqual(
+				`select "d0"."id" as "id" from "comments_test" as "d0" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+			);
 
 			const rqbv1Q = db._query.ctbl.findFirst({
 				columns: {
@@ -3663,12 +3673,16 @@ export function tests(test: Test) {
 					_fieldTwo: 'value two',
 				},
 			});
-			expect(rqbv1Q.toSQL().sql).toContain(` /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`);
+			expect(rqbv1Q.toSQL().sql).toStrictEqual(
+				`select "name" from "comments_test" "ctbl" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+			);
 
 			const selectQPrepared = db.select().from(ctbl).comment({
 				select: `com'ment`,
 			}).prepare();
-			expect(selectQPrepared.getQuery().sql).toContain(` /*select='com\\'ment'*/`);
+			expect(selectQPrepared.getQuery().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='com\\'ment'*/`,
+			);
 
 			await insertQ;
 			await updateQ;
