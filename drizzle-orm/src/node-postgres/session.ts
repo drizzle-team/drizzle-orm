@@ -1,4 +1,4 @@
-import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
+import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
 import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
@@ -19,18 +19,54 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 const { Pool, types } = pg;
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
+const parsers: CustomTypesConfig = {
+	// @ts-ignore
+	getTypeParser: (typeId, format) => {
+		if (typeId === types.builtins.TIMESTAMPTZ) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.TIMESTAMP) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.DATE) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.INTERVAL) {
+			return (val: any) => val;
+		}
+		// numeric[]
+		if (typeId as number === 1231) {
+			return (val: any) => val;
+		}
+		// timestamp[]
+		if (typeId as number === 1115) {
+			return (val: any) => val;
+		}
+		// timestamp with timezone[]
+		if (typeId as number === 1185) {
+			return (val: any) => val;
+		}
+		// interval[]
+		if (typeId as number === 1187) {
+			return (val: any) => val;
+		}
+		// date[]
+		if (typeId as number === 1182) {
+			return (val: any) => val;
+		}
+		// @ts-ignore
+		return types.getTypeParser(typeId, format);
+	},
+};
+
 export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NodePgPreparedQuery';
 
-	private rawQueryConfig: QueryConfig;
-	private queryConfig: QueryArrayConfig;
-
 	constructor(
 		private client: NodePgClient,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -39,134 +75,55 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
+		private name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQueryConfig = {
-			name,
-			text: queryString,
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId as number === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId as number === 1115) {
-						return (val: any) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId as number === 1185) {
-						return (val: any) => val;
-					}
-					// interval[]
-					if (typeId as number === 1187) {
-						return (val: any) => val;
-					}
-					// date[]
-					if (typeId as number === 1182) {
-						return (val: any) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-		this.queryConfig = {
-			name,
-			text: queryString,
-			rowMode: 'array',
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId as number === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId as number === 1115) {
-						return (val: any) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId as number === 1185) {
-						return (val: any) => val;
-					}
-					// interval[]
-					if (typeId as number === 1187) {
-						return (val: any) => val;
-					}
-					// date[]
-					if (typeId as number === 1182) {
-						return (val: any) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
 		return tracer.startActiveSpan('drizzle.execute', async () => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
 
-			this.logger.logQuery(this.rawQueryConfig.text, params);
+			this.logger.logQuery(this.query.sql, params);
 
-			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } =
-				this;
+			const { query, client, joinsNotNullableMap, customResultMapper, name, fields } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
 					span?.setAttributes({
-						'drizzle.query.name': rawQuery.name,
-						'drizzle.query.text': rawQuery.text,
+						'drizzle.query.name': name,
+						'drizzle.query.text': query.sql,
 						'drizzle.query.params': JSON.stringify(params),
 					});
-					return this.queryWithCache(rawQuery.text, params, async () => {
-						return await client.query(rawQuery, params);
+					return this.queryWithCache(query.sql, params, async () => {
+						return await client.query({
+							name,
+							text: query.sql,
+							types: parsers,
+						}, params);
 					});
 				});
 			}
 
 			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
-					'drizzle.query.name': query.name,
-					'drizzle.query.text': query.text,
+					'drizzle.query.name': name,
+					'drizzle.query.text': query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(query.text, params, async () => {
-					return await client.query(query, params);
+				return this.queryWithCache(query.sql, params, async () => {
+					return await client.query({
+						text: query.sql,
+						name,
+						types: parsers,
+						rowMode: 'array',
+					}, params);
 				});
 			});
 
@@ -180,19 +137,23 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async () => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
 
-			this.logger.logQuery(this.rawQueryConfig.text, params);
+			this.logger.logQuery(this.query.sql, params);
 
-			const { rawQueryConfig: rawQuery, client, customResultMapper } = this;
+			const { client, customResultMapper, query, name } = this;
 
 			const result = await tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
-					'drizzle.query.name': rawQuery.name,
-					'drizzle.query.text': rawQuery.text,
+					'drizzle.query.name': name,
+					'drizzle.query.text': query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return client.query(rawQuery, params);
+				return client.query({
+					name,
+					text: query.sql,
+					types: parsers,
+				}, params);
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -203,16 +164,20 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', () => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			this.logger.logQuery(this.rawQueryConfig.text, params);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
+			this.logger.logQuery(this.query.sql, params);
 			return tracer.startActiveSpan('drizzle.driver.execute', (span) => {
 				span?.setAttributes({
-					'drizzle.query.name': this.rawQueryConfig.name,
-					'drizzle.query.text': this.rawQueryConfig.text,
+					'drizzle.query.name': this.name,
+					'drizzle.query.text': this.query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
-					return this.client.query(this.rawQueryConfig, params);
+				return this.queryWithCache(this.query.sql, params, async () => {
+					return this.client.query({
+						name: this.name,
+						text: this.query.sql,
+						types: parsers,
+					}, params);
 				}).then((result) => result.rows);
 			});
 		});
@@ -265,8 +230,7 @@ export class NodePgSession<
 	) {
 		return new NodePgPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -286,8 +250,7 @@ export class NodePgSession<
 	) {
 		return new NodePgPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

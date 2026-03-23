@@ -20,6 +20,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
+import { expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
 
@@ -1067,5 +1068,99 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			sql: 'select sum(3) from `users_115`',
 			params: [],
 		});
+	});
+
+	test.concurrent('comments', async ({ createDB, push }) => {
+		const ctbl = mysqlTable('comments_test', (t) => ({
+			id: t.int('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+
+		await push({ ctbl });
+		const db = createDB({ schema: { ctbl } });
+
+		const insertQ = db.insert(ctbl).values([{
+			id: 1,
+			name: 'First',
+		}, {
+			id: 2,
+			name: 'Second',
+		}]).comment({ insert: '*/ comment /*', '/* n': 1 });
+
+		expect(insertQ.toSQL().sql).toStrictEqual(
+			`insert into \`comments_test\` (\`id\`, \`name\`) values (?, ?), (?, ?) /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`,
+		);
+
+		const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
+		expect(deleteQ.toSQL().sql).toStrictEqual(
+			`delete from \`comments_test\` where \`comments_test\`.\`id\` = ? /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`,
+		);
+
+		const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
+			update: 'here /**',
+		});
+		expect(updateQ.toSQL().sql).toStrictEqual(
+			`update \`comments_test\` set \`name\` = ? where \`comments_test\`.\`id\` = ? /*update='here%20%2F**'*/`,
+		);
+
+		const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
+		expect(selectQ.toSQL().sql).toStrictEqual(
+			`select \`id\`, \`name\` from \`comments_test\` /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`,
+		);
+
+		const rqbQ = db.query.ctbl.findFirst({
+			columns: {
+				id: true,
+			},
+			comment: {
+				fieldOne: '_valueOne',
+				_fieldTwo: 'value two',
+			},
+		});
+		expect(rqbQ.toSQL().sql).toStrictEqual(
+			`select \`d0\`.\`id\` as \`id\` from \`comments_test\` as \`d0\` limit ? /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+		);
+
+		const rqbv1Q = db._query.ctbl.findFirst({
+			columns: {
+				name: true,
+			},
+			comment: {
+				fieldOne: '_valueOne',
+				_fieldTwo: 'value two',
+			},
+		});
+		expect(rqbv1Q.toSQL().sql).toStrictEqual(
+			`select \`name\` from \`comments_test\` \`ctbl\` limit ? /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+		);
+
+		const selectQPrepared = db.select().from(ctbl).comment({
+			select: `com'ment`,
+		}).prepare();
+		expect((<any> selectQPrepared).query.sql).toStrictEqual(
+			`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
+		);
+
+		await insertQ;
+		await updateQ;
+		await deleteQ;
+
+		const [res1, res2, res3, res4] = [await selectQ, await rqbQ, await rqbv1Q, await selectQPrepared.execute()];
+
+		expectTypeOf(res2).toEqualTypeOf<
+			{
+				id: number;
+			} | undefined
+		>();
+		expectTypeOf(res3).toEqualTypeOf<
+			{
+				name: string;
+			} | undefined
+		>();
+
+		expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
+		expect(res2).toStrictEqual({ id: 1 });
+		expect(res3).toStrictEqual({ name: 'Updated' });
+		expect(res4).toStrictEqual([{ id: 1, name: 'Updated' }]);
 	});
 }

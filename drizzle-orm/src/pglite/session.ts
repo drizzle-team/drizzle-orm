@@ -27,8 +27,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 
 	constructor(
 		private client: PgliteClient | Transaction,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -44,7 +43,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			rowMode: 'object',
 			parsers: {
@@ -88,20 +87,20 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, queryConfig, joinsNotNullableMap, customResultMapper, queryString, rawQueryConfig } = this;
+		const { fields, client, queryConfig, joinsNotNullableMap, customResultMapper, query, rawQueryConfig } = this;
 
 		if (!fields && !customResultMapper) {
-			return this.queryWithCache(queryString, params, async () => {
-				return await client.query<any[]>(queryString, params, rawQueryConfig);
+			return this.queryWithCache(query.sql, params, async () => {
+				return await client.query<any[]>(query.sql, params, rawQueryConfig);
 			});
 		}
 
-		const result = await this.queryWithCache(queryString, params, async () => {
-			return await client.query<any[]>(queryString, params, queryConfig);
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await client.query<any[]>(query.sql, params, queryConfig);
 		});
 
 		return customResultMapper
@@ -110,22 +109,22 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { rawQueryConfig, client, customResultMapper, queryString } = this;
+		const { rawQueryConfig, client, customResultMapper, query } = this;
 
-		const result = await client.query<Record<string, unknown>>(queryString, params, rawQueryConfig);
+		const result = await client.query<Record<string, unknown>>(query.sql, params, rawQueryConfig);
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(result.rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.queryString, params);
-		return this.queryWithCache(this.queryString, params, async () => {
-			return await this.client.query<any[]>(this.queryString, params, this.rawQueryConfig);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return await this.client.query<any[]>(this.query.sql, params, this.rawQueryConfig);
 		}).then((result) => result.rows);
 	}
 
@@ -176,8 +175,7 @@ export class PgliteSession<
 	): PgAsyncPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -197,8 +195,7 @@ export class PgliteSession<
 	): PgAsyncPreparedQuery<T> {
 		return new PglitePreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,
