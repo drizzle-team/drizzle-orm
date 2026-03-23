@@ -1500,7 +1500,7 @@ test('push with pscale_extensions schema', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test.skipIf(Date.now() < +new Date('2026-03-22'))(
+test(
 	'push empty schema with `schemaFilter` set to `["public"]`',
 	async () => {
 		await db.query(`CREATE SCHEMA "cron";`);
@@ -1518,3 +1518,34 @@ test.skipIf(Date.now() < +new Date('2026-03-22'))(
 		expect(pst2).toStrictEqual(expectedSt2);
 	},
 );
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4838
+test('rename table with identity column', async () => {
+	const from = {
+		Hello: pgTable('hello', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const to = {
+		Hello: pgTable('hello2', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, [`public.hello->public.hello2`]);
+
+	await push({ db, to: from, schemas: [] });
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: [],
+		renames: [`public.hello->public.hello2`],
+	});
+
+	const expectedSt: string[] = ['ALTER TABLE "hello" RENAME TO "hello2";'];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});

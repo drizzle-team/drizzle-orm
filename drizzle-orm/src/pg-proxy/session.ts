@@ -55,9 +55,7 @@ export class PgRemoteSession<
 	): PreparedQuery<T> {
 		return new PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
-			query.typings,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -76,9 +74,7 @@ export class PgRemoteSession<
 	): PreparedQuery<T, true> {
 		return new PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
-			query.typings,
+			query,
 			this.logger,
 			this.cache,
 			undefined,
@@ -117,11 +113,11 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 {
 	static override readonly [entityKind]: string = 'PgProxyPreparedQuery';
 
+	declare protected query: QueryWithTypings;
+
 	constructor(
 		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
-		private typings: any[] | undefined,
+		query: QueryWithTypings,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -136,27 +132,27 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			const { fields, client, queryString, joinsNotNullableMap, customResultMapper, logger, typings } = this;
+			const params = fillPlaceholders(this.query.params, placeholderValues);
+			const { fields, client, query, joinsNotNullableMap, customResultMapper, logger } = this;
 
 			span?.setAttributes({
-				'drizzle.query.text': queryString,
+				'drizzle.query.text': query.sql,
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			logger.logQuery(queryString, params);
+			logger.logQuery(query.sql, params);
 
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async () => {
-					const { rows } = await this.queryWithCache(queryString, params, async () => {
-						return await client(queryString, params as any[], 'execute', typings);
+					const { rows } = await this.queryWithCache(query.sql, params, async () => {
+						return await client(query.sql, params as any[], 'execute', query.typings);
 					});
 
 					return rows;
@@ -165,12 +161,12 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
 				span?.setAttributes({
-					'drizzle.query.text': queryString,
+					'drizzle.query.text': query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				const { rows } = await this.queryWithCache(queryString, params, async () => {
-					return await client(queryString, params as any[], 'all', typings);
+				const { rows } = await this.queryWithCache(query.sql, params, async () => {
+					return await client(query.sql, params as any[], 'all', query.typings);
 				});
 
 				return rows;
@@ -186,18 +182,18 @@ export class PreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boole
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
-			const { client, queryString, customResultMapper, logger, typings } = this;
+			const params = fillPlaceholders(this.query.params, placeholderValues);
+			const { client, query, customResultMapper, logger } = this;
 
 			span?.setAttributes({
-				'drizzle.query.text': queryString,
+				'drizzle.query.text': query.sql,
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			logger.logQuery(queryString, params);
+			logger.logQuery(query.sql, params);
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', async () => {
-				const { rows } = await client(queryString, params as any[], 'execute', typings);
+				const { rows } = await client(query.sql, params as any[], 'execute', query.typings);
 
 				return rows;
 			});

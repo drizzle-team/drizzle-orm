@@ -2585,7 +2585,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -2671,6 +2671,44 @@ export function tests(test: Test) {
 					}`,
 				).sql,
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4326
+		test.concurrent('mutation of getColumns(table)', async ({ db, push }) => {
+			const cities2Table = pgTable('cities_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+			]);
+
+			const joinSelection = Object.assign({ ...getColumns(users2Table) }, { cityName: cities2Table.name });
+			const result = await db.select({ ...joinSelection }).from(users2Table).innerJoin(
+				cities2Table,
+				eq(users2Table.cityId, cities2Table.id),
+			).where(eq(users2Table.id, 1));
+			expect(result).toStrictEqual([{ cityId: 1, cityName: 'New York', id: 1, name: 'John' }]);
+
+			const userSelection = getColumns(users2Table);
+			expect(Object.keys(userSelection)).toStrictEqual(['id', 'name', 'cityId']);
+			const result1 = await db.select({ ...userSelection }).from(users2Table).where(eq(users2Table.id, 2));
+			expect(result1).toStrictEqual([{ id: 2, name: 'Jane', cityId: 2 }]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5049
@@ -3356,7 +3394,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
@@ -3448,7 +3486,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3522,7 +3560,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-03-22'))(
+		test.skipIf(Date.now() < +new Date('2026-03-29'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3560,7 +3598,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-03-22'))('casing in sql``', async ({ createDB, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29'))('casing in sql``', async ({ createDB, push }) => {
 			const payments = pgTable('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
@@ -3595,7 +3633,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-03-22'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -3611,6 +3649,100 @@ export function tests(test: Test) {
 
 			const result2 = await db.select({ id: table1.id }).from(table1).where(eq(table1.rowCreatedAt, rowCreatedAt));
 			expect(result2).toStrictEqual([{ id: 1 }]);
+		});
+
+		test.concurrent('comments', async ({ createDB, push }) => {
+			const ctbl = pgTable('comments_test', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+
+			await push({ ctbl });
+			const db = createDB({ ctbl });
+
+			const insertQ = db.insert(ctbl).values([{
+				id: 1,
+				name: 'First',
+			}, {
+				id: 2,
+				name: 'Second',
+			}]).comment({ insert: '*/ comment /*', '/* n': 1 });
+
+			expect(insertQ.toSQL().sql).toStrictEqual(
+				`insert into "comments_test" ("id", "name") values ($1, $2), ($3, $4) /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`,
+			);
+
+			const deleteQ = db.delete(ctbl).where(eq(ctbl.id, 2)).comment({ "del ' ete": '*/ comment /*' });
+			expect(deleteQ.toSQL().sql).toStrictEqual(
+				`delete from "comments_test" where "comments_test"."id" = $1 /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`,
+			);
+
+			const updateQ = db.update(ctbl).set({ name: 'Updated' }).where(eq(ctbl.id, 1)).comment({
+				update: 'here /**',
+			});
+			expect(updateQ.toSQL().sql).toStrictEqual(
+				`update "comments_test" set "name" = $1 where "comments_test"."id" = $2 /*update='here%20%2F**'*/`,
+			);
+
+			const selectQ = db.select().from(ctbl).comment({ select: 'co\'m"m`/* ent*/ "' });
+			expect(selectQ.toSQL().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`,
+			);
+
+			const rqbQ = db.query.ctbl.findFirst({
+				columns: {
+					id: true,
+				},
+				comment: {
+					fieldOne: '_valueOne',
+					_fieldTwo: 'value two',
+				},
+			});
+			expect(rqbQ.toSQL().sql).toStrictEqual(
+				`select "d0"."id" as "id" from "comments_test" as "d0" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+			);
+
+			const rqbv1Q = db._query.ctbl.findFirst({
+				columns: {
+					name: true,
+				},
+				comment: {
+					fieldOne: '_valueOne',
+					_fieldTwo: 'value two',
+				},
+			});
+			expect(rqbv1Q.toSQL().sql).toStrictEqual(
+				`select "name" from "comments_test" "ctbl" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+			);
+
+			const selectQPrepared = db.select().from(ctbl).comment({
+				select: `com'ment`,
+			}).prepare();
+			expect(selectQPrepared.getQuery().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='com\\'ment'*/`,
+			);
+
+			await insertQ;
+			await updateQ;
+			await deleteQ;
+
+			const [res1, res2, res3, res4] = [await selectQ, await rqbQ, await rqbv1Q, await selectQPrepared.execute()];
+
+			expectTypeOf(res2).toEqualTypeOf<
+				{
+					id: number;
+				} | undefined
+			>();
+			expectTypeOf(res3).toEqualTypeOf<
+				{
+					name: string;
+				} | undefined
+			>();
+
+			expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
+			expect(res2).toStrictEqual({ id: 1 });
+			expect(res3).toStrictEqual({ name: 'Updated' });
+			expect(res4).toStrictEqual([{ id: 1, name: 'Updated' }]);
 		});
 	});
 }
