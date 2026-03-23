@@ -129,7 +129,7 @@ export class MySqlDialect {
 				for (const stmt of migration.sql) {
 					await tx.execute(sql.raw(stmt));
 				}
-				await session.execute(
+				await tx.execute(
 					sql`insert into ${
 						sql.identifier(migrationsTable)
 					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,

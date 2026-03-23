@@ -1,6 +1,6 @@
 import { mssqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
-import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { MssqlDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -9,7 +9,7 @@ import { drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
+	filenames: string[],
 	casing: CasingType | undefined,
 ): Promise<{
 	ddlPrev: MssqlDDL;
@@ -30,7 +30,6 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
 
 	const res = await prepareFromSchemaFiles(filenames);
 

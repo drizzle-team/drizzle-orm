@@ -268,7 +268,7 @@ export const Char: SqlType = {
 				.replaceAll("'", "''")
 				.replaceAll('\\', '\\\\')
 				.replaceAll('"', '\\"');
-			if (v.includes('\\') || v.includes('"') || v.includes(',')) {
+			if (v.includes('\\') || v.includes('"') || v.includes(',') || v.length === 0) {
 				return `"${escaped}"`;
 			}
 			return escaped;

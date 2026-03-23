@@ -2585,7 +2585,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -2671,6 +2671,44 @@ export function tests(test: Test) {
 					}`,
 				).sql,
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4326
+		test.concurrent('mutation of getColumns(table)', async ({ db, push }) => {
+			const cities2Table = pgTable('cities_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+			]);
+
+			const joinSelection = Object.assign({ ...getColumns(users2Table) }, { cityName: cities2Table.name });
+			const result = await db.select({ ...joinSelection }).from(users2Table).innerJoin(
+				cities2Table,
+				eq(users2Table.cityId, cities2Table.id),
+			).where(eq(users2Table.id, 1));
+			expect(result).toStrictEqual([{ cityId: 1, cityName: 'New York', id: 1, name: 'John' }]);
+
+			const userSelection = getColumns(users2Table);
+			expect(Object.keys(userSelection)).toStrictEqual(['id', 'name', 'cityId']);
+			const result1 = await db.select({ ...userSelection }).from(users2Table).where(eq(users2Table.id, 2));
+			expect(result1).toStrictEqual([{ id: 2, name: 'Jane', cityId: 2 }]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5049
@@ -3356,7 +3394,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
@@ -3448,7 +3486,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-03-22')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3522,7 +3560,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-03-22'))(
+		test.skipIf(Date.now() < +new Date('2026-03-25'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3560,7 +3598,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-03-22'))('casing in sql``', async ({ createDB, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-25'))('casing in sql``', async ({ createDB, push }) => {
 			const payments = pgTable('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
@@ -3595,7 +3633,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-03-22'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-25'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }

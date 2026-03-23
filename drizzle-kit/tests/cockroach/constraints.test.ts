@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	AnyCockroachColumn,
 	bigint,
+	cockroachSchema,
 	cockroachTable,
 	foreignKey,
 	index,
@@ -1903,6 +1904,51 @@ test('drop column with pk and add pk to another column #1', async ({ dbc: db }) 
 		'ALTER TABLE "authors" DROP CONSTRAINT "authors_pkey", ADD CONSTRAINT "authors_pkey" PRIMARY KEY("publication_id","author_id","orcid_id");',
 	];
 
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5467
+test('index in other schema', async ({ dbc: db }) => {
+	const commonSchema = cockroachSchema('common');
+
+	const schema1 = {
+		commonSchema,
+		directoriesTable: commonSchema.table(
+			'filesystems_directories',
+			{
+				filesystemId: text(),
+			},
+			(table) => [index().on(table.filesystemId)],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE SCHEMA "common";\n',
+		'CREATE TABLE "common"."filesystems_directories" (\n\t"filesystemId" string\n);\n',
+		`CREATE INDEX "filesystems_directories_filesystemId_index" ON "common"."filesystems_directories" ("filesystemId");`,
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		commonSchema,
+		directoriesTable: commonSchema.table(
+			'filesystems_directories',
+			{
+				filesystemId: text(),
+			},
+		),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		`DROP INDEX "common"."filesystems_directories_filesystemId_index";`,
+	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });

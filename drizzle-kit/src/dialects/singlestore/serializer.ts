@@ -1,12 +1,12 @@
 import type { CasingType } from '../../cli/validations/common';
-import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
 import { createDDL, interimToDDL, type MysqlDDL } from '../mysql/ddl';
 import { drySnapshot, type SingleStoreSnapshot, snapshotValidator } from '../singlestore/snapshot';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
+	filenames: string[],
 	casing: CasingType | undefined,
 ): Promise<{
 	ddlPrev: MysqlDDL;
@@ -27,7 +27,7 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
+
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const interim = fromDrizzleSchema(res.tables, casing);

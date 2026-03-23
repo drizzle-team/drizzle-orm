@@ -1,7 +1,7 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mysql/serializer';
 import type { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { resolver } from '../prompts';
@@ -102,14 +102,12 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const outFolder = config.out;
-	const schemaPath = config.schema;
-	const casing = config.casing;
+	const { out: outFolder, casing, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
-		schemaPath,
+		filenames,
 		casing,
 		checkResult,
 	);
@@ -158,8 +156,7 @@ export const handle = async (
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl, errors } = interimToDDL(schema);
 
