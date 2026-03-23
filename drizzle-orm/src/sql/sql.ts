@@ -578,7 +578,84 @@ export namespace sql {
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
 	}
+
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	export function comment(input: CommentInput): SQL | undefined {
+		const encoded = sqlCommenter(input);
+		if (!encoded.length) return undefined;
+
+		return sql.raw(encoded);
+	}
 }
+
+export function sqlCommenter(input: CommentInput): string {
+	const encoded = sqlCommenter.encodeInput(input);
+	if (!encoded.length) return '';
+
+	return `/*${encoded}*/`;
+}
+
+export namespace sqlCommenter {
+	export function merge(input1: CommentInput | undefined, input2: CommentInput | undefined) {
+		let encoded: CommentInput;
+		if (typeof input1 === 'object' && typeof input2 === 'object') {
+			encoded = encodeInput({ ...input1, ...input2 });
+		} else if (input1 && input2) {
+			encoded = [encodeInput(input1), encodeInput(input2)].filter((i) => i.length).join(',');
+		} else if (input2) {
+			encoded = encodeInput(input2);
+		} else if (input1) {
+			encoded = encodeInput(input1);
+		} else {
+			return '';
+		}
+
+		if (!encoded.length) return '';
+
+		return `/*${encoded}*/`;
+	}
+
+	export function encodeInput(input: CommentInput): string {
+		if (typeof input === 'string') {
+			if (!input.length) return input;
+
+			return sanitizeStringInput(input);
+		}
+
+		const parts: string[] = [];
+
+		for (const [key, value] of Object.entries(input)) {
+			if (value === null || value === undefined || value === '') continue;
+
+			const encodedKey = sanitizeObjectElement(key);
+			const encodedValue = sanitizeObjectElement(String(value));
+
+			parts.push(`${encodedKey}='${encodedValue}'`);
+		}
+
+		if (!parts.length) return '';
+
+		return parts.sort().join(',');
+	}
+
+	export function sanitizeObjectElement(key: string): string {
+		const urlEncoded = encodeURIComponent(key);
+		return urlEncoded.replace(/'/g, `\\'`);
+	}
+
+	export function sanitizeStringInput(input: string): string {
+		return input.replace(/\/\*/g, '/ *').replace(/\*\//g, '* /');
+	}
+}
+
+export type CommentInput = string | SqlCommenterInput;
+
+export type SqlCommenterInput = Record<
+	string,
+	string | number | bigint | boolean | null | undefined
+>;
 
 export namespace SQL {
 	export class Aliased<T = unknown> implements SQLWrapper<T> {

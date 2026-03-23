@@ -33,8 +33,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 
 	constructor(
 		private client: BunSQL,
-		private query: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -52,7 +51,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -62,20 +61,19 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			fields,
 			client,
 			logger,
-			params: rawParams,
 			query,
 			joinsNotNullableMap,
 			customResultMapper,
 			returningIds,
 			generatedIds,
 		} = this;
-		const params = fillPlaceholders(rawParams, placeholderValues);
+		const params = fillPlaceholders(query.params, placeholderValues);
 
-		logger.logQuery(query, params);
+		logger.logQuery(query.sql, params);
 
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(query, params, async () => {
-				return await client.unsafe(query, params);
+			const res = await this.queryWithCache(query.sql, params, async () => {
+				return await client.unsafe(query.sql, params);
 			});
 
 			const insertId = res.lastInsertRowid;
@@ -107,8 +105,8 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			return res;
 		}
 
-		const rows = await this.queryWithCache(query, params, async () => {
-			return await client.unsafe(query, params).values();
+		const rows = await this.queryWithCache(query.sql, params, async () => {
+			return await client.unsafe(query.sql, params).values();
 		});
 
 		if (customResultMapper) {
@@ -119,12 +117,12 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.query, params);
+		this.logger.logQuery(this.query.sql, params);
 
 		const { client, query, customResultMapper } = this;
-		const rows = await client.unsafe(query, params);
+		const rows = await client.unsafe(query.sql, params);
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
@@ -132,12 +130,14 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 	async *iterator(
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
-		const { fields, params: queryParams, query, joinsNotNullableMap, client, customResultMapper } = this;
-		const params = fillPlaceholders(queryParams, placeholderValues);
-		const rows = await this.queryWithCache(query, params, async () => {
-			return await client.unsafe(query, params).values();
-		});
+		const { fields, query, joinsNotNullableMap, client, customResultMapper } = this;
+		const params = fillPlaceholders(query.params, placeholderValues);
 		const hasRowsMapper = Boolean(fields || customResultMapper);
+		const rows = await this.queryWithCache(query.sql, params, async () => {
+			return await (hasRowsMapper && !this.isRqbV2Query
+				? client.unsafe(query.sql, params).values()
+				: client.unsafe(query.sql, params));
+		});
 
 		for (const row of rows) {
 			if (row === undefined || (Array.isArray(row) && row.length === 0)) {
@@ -205,8 +205,7 @@ export class BunMySqlSession<
 		// Each driver gets them from response from database
 		return new BunMySqlPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -229,8 +228,7 @@ export class BunMySqlSession<
 		// Each driver gets them from response from database
 		return new BunMySqlPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

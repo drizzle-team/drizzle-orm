@@ -1,9 +1,8 @@
 import {
 	type Client,
+	type CustomTypesConfig,
 	Pool,
 	type PoolClient,
-	type QueryArrayConfig,
-	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
 	types,
@@ -24,18 +23,54 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type NeonClient = Pool | PoolClient | Client;
 
+const parsers: CustomTypesConfig = {
+	// @ts-ignore
+	getTypeParser: (typeId, format) => {
+		if (typeId === types.builtins.TIMESTAMPTZ) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.TIMESTAMP) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.DATE) {
+			return (val: any) => val;
+		}
+		if (typeId === types.builtins.INTERVAL) {
+			return (val: any) => val;
+		}
+		// numeric[]
+		if (typeId === 1231) {
+			return (val: any) => val;
+		}
+		// timestamp[]
+		if (typeId === 1115) {
+			return (val) => val;
+		}
+		// timestamp with timezone[]
+		if (typeId === 1185) {
+			return (val) => val;
+		}
+		// interval[]
+		if (typeId === 1187) {
+			return (val) => val;
+		}
+		// date[]
+		if (typeId === 1182) {
+			return (val) => val;
+		}
+		// @ts-ignore
+		return types.getTypeParser(typeId, format);
+	},
+};
+
 export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends PgAsyncPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'NeonPreparedQuery';
 
-	private rawQueryConfig: QueryConfig;
-	private queryConfig: QueryArrayConfig;
-
 	constructor(
 		private client: NeonClient,
-		queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -44,120 +79,41 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
+		private name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQueryConfig = {
-			name,
-			text: queryString,
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
-					}
-					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
-					}
-					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-		this.queryConfig = {
-			name,
-			text: queryString,
-			rowMode: 'array',
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// numeric[]
-					if (typeId === 1231) {
-						return (val: any) => val;
-					}
-					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
-					}
-					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
-					}
-					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQueryConfig.text, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
-			this;
+		const { fields, client, query, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			return await this.queryWithCache(rawQuery.text, params, async () => {
-				return await client.query(rawQuery, params);
+			return await this.queryWithCache(query.sql, params, async () => {
+				return await client.query({
+					text: this.query.sql,
+					name: this.name,
+					types: parsers,
+				}, params);
 			});
 		}
 
-		const result = await this.queryWithCache(query.text, params, async () => {
-			return await client.query(query, params);
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await client.query({
+				text: this.query.sql,
+				name: this.name,
+				types: parsers,
+				rowMode: 'array',
+			}, params);
 		});
 
 		return customResultMapper
@@ -166,30 +122,43 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQueryConfig.text, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { client, rawQueryConfig: rawQuery, customResultMapper } = this;
+		const { client, customResultMapper } = this;
 
-		const result = await client.query(rawQuery, params);
+		const result = await client.query({
+			text: this.query.sql,
+			name: this.name,
+			types: parsers,
+		}, params);
 
 		return customResultMapper!(result.rows);
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
-			return await this.client.query(this.rawQueryConfig, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return await this.client.query({
+				text: this.query.sql,
+				name: this.name,
+				types: parsers,
+			}, params);
 		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.queryWithCache(this.queryConfig.text, params, async () => {
-			return await this.client.query(this.queryConfig, params);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
+		this.logger.logQuery(this.query.sql, params);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return await this.client.query({
+				text: this.query.sql,
+				name: this.name,
+				types: parsers,
+				rowMode: 'array',
+			}, params);
 		}).then((result) => result.rows);
 	}
 
@@ -240,8 +209,7 @@ export class NeonSession<
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -261,8 +229,7 @@ export class NeonSession<
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

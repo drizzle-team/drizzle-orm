@@ -1,5 +1,16 @@
-import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
-import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
+import {
+	defineRelations,
+	desc,
+	eq,
+	getColumns,
+	hammingDistance,
+	jaccardDistance,
+	l2Distance,
+	not,
+	SQL,
+	sql,
+} from 'drizzle-orm';
+import { bigserial, bit, customType, halfvec, pgTable, sparsevec, text, vector } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -26,6 +37,27 @@ const relations = defineRelations({ items }, (r) => ({
 	},
 }));
 
+const _push = async (
+	query: (sql: string, params: any[]) => Promise<any[]>,
+	schema: any,
+	log?: 'statements',
+) => {
+	const { diff } = await import('../../../../drizzle-kit/tests/postgres/mocks' as string);
+
+	const res = await diff({}, schema, []);
+
+	for (const s of res.sqlStatements) {
+		if (log === 'statements') console.log(s);
+		await query(s, []).catch((e) => {
+			console.error(s);
+			console.error(e);
+			throw e;
+		});
+	}
+};
+
+let push: (schema: any, options?: { log: 'statements' }) => Promise<void>;
+
 beforeAll(async () => {
 	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
 	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
@@ -40,6 +72,11 @@ beforeAll(async () => {
 	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	push = async (
+		schema: any,
+		options?: { log: 'statements' },
+	) => await _push(client.unsafe, schema, options?.log);
 });
 
 afterAll(async () => {
@@ -337,6 +374,88 @@ test('select + insert all vectors', async () => {
 		halfvec: [1, 2, 3],
 		sparsevec: '{1:1,3:2,5:3}/5',
 	}]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5358
+test('select with getColumns spread containing custom type', async () => {
+	const vector = customType<{
+		data: number[];
+		driverData: string;
+		config: { dimensions: number };
+	}>({
+		dataType(config) {
+			return `vector(${config?.dimensions ?? 3})`;
+		},
+		toDriver(value: number[]): string {
+			return `[${value.join(',')}]`;
+		},
+		fromDriver(value: string): number[] {
+			return value
+				.replace(/^\[|\]$/g, '')
+				.split(',')
+				.map(Number);
+		},
+	});
+
+	const tsvector = customType<{ data: string }>({
+		dataType() {
+			return 'tsvector';
+		},
+	});
+
+	const items = pgTable('items1', {
+		name: text('name').notNull(),
+		embedding: vector('embedding', { dimensions: 3 }),
+		searchVector: tsvector('search_vector').generatedAlwaysAs(
+			(): SQL => sql`to_tsvector('english', coalesce(${items.name}, ''))`,
+		),
+	});
+
+	const schema = { items };
+	await db.execute(sql`drop table if exists items1`);
+	await push(schema);
+
+	await db
+		.insert(schema.items)
+		.values({ name: 'hello world', embedding: [0.3, 0.2, 0.1] });
+
+	const queryVec = '[0.1, 0.2, 0.3]';
+
+	const distanceExpr = sql<number>`(${schema.items.embedding} <=> ${queryVec}::vector)`.as(
+		'distance',
+	);
+
+	const result1 = await db
+		.select({
+			...getColumns(schema.items),
+			distance: distanceExpr,
+		})
+		.from(schema.items)
+		.orderBy(sql`${schema.items.embedding} <=> ${queryVec}::vector`)
+		.limit(5);
+
+	expect(result1[0]?.distance).toBeCloseTo(0.2857, 4);
+
+	const queryText = 'hello';
+	const rankExpr = sql<
+		number
+	>`ts_rank_cd(${schema.items.searchVector}, websearch_to_tsquery('english', ${queryText}))`.as(
+		'rank',
+	);
+
+	const result2 = await db
+		.select({
+			...getColumns(schema.items),
+			rank: rankExpr,
+		})
+		.from(schema.items)
+		.where(
+			sql`${schema.items.searchVector} @@ websearch_to_tsquery('english', ${queryText})`,
+		)
+		.orderBy(desc(rankExpr))
+		.limit(5);
+
+	expect(result2[0]?.rank).toBeCloseTo(0.1);
 });
 
 test('RQBv2', async () => {

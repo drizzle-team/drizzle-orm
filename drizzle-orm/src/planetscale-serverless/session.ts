@@ -25,13 +25,12 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 {
 	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
 
-	private rawQuery = { as: 'object' } as const;
-	private query = { as: 'array' } as const;
+	private rawQueryConfig = { as: 'object' } as const;
+	private queryConfig = { as: 'array' } as const;
 
 	constructor(
 		private client: Client | Transaction | Connection,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -49,30 +48,30 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
 		const {
 			fields,
 			client,
-			queryString,
-			rawQuery,
 			query,
+			rawQueryConfig,
+			queryConfig,
 			joinsNotNullableMap,
 			customResultMapper,
 			returningIds,
 			generatedIds,
 		} = this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(queryString, params, async () => {
-				return await client.execute(queryString, params, rawQuery);
+			const res = await this.queryWithCache(query.sql, params, async () => {
+				return await client.execute(query.sql, params, rawQueryConfig);
 			});
 
 			const insertId = Number.parseFloat(res.insertId);
@@ -102,8 +101,8 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			}
 			return res;
 		}
-		const { rows } = await this.queryWithCache(queryString, params, async () => {
-			return await client.execute(queryString, params, query);
+		const { rows } = await this.queryWithCache(query.sql, params, async () => {
+			return await client.execute(query.sql, params, queryConfig);
 		});
 
 		if (customResultMapper) {
@@ -114,18 +113,18 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
 		const {
 			client,
-			queryString,
-			rawQuery,
+			query,
+			rawQueryConfig,
 			customResultMapper,
 		} = this;
 
-		const res = await client.execute(queryString, params, rawQuery);
+		const res = await client.execute(query.sql, params, rawQueryConfig);
 
 		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 			res.rows as any as Record<string, unknown>[],
@@ -187,8 +186,7 @@ export class PlanetscaleSession<
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -209,8 +207,7 @@ export class PlanetscaleSession<
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

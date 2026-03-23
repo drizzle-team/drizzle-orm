@@ -454,6 +454,7 @@ test('boolean + boolean arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5370
 test('char + char arrays', async () => {
 	const res1 = await diffDefault(_, char({ length: 15 }).default('text'), `'text'`);
 	const res2 = await diffDefault(_, char({ length: 15 }).default("text'text"), `'text''text'`);
@@ -512,6 +513,15 @@ test('char + char arrays', async () => {
 		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char(15)[]`,
 	);
 
+	const res16 = await diffDefault(
+		_,
+		char({ length: 7 }).array('[]')
+			.default(
+				['#6ddf5b', '#418536', '', '', '', '', ''],
+			),
+		`'{#6ddf5b,#418536,"","","","",""}'::char(7)[]`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -527,8 +537,10 @@ test('char + char arrays', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5370
 test('varchar + varchar arrays', async () => {
 	const res1 = await diffDefault(_, varchar({ length: 256 }).default('text'), `'text'`);
 	const res2 = await diffDefault(_, varchar({ length: 256 }).default("text'text"), `'text''text'`);
@@ -587,6 +599,15 @@ test('varchar + varchar arrays', async () => {
 		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::varchar(256)[]`,
 	);
 
+	const res16 = await diffDefault(
+		_,
+		varchar({ length: 7 }).array('[]')
+			.default(
+				['#6ddf5b', '#418536', '', '', '', '', ''],
+			),
+		`'{#6ddf5b,#418536,"","","","",""}'::varchar(7)[]`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -602,10 +623,12 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4231
 // https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%202%3A%20text().array().default(%5B%5D)
+// https://github.com/drizzle-team/drizzle-orm/issues/5370
 test('text + text arrays', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `'text'`);
 	const res2 = await diffDefault(_, text().default("text'text"), `'text''text'`);
@@ -651,6 +674,15 @@ test('text + text arrays', async () => {
 
 	const res14 = await diffDefault(_, text().default(sql`gen_random_uuid()`), `gen_random_uuid()`);
 
+	const res15 = await diffDefault(
+		_,
+		text().array('[]')
+			.default(
+				['#6ddf5b', '#418536', '', '', '', '', ''],
+			),
+		`'{#6ddf5b,#418536,"","","","",""}'::text[]`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -665,6 +697,7 @@ test('text + text arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5119

@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
@@ -22,7 +23,8 @@ const _push = async (
 };
 
 export const preparePglite = async () => {
-	const client = new PGlite();
+	const client = new PGlite({ extensions: { vector } });
+	await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
 	await client.query('create schema "mySchema";');
 
 	const query = async (sql: string, params: any[] = []) => {

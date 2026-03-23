@@ -1,4 +1,5 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { join } from 'node:path';
 import { assert, expect, test } from 'vitest';
 import { exportRaw } from '../../src/cli/schema';
 
@@ -14,6 +15,7 @@ import { exportRaw } from '../../src/cli/schema';
 // #4 drizzle-kit export --config=drizzle.config.ts --schema=schema.ts
 // #5 drizzle-kit export --config=drizzle.config.ts --dialect=postgresql
 
+const filename = join(process.cwd(), 'tests/cli/schema.ts');
 test('export #1', async (t) => {
 	const res = await brotest(
 		exportRaw,
@@ -24,7 +26,7 @@ test('export #1', async (t) => {
 
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
-		schema: 'schema.ts',
+		filenames: [filename],
 		sql: true,
 		casing: undefined,
 	});
@@ -36,7 +38,7 @@ test('export #2', async (t) => {
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
-		schema: './schema.ts',
+		filenames: [filename],
 		sql: true,
 		casing: undefined,
 	});
@@ -49,7 +51,7 @@ test('export #3', async (t) => {
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'sqlite',
-		schema: './schema.ts',
+		filenames: [filename],
 		sql: true,
 		casing: undefined,
 	});

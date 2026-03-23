@@ -1,5 +1,5 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -29,12 +29,12 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, schema: schemaPath, casing } = config;
+	const { out: outFolder, filenames, casing } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
-		schemaPath,
+		filenames,
 		casing,
 		checkResult,
 	);
@@ -88,8 +88,7 @@ export const handle = async (
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,

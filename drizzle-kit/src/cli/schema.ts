@@ -27,7 +27,9 @@ import {
 } from './commands/utils';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers } from './validations/common';
+import type { LibSQLCredentials } from './validations/libsql';
 import { withStyle } from './validations/outputs';
+import type { SqliteCredentials } from './validations/sqlite';
 import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
@@ -342,7 +344,6 @@ export const push = command({
 
 		const {
 			dialect,
-			schemaPath,
 			verbose,
 			credentials,
 			force,
@@ -350,12 +351,13 @@ export const push = command({
 			filters,
 			explain,
 			migrations,
+			filenames,
 		} = config;
 
 		if (dialect === 'mysql') {
 			const { handle } = await import('./commands/push-mysql');
 			await handle(
-				schemaPath,
+				filenames,
 				credentials,
 				verbose,
 				force,
@@ -383,7 +385,7 @@ export const push = command({
 
 			const { handle } = await import('./commands/push-postgres');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -392,22 +394,16 @@ export const push = command({
 				explain,
 				migrations,
 			);
-		} else if (dialect === 'sqlite') {
+		} else if (dialect === 'sqlite' || dialect === 'turso') {
+			const { connectToSQLite, connectToLibSQL } = await import('./connections');
+			const db = dialect === 'sqlite'
+				? await connectToSQLite(credentials as SqliteCredentials)
+				: await connectToLibSQL(credentials as LibSQLCredentials);
+
 			const { handle: sqlitePush } = await import('./commands/push-sqlite');
 			await sqlitePush(
-				schemaPath,
-				verbose,
-				credentials,
-				filters,
-				force,
-				casing,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'turso') {
-			const { handle: libSQLPush } = await import('./commands/push-libsql');
-			await libSQLPush(
-				schemaPath,
+				db,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -419,7 +415,7 @@ export const push = command({
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
 			await handle(
-				schemaPath,
+				filenames,
 				credentials,
 				filters,
 				verbose,
@@ -431,7 +427,7 @@ export const push = command({
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,
@@ -443,7 +439,7 @@ export const push = command({
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
 			await handle(
-				schemaPath,
+				filenames,
 				verbose,
 				credentials,
 				filters,

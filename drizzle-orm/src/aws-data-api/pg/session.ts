@@ -16,7 +16,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
@@ -28,13 +28,11 @@ export class AwsDataApiPreparedQuery<
 > extends PgAsyncPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
 
-	private rawQuery: ExecuteStatementCommand;
+	declare protected query: QueryWithTypings;
 
 	constructor(
 		private client: AwsDataApiClient,
-		private queryString: string,
-		private params: unknown[],
-		private typings: QueryTypingsValue[],
+		query: QueryWithTypings,
 		private options: AwsDataApiSessionOptions,
 		cache: Cache,
 		queryMetadata: {
@@ -51,16 +49,7 @@ export class AwsDataApiPreparedQuery<
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQuery = new ExecuteStatementCommand({
-			sql: queryString,
-			parameters: [],
-			secretArn: options.secretArn,
-			resourceArn: options.resourceArn,
-			database: options.database,
-			transactionId,
-			includeResultMetadata: isRqbV2Query || (!fields && !customResultMapper),
-		});
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -143,17 +132,27 @@ export class AwsDataApiPreparedQuery<
 	}
 
 	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 
-		this.rawQuery.input.parameters = params.map((param, index) => ({
+		const command = new ExecuteStatementCommand({
+			sql: this.query.sql,
+			parameters: [],
+			secretArn: this.options.secretArn,
+			resourceArn: this.options.resourceArn,
+			database: this.options.database,
+			transactionId: this.transactionId,
+			includeResultMetadata: this.isRqbV2Query || (!this.fields && !this.customResultMapper),
+		});
+
+		command.input.parameters = params.map((param, index) => ({
 			name: `${index + 1}`,
-			...toValueParam(param, this.typings[index]),
+			...toValueParam(param, this.query.typings?.[index]),
 		}));
 
-		this.options.logger?.logQuery(this.rawQuery.input.sql!, this.rawQuery.input.parameters);
+		this.options.logger?.logQuery(command.input.sql!, command.input.parameters);
 
-		const result = await this.queryWithCache(this.queryString, params, async () => {
-			return await this.client.send(this.rawQuery);
+		const result = await this.queryWithCache(this.query.sql, params, async () => {
+			return await this.client.send(command);
 		});
 		const rows = result.records?.map((row) => {
 			return row.map((field) => getValueFromDataApi(field));
@@ -245,9 +244,7 @@ export class AwsDataApiSession<
 	): AwsDataApiPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
-			query.typings ?? [],
+			query,
 			this.options,
 			this.cache,
 			queryMetadata,
@@ -268,9 +265,7 @@ export class AwsDataApiSession<
 	): PgAsyncPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
-			query.typings ?? [],
+			query,
 			this.options,
 			this.cache,
 			undefined,

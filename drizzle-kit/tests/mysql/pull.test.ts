@@ -908,3 +908,25 @@ test('introspect cyclic foreign key', async () => {
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+test('double-quote-issue', async () => {
+	const content = mysqlTable('content', {
+		id: int('id').notNull(),
+		virtualPath: varchar('virtual_path', { length: 255 }).notNull(),
+		pid: varchar('pid', { length: 750 }).notNull(),
+		pageTitle: varchar('page_title', { length: 75 }).default('Untitled Document').notNull(),
+		navTitle: varchar('nav_title', { length: 25 }).default('NULL'),
+		protected: mysqlEnum('protected', ['Y', 'N']).default('N').notNull(),
+		metaData: varchar('meta_data', { length: 750 }).default('NULL'),
+		content: longtext('content').notNull(),
+		navPlacement: longtext('navPlacement').default('NULL'),
+		weight: decimal('weight', { precision: 10, scale: 2 }).notNull(),
+		dateRecorded: datetime('date_recorded', { mode: 'string' }).notNull(),
+		lastModified: timestamp('last_modified', { mode: 'string' }).default(sql`current_timestamp()`),
+	});
+
+	const { statements, sqlStatements } = await diffIntrospect(db, { content }, 'double-quote-issue');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});

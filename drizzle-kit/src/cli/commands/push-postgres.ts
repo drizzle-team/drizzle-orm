@@ -23,7 +23,6 @@ import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
-import { prepareFilenames } from '../../utils/utils-node';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -33,7 +32,7 @@ import type { PostgresCredentials } from '../validations/postgres';
 import { explain, postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	verbose: boolean,
 	credentials: PostgresCredentials,
 	filters: EntitiesFilterConfig,
@@ -49,7 +48,6 @@ export const handle = async (
 	const { introspect } = await import('./pull-postgres');
 
 	const db = await preparePostgresDB(credentials);
-	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);

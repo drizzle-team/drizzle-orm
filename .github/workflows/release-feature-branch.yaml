@@ -389,8 +389,12 @@ jobs:
           
           _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
           tag="${{ github.ref_name }}"
-          suffix=$(git rev-parse --short HEAD)
-          version="$_version-$suffix"
+          if [[ "$tag" == "beta" ]]; then
+            version="$_version"
+          else
+            suffix=$(git rev-parse --short HEAD)
+            version="$_version-$suffix"
+          fi
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 

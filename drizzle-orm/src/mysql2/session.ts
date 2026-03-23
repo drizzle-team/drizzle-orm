@@ -1,11 +1,10 @@
-import type { Connection as CallbackConnection } from 'mysql2';
+import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
 import type {
 	Connection,
 	FieldPacket,
 	OkPacket,
 	Pool,
 	PoolConnection,
-	QueryOptions,
 	ResultSetHeader,
 	RowDataPacket,
 } from 'mysql2/promise';
@@ -43,18 +42,21 @@ export type MySqlQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
+const typeCast: TypeCast = function(field: any, next: any) {
+	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+		return field.string();
+	}
+	return next();
+};
+
 export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'MySql2PreparedQuery';
 
-	private rawQuery: QueryOptions;
-	private query: QueryOptions;
-
 	constructor(
 		private client: MySql2Client,
-		queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -72,41 +74,31 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(cache, queryMetadata, cacheConfig);
-		this.rawQuery = {
-			sql: queryString,
-			// rowsAsArray: true,
-			typeCast: function(field: any, next: any) {
-				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-					return field.string();
-				}
-				return next();
-			},
-		};
-		this.query = {
-			sql: queryString,
-			rowsAsArray: true,
-			typeCast: function(field: any, next: any) {
-				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-					return field.string();
-				}
-				return next();
-			},
-		};
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQuery.sql, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
-			this;
+		const {
+			fields,
+			client,
+			query,
+			joinsNotNullableMap,
+			customResultMapper,
+			returningIds,
+			generatedIds,
+		} = this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
-				return await client.query<any>(rawQuery, params);
+			const res = await this.queryWithCache(query.sql, params, async () => {
+				return await client.query<any>({
+					sql: query.sql,
+					typeCast,
+				}, params);
 			});
 
 			const insertId = res[0].insertId;
@@ -138,7 +130,11 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		}
 
 		const result = await this.queryWithCache(query.sql, params, async () => {
-			return await client.query<any[]>(query, params);
+			return await client.query<any[]>({
+				sql: query.sql,
+				rowsAsArray: true,
+				typeCast,
+			}, params);
 		});
 
 		const rows = result[0];
@@ -151,12 +147,15 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.rawQuery.sql, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { client, rawQuery, customResultMapper } = this;
-		const res = await client.query<any>(rawQuery, params);
+		const { client, query, customResultMapper } = this;
+		const res = await client.query<any>({
+			sql: query.sql,
+			typeCast,
+		}, params);
 
 		const rows = res[0];
 
@@ -166,14 +165,18 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 	async *iterator(
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
 			connection: CallbackConnection;
 		}).connection;
 
-		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
+		const { fields, query, joinsNotNullableMap, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
-		const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
+		const driverQuery = conn.query({
+			sql: query.sql,
+			rowsAsArray: hasRowsMapper,
+			typeCast,
+		}, params);
 
 		const stream = driverQuery.stream();
 
@@ -262,8 +265,7 @@ export class MySql2Session<
 		// Each driver gets them from response from database
 		return new MySql2PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -286,8 +288,7 @@ export class MySql2Session<
 		// Each driver gets them from response from database
 		return new MySql2PreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,
@@ -323,7 +324,7 @@ export class MySql2Session<
 	override all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
+		return this.client.query(querySql.sql, querySql.params).then((result) => result[0]) as Promise<T[]>;
 	}
 
 	override async transaction<T>(

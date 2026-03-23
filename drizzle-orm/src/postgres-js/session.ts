@@ -23,8 +23,7 @@ export class PostgresJsPreparedQuery<
 
 	constructor(
 		private client: Sql,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -39,38 +38,38 @@ export class PostgresJsPreparedQuery<
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
 
 			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
+				'drizzle.query.text': this.query.sql,
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			this.logger.logQuery(this.queryString, params);
+			this.logger.logQuery(this.query.sql, params);
 
-			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
+			const { fields, query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return this.queryWithCache(query, params, async () => {
-						return await client.unsafe(query, params as any[]);
+					return this.queryWithCache(query.sql, params, async () => {
+						return await client.unsafe(query.sql, params as any[]);
 					});
 				});
 			}
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
 				span?.setAttributes({
-					'drizzle.query.text': query,
+					'drizzle.query.text': query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(query, params, async () => {
-					return await client.unsafe(query, params as any[]).values();
+				return this.queryWithCache(query.sql, params, async () => {
+					return await client.unsafe(query.sql, params as any[]).values();
 				});
 			});
 
@@ -84,24 +83,24 @@ export class PostgresJsPreparedQuery<
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
 
 			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
+				'drizzle.query.text': this.query.sql,
 				'drizzle.query.params': JSON.stringify(params),
 			});
 
-			this.logger.logQuery(this.queryString, params);
+			this.logger.logQuery(this.query.sql, params);
 
-			const { queryString: query, client, customResultMapper } = this;
+			const { query, client, customResultMapper } = this;
 
 			const rows = await tracer.startActiveSpan('drizzle.driver.execute', () => {
 				span?.setAttributes({
-					'drizzle.query.text': query,
+					'drizzle.query.text': query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				return client.unsafe(query, params as any[]);
+				return client.unsafe(query.sql, params as any[]);
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -112,19 +111,19 @@ export class PostgresJsPreparedQuery<
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
-			const params = fillPlaceholders(this.params, placeholderValues);
+			const params = fillPlaceholders(this.query.params, placeholderValues);
 			span?.setAttributes({
-				'drizzle.query.text': this.queryString,
+				'drizzle.query.text': this.query.sql,
 				'drizzle.query.params': JSON.stringify(params),
 			});
-			this.logger.logQuery(this.queryString, params);
+			this.logger.logQuery(this.query.sql, params);
 			return tracer.startActiveSpan('drizzle.driver.execute', () => {
 				span?.setAttributes({
-					'drizzle.query.text': this.queryString,
+					'drizzle.query.text': this.query.sql,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(this.queryString, params, async () => {
-					return this.client.unsafe(this.queryString, params as any[]);
+				return this.queryWithCache(this.query.sql, params, async () => {
+					return this.client.unsafe(this.query.sql, params as any[]);
 				});
 			});
 		});
@@ -179,8 +178,7 @@ export class PostgresJsSession<
 	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -199,8 +197,7 @@ export class PostgresJsSession<
 	): PgAsyncPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

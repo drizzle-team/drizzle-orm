@@ -32,7 +32,29 @@ const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
 			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
 	);
 
-	if (candidates.length !== 1) return null;
+	if (candidates.length === 0) return null;
+
+	// When multiple commutative branches match (e.g. both a root-level fork and a
+	// deeper fork resolve to the same set of leaves), pick the one closest to the
+	// leaves — i.e. the branch whose combined leaf statements are fewest, meaning
+	// the parent is the most recent common ancestor of the open leaves.
+	if (candidates.length > 1) {
+		let best = candidates[0];
+		let bestTotal = best.leafs.reduce((sum, l) => sum + l.statements.length, 0);
+
+		for (let i = 1; i < candidates.length; i++) {
+			const total = candidates[i].leafs.reduce(
+				(sum, l) => sum + l.statements.length,
+				0,
+			);
+			if (total < bestTotal) {
+				best = candidates[i];
+				bestTotal = total;
+			}
+		}
+		return best;
+	}
+
 	return candidates[0];
 };
 

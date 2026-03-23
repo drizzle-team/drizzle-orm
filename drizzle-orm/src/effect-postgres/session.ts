@@ -33,8 +33,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 	constructor(
 		private client: PgClient,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: EffectLogger,
 		cache: EffectCache,
 		queryMetadata: {
@@ -50,7 +49,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	override execute(placeholderValues?: Record<string, unknown>) {
@@ -161,8 +160,7 @@ export class EffectPgSession<
 	): EffectPgPreparedQuery<T, false> {
 		return new EffectPgPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -186,8 +184,7 @@ export class EffectPgSession<
 	): EffectPgPreparedQuery<T, true> {
 		return new EffectPgPreparedQuery<T, true>(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

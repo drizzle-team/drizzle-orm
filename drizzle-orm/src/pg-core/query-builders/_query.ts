@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, QueryWithTypings, SQL, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from '../async/session.ts';
@@ -27,8 +27,8 @@ export class _RelationalQueryBuilder<
 		private session: PgAsyncSession,
 	) {}
 
-	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, V1.DBQueryConfig<'many', true, TSchema, TFields>>,
+	findMany<TConfig extends V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>>,
 	): _PgRelationalQuery<V1.BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new _PgRelationalQuery(
 			this.fullSchema,
@@ -38,13 +38,15 @@ export class _RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as V1.DBQueryConfig<'many', true>) : {},
+			config ? (config as V1.DBQueryConfigWithComment<'many', true>) : {},
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
+	findFirst<TSelection extends Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>>(
+		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>> & {
+			comment?: SqlCommenterInput;
+		},
 	): _PgRelationalQuery<V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new _PgRelationalQuery(
 			this.fullSchema,
@@ -54,7 +56,7 @@ export class _RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as V1.DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config ? { ...(config as V1.DBQueryConfigWithComment<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
 		);
 	}
@@ -78,7 +80,7 @@ export class _PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: PgDialect,
 		private session: PgAsyncSession,
-		private config: V1.DBQueryConfig<'many', true> | true,
+		private config: V1.DBQueryConfigWithComment<'many', true> | true,
 		private mode: 'many' | 'first',
 	) {
 		super();

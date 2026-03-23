@@ -2,7 +2,6 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { prepareFilenames } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -30,7 +29,7 @@ import type { MssqlCredentials } from '../validations/mssql';
 import { explain, mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	verbose: boolean,
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
@@ -46,8 +45,6 @@ export const handle = async (
 	const { introspect } = await import('./pull-mssql');
 
 	const { db } = await connectToMsSQL(credentials);
-	const filenames = prepareFilenames(schemaPath);
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractMssqlExisting(res.schemas, res.views);
