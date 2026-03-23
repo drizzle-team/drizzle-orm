@@ -215,10 +215,9 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// }>;
 			db: MySqlDatabase<any, any, never, typeof relations>;
 			createDB: {
-				<S extends MysqlSchema>(schema: S): MySqlDatabase<any, any, S, ReturnType<typeof defineRelations<S>>>;
 				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(config: {
-					schema: S;
-					cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
+					schema?: S;
+					cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
 					proxyClient?: mysql.Connection;
 				}): MySqlDatabase<any, any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};

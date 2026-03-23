@@ -1077,7 +1077,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}));
 
 		await push({ ctbl });
-		const db = createDB({ ctbl });
+		const db = createDB({ schema: { ctbl } });
 
 		const insertQ = db.insert(ctbl).values([{
 			id: 1,
