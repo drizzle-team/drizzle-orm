@@ -1247,7 +1247,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			: config.migrationsTable ?? '__drizzle_migrations';
 
 		const dbMigrations = session.values<[number, string, string]>(
-			sql`SELECT rowid, hash, created_at FROM ${
+			sql`SELECT id, hash, created_at FROM ${
 				sql.identifier(migrationsTable)
 			} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 		);
@@ -1276,7 +1276,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 					session.run(sql.raw(stmt));
 				}
 				session.run(
-					sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE rowid = ${dbMigration[0]}`,
+					sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`,
 				);
 			}
 			session.run(sql`COMMIT`);
