@@ -1405,7 +1405,7 @@ test('build query insert with onConflict do update', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -1419,7 +1419,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -1433,7 +1433,7 @@ test('build query insert with onConflict do nothing', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -1447,7 +1447,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -4155,7 +4155,7 @@ test('mySchema :: build query insert with onConflict do update / multiple column
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -4168,7 +4168,7 @@ test('mySchema :: build query insert with onConflict do nothing + target', async
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -6278,7 +6278,7 @@ test('all types', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
-test('all types raw; insert/update', async () => {
+test('raw jsons', async () => {
 	const allTypesTable = pgTable('all_types', {
 		json: json('json'),
 		jsonb: jsonb('jsonb'),
@@ -6388,6 +6388,12 @@ test('all types ~codecs~', async () => {
 		interval: interval('interval'),
 		json: json('json'),
 		jsonb: jsonb('jsonb'),
+		json1: json('json1'),
+		jsonb1: jsonb('jsonb1'),
+		// json2: json('json2'),
+		// jsonb2: jsonb('jsonb2'),
+		json3: json('json3'),
+		jsonb3: jsonb('jsonb3'),
 		line: line('line', {
 			mode: 'abc',
 		}),
@@ -6430,6 +6436,12 @@ test('all types ~codecs~', async () => {
 		arrinterval: interval('arrinterval').array(),
 		arrjson: json('arrjson').array(),
 		arrjsonb: jsonb('arrjsonb').array(),
+		arrjson1: json('arrjson1').array(),
+		arrjsonb1: jsonb('arrjsonb1').array(),
+		arrjson2: json('arrjson2').array(),
+		arrjsonb2: jsonb('arrjsonb2').array(),
+		arrjson3: json('arrjson3').array(),
+		arrjsonb3: jsonb('arrjsonb3').array(),
 		arrline: line('arrline', {
 			mode: 'abc',
 		}).array(),
@@ -6484,6 +6496,12 @@ test('all types ~codecs~', async () => {
 					"interval" interval,
 					"json" json,
 					"jsonb" jsonb,
+					"json1" json,
+					"jsonb1" jsonb,
+					"json2" json,
+					"jsonb2" jsonb,
+					"json3" json,
+					"jsonb3" jsonb,
 					"line" "line",
 					"macaddr" "macaddr",
 					"macaddr8" "macaddr8",
@@ -6513,6 +6531,12 @@ test('all types ~codecs~', async () => {
 					"arrinterval" interval[],
 					"arrjson" json[],
 					"arrjsonb" jsonb[],
+					"arrjson1" json[],
+					"arrjsonb1" jsonb[],
+					"arrjson2" json[],
+					"arrjsonb2" jsonb[],
+					"arrjson3" json[],
+					"arrjsonb3" jsonb[],
 					"arrline" "line"[],
 					"arrmacaddr" "macaddr"[],
 					"arrmacaddr8" "macaddr8"[],
@@ -6556,6 +6580,12 @@ test('all types ~codecs~', async () => {
 			str: 'strvalb',
 			arr: ['strb', 11],
 		},
+		json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+		jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+		// json2: 5, // Driver can't process this
+		// jsonb2: 7, // Driver can't process this
+		json3: '5',
+		jsonb3: '7',
 		line: {
 			a: 1,
 			b: 2,
@@ -6600,6 +6630,12 @@ test('all types ~codecs~', async () => {
 			str: 'strvalb',
 			arr: ['strb', 11],
 		}],
+		arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+		arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+		arrjson2: [5],
+		arrjsonb2: [7],
+		arrjson3: ['5'],
+		arrjsonb3: ['7'],
 		arrline: [{
 			a: 1,
 			b: 2,
@@ -6639,6 +6675,12 @@ test('all types ~codecs~', async () => {
 		interval: string | null;
 		json: unknown;
 		jsonb: unknown;
+		json1: unknown;
+		jsonb1: unknown;
+		// json2: unknown;
+		// jsonb2: unknown;
+		json3: unknown;
+		jsonb3: unknown;
 		line: string | null;
 		macaddr: string | null;
 		macaddr8: string | null;
@@ -6668,6 +6710,12 @@ test('all types ~codecs~', async () => {
 		arrinterval: string[] | null;
 		arrjson: unknown[] | null;
 		arrjsonb: unknown[] | null;
+		arrjson1: unknown[] | null;
+		arrjsonb1: unknown[] | null;
+		arrjson2: unknown[] | null;
+		arrjsonb2: unknown[] | null;
+		arrjson3: unknown[] | null;
+		arrjsonb3: unknown[] | null;
 		arrline: string[] | null;
 		arrmacaddr: string[] | null;
 		arrmacaddr8: string[] | null;
@@ -6700,6 +6748,12 @@ test('all types ~codecs~', async () => {
 		interval: '-2 mons',
 		json: { str: 'strval', arr: ['str', 10] },
 		jsonb: { arr: ['strb', 11], str: 'strvalb' },
+		json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+		jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+		// json2: 5, // Driver can't process this
+		// jsonb2: 7, // Driver can't process this
+		json3: '5',
+		jsonb3: '7',
 		line: '{1,2,3}',
 		macaddr: '08:00:2b:01:02:03',
 		macaddr8: '08:00:2b:01:02:03:04:05',
@@ -6732,6 +6786,12 @@ test('all types ~codecs~', async () => {
 		arrinterval: ['-2 mons'],
 		arrjson: [{ str: 'strval', arr: ['str', 10] }],
 		arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+		arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+		arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+		arrjson2: [5],
+		arrjsonb2: [7],
+		arrjson3: ['5'],
+		arrjsonb3: ['7'],
 		arrline: ['{1,2,3}'],
 		arrmacaddr: ['08:00:2b:01:02:03'],
 		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
@@ -6753,7 +6813,7 @@ test('all types ~codecs~', async () => {
 			db,
 			columns: getColumns(allTypesTable),
 			data: e,
-			mode: 'queryNormalize',
+			mode: 'query',
 		})[0]
 	);
 
@@ -6769,13 +6829,13 @@ test('all types ~codecs~', async () => {
 				db,
 				columns: getColumns(allTypesTable),
 				data: relationRaw as any,
-				mode: 'jsonNormalize',
+				mode: 'json',
 			})[0]!,
 			rootRes: normalizeDataWithDbCodecs({
 				db,
 				columns: getColumns(allTypesTable),
 				data: [rootRaw],
-				mode: 'queryNormalize',
+				mode: 'query',
 			})[0]!,
 		};
 	});

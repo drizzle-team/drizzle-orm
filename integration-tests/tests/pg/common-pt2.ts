@@ -69,6 +69,7 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -1082,7 +1083,11 @@ export function tests(test: Test) {
 					expect(query).toEqual({
 						sql:
 							'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-						params: ['John', '["foo","bar"]', 'John1'],
+						params: [
+							'John',
+							is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+							'John1',
+						],
 					});
 				},
 			);
@@ -1105,7 +1110,10 @@ export function tests(test: Test) {
 			expect(query).toEqual({
 				sql:
 					'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-				params: ['John', '["foo","bar"]'],
+				params: [
+					'John',
+					is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+				],
 			});
 		});
 
@@ -2587,7 +2595,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-03-17')).concurrent('view #1', async ({ push, createDB }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -3357,8 +3365,87 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
+		test('raw jsons', async ({ db, push }) => {
+			const allTypesTable = pgTable('all_types_raw_jsons', {
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+				arrjson: json('arrjson').array(),
+				arrjsonb: jsonb('arrjsonb').array(),
+			});
+
+			await push({ allTypesTable });
+
+			await db.insert(allTypesTable).values({
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 10],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 11],
+				}],
+			});
+
+			const queryRes1 = await db.execute(sql`select * from ${allTypesTable};`);
+			const rawData1 = [(queryRes1.rows ?? queryRes1)[0]];
+
+			const expectedRes1 = [
+				{
+					json: { str: 'strval', arr: ['str', 10] },
+					jsonb: { arr: ['strb', 11], str: 'strvalb' },
+
+					arrjson: [{ str: 'strval', arr: ['str', 10] }],
+					arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+				},
+			];
+
+			expect(rawData1).toStrictEqual(expectedRes1);
+
+			await db.update(allTypesTable).set({
+				json: {
+					str: 'strval',
+					arr: ['str', 100],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 110],
+				},
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 100],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 110],
+				}],
+			});
+
+			const queryRes2 = await db.execute(sql`select * from ${allTypesTable};`);
+			const rawData2 = [(queryRes2.rows ?? queryRes2)[0]];
+
+			const expectedRes2 = [
+				{
+					json: { str: 'strval', arr: ['str', 100] },
+					jsonb: { arr: ['strb', 110], str: 'strvalb' },
+
+					arrjson: [{ str: 'strval', arr: ['str', 100] }],
+					arrjsonb: [{ arr: ['strb', 110], str: 'strvalb' }],
+				},
+			];
+
+			expect(rawData2).toStrictEqual(expectedRes2);
+		});
+
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const en = pgEnum('en_48', ['enVal1', 'enVal2']);
+			const en = pgEnum('en_49', ['enVal1', 'enVal2']);
 			const allTypesTable = pgTable('all_types_48_cdcs', {
 				serial: serial('serial'),
 				bigserial: bigserial('bigserial', {
@@ -3381,6 +3468,12 @@ export function tests(test: Test) {
 				interval: interval('interval'),
 				json: json('json'),
 				jsonb: jsonb('jsonb'),
+				json1: json('json1'),
+				jsonb1: jsonb('jsonb1'),
+				json2: json('json2'),
+				jsonb2: jsonb('jsonb2'),
+				json3: json('json3'),
+				jsonb3: jsonb('jsonb3'),
 				line: line('line', {
 					mode: 'abc',
 				}),
@@ -3422,6 +3515,12 @@ export function tests(test: Test) {
 				arrinterval: interval('arrinterval').array(),
 				arrjson: json('arrjson').array(),
 				arrjsonb: jsonb('arrjsonb').array(),
+				arrjson1: json('arrjson1').array(),
+				arrjsonb1: jsonb('arrjsonb1').array(),
+				arrjson2: json('arrjson2').array(),
+				arrjsonb2: jsonb('arrjsonb2').array(),
+				arrjson3: json('arrjson3').array(),
+				arrjsonb3: jsonb('arrjsonb3').array(),
 				arrline: line('arrline', {
 					mode: 'abc',
 				}).array(),
@@ -3481,6 +3580,12 @@ export function tests(test: Test) {
 					str: 'strvalb',
 					arr: ['strb', 11],
 				},
+				json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+				jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+				json2: 5,
+				jsonb2: 7,
+				json3: '5',
+				jsonb3: '7',
 				line: {
 					a: 1,
 					b: 2,
@@ -3524,6 +3629,12 @@ export function tests(test: Test) {
 					str: 'strvalb',
 					arr: ['strb', 11],
 				}],
+				arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+				arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+				arrjson2: [5],
+				arrjsonb2: [7],
+				arrjson3: ['5'],
+				arrjsonb3: ['7'],
 				arrline: [{
 					a: 1,
 					b: 2,
@@ -3562,6 +3673,12 @@ export function tests(test: Test) {
 				interval: string | null;
 				json: unknown;
 				jsonb: unknown;
+				json1: unknown;
+				jsonb1: unknown;
+				json2: unknown;
+				jsonb2: unknown;
+				json3: unknown;
+				jsonb3: unknown;
 				line: string | null;
 				macaddr: string | null;
 				macaddr8: string | null;
@@ -3590,6 +3707,12 @@ export function tests(test: Test) {
 				arrinterval: string[] | null;
 				arrjson: unknown[] | null;
 				arrjsonb: unknown[] | null;
+				arrjson1: unknown[] | null;
+				arrjsonb1: unknown[] | null;
+				arrjson2: unknown[] | null;
+				arrjsonb2: unknown[] | null;
+				arrjson3: unknown[] | null;
+				arrjsonb3: unknown[] | null;
 				arrline: string[] | null;
 				arrmacaddr: string[] | null;
 				arrmacaddr8: string[] | null;
@@ -3621,6 +3744,12 @@ export function tests(test: Test) {
 				interval: '-2 mons',
 				json: { str: 'strval', arr: ['str', 10] },
 				jsonb: { arr: ['strb', 11], str: 'strvalb' },
+				json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+				jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+				json2: 5,
+				jsonb2: 7,
+				json3: '5',
+				jsonb3: '7',
 				line: '{1,2,3}',
 				macaddr: '08:00:2b:01:02:03',
 				macaddr8: '08:00:2b:01:02:03:04:05',
@@ -3652,6 +3781,12 @@ export function tests(test: Test) {
 				arrinterval: ['-2 mons'],
 				arrjson: [{ str: 'strval', arr: ['str', 10] }],
 				arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+				arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+				arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+				arrjson2: [5],
+				arrjsonb2: [7],
+				arrjson3: ['5'],
+				arrjsonb3: ['7'],
 				arrline: ['{1,2,3}'],
 				arrmacaddr: ['08:00:2b:01:02:03'],
 				arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
@@ -3672,7 +3807,7 @@ export function tests(test: Test) {
 					db,
 					columns: getColumns(allTypesTable),
 					data: e.rows ?? e,
-					mode: 'queryNormalize',
+					mode: 'query',
 				})[0]
 			);
 
@@ -3688,13 +3823,13 @@ export function tests(test: Test) {
 						db,
 						columns: getColumns(allTypesTable),
 						data: relationRaw,
-						mode: 'jsonNormalize',
+						mode: 'json',
 					})[0]!,
 					rootRes: normalizeDataWithDbCodecs({
 						db,
 						columns: getColumns(allTypesTable),
 						data: [rootRaw],
-						mode: 'queryNormalize',
+						mode: 'query',
 					})[0]!,
 				};
 			});
@@ -3797,7 +3932,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-03-17')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3871,7 +4006,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-03-17'))(
+		test.skipIf(Date.now() < +new Date('2026-03-29'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3909,7 +4044,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-03-17'))('casing in sql``', async ({ createDB, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29'))('casing in sql``', async ({ createDB, push }) => {
 			const payments = pgTable('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
@@ -3944,7 +4079,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-03-17'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-03-29'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }

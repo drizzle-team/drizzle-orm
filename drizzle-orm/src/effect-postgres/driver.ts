@@ -5,10 +5,11 @@ import * as V1 from '~/_relations.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
-import { castToText, extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { castToText, type PgCodecs, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
+import { makePgArray } from '~/pg-core/utils/array.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
@@ -23,27 +24,234 @@ export class EffectPgDatabase<
 export type EffectDrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzleConfig<TSchema, TRelations>, 'cache' | 'logger'>;
+> = Omit<DrizzleConfig<TSchema, TRelations>, 'cache' | 'logger'> & { codecs?: PgCodecs };
 
 export const DefaultServices = Layer.merge(
 	EffectCache.Default,
 	EffectLogger.Default,
 );
 
-export const effectPgCodecs = extendGenericPgCodecs({
-	queryCast: {
-		date: {
-			item: castToText,
-		},
-		interval: {
-			item: castToText,
-		},
-		timestamp: {
-			item: castToText,
-		},
-		timestamptz: {
-			item: castToText,
-		},
+export const effectPgCodecs = refineGenericPgCodecs({
+	date: {
+		cast: castToText,
+		normalizeParamArray: makePgArray,
+	},
+	interval: {
+		cast: castToText,
+		normalizeParamArray: makePgArray,
+	},
+	timestamp: {
+		cast: castToText,
+		normalizeParamArray: makePgArray,
+	},
+	timestamptz: {
+		cast: castToText,
+		normalizeParamArray: makePgArray,
+	},
+	json: {
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+	jsonb: {
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+
+	bit: {
+		normalizeParamArray: makePgArray,
+	},
+	bool: {
+		normalizeParamArray: makePgArray,
+	},
+	box: {
+		normalizeParamArray: makePgArray,
+	},
+	box2d: {
+		normalizeParamArray: makePgArray,
+	},
+	box3d: {
+		normalizeParamArray: makePgArray,
+	},
+	char: {
+		normalizeParamArray: makePgArray,
+	},
+	cidr: {
+		normalizeParamArray: makePgArray,
+	},
+	circle: {
+		normalizeParamArray: makePgArray,
+	},
+	datemultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	daterange: {
+		normalizeParamArray: makePgArray,
+	},
+	float8: {
+		normalizeParamArray: makePgArray,
+	},
+	geography: {
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeParamArray: makePgArray,
+	},
+	inet: {
+		normalizeParamArray: makePgArray,
+	},
+	int4multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int4range: {
+		normalizeParamArray: makePgArray,
+	},
+	int8multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int8range: {
+		normalizeParamArray: makePgArray,
+	},
+	lseg: {
+		normalizeParamArray: makePgArray,
+	},
+	macaddr: {
+		normalizeParamArray: makePgArray,
+	},
+	money: {
+		normalizeParamArray: makePgArray,
+	},
+	nummultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	numrange: {
+		normalizeParamArray: makePgArray,
+	},
+	oid: {
+		normalizeParamArray: makePgArray,
+	},
+	path: {
+		normalizeParamArray: makePgArray,
+	},
+	polygon: {
+		normalizeParamArray: makePgArray,
+	},
+	raster: {
+		normalizeParamArray: makePgArray,
+	},
+	regclass: {
+		normalizeParamArray: makePgArray,
+	},
+	regconfig: {
+		normalizeParamArray: makePgArray,
+	},
+	regdictionary: {
+		normalizeParamArray: makePgArray,
+	},
+	regnamespace: {
+		normalizeParamArray: makePgArray,
+	},
+	regoper: {
+		normalizeParamArray: makePgArray,
+	},
+	regoperator: {
+		normalizeParamArray: makePgArray,
+	},
+	regproc: {
+		normalizeParamArray: makePgArray,
+	},
+	regprocedure: {
+		normalizeParamArray: makePgArray,
+	},
+	regrole: {
+		normalizeParamArray: makePgArray,
+	},
+	regtype: {
+		normalizeParamArray: makePgArray,
+	},
+	serial: {
+		normalizeParamArray: makePgArray,
+	},
+	smallint: {
+		normalizeParamArray: makePgArray,
+	},
+	smallserial: {
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeParamArray: makePgArray,
+	},
+	text: {
+		normalizeParamArray: makePgArray,
+	},
+	time: {
+		normalizeParamArray: makePgArray,
+	},
+	timetz: {
+		normalizeParamArray: makePgArray,
+	},
+	tsmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsquery: {
+		normalizeParamArray: makePgArray,
+	},
+	tsrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsvector: {
+		normalizeParamArray: makePgArray,
+	},
+	varbit: {
+		normalizeParamArray: makePgArray,
+	},
+	varchar: {
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeParamArray: makePgArray,
+	},
+	xml: {
+		normalizeParamArray: makePgArray,
+	},
+	bytea: {
+		normalizeParamArray: makePgArray,
+	},
+	enum: {
+		normalizeParamArray: makePgArray,
+	},
+	geometry: {
+		normalizeParamArray: makePgArray,
+	},
+	line: {
+		normalizeParamArray: makePgArray,
+	},
+	macaddr8: {
+		normalizeParamArray: makePgArray,
+	},
+	numeric: {
+		normalizeParamArray: makePgArray,
+	},
+	point: {
+		normalizeParamArray: makePgArray,
+	},
+	bigint: {
+		normalizeParamArray: makePgArray,
+	},
+	bigserial: {
+		normalizeParamArray: makePgArray,
+	},
+	float4: {
+		normalizeParamArray: makePgArray,
+	},
+	int: {
+		normalizeParamArray: makePgArray,
+	},
+	uuid: {
+		normalizeParamArray: makePgArray,
 	},
 });
 
@@ -85,7 +293,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const dialect = new PgDialect({
 			casing: config.casing,
 			useJitMappers: config.useJitMappers,
-			codecs: effectPgCodecs,
+			codecs: config.codecs ?? effectPgCodecs,
 		});
 
 		let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;

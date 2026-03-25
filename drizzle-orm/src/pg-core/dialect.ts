@@ -249,7 +249,7 @@ export class PgDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = this.codecs.apply(field, 'queryCast', name);
+					const casted = this.codecs.apply(field, 'cast', name);
 					chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
@@ -941,7 +941,7 @@ export class PgDialect {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
 			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
 				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
-				: this.codecs.apply(column, inJson ? 'jsonCast' : 'queryCast', name);
+				: this.codecs.apply(column, inJson ? 'castInJson' : 'cast', name);
 
 			return sql`${casted} as ${sql.identifier(key)}`;
 		}
@@ -966,7 +966,7 @@ export class PgDialect {
 					is(v, Column)
 						? {
 							key: k,
-							codec: this.codecs.get(v, inJson ? 'jsonNormalize' : 'queryNormalize'),
+							codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
 							arrayDimensions: v.sqlTypeMeta.arrayDimensions,
 							field: v,
 						}
@@ -1009,7 +1009,7 @@ export class PgDialect {
 							is(column, Column)
 								? {
 									key: k,
-									codec: this.codecs.get(column, inJson ? 'jsonNormalize' : 'queryNormalize'),
+									codec: this.codecs.get(column, inJson ? 'normalizeInJson' : 'normalize'),
 									arrayDimensions: column.sqlTypeMeta.arrayDimensions,
 									field: column,
 								}
@@ -1030,7 +1030,7 @@ export class PgDialect {
 							is(v, Column)
 								? {
 									key: k,
-									codec: this.codecs.get(v, inJson ? 'jsonNormalize' : 'queryNormalize'),
+									codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
 									arrayDimensions: v.sqlTypeMeta.arrayDimensions,
 									field: v,
 								}

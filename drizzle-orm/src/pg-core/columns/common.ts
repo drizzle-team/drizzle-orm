@@ -8,7 +8,6 @@ import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import { makePgArray } from '../utils/array.ts';
 
 export type PgArrayDimension = 0 | 1 | 2 | 3 | 4 | 5;
 type PgArrayDimensionString = '[]' | '[][]' | '[][][]' | '[][][][]' | '[][][][][]';
@@ -440,10 +439,9 @@ export abstract class PgColumn<
 				};
 
 			this.mapToDriverValue = this.mapToDriverValue.isNoop
-				? makePgArray as (value: unknown) => unknown
+				? this.mapToDriverValue
 				: (value: unknown): unknown => {
-					const mapped = this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
-					return makePgArray(mapped as any[]);
+					return this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
 				};
 		}
 

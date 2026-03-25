@@ -3,8 +3,9 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { type PgCodecs, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { makePgArray } from '~/pg-core/utils/array.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { PostgresJsQueryResultHKT } from './session.ts';
@@ -17,23 +18,234 @@ export class PostgresJsDatabase<
 	static override readonly [entityKind]: string = 'PostgresJsDatabase';
 }
 
-export const postgresJsCodecs = extendGenericPgCodecs({
-	queryCast: {
-		interval: {
-			array: undefined,
-		},
-		point: undefined,
-		line: undefined,
-		macaddr8: {
-			array: undefined,
-		},
+export const postgresJsCodecs = refineGenericPgCodecs({
+	interval: {
+		castArray: undefined,
+		normalizeParamArray: makePgArray,
 	},
-	jsonCast: {
-		point: undefined,
-		line: undefined,
-		macaddr8: {
-			array: undefined,
-		},
+	point: {
+		cast: undefined,
+		castArray: undefined,
+		castInJson: undefined,
+		castArrayInJson: undefined,
+		normalizeParamArray: makePgArray,
+	},
+	line: {
+		cast: undefined,
+		castArray: undefined,
+		castInJson: undefined,
+		castArrayInJson: undefined,
+		normalizeParamArray: makePgArray,
+	},
+	macaddr8: {
+		castArray: undefined,
+		castArrayInJson: undefined,
+		normalizeParamArray: makePgArray,
+	},
+	json: {
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+	jsonb: {
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+
+	bit: {
+		normalizeParamArray: makePgArray,
+	},
+	bool: {
+		normalizeParamArray: makePgArray,
+	},
+	box: {
+		normalizeParamArray: makePgArray,
+	},
+	box2d: {
+		normalizeParamArray: makePgArray,
+	},
+	box3d: {
+		normalizeParamArray: makePgArray,
+	},
+	char: {
+		normalizeParamArray: makePgArray,
+	},
+	cidr: {
+		normalizeParamArray: makePgArray,
+	},
+	circle: {
+		normalizeParamArray: makePgArray,
+	},
+	datemultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	daterange: {
+		normalizeParamArray: makePgArray,
+	},
+	float8: {
+		normalizeParamArray: makePgArray,
+	},
+	geography: {
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeParamArray: makePgArray,
+	},
+	inet: {
+		normalizeParamArray: makePgArray,
+	},
+	int4multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int4range: {
+		normalizeParamArray: makePgArray,
+	},
+	int8multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int8range: {
+		normalizeParamArray: makePgArray,
+	},
+	lseg: {
+		normalizeParamArray: makePgArray,
+	},
+	macaddr: {
+		normalizeParamArray: makePgArray,
+	},
+	money: {
+		normalizeParamArray: makePgArray,
+	},
+	nummultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	numrange: {
+		normalizeParamArray: makePgArray,
+	},
+	oid: {
+		normalizeParamArray: makePgArray,
+	},
+	path: {
+		normalizeParamArray: makePgArray,
+	},
+	polygon: {
+		normalizeParamArray: makePgArray,
+	},
+	raster: {
+		normalizeParamArray: makePgArray,
+	},
+	regclass: {
+		normalizeParamArray: makePgArray,
+	},
+	regconfig: {
+		normalizeParamArray: makePgArray,
+	},
+	regdictionary: {
+		normalizeParamArray: makePgArray,
+	},
+	regnamespace: {
+		normalizeParamArray: makePgArray,
+	},
+	regoper: {
+		normalizeParamArray: makePgArray,
+	},
+	regoperator: {
+		normalizeParamArray: makePgArray,
+	},
+	regproc: {
+		normalizeParamArray: makePgArray,
+	},
+	regprocedure: {
+		normalizeParamArray: makePgArray,
+	},
+	regrole: {
+		normalizeParamArray: makePgArray,
+	},
+	regtype: {
+		normalizeParamArray: makePgArray,
+	},
+	serial: {
+		normalizeParamArray: makePgArray,
+	},
+	smallint: {
+		normalizeParamArray: makePgArray,
+	},
+	smallserial: {
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeParamArray: makePgArray,
+	},
+	text: {
+		normalizeParamArray: makePgArray,
+	},
+	time: {
+		normalizeParamArray: makePgArray,
+	},
+	timetz: {
+		normalizeParamArray: makePgArray,
+	},
+	tsmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsquery: {
+		normalizeParamArray: makePgArray,
+	},
+	tsrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsvector: {
+		normalizeParamArray: makePgArray,
+	},
+	varbit: {
+		normalizeParamArray: makePgArray,
+	},
+	varchar: {
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeParamArray: makePgArray,
+	},
+	xml: {
+		normalizeParamArray: makePgArray,
+	},
+	bytea: {
+		normalizeParamArray: makePgArray,
+	},
+	enum: {
+		normalizeParamArray: makePgArray,
+	},
+	geometry: {
+		normalizeParamArray: makePgArray,
+	},
+	numeric: {
+		normalizeParamArray: makePgArray,
+	},
+	bigint: {
+		normalizeParamArray: makePgArray,
+	},
+	bigserial: {
+		normalizeParamArray: makePgArray,
+	},
+	float4: {
+		normalizeParamArray: makePgArray,
+	},
+	int: {
+		normalizeParamArray: makePgArray,
+	},
+	uuid: {
+		normalizeParamArray: makePgArray,
+	},
+	date: {
+		normalizeParamArray: makePgArray,
+	},
+	timestamp: {
+		normalizeParamArray: makePgArray,
+	},
+	timestamptz: {
+		normalizeParamArray: makePgArray,
 	},
 });
 
@@ -42,7 +254,7 @@ function construct<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: Sql,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
 ): PostgresJsDatabase<TSchema, TRelations> & {
 	$client: Sql;
 } {
@@ -59,7 +271,7 @@ function construct<
 	const dialect = new PgDialect({
 		casing: config.casing,
 		useJitMappers: config.useJitMappers,
-		codecs: postgresJsCodecs,
+		codecs: config.codecs ?? postgresJsCodecs,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -106,10 +318,11 @@ export function drizzle<
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 	] | [
 		(
 			& DrizzleConfig<TSchema, TRelations>
+			& { codecs?: PgCodecs }
 			& ({
 				connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
 			} | {
@@ -149,7 +362,7 @@ export namespace drizzle {
 		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
+		config?: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 	): PostgresJsDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

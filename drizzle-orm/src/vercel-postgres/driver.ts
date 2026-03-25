@@ -5,7 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { type PgCodecs, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -24,18 +24,22 @@ export class VercelPgDatabase<
 	static override readonly [entityKind]: string = 'VercelPgDatabase';
 }
 
-export const vercelPgCodecs = extendGenericPgCodecs();
+export const vercelPgCodecs = refineGenericPgCodecs();
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: VercelPgClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
 ): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: vercelPgCodecs });
+	const dialect = new PgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: config.codecs ?? vercelPgCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -86,10 +90,11 @@ export function drizzle<
 		TClient,
 	] | [
 		TClient,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 	] | [
 		(
 			& DrizzleConfig<TSchema, TRelations>
+			& { codecs?: PgCodecs }
 			& ({
 				client?: TClient;
 			})
@@ -99,11 +104,15 @@ export function drizzle<
 	$client: VercelPgClient extends TClient ? typeof sql : TClient;
 } {
 	if (isConfig(params[0])) {
-		const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema, TRelations>);
+		const { client, ...drizzleConfig } =
+			params[0] as ({ client?: TClient } & DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs });
 		return construct(client ?? sql, drizzleConfig) as any;
 	}
 
-	return construct((params[0] ?? sql) as TClient, params[1] as DrizzleConfig<TSchema, TRelations> | undefined) as any;
+	return construct(
+		(params[0] ?? sql) as TClient,
+		params[1] as DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } | undefined,
+	) as any;
 }
 
 export namespace drizzle {
@@ -111,7 +120,7 @@ export namespace drizzle {
 		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
+		config?: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 	): VercelPgDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
