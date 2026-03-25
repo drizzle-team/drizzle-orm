@@ -9,6 +9,7 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
@@ -31,12 +32,16 @@ export const handle = async (config: GenerateConfig) => {
 		});
 	}
 
+	const tableRenames: { from: Table; to: Table }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		resolver<View>('view', config.hints),
+		withCapture(resolver<Table>('table', config.hints), tableRenames),
+		withCapture(resolver<Column>('column', config.hints), columnRenames),
+		withCapture(resolver<View>('view', config.hints), viewRenames),
 		'default',
 	);
 
@@ -44,10 +49,20 @@ export const handle = async (config: GenerateConfig) => {
 		return config.hints.toResponse();
 	}
 
+	const { sqlStatements: downSqlStatements } = await ddlDiff(
+		ddlCur,
+		ddlPrev,
+		makeInverseResolver(tableRenames),
+		makeInverseResolver(columnRenames),
+		makeInverseResolver(viewRenames),
+		'default',
+	);
+
 	if (!config.explain) {
 		return writeResult({
 			snapshot,
 			sqlStatements,
+			downSqlStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

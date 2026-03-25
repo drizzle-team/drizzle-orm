@@ -10,6 +10,7 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
@@ -41,17 +42,28 @@ export const handle = async (
 		});
 	}
 
+	const tableRenames: { from: SqliteEntities['tables']; to: SqliteEntities['tables'] }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+
 	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', config.hints),
-		resolver<Column>('column', config.hints),
+		withCapture(resolver<SqliteEntities['tables']>('table', config.hints), tableRenames),
+		withCapture(resolver<Column>('column', config.hints), columnRenames),
 		'default',
 	);
 
 	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
+
+	const { sqlStatements: downSqlStatements } = await ddlDiff(
+		ddlCur,
+		ddlPrev,
+		makeInverseResolver(tableRenames),
+		makeInverseResolver(columnRenames),
+		'default',
+	);
 
 	if (!json) {
 		for (const w of warnings) {
@@ -63,6 +75,7 @@ export const handle = async (
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			downSqlStatements,
 			renames,
 			outFolder,
 			name: config.name,

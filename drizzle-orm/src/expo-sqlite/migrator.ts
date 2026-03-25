@@ -7,9 +7,10 @@ import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
+	downMigrations?: Record<string, string>;
 }
 
-async function readMigrationFiles({ migrations }: MigrationConfig): Promise<MigrationMeta[]> {
+async function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): Promise<MigrationMeta[]> {
 	const migrationQueries: MigrationMeta[] = [];
 
 	const sortedMigrations = Object.keys(migrations).sort();
@@ -27,8 +28,15 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
+			let downSql: string[] | undefined;
+			const downQuery = downMigrations?.[key];
+			if (downQuery?.trim()) {
+				downSql = downQuery.trim().split('--> statement-breakpoint').map((it) => it);
+			}
+
 			migrationQueries.push({
 				sql: result,
+				downSql,
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
@@ -48,6 +56,18 @@ export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
 ) {
 	const migrations = await readMigrationFiles(config);
 	return migrateSync(migrations, db.session);
+}
+
+export async function rollback<
+	TSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
+	db: ExpoSQLiteDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = await readMigrationFiles(config);
+	return await db.dialect.rollback(migrations, db.session, undefined, steps);
 }
 
 interface State {

@@ -42,3 +42,12 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 	const migrations = readMigrationFiles(config as MigrationConfig);
 	return migrateSync(migrations, db.session, config as MigrationConfig);
 }
+
+export function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps?: number,
+) {
+	const migrations = readMigrationFiles(config);
+	return db.dialect.rollback(migrations, db.session, config, steps);
+}

@@ -11,3 +11,12 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 	const migrations = readMigrationFiles(config);
 	return migrateSync(migrations, db.session, config);
 }
+
+export function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLJsDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps?: number,
+) {
+	const migrations = readMigrationFiles(config);
+	return db.dialect.rollback(migrations, db.session, config, steps);
+}

@@ -26,6 +26,7 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
@@ -57,23 +58,38 @@ export const handle = async (
 		});
 	}
 
+	const schemaRenames: { from: Schema; to: Schema }[] = [];
+	const enumRenames: { from: Enum; to: Enum }[] = [];
+	const seqRenames: { from: Sequence; to: Sequence }[] = [];
+	const policyRenames: { from: Policy; to: Policy }[] = [];
+	const roleRenames: { from: Role; to: Role }[] = [];
+	const privilegeRenames: { from: Privilege; to: Privilege }[] = [];
+	const tableRenames: { from: PostgresEntities['tables']; to: PostgresEntities['tables'] }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+	const uniqueRenames: { from: UniqueConstraint; to: UniqueConstraint }[] = [];
+	const indexRenames: { from: Index; to: Index }[] = [];
+	const checkRenames: { from: CheckConstraint; to: CheckConstraint }[] = [];
+	const pkRenames: { from: PrimaryKey; to: PrimaryKey }[] = [];
+	const fkRenames: { from: ForeignKey; to: ForeignKey }[] = [];
+
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', config.hints),
-		resolver<Enum>('enum', config.hints),
-		resolver<Sequence>('sequence', config.hints),
-		resolver<Policy>('policy', config.hints),
-		resolver<Role>('role', config.hints),
-		resolver<Privilege>('privilege', config.hints),
-		resolver<PostgresEntities['tables']>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		resolver<View>('view', config.hints),
-		resolver<UniqueConstraint>('unique', config.hints),
-		resolver<Index>('index', config.hints),
-		resolver<CheckConstraint>('check', config.hints),
-		resolver<PrimaryKey>('primary_key', config.hints),
-		resolver<ForeignKey>('foreign key', config.hints),
+		withCapture(resolver<Schema>('schema', config.hints), schemaRenames),
+		withCapture(resolver<Enum>('enum', config.hints), enumRenames),
+		withCapture(resolver<Sequence>('sequence', config.hints), seqRenames),
+		withCapture(resolver<Policy>('policy', config.hints), policyRenames),
+		withCapture(resolver<Role>('role', config.hints), roleRenames),
+		withCapture(resolver<Privilege>('privilege', config.hints), privilegeRenames),
+		withCapture(resolver<PostgresEntities['tables']>('table', config.hints), tableRenames),
+		withCapture(resolver<Column>('column', config.hints), columnRenames),
+		withCapture(resolver<View>('view', config.hints), viewRenames),
+		withCapture(resolver<UniqueConstraint>('unique', config.hints), uniqueRenames),
+		withCapture(resolver<Index>('index', config.hints), indexRenames),
+		withCapture(resolver<CheckConstraint>('check', config.hints), checkRenames),
+		withCapture(resolver<PrimaryKey>('primary_key', config.hints), pkRenames),
+		withCapture(resolver<ForeignKey>('foreign key', config.hints), fkRenames),
 		'default',
 	);
 
@@ -81,10 +97,31 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
+	const { sqlStatements: downSqlStatements } = await ddlDiff(
+		ddlCur,
+		ddlPrev,
+		makeInverseResolver(schemaRenames),
+		makeInverseResolver(enumRenames),
+		makeInverseResolver(seqRenames),
+		makeInverseResolver(policyRenames),
+		makeInverseResolver(roleRenames),
+		makeInverseResolver(privilegeRenames),
+		makeInverseResolver(tableRenames),
+		makeInverseResolver(columnRenames),
+		makeInverseResolver(viewRenames),
+		makeInverseResolver(uniqueRenames),
+		makeInverseResolver(indexRenames),
+		makeInverseResolver(checkRenames),
+		makeInverseResolver(pkRenames),
+		makeInverseResolver(fkRenames),
+		'default',
+	);
+
 	if (!config.explain) {
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			downSqlStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
