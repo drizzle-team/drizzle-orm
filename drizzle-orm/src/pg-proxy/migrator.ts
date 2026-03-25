@@ -123,7 +123,9 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 		}
 		queriesToRun.push(
 			...[...meta.downSql].reverse(),
-			`DELETE FROM "${migrationsSchema}"."${migrationsTable}" WHERE id = ${dbMigration.id}`,
+			db.dialect.sqlToQuery(
+				sql`delete from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} where id = ${dbMigration.id}`.inlineParams(),
+			).sql,
 		);
 	}
 
