@@ -142,15 +142,17 @@ export function rollback<TSchema extends Record<string, unknown>, TRelations ext
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
-			const dbMigrations = db.values<[number, string, string]>(
-				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+			const dbMigrations = db.values<[number, string, string, string | null]>(
+				sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 			);
 
 			if (dbMigrations.length === 0) return;
 
 			for (const dbMigration of dbMigrations) {
 				const meta = migrations.find((m) =>
-					m.hash ? m.hash === dbMigration[1] : m.folderMillis === Number(dbMigration[2])
+					m.hash
+						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
+						: m.folderMillis === Number(dbMigration[2])
 				);
 				if (!meta) {
 					throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found` });

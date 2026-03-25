@@ -356,8 +356,8 @@ export async function rollback(
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
+	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
 			sql.identifier(migrationsTable)
 		} order by id desc limit ${sql.raw(String(steps))}`,
 	);
@@ -368,7 +368,7 @@ export async function rollback(
 
 	await db.transaction(async (tx) => {
 		for (const dbMigration of dbMigrations) {
-			const meta = migrations.find((m) => m.hash === dbMigration.hash);
+			const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
 			if (!meta) {
 				throw new DrizzleError({
 					message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
