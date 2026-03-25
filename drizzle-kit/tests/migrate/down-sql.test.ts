@@ -103,6 +103,30 @@ describe('writeResult — down SQL file generation', () => {
 		const tag = dirs[0]!;
 		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
 		expect(downContent).toContain('--> statement-breakpoint');
+		// Exactly one breakpoint between two statements
+		const parts = downContent.split('--> statement-breakpoint\n');
+		expect(parts).toHaveLength(2);
+		expect(parts[0]!.trim()).toBe('DROP TABLE b');
+		expect(parts[1]!.trim()).toBe('DROP TABLE a');
+	});
+
+	test('uses newline delimiter when breakpoints is false', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: ['CREATE TABLE a (id INTEGER)', 'CREATE TABLE b (id INTEGER)'],
+			downSqlStatements: ['DROP TABLE b', 'DROP TABLE a'],
+			outFolder: tmpDir,
+			breakpoints: false,
+			name: 'test_migration',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent).not.toContain('--> statement-breakpoint');
+		expect(downContent).toBe('DROP TABLE b\nDROP TABLE a');
 	});
 });
 

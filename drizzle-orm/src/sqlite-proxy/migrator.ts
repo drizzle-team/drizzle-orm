@@ -114,7 +114,12 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 		if (!meta.downSql || meta.downSql.length === 0) {
 			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
 		}
-		queriesToRun.push(...[...meta.downSql].reverse(), `DELETE FROM \`${migrationsTable}\` WHERE id = ${dbMigration[0]}`);
+		queriesToRun.push(
+			...[...meta.downSql].reverse(),
+			db.dialect.sqlToQuery(
+				sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration[0]}`.inlineParams(),
+			).sql,
+		);
 	}
 	await callback(queriesToRun);
 }
