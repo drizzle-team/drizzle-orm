@@ -1,3 +1,4 @@
+import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -77,4 +78,36 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	await db.session.migrate(statementToBatch);
 
 	return;
+}
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: LibSQLDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await db.values<[number, string, string]>(
+		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) return;
+
+	const statementToBatch = [];
+	for (const dbMigration of dbMigrations) {
+		const meta = migrations.find((m) => m.hash === dbMigration[1]);
+		if (!meta) {
+			throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found` });
+		}
+		if (!meta.downSql || meta.downSql.length === 0) {
+			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
+		}
+		for (const stmt of [...meta.downSql].reverse()) {
+			statementToBatch.push(db.run(sql.raw(stmt)));
+		}
+		statementToBatch.push(db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`));
+	}
+
+	await db.session.migrate(statementToBatch);
 }

@@ -10,3 +10,12 @@ export async function migrate<TRelations extends AnyRelations>(
 	const migrations = readMigrationFiles(config);
 	return db.dialect.migrate(migrations, db.session, config);
 }
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: MySql2Database<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps?: number,
+) {
+	const migrations = readMigrationFiles(config);
+	return await db.dialect.rollback(migrations, db.session, config, steps);
+}
