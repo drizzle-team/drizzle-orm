@@ -9,3 +9,5 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 	const migrations = readMigrationFiles(config);
 	return await db.dialect.migrate(migrations, db.session, config);
 }
+
+// TODO: Add rollback() once MsSqlDialect supports rollback
