@@ -3071,6 +3071,12 @@ it.layer(TestLive)((it) => {
 					interval: interval('interval'),
 					json: json('json'),
 					jsonb: jsonb('jsonb'),
+					json1: json('json1'),
+					jsonb1: jsonb('jsonb1'),
+					json2: json('json2'),
+					jsonb2: jsonb('jsonb2'),
+					json3: json('json3'),
+					jsonb3: jsonb('jsonb3'),
 					line: line('line', {
 						mode: 'abc',
 					}),
@@ -3112,6 +3118,12 @@ it.layer(TestLive)((it) => {
 					arrinterval: interval('arrinterval').array(),
 					arrjson: json('arrjson').array(),
 					arrjsonb: jsonb('arrjsonb').array(),
+					arrjson1: json('arrjson1').array(),
+					arrjsonb1: jsonb('arrjsonb1').array(),
+					arrjson2: json('arrjson2').array(),
+					arrjsonb2: jsonb('arrjsonb2').array(),
+					arrjson3: json('arrjson3').array(),
+					arrjsonb3: jsonb('arrjsonb3').array(),
 					arrline: line('arrline', {
 						mode: 'abc',
 					}).array(),
@@ -3168,6 +3180,12 @@ it.layer(TestLive)((it) => {
 						str: 'strvalb',
 						arr: ['strb', 11],
 					},
+					json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+					jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+					json2: 5,
+					jsonb2: 7,
+					json3: '5',
+					jsonb3: '7',
 					line: {
 						a: 1,
 						b: 2,
@@ -3211,6 +3229,12 @@ it.layer(TestLive)((it) => {
 						str: 'strvalb',
 						arr: ['strb', 11],
 					}],
+					arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+					arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+					arrjson2: [5],
+					arrjsonb2: [7],
+					arrjson3: ['5'],
+					arrjsonb3: ['7'],
 					arrline: [{
 						a: 1,
 						b: 2,
@@ -3249,6 +3273,12 @@ it.layer(TestLive)((it) => {
 					interval: string | null;
 					json: unknown;
 					jsonb: unknown;
+					json1: unknown;
+					jsonb1: unknown;
+					json2: unknown;
+					jsonb2: unknown;
+					json3: unknown;
+					jsonb3: unknown;
 					line: string | null;
 					macaddr: string | null;
 					macaddr8: string | null;
@@ -3277,6 +3307,12 @@ it.layer(TestLive)((it) => {
 					arrinterval: string[] | null;
 					arrjson: unknown[] | null;
 					arrjsonb: unknown[] | null;
+					arrjson1: unknown[] | null;
+					arrjsonb1: unknown[] | null;
+					arrjson2: unknown[] | null;
+					arrjsonb2: unknown[] | null;
+					arrjson3: unknown[] | null;
+					arrjsonb3: unknown[] | null;
 					arrline: string[] | null;
 					arrmacaddr: string[] | null;
 					arrmacaddr8: string[] | null;
@@ -3308,6 +3344,12 @@ it.layer(TestLive)((it) => {
 					interval: '-2 mons',
 					json: { str: 'strval', arr: ['str', 10] },
 					jsonb: { arr: ['strb', 11], str: 'strvalb' },
+					json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+					jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+					json2: 5,
+					jsonb2: 7,
+					json3: '5',
+					jsonb3: '7',
 					line: '{1,2,3}',
 					macaddr: '08:00:2b:01:02:03',
 					macaddr8: '08:00:2b:01:02:03:04:05',
@@ -3339,6 +3381,12 @@ it.layer(TestLive)((it) => {
 					arrinterval: ['-2 mons'],
 					arrjson: [{ str: 'strval', arr: ['str', 10] }],
 					arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+					arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+					arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+					arrjson2: [5],
+					arrjsonb2: [7],
+					arrjson3: ['5'],
+					arrjsonb3: ['7'],
 					arrline: ['{1,2,3}'],
 					arrmacaddr: ['08:00:2b:01:02:03'],
 					arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
@@ -3359,7 +3407,7 @@ it.layer(TestLive)((it) => {
 						db,
 						columns: getColumns(allTypesTable),
 						data: e as ExpectedType[],
-						mode: 'queryNormalize',
+						mode: 'query',
 					})[0]
 				));
 
@@ -3386,13 +3434,13 @@ it.layer(TestLive)((it) => {
 							db,
 							columns: getColumns(allTypesTable),
 							data: relationRaw as ExpectedType[],
-							mode: 'jsonNormalize',
+							mode: 'json',
 						})[0]!,
 						rootRes: normalizeDataWithDbCodecs({
 							db,
 							columns: getColumns(allTypesTable),
 							data: [rootRaw],
-							mode: 'queryNormalize',
+							mode: 'query',
 						})[0]!,
 					};
 				}));

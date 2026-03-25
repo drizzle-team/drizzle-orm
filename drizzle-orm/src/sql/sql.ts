@@ -254,11 +254,11 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				if (is(chunk.value, Placeholder)) {
 					const escaped = escapeParam(paramStartIndex.value++, chunk);
 					chunk.codec = useCodecs
-						? (value) => codecs.apply(chunk.encoder as Column, 'paramNormalize', value)
+						? (value) => codecs.apply(chunk.encoder as Column, 'normalizeParam', value)
 						: undefined;
 					return {
 						sql: useCodecs
-							? codecs.apply(chunk.encoder, 'paramCast', escaped)
+							? codecs.apply(chunk.encoder, 'castParam', escaped)
 							: escaped,
 						params: [chunk],
 						typings: ['none'],
@@ -280,7 +280,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					if (useCodecs) {
 						mappedValue = codecs.apply(
 							chunk.encoder,
-							'paramNormalize',
+							'normalizeParam',
 							mappedValue,
 						);
 					}
@@ -298,7 +298,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
 				return {
 					sql: useCodecs
-						? codecs.apply(chunk.encoder, 'paramCast', escaped)
+						? codecs.apply(chunk.encoder, 'castParam', escaped)
 						: escaped,
 					params: [mappedValue],
 					typings,

@@ -2,13 +2,13 @@ import {
 	type CastArrayCodec,
 	type CastCodec,
 	type Codecs,
-	extendCodecs,
 	type NormalizeArrayCodec,
 	type NormalizeCodec,
+	refineCodecs,
 } from '~/codecs.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
-import { parsePgArray } from './utils/array.ts';
+import { makePgArray, parsePgArray } from './utils/array.ts';
 
 export type PostgresType =
 	// Numeric
@@ -201,9 +201,8 @@ order by ${aliases[dim - 1]})`;
 	return sql`case when ${name} is null then null else ${expression} end`;
 };
 
-/** Used to recursively apply value normalizer to array of unknown dimensions
- */
-export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
+/** Used to recursively apply value normalizer to array of unknown dimensions */
+export const arrayCompatNormalize = (normalize: NormalizeCodec, transformToPgArray = false) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions) => {
 		const innerDimensions = arrayDimensions - 1;
 		if (arrayDimensions > 1) {
@@ -219,89 +218,88 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 		return value;
 	};
 
-	return loop;
+	return transformToPgArray ? (v: any, d: number) => makePgArray(loop(v, d)) : loop;
 };
 
 export const genericPgCodecs: PgCodecs = {
-	jsonCast: {
-		bytea: {
-			item: (name) => sql`encode(${name}, 'base64')`,
-			array: arrayCompatCast((name) => sql`encode(${name}, 'base64')`),
-		},
-		bigint: { item: castToText, array: castToTextArr },
-		bigserial: { item: castToText, array: castToTextArr },
-		geometry: { item: castToText, array: castToTextArr },
-		interval: { array: castToTextArr },
-		numeric: { item: castToText, array: castToTextArr },
-		timestamp: { item: castToText, array: castToTextArr },
-		timestamptz: { item: castToText, array: castToTextArr },
-		point: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		line: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		macaddr8: {
-			array: castToTextArr,
-		},
+	bytea: {
+		castInJson: (name) => sql`encode(${name}, 'base64')`,
+		castArrayInJson: arrayCompatCast((name) => sql`encode(${name}, 'base64')`),
+		normalizeInJson: (v: string) => Buffer.from(v, 'base64'),
+		normalizeArrayInJson: arrayCompatNormalize((v: string) => Buffer.from(v, 'base64')),
 	},
-	jsonNormalize: {
-		bytea: {
-			item: (v: string) => Buffer.from(v, 'base64'),
-			array: arrayCompatNormalize((v: string) => Buffer.from(v, 'base64')),
-		},
-		bigint: { item: BigInt, array: arrayCompatNormalize(BigInt) },
-		bigserial: { item: BigInt, array: arrayCompatNormalize(BigInt) },
+	bigint: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		normalizeInJson: BigInt,
+		normalizeArrayInJson: arrayCompatNormalize(BigInt),
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
-	queryCast: {
-		timestamp: {
-			array: castToTextArr,
-		},
-		timestamptz: {
-			array: castToTextArr,
-		},
-		date: {
-			array: castToTextArr,
-		},
-		numeric: {
-			array: castToTextArr,
-		},
-		enum: {
-			array: castToTextArr,
-		},
-		interval: {
-			array: castToTextArr,
-		},
-		point: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		line: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		macaddr8: {
-			array: castToTextArr,
-		},
+	bigserial: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		normalizeInJson: BigInt,
+		normalizeArrayInJson: arrayCompatNormalize(BigInt),
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
-	queryNormalize: {
-		bigint: {
-			item: BigInt,
-			array: arrayCompatNormalize(BigInt),
-		},
-		bigserial: {
-			item: BigInt,
-			array: arrayCompatNormalize(BigInt),
-		},
-		geometry: {
-			array: parsePgArray,
-		},
+	date: {
+		castArray: castToTextArr,
 	},
-	paramCast: {},
-	paramNormalize: {},
+	enum: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	geometry: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		normalizeArray: parsePgArray,
+	},
+	interval: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	json: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalize((v) => JSON.stringify(v), true),
+	},
+	jsonb: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalize((v) => JSON.stringify(v), true),
+	},
+	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	numeric: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	timestamp: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	timestamptz: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
 };
 
-export const extendGenericPgCodecs = (extension?: PartialWithUndefined<PgCodecs>): PgCodecs =>
-	extendCodecs<PostgresType>(genericPgCodecs, extension);
+export const refineGenericPgCodecs = (extension?: PartialWithUndefined<PgCodecs>): PgCodecs =>
+	refineCodecs<PostgresType>(genericPgCodecs, extension);

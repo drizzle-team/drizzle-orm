@@ -34,12 +34,7 @@ export class PgDate extends PgColumn<'object date'> {
 
 	override mapToDriverValue = function(value: Date | string): string {
 		if (typeof value === 'string') return value;
-		try {
-			return value.toISOString();
-		} catch (e) {
-			console.log(value);
-			throw e;
-		}
+		return value.toISOString();
 	};
 }
 

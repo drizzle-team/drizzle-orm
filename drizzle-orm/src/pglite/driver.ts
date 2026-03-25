@@ -9,8 +9,9 @@ import {
 	arrayCompatNormalize,
 	castToText,
 	castToTextArr,
-	extendGenericPgCodecs,
 	genericPgCodecs,
+	type PgCodecs,
+	refineGenericPgCodecs,
 } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -31,46 +32,48 @@ export class PgliteDatabase<
 	static override readonly [entityKind]: string = 'PgliteDatabase';
 }
 
-export const pgliteCodecs = extendGenericPgCodecs({
-	jsonNormalize: {
-		bytea: {
-			item: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.jsonNormalize.bytea?.item,
-			array: typeof Buffer === 'undefined'
-				? arrayCompatNormalize(base64ToUint8Array)
-				: genericPgCodecs.jsonNormalize.bytea?.array,
-		},
+export const pgliteCodecs = refineGenericPgCodecs({
+	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
-	jsonCast: {
-		point: undefined,
-		line: undefined,
-		macaddr8: {
-			array: undefined,
-		},
+	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
-	queryCast: {
-		bigint: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		bigserial: {
-			item: castToText,
-			array: castToTextArr,
-		},
-		point: undefined,
-		line: undefined,
-		macaddr8: {
-			array: undefined,
-		},
+	bytea: {
+		normalizeInJson: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.bytea?.normalizeInJson,
+		normalizeArrayInJson: typeof Buffer === 'undefined'
+			? arrayCompatNormalize(base64ToUint8Array)
+			: genericPgCodecs.bytea?.normalizeArrayInJson,
+		normalize: typeof Buffer === 'undefined'
+			? genericPgCodecs.bytea?.normalize
+			: (v: Uint8Array) => Buffer.from(v),
+		normalizeArray: typeof Buffer === 'undefined'
+			? genericPgCodecs.bytea?.normalizeArray
+			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
-	queryNormalize: {
-		bytea: {
-			item: typeof Buffer === 'undefined'
-				? genericPgCodecs.queryNormalize.bytea?.item
-				: (v: Uint8Array) => Buffer.from(v),
-			array: typeof Buffer === 'undefined'
-				? genericPgCodecs.queryNormalize.bytea?.array
-				: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
-		},
+	json: {
+		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
+	},
+	jsonb: {
+		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
+	},
+	point: {
+		cast: undefined,
+		castArray: undefined,
+		castInJson: undefined,
+		castArrayInJson: undefined,
+	},
+	line: {
+		cast: undefined,
+		castArray: undefined,
+		castInJson: undefined,
+		castArrayInJson: undefined,
+	},
+	macaddr8: {
+		castArrayInJson: undefined,
+		castArray: undefined,
 	},
 });
 
@@ -79,11 +82,15 @@ function construct<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: PgliteClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
 ): PgliteDatabase<TSchema, TRelations> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing, useJitMappers: config.useJitMappers, codecs: pgliteCodecs });
+	const dialect = new PgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: config.codecs ?? pgliteCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -147,11 +154,12 @@ export function drizzle<
 		]
 		| [
 			string,
-			DrizzleConfig<TSchema, TRelations>,
+			DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 		]
 		| [
 			(
 				& DrizzleConfig<TSchema, TRelations>
+				& { codecs?: PgCodecs }
 				& ({
 					connection?: (PGliteOptions & { dataDir?: string }) | string;
 				} | {
@@ -167,10 +175,13 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...drizzleConfig } = params[0] as {
-		connection?: PGliteOptions & { dataDir: string };
-		client?: TClient;
-	} & DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& {
+			connection?: PGliteOptions & { dataDir: string };
+			client?: TClient;
+		}
+		& DrizzleConfig<TSchema, TRelations>
+		& { codecs?: PgCodecs };
 
 	if (client) return construct(client, drizzleConfig) as any;
 
@@ -192,7 +203,7 @@ export namespace drizzle {
 		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
+		config?: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
 	): PgliteDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

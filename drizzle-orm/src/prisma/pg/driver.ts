@@ -6,13 +6,13 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { extendGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/index.ts';
 import type { Casing, DrizzleConfig } from '~/utils.ts';
 import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
 
-export const prismaPgCodecs = extendGenericPgCodecs();
+export const prismaPgCodecs = refineGenericPgCodecs();
 
 export class PrismaPgDatabase extends PgAsyncDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
 	static override readonly [entityKind]: string = 'PrismaPgDatabase';
