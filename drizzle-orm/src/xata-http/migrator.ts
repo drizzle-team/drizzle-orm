@@ -1,3 +1,4 @@
+import { DrizzleError } from '~/errors.ts';
 import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -87,5 +88,34 @@ export interface MigrationConfig {
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
+	}
+}
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: XataHttpDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await db.session.all<{ id: number; hash: string }>(
+		sql`select id, hash from ${sql.identifier(migrationsTable)} order by id desc limit ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) return;
+
+	for (const dbMigration of dbMigrations) {
+		const meta = migrations.find((m) => m.hash === dbMigration.hash);
+		if (!meta) {
+			throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found` });
+		}
+		if (!meta.downSql || meta.downSql.length === 0) {
+			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available.` });
+		}
+		for (const stmt of [...meta.downSql].reverse()) {
+			await db.session.execute(sql.raw(stmt));
+		}
+		await db.session.execute(sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration.id}`);
 	}
 }
