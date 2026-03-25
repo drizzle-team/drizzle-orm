@@ -155,8 +155,8 @@ export class MySqlDialect {
 	): Promise<void> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by id desc limit ${
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`select id, hash, name from ${sql.identifier(migrationsTable)} order by id desc limit ${
 				sql.raw(String(steps))
 			}`,
 		);
@@ -167,7 +167,7 @@ export class MySqlDialect {
 
 		await session.transaction(async (tx) => {
 			for (const dbMigration of dbMigrations) {
-				const meta = migrations.find((m) => m.hash === dbMigration.hash);
+				const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
 				if (!meta) {
 					throw new DrizzleError({
 						message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
