@@ -110,8 +110,8 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
-	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`SELECT id, hash, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 	);
 
 	if (dbMigrations.length === 0) return;
@@ -119,7 +119,7 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 	await session.run(sql`BEGIN TRANSACTION`);
 	try {
 		for (const dbMigration of dbMigrations) {
-			const meta = migrations.find((m) => m.hash === dbMigration.hash);
+			const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
 			if (!meta) {
 				throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found` });
 			}

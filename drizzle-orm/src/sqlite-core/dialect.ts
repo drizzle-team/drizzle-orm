@@ -1246,8 +1246,8 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
 
-		const dbMigrations = session.values<[number, string, string]>(
-			sql`SELECT id, hash, created_at FROM ${
+		const dbMigrations = session.values<[number, string, string, string | null]>(
+			sql`SELECT id, hash, created_at, name FROM ${
 				sql.identifier(migrationsTable)
 			} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 		);
@@ -1260,7 +1260,9 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		try {
 			for (const dbMigration of dbMigrations) {
 				const meta = migrations.find((m) =>
-					m.hash ? m.hash === dbMigration[1] : m.folderMillis === Number(dbMigration[2])
+					m.hash
+						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
+						: m.folderMillis === Number(dbMigration[2])
 				);
 				if (!meta) {
 					throw new DrizzleError({
@@ -1386,8 +1388,8 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			? '__drizzle_migrations'
 			: config.migrationsTable ?? '__drizzle_migrations';
 
-		const dbMigrations = await session.values<[number, string, string]>(
-			sql`SELECT rowid, hash, created_at FROM ${
+		const dbMigrations = await session.values<[number, string, string, string | null]>(
+			sql`SELECT rowid, hash, created_at, name FROM ${
 				sql.identifier(migrationsTable)
 			} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 		);
@@ -1399,7 +1401,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		await session.transaction(async (tx) => {
 			for (const dbMigration of dbMigrations) {
 				const meta = migrations.find((m) =>
-					m.hash ? m.hash === dbMigration[1] : m.folderMillis === Number(dbMigration[2])
+					m.hash
+						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
+						: m.folderMillis === Number(dbMigration[2])
 				);
 				if (!meta) {
 					throw new DrizzleError({

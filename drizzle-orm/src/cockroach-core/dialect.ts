@@ -130,8 +130,8 @@ export class CockroachDialect {
 			: config.migrationsTable ?? '__drizzle_migrations';
 		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-		const dbMigrations = await session.all<{ id: number; hash: string }>(
-			sql`select id, hash from ${sql.identifier(migrationsSchema)}.${
+		const dbMigrations = await session.all<{ id: number; hash: string; name: string | null }>(
+			sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} order by id desc limit ${sql.raw(String(steps))}`,
 		);
@@ -142,7 +142,7 @@ export class CockroachDialect {
 
 		await session.transaction(async (tx) => {
 			for (const dbMigration of dbMigrations) {
-				const meta = migrations.find((m) => m.hash === dbMigration.hash);
+				const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
 				if (!meta) {
 					throw new DrizzleError({
 						message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
