@@ -143,7 +143,7 @@ export function rollback<TSchema extends Record<string, unknown>, TRelations ext
 			const migrationsTable = '__drizzle_migrations';
 
 			const dbMigrations = db.values<[number, string, string]>(
-				sql`SELECT rowid, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 			);
 
 			if (dbMigrations.length === 0) return;
@@ -161,7 +161,7 @@ export function rollback<TSchema extends Record<string, unknown>, TRelations ext
 				for (const stmt of [...meta.downSql].reverse()) {
 					db.run(sql.raw(stmt));
 				}
-				db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE rowid = ${dbMigration[0]}`);
+				db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`);
 			}
 		} catch (error: any) {
 			tx.rollback();

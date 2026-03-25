@@ -72,8 +72,7 @@ export const writeResult = (config: {
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
 
 	if (downSqlStatements && downSqlStatements.length > 0) {
-		const downSqlDelimiter = breakpoints ? BREAKPOINT : '\n';
-		const downSql = downSqlStatements.join(downSqlDelimiter);
+		const downSql = downSqlStatements.join(sqlDelimiter);
 		fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
 	}
 
@@ -115,7 +114,7 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	const downMigrations: Record<string, string> = {};
 	snapshots.forEach((entry, idx) => {
 		const prefix = entry.split('/')[entry.split('/').length - 2];
-		const downPath = join(entry.replace('/snapshot.json', ''), 'down.sql');
+		const downPath = join(path.dirname(entry), 'down.sql');
 		if (fs.existsSync(downPath)) {
 			const importName = idx.toString().padStart(4, '0');
 			content += `import d${importName} from './${prefix}/down.sql';\n`;
@@ -133,8 +132,8 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	content += `
   export default {
     migrations: {
-      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n')}
-}${downBlock}
+      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n      ')}
+    }${downBlock}
   }
   `;
 
