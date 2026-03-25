@@ -3,8 +3,7 @@ import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
-import { TransactionRollbackError } from '~/errors.ts';
-import { DrizzleQueryError } from '~/errors.ts';
+import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -304,6 +303,52 @@ export async function migrate(
 				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
 					migration.name ?? null
 				})`,
+			);
+		}
+	});
+}
+
+export async function rollback(
+	migrations: MigrationMeta[],
+	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	config: string | MigrationConfig,
+	steps: number = 1,
+): Promise<void> {
+	const migrationsTable = typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+
+	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
+		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
+			sql.identifier(migrationsTable)
+		} order by id desc limit ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) {
+		return;
+	}
+
+	await db.transaction(async (tx) => {
+		for (const dbMigration of dbMigrations) {
+			const meta = migrations.find((m) => m.hash === dbMigration.hash);
+			if (!meta) {
+				throw new DrizzleError({
+					message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+				});
+			}
+			if (!meta.downSql || meta.downSql.length === 0) {
+				throw new DrizzleError({
+					message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+				});
+			}
+			for (const stmt of [...meta.downSql].reverse()) {
+				await tx.execute(sql.raw(stmt));
+			}
+			await tx.execute(
+				sql`delete from ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} where id = ${dbMigration.id}`,
 			);
 		}
 	});

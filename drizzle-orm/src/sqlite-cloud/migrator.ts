@@ -1,3 +1,4 @@
+import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -88,6 +89,48 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 
 		await session.run(stmts);
 
+		await session.run(sql`COMMIT`);
+	} catch (error) {
+		await session.run(sql`ROLLBACK`);
+		throw error;
+	}
+}
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: SQLiteCloudDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = readMigrationFiles(config);
+	const { session } = db;
+
+	const migrationsTable = config === undefined
+		? '__drizzle_migrations'
+		: typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
+		sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) return;
+
+	await session.run(sql`BEGIN TRANSACTION`);
+	try {
+		for (const dbMigration of dbMigrations) {
+			const meta = migrations.find((m) => m.hash === dbMigration.hash);
+			if (!meta) {
+				throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found` });
+			}
+			if (!meta.downSql || meta.downSql.length === 0) {
+				throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available.` });
+			}
+			for (const stmt of [...meta.downSql].reverse()) {
+				await session.run(sql.raw(stmt));
+			}
+			await session.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration.id}`);
+		}
 		await session.run(sql`COMMIT`);
 	} catch (error) {
 		await session.run(sql`ROLLBACK`);
