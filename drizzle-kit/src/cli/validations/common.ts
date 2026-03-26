@@ -72,6 +72,7 @@ export const sqliteDriversLiterals = [
 export const postgresqlDriversLiterals = [
 	literal('aws-data-api'),
 	literal('pglite'),
+	literal('aws-dsql'),
 ] as const;
 
 export const casingTypes = ['snake_case', 'camelCase'] as const;
@@ -150,7 +151,15 @@ export const configPushSchema = object({
 });
 
 export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
+export const drivers = [
+	'd1-http',
+	'expo',
+	'aws-data-api',
+	'pglite',
+	'durable-sqlite',
+	'sqlite-cloud',
+	'aws-dsql',
+] as const;
 export type Driver = (typeof drivers)[number];
 const _: Driver = '' as TypeOf<typeof driver>;
 

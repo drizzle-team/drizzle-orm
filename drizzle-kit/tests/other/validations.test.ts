@@ -303,6 +303,61 @@ test('PGlite #3', () => {
 	}).toThrowError();
 });
 
+test('AWS DSQL #1', () => {
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'aws-dsql',
+			host: 'cluster.dsql.us-west-2.on.aws',
+		}),
+	).toStrictEqual({
+		driver: 'aws-dsql',
+		host: 'cluster.dsql.us-west-2.on.aws',
+		database: 'postgres',
+		user: 'admin',
+	});
+});
+
+test('AWS DSQL #2', () => {
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'aws-dsql',
+			host: 'cluster.dsql.us-west-2.on.aws',
+			database: 'mydb',
+			user: 'myuser',
+			region: 'us-west-2',
+			profile: 'myprofile',
+		}),
+	).toStrictEqual({
+		driver: 'aws-dsql',
+		host: 'cluster.dsql.us-west-2.on.aws',
+		database: 'mydb',
+		user: 'myuser',
+		region: 'us-west-2',
+		profile: 'myprofile',
+	});
+});
+
+test('AWS DSQL #3', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'aws-dsql',
+			host: '',
+		});
+	}).toThrowError();
+});
+
+test('AWS DSQL #4', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'aws-dsql',
+		});
+	}).toThrowError();
+});
+
 test('postgres #1', () => {
 	expect(
 		postgresCredentials.parse({

@@ -40,6 +40,15 @@ export const postgresCredentials = union([
 		driver: literal('pglite'),
 		url: string().min(1),
 	}),
+	object({
+		driver: literal('aws-dsql'),
+		host: string().min(1),
+		database: string().min(1).optional().default('postgres'),
+		user: string().min(1).optional().default('admin'),
+		region: string().min(1).optional(),
+		profile: string().min(1).optional(),
+		tokenDurationSecs: coerce.number().optional(),
+	}),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
@@ -53,6 +62,17 @@ export const printConfigConnectionIssues = (
 		console.log(wrapParam('database', options.database));
 		console.log(wrapParam('secretArn', options.secretArn, false, 'secret'));
 		console.log(wrapParam('resourceArn', options.resourceArn, false, 'secret'));
+		process.exit(1);
+	}
+
+	if (options.driver === 'aws-dsql') {
+		let text = `Please provide required params for AWS DSQL driver:\n`;
+		console.log(error(text));
+		console.log(wrapParam('host', options.host));
+		console.log(wrapParam('database', options.database, true));
+		console.log(wrapParam('user', options.user, true));
+		console.log(wrapParam('region', options.region, true));
+		console.log(wrapParam('profile', options.profile, true));
 		process.exit(1);
 	}
 
