@@ -3,9 +3,10 @@ import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
+import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { pgTable } from './table.ts';
@@ -169,6 +170,7 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 		using?: string;
 		tablespace?: string;
 		withNoData?: boolean;
+		dependsOn?: string[];
 	} = {};
 
 	using(using: string): this {
@@ -188,6 +190,14 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 
 	withNoData(): this {
 		this.config.withNoData = true;
+		return this;
+	}
+
+	dependsOn(...targets: Array<View | string>): this {
+		const schema = this.schema ?? 'public';
+		const normalized = targets.map((target) => normalizeDependsOnTarget(target, schema));
+		const unique = new Set([...(this.config.dependsOn ?? []), ...normalized]);
+		this.config.dependsOn = Array.from(unique);
 		return this;
 	}
 }
@@ -217,6 +227,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 					using: this.config.using,
 					tablespace: this.config.tablespace,
 					withNoData: this.config.withNoData,
+					dependsOn: this.config.dependsOn,
 				},
 				config: {
 					name: this.name,
@@ -255,6 +266,7 @@ export class ManualMaterializedViewBuilder<
 					using: this.config.using,
 					with: this.config.with,
 					withNoData: this.config.withNoData,
+					dependsOn: this.config.dependsOn,
 				},
 				config: {
 					name: this.name,
@@ -280,6 +292,7 @@ export class ManualMaterializedViewBuilder<
 					using: this.config.using,
 					with: this.config.with,
 					withNoData: this.config.withNoData,
+					dependsOn: this.config.dependsOn,
 				},
 				config: {
 					name: this.name,
@@ -349,6 +362,7 @@ export class PgMaterializedView<
 		readonly using?: string;
 		readonly tablespace?: string;
 		readonly withNoData?: boolean;
+		readonly dependsOn?: string[];
 	} | undefined;
 
 	constructor({ pgConfig, config }: {
@@ -357,6 +371,7 @@ export class PgMaterializedView<
 			using: string | undefined;
 			tablespace: string | undefined;
 			withNoData: boolean | undefined;
+			dependsOn: string[] | undefined;
 		} | undefined;
 		config: {
 			name: TName;
@@ -371,9 +386,20 @@ export class PgMaterializedView<
 			using: pgConfig?.using,
 			tablespace: pgConfig?.tablespace,
 			withNoData: pgConfig?.withNoData,
+			dependsOn: pgConfig?.dependsOn,
 		};
 	}
 }
+
+const normalizeDependsOnTarget = (target: View | string, defaultSchema: string): string => {
+	if (typeof target === 'string') {
+		if (target.includes('.')) return target;
+		return `${defaultSchema}.${target}`;
+	}
+
+	const { name, schema } = target[ViewBaseConfig];
+	return `${schema ?? 'public'}.${name}`;
+};
 
 export type PgMaterializedViewWithSelection<
 	TName extends string = string,
