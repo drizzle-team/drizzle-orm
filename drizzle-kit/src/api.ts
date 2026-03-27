@@ -142,7 +142,7 @@ export const pushSchema = async (
 		},
 	};
 
-	const cur = generateDrizzleJson(imports);
+	const cur = generateDrizzleJson(imports, undefined, schemaFilters, drizzleInstance.casing);
 	const { schema: prev } = await pgPushIntrospect(
 		db,
 		filters,
@@ -286,7 +286,7 @@ export const pushSQLiteSchema = async (
 		},
 	};
 
-	const cur = await generateSQLiteDrizzleJson(imports);
+	const cur = await generateSQLiteDrizzleJson(imports, undefined, drizzleInstance.casing);
 	const { schema: prev } = await sqlitePushIntrospect(db, []);
 
 	const validatedPrev = sqliteSchema.parse(prev);
@@ -426,7 +426,7 @@ export const pushMySQLSchema = async (
 			return res[0] as unknown as any[];
 		},
 	};
-	const cur = await generateMySQLDrizzleJson(imports);
+	const cur = await generateMySQLDrizzleJson(imports, undefined, drizzleInstance.casing);
 	const { schema: prev } = await mysqlPushIntrospect(db, databaseName, []);
 
 	const validatedPrev = mysqlSchema.parse(prev);
@@ -562,7 +562,7 @@ export const pushSingleStoreSchema = async (
 			return res[0] as unknown as any[];
 		},
 	};
-	const cur = await generateSingleStoreDrizzleJson(imports);
+	const cur = await generateSingleStoreDrizzleJson(imports, undefined, drizzleInstance.casing);
 	const { schema: prev } = await singlestorePushIntrospect(db, databaseName, []);
 
 	const validatedPrev = singlestoreSchema.parse(prev);

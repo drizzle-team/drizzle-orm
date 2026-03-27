@@ -746,6 +746,68 @@ const mysqlSuite: DialectSuite = {
 
 		await context.client.query(`DROP TABLE \`products_categories\``);
 	},
+	pushRespectsCasingConfiguration: async function(context?: any): Promise<void> {
+		const schema = {
+			users: mysqlTable('users', {
+				userId: serial('user_id').primaryKey(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name'),
+			}),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushMysql(
+			context.client as Connection,
+			{},
+			schema,
+			[],
+			'drizzle',
+			false,
+			'snake_case',
+		);
+
+		expect(statements).toStrictEqual([
+			{
+				type: 'create_table',
+				tableName: 'users',
+				schema: '',
+				columns: [
+					{
+						name: 'user_id',
+						type: 'serial',
+						primaryKey: true,
+						notNull: true,
+						autoincrement: true,
+					},
+					{
+						name: 'first_name',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					{
+						name: 'last_name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				],
+				compositePKs: [],
+				compositePkName: '',
+				uniqueConstraints: [],
+				checkConstraints: [],
+			},
+		]);
+
+		expect(sqlStatements.length).toBe(1);
+		expect(sqlStatements[0]).toContain('CREATE TABLE');
+		expect(sqlStatements[0]).toContain('`user_id`');
+		expect(sqlStatements[0]).toContain('`first_name`');
+		expect(sqlStatements[0]).toContain('`last_name`');
+
+		await context.client.query(`DROP TABLE \`users\``);
+	},
 };
 
 run(

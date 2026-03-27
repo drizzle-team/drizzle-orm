@@ -6,7 +6,7 @@ import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelation
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { Casing, DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
 import { MySqlCountBuilder } from './query-builders/count.ts';
 import {
@@ -44,6 +44,8 @@ export class MySqlDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 	};
+
+	readonly casing: Casing | undefined;
 
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
@@ -87,6 +89,7 @@ export class MySqlDatabase<
 			}
 		}
 		this.$cache = { invalidate: async (_params: any) => {} };
+		this.casing = dialect.casing.casing;
 	}
 
 	/**

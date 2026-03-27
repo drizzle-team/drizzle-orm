@@ -27,6 +27,7 @@ import type {
 } from './session.ts';
 import type { WithBuilder } from './subquery.ts';
 import type { SingleStoreTable } from './table.ts';
+import type { Casing } from '~/utils.ts';
 
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
@@ -41,6 +42,8 @@ export class SingleStoreDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 	};
+
+	readonly casing: Casing | undefined;
 
 	// We are waiting for SingleStore support for `json_array` function
 	/**@inrernal */
@@ -81,6 +84,7 @@ export class SingleStoreDatabase<
 		// 	}
 		// }
 		this.$cache = { invalidate: async (_params: any) => {} };
+		this.casing = dialect.casing.casing;
 	}
 
 	/**
