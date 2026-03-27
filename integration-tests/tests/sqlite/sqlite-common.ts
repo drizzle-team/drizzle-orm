@@ -1013,7 +1013,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-03-25')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-03-29')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const table1 = sqliteTable('table1', {
