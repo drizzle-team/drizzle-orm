@@ -12,7 +12,7 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 
 	const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id SERIAL PRIMARY KEY,
+			id integer PRIMARY KEY AUTOINCREMENT,
 			hash text NOT NULL,
 			created_at numeric
 		)
