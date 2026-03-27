@@ -26,6 +26,9 @@ export class PgLineBuilder extends PgColumnBuilder<{
 export class PgLineTuple extends PgColumn<'array line'> {
 	static override readonly [entityKind]: string = 'PgLine';
 
+	/** @internal */
+	override readonly useCodecType = 'line';
+
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
@@ -64,6 +67,9 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 
 export class PgLineABC extends PgColumn<'object line'> {
 	static override readonly [entityKind]: string = 'PgLineABC';
+
+	/** @internal */
+	override readonly useCodecType = 'line';
 
 	readonly mode = 'abc';
 

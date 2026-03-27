@@ -31,6 +31,9 @@ export class PgVectorBuilder extends PgColumnBuilder<
 export class PgVector extends PgColumn<'array vector'> {
 	static override readonly [entityKind]: string = 'PgVector';
 
+	/** @internal */
+	override readonly useCodecType = 'vector';
+
 	getSQLType(): string {
 		return `vector(${this.length})`;
 	}

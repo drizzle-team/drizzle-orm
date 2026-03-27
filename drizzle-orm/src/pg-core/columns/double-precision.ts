@@ -25,6 +25,9 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 export class PgDoublePrecision extends PgColumn<'number double'> {
 	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
+	/** @internal */
+	override readonly useCodecType = 'float8';
+
 	getSQLType(): string {
 		return 'double precision';
 	}

@@ -29,6 +29,9 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 export class PgSmallSerial extends PgColumn<'number int16'> {
 	static override readonly [entityKind]: string = 'PgSmallSerial';
 
+	/** @internal */
+	override readonly useCodecType = 'smallserial';
+
 	getSQLType(): string {
 		return 'smallserial';
 	}

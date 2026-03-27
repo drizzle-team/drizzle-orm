@@ -24,6 +24,9 @@ export class PgBigInt53Builder extends PgIntColumnBuilder<{
 export class PgBigInt53 extends PgColumn<'number int53'> {
 	static override readonly [entityKind]: string = 'PgBigInt53';
 
+	/** @internal */
+	override readonly useCodecType = 'bigint';
+
 	getSQLType(): string {
 		return 'bigint';
 	}
@@ -53,6 +56,9 @@ export class PgBigInt64Builder extends PgIntColumnBuilder<{
 export class PgBigInt64 extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgBigInt64';
 
+	/** @internal */
+	override readonly useCodecType = 'bigint';
+
 	getSQLType(): string {
 		return 'bigint';
 	}
@@ -77,6 +83,9 @@ export class PgBigIntStringBuilder extends PgIntColumnBuilder<{
 
 export class PgBigIntString extends PgColumn<'string int64'> {
 	static override readonly [entityKind]: string = 'PgBigIntString';
+
+	/** @internal */
+	override readonly useCodecType = 'bigint';
 
 	getSQLType(): string {
 		return 'bigint';

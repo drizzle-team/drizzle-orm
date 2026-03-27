@@ -282,7 +282,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				path: newPath,
 				field,
 				codec: codecs?.get(field, 'normalize'),
-				arrayDimensions: field.sqlTypeMeta.arrayDimensions,
+				arrayDimensions: (<any> field).dimensions,
 			});
 		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
 			result.push({ path: newPath, field });

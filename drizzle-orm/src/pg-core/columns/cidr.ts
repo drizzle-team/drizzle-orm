@@ -22,6 +22,9 @@ export class PgCidrBuilder extends PgColumnBuilder<{
 export class PgCidr extends PgColumn<'string cidr'> {
 	static override readonly [entityKind]: string = 'PgCidr';
 
+	/** @internal */
+	override readonly useCodecType = 'cidr';
+
 	getSQLType(): string {
 		return 'cidr';
 	}

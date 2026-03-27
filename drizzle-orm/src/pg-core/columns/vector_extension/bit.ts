@@ -31,6 +31,9 @@ export class PgBinaryVectorBuilder extends PgColumnBuilder<
 export class PgBinaryVector extends PgColumn<'string binary'> {
 	static override readonly [entityKind]: string = 'PgBinaryVector';
 
+	/** @internal */
+	override readonly useCodecType = 'bit';
+
 	getSQLType(): string {
 		return `bit(${this.length})`;
 	}

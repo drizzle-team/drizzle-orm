@@ -71,9 +71,10 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		| Codec[typeof arrayToItemTypeCodecNameMap[TCodecType]]
 		| Codec[typeof itemToArrayTypeCodecNameMap[TCodecType]]
 	{
-		const columnMeta = column.sqlTypeMeta;
-		const sqlType = this.resolveTypes(columnMeta.type) as TTypeSet;
-		const codecType = columnMeta.arrayDimensions
+		const sqlType = column.useCodecType as TTypeSet | undefined;
+		if (!sqlType) return undefined;
+
+		const codecType = (<any> column).dimensions
 			? itemToArrayTypeCodecNameMap[type]
 			: arrayToItemTypeCodecNameMap[type];
 
@@ -85,14 +86,15 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		type: TCodecType,
 		value: Codec[TCodecType] extends ((v: infer TValue, ...rest: any[]) => any) ? TValue : unknown,
 	): ReturnType<Exclude<Codec[TCodecType], undefined>> {
-		const columnMeta = column.sqlTypeMeta;
-		const sqlType = this.resolveTypes(columnMeta.type);
-		const codecType = columnMeta.arrayDimensions
+		const sqlType = column.useCodecType as TTypeSet | undefined;
+		if (!sqlType) return value as any;
+
+		const codecType = (<any> column).dimensions
 			? itemToArrayTypeCodecNameMap[type]
 			: arrayToItemTypeCodecNameMap[type];
 
 		const codec = this.codecs[sqlType]?.[codecType];
-		return (codec ? codec(value as any, columnMeta.arrayDimensions) : value) as any;
+		return (codec ? codec(value as any, (<any> column).dimensions) : value) as any;
 	}
 }
 

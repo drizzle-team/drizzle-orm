@@ -7,6 +7,7 @@ import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
+import type { PostgresType } from '../codecs.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 
 export type PgArrayDimension = 0 | 1 | 2 | 3 | 4 | 5;
@@ -413,6 +414,9 @@ export abstract class PgColumn<
 	static override readonly [entityKind]: string = 'PgColumn';
 
 	/** @internal */
+	abstract override readonly useCodecType?: PostgresType;
+
+	/** @internal */
 	override readonly table: PgTable;
 
 	readonly dimensions: PgArrayDimension;
@@ -449,31 +453,6 @@ export abstract class PgColumn<
 	}
 
 	/** @internal */
-	override get sqlTypeMeta(): {
-		type: string;
-		arrayDimensions: number;
-		length: number | undefined;
-		isLengthExact: boolean | undefined;
-	} {
-		if (!this._sqlTypeMeta) {
-			let column = this as PgColumn;
-			const arrayDimensions = this.dimensions;
-
-			const rawType = column.getSQLType().toLowerCase() as string; // Typescript somehow can't infer it's string
-			const typeEndIdx = Math.min(...[rawType.indexOf('('), rawType.indexOf('[')].filter((e) => e !== -1));
-
-			this._sqlTypeMeta = {
-				type: typeEndIdx >= rawType.length ? rawType : rawType.slice(0, typeEndIdx),
-				arrayDimensions,
-				length: this.length,
-				isLengthExact: this.isLengthExact,
-			};
-		}
-
-		return this._sqlTypeMeta!;
-	}
-
-	/** @internal */
 	private mapArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
 		if (depth > 0 && Array.isArray(value)) {
 			return value.map((v) => v === null ? null : this.mapArrayElements(v, mapper, depth - 1));
@@ -488,6 +467,9 @@ export class ExtraConfigColumn<
 	out T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
 > extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
+
+	/** @itnernal */
+	override readonly useCodecType = undefined;
 
 	override getSQLType(): string {
 		return this.getSQLType();

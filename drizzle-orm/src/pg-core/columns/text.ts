@@ -33,6 +33,9 @@ export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]>
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 
+	/** @internal */
+	override readonly useCodecType = 'text';
+
 	constructor(
 		table: PgTable<any>,
 		config: any,

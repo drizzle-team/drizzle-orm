@@ -54,6 +54,9 @@ export abstract class Column<
 
 	declare readonly _: T;
 
+	/** @internal */
+	readonly useCodecType?: string;
+
 	readonly name: string;
 	readonly keyAsName: boolean;
 	readonly primary: boolean;
@@ -112,42 +115,6 @@ export abstract class Column<
 	}
 
 	abstract getSQLType(): string;
-
-	/** @internal */
-	protected _sqlTypeMeta?: {
-		type: string;
-		arrayDimensions: number;
-		length: number | undefined;
-		isLengthExact: boolean | undefined;
-	};
-
-	/** @internal */
-	get sqlTypeMeta() {
-		if (!this._sqlTypeMeta) {
-			let column = this as Column;
-			const arrayDimensions = (() => {
-				let d = 0;
-				while ('baseColumn' in column) {
-					++d;
-					column = column['baseColumn'] as Column;
-				}
-
-				return d;
-			})();
-
-			const rawType = column.getSQLType().toLowerCase() as string; // Typescript somehow can't infer it's string
-			const typeEndIdx = Math.min(...[rawType.indexOf('('), rawType.indexOf('[')].filter((e) => e !== -1));
-
-			this._sqlTypeMeta = {
-				type: typeEndIdx >= rawType.length ? rawType : rawType.slice(0, typeEndIdx),
-				arrayDimensions,
-				length: this.length,
-				isLengthExact: this.isLengthExact,
-			};
-		}
-
-		return this._sqlTypeMeta!;
-	}
 
 	mapFromDriverValue = noop;
 

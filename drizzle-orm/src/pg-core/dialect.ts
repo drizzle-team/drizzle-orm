@@ -967,7 +967,7 @@ export class PgDialect {
 						? {
 							key: k,
 							codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-							arrayDimensions: v.sqlTypeMeta.arrayDimensions,
+							arrayDimensions: (<PgColumn> v).dimensions,
 							field: v,
 						}
 						: {
@@ -1010,7 +1010,7 @@ export class PgDialect {
 								? {
 									key: k,
 									codec: this.codecs.get(column, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: column.sqlTypeMeta.arrayDimensions,
+									arrayDimensions: (<PgColumn> column).dimensions,
 									field: column,
 								}
 								: {
@@ -1031,7 +1031,7 @@ export class PgDialect {
 								? {
 									key: k,
 									codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: v.sqlTypeMeta.arrayDimensions,
+									arrayDimensions: (<PgColumn> v).dimensions,
 									field: v,
 								}
 								: {
