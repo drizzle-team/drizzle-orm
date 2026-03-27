@@ -47,11 +47,12 @@ import {
 	primaryKey,
 	real,
 	serial,
+	/* singlestoreView, */
+	SingleStoreDialect,
 	singlestoreEnum,
 	singlestoreSchema,
 	singlestoreTable,
 	singlestoreTableCreator,
-	/* singlestoreView, */
 	smallint,
 	text,
 	time,
@@ -167,9 +168,15 @@ const citiesTable = singlestoreTable('cities', {
 const usersOnUpdate = singlestoreTable('users_on_update', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	updateCounter: int('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: datetime('updated_at', { mode: 'date' }).$onUpdateFn(() => new Date()),
-	alwaysNull: text('always_null').$type<string | null>().$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
+	updateCounter: int('update_counter')
+		.default(sql`1`)
+		.$onUpdateFn(() => sql`update_counter + 1`),
+	updatedAt: datetime('updated_at', { mode: 'date' }).$onUpdateFn(
+		() => new Date(),
+	),
+	alwaysNull: text('always_null')
+		.$type<string | null>()
+		.$onUpdateFn(() => null), // need to add $type because $onUpdate add a default value
 });
 
 const datesTable = singlestoreTable('datestable', {
@@ -197,20 +204,26 @@ const courseCategoriesTable = singlestoreTable('course_categories', {
 const orders = singlestoreTable('orders', {
 	id: serial('id').primaryKey(),
 	region: text('region').notNull(),
-	product: text('product').notNull().$default(() => 'random_string'),
+	product: text('product')
+		.notNull()
+		.$default(() => 'random_string'),
 	amount: int('amount').notNull(),
 	quantity: int('quantity').notNull(),
 });
 
-const usersMigratorTable = singlestoreTable('users12', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
-});
+const usersMigratorTable = singlestoreTable(
+	'users12',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		email: text('email').notNull(),
+	},
+	(table) => {
+		return {
+			name: uniqueIndex('').on(table.name).using('btree'),
+		};
+	},
+);
 
 // To test aggregate functions
 const aggregateTable = singlestoreTable('aggregate_table', {
@@ -251,14 +264,17 @@ const citiesMySchemaTable = mySchema.table('cities', {
 });
 
 let singlestoreContainer: Docker.Container;
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
+export async function createDockerDB(): Promise<{
+	connectionString: string;
+	container: Docker.Container;
+}> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
 	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
 	);
 
 	singlestoreContainer = await docker.createContainer({
@@ -362,7 +378,9 @@ export function tests(driver?: string) {
 			);
 		});
 
-		async function setupReturningFunctionsTest(db: SingleStoreDatabase<any, any>) {
+		async function setupReturningFunctionsTest(
+			db: SingleStoreDatabase<any, any>,
+		) {
 			await db.execute(sql`drop table if exists \`users_default_fn\``);
 			await db.execute(
 				sql`
@@ -454,12 +472,34 @@ export function tests(driver?: string) {
 				{
 					id: 1,
 					text: 'I like dogs',
-					embedding: [0.6119, 0.1395, 0.2921, 0.3664, 0.4561, 0.7852, 0.1997, 0.5142, 0.5924, 0.0465],
+					embedding: [
+						0.6119,
+						0.1395,
+						0.2921,
+						0.3664,
+						0.4561,
+						0.7852,
+						0.1997,
+						0.5142,
+						0.5924,
+						0.0465,
+					],
 				},
 				{
 					id: 2,
 					text: 'I like cats',
-					embedding: [0.6075, 0.1705, 0.0651, 0.9489, 0.9656, 0.8084, 0.3046, 0.0977, 0.6842, 0.4402],
+					embedding: [
+						0.6075,
+						0.1705,
+						0.0651,
+						0.9489,
+						0.9656,
+						0.8084,
+						0.3046,
+						0.0977,
+						0.6842,
+						0.4402,
+					],
 				},
 			]);
 		}
@@ -475,11 +515,19 @@ export function tests(driver?: string) {
 
 			const tableConfig = getTableConfig(unsignedInts);
 
-			const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+			const bigintColumn = tableConfig.columns.find(
+				(c) => c.name === 'bigint',
+			)!;
 			const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
-			const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
-			const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
-			const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+			const smallintColumn = tableConfig.columns.find(
+				(c) => c.name === 'smallint',
+			)!;
+			const mediumintColumn = tableConfig.columns.find(
+				(c) => c.name === 'mediumint',
+			)!;
+			const tinyintColumn = tableConfig.columns.find(
+				(c) => c.name === 'tinyint',
+			)!;
 
 			expect(bigintColumn.getSQLType()).toBe('bigint unsigned');
 			expect(intColumn.getSQLType()).toBe('int unsigned');
@@ -499,11 +547,19 @@ export function tests(driver?: string) {
 
 			const tableConfig = getTableConfig(unsignedInts);
 
-			const bigintColumn = tableConfig.columns.find((c) => c.name === 'bigint')!;
+			const bigintColumn = tableConfig.columns.find(
+				(c) => c.name === 'bigint',
+			)!;
 			const intColumn = tableConfig.columns.find((c) => c.name === 'int')!;
-			const smallintColumn = tableConfig.columns.find((c) => c.name === 'smallint')!;
-			const mediumintColumn = tableConfig.columns.find((c) => c.name === 'mediumint')!;
-			const tinyintColumn = tableConfig.columns.find((c) => c.name === 'tinyint')!;
+			const smallintColumn = tableConfig.columns.find(
+				(c) => c.name === 'smallint',
+			)!;
+			const mediumintColumn = tableConfig.columns.find(
+				(c) => c.name === 'mediumint',
+			)!;
+			const tinyintColumn = tableConfig.columns.find(
+				(c) => c.name === 'tinyint',
+			)!;
 
 			expect(bigintColumn.getSQLType()).toBe('bigint');
 			expect(intColumn.getSQLType()).toBe('int');
@@ -513,13 +569,17 @@ export function tests(driver?: string) {
 		});
 
 		test('table config: primary keys name', async () => {
-			const table = singlestoreTable('cities', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			const table = singlestoreTable(
+				'cities',
+				{
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					state: text('state'),
+				},
+				(t) => ({
+					f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+				}),
+			);
 
 			const tableConfig = getTableConfig(table);
 
@@ -528,24 +588,32 @@ export function tests(driver?: string) {
 		});
 
 		test('table configs: unique third param', async () => {
-			const cities1Table = singlestoreTable('cities1', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			const cities1Table = singlestoreTable(
+				'cities1',
+				{
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					state: text('state'),
+				},
+				(t) => ({
+					f: unique('custom_name').on(t.name, t.state),
+					f1: unique('custom_name1').on(t.name, t.state),
+				}),
+			);
 
 			const tableConfig = getTableConfig(cities1Table);
 
 			expect(tableConfig.uniqueConstraints).toHaveLength(2);
 
 			expect(tableConfig.uniqueConstraints[0]?.name).toBe('custom_name');
-			expect(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name)).toEqual(['name', 'state']);
+			expect(
+				tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name),
+			).toEqual(['name', 'state']);
 
 			expect(tableConfig.uniqueConstraints[1]?.name).toBe('custom_name1');
-			expect(tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name)).toEqual(['name', 'state']);
+			expect(
+				tableConfig.uniqueConstraints[1]?.columns.map((t) => t.name),
+			).toEqual(['name', 'state']);
 		});
 
 		test('table configs: unique in column', async () => {
@@ -559,7 +627,9 @@ export function tests(driver?: string) {
 			const tableConfig = getTableConfig(cities1Table);
 
 			const columnName = tableConfig.columns.find((it) => it.name === 'name');
-			expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+			expect(columnName?.uniqueName).toBe(
+				uniqueKeyName(cities1Table, [columnName!.name]),
+			);
 			expect(columnName?.isUnique).toBeTruthy();
 
 			const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -580,16 +650,26 @@ export function tests(driver?: string) {
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 		});
 
 		test('select sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql`upper(${usersTable.name})`,
-			}).from(usersTable);
+			const users = await db
+				.select({
+					name: sql`upper(${usersTable.name})`,
+				})
+				.from(usersTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
@@ -598,9 +678,11 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql<string>`upper(${usersTable.name})`,
-			}).from(usersTable);
+			const users = await db
+				.select({
+					name: sql<string>`upper(${usersTable.name})`,
+				})
+				.from(usersTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
@@ -608,7 +690,11 @@ export function tests(driver?: string) {
 		test('select with empty array in inArray', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 			const result = await db
 				.select({
 					name: sql`upper(${usersTable.name})`,
@@ -623,7 +709,11 @@ export function tests(driver?: string) {
 		test('select with empty array in notInArray', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 			const result = await db
 				.select({
 					name: sql`upper(${usersTable.name})`,
@@ -632,7 +722,11 @@ export function tests(driver?: string) {
 				.where(notInArray(usersTable.id, []))
 				.orderBy(asc(usersTable.id));
 
-			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
+			expect(result).toEqual([
+				{ name: 'JOHN' },
+				{ name: 'JANE' },
+				{ name: 'JANE' },
+			]);
 		});
 
 		test('select distinct', async (ctx) => {
@@ -644,7 +738,9 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-			await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+			await db.execute(
+				sql`create table ${usersDistinctTable} (id int, name text)`,
+			);
 
 			await db.insert(usersDistinctTable).values([
 				{ id: 1, name: 'John' },
@@ -652,20 +748,26 @@ export function tests(driver?: string) {
 				{ id: 2, name: 'John' },
 				{ id: 1, name: 'Jane' },
 			]);
-			const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
-				usersDistinctTable.id,
-				usersDistinctTable.name,
-			);
+			const users = await db
+				.selectDistinct()
+				.from(usersDistinctTable)
+				.orderBy(usersDistinctTable.id, usersDistinctTable.name);
 
 			await db.execute(sql`drop table ${usersDistinctTable}`);
 
-			expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+			expect(users).toEqual([
+				{ id: 1, name: 'Jane' },
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'John' },
+			]);
 		});
 
 		test('insert returning sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const [result, _] = await db.insert(usersTable).values({ id: 1, name: 'John' });
+			const [result, _] = await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John' });
 
 			expect(result.insertId).toBe(1);
 		});
@@ -674,7 +776,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+			const users = await db
+				.delete(usersTable)
+				.where(eq(usersTable.name, 'John'));
 
 			expect(users[0].affectedRows).toBe(1);
 		});
@@ -683,7 +787,10 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+			const users = await db
+				.update(usersTable)
+				.set({ name: 'Jane' })
+				.where(eq(usersTable.name, 'John'));
 
 			expect(users[0].changedRows).toBe(1);
 		});
@@ -692,27 +799,45 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
-			const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+			const updatedUsers = await db
+				.update(usersTable)
+				.set({ name: 'Jane' })
+				.where(eq(usersTable.name, 'John'));
 
-			const users = await db.select().from(usersTable).where(eq(usersTable.id, 1));
+			const users = await db
+				.select()
+				.from(usersTable)
+				.where(eq(usersTable.id, 1));
 
 			expect(updatedUsers[0].changedRows).toBe(1);
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
-			expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
+			expect(users).toEqual([
+				{
+					id: 1,
+					name: 'Jane',
+					verified: false,
+					jsonb: null,
+					createdAt: users[0]!.createdAt,
+				},
+			]);
 		});
 
 		test('update with returning partial', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
-			const updatedUsers = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John'));
+			const updatedUsers = await db
+				.update(usersTable)
+				.set({ name: 'Jane' })
+				.where(eq(usersTable.name, 'John'));
 
-			const users = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-				eq(usersTable.id, 1),
-			);
+			const users = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1));
 
 			expect(updatedUsers[0].changedRows).toBe(1);
 
@@ -723,7 +848,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+			const deletedUser = await db
+				.delete(usersTable)
+				.where(eq(usersTable.name, 'John'));
 
 			expect(deletedUser[0].affectedRows).toBe(1);
 		});
@@ -732,7 +859,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const deletedUser = await db.delete(usersTable).where(eq(usersTable.name, 'John'));
+			const deletedUser = await db
+				.delete(usersTable)
+				.where(eq(usersTable.name, 'John'));
 
 			expect(deletedUser[0].affectedRows).toBe(1);
 		});
@@ -742,25 +871,52 @@ export function tests(driver?: string) {
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
 			const result = await db.select().from(usersTable);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 
 			await db.insert(usersTable).values({ id: 2, name: 'Jane' });
-			const result2 = await db.select().from(usersTable).orderBy(asc(usersTable.id));
+			const result2 = await db
+				.select()
+				.from(usersTable)
+				.orderBy(asc(usersTable.id));
 			expect(result2).toEqual([
-				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[0]!.createdAt,
+				},
+				{
+					id: 2,
+					name: 'Jane',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[1]!.createdAt,
+				},
 			]);
 		});
 
 		test('json insert', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values({ id: 1, name: 'John', jsonb: ['foo', 'bar'] });
-			const result = await db.select({
-				id: usersTable.id,
-				name: usersTable.name,
-				jsonb: usersTable.jsonb,
-			}).from(usersTable);
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John', jsonb: ['foo', 'bar'] });
+			const result = await db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+					jsonb: usersTable.jsonb,
+				})
+				.from(usersTable);
 
 			expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 		});
@@ -768,10 +924,20 @@ export function tests(driver?: string) {
 		test('insert with overridden default values', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values({ id: 1, name: 'John', verified: true });
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John', verified: true });
 			const result = await db.select().from(usersTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: true,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 		});
 
 		test('insert many', async (ctx) => {
@@ -783,12 +949,14 @@ export function tests(driver?: string) {
 				{ id: 3, name: 'Jane' },
 				{ id: 4, name: 'Austin', verified: true },
 			]);
-			const result = await db.select({
-				id: usersTable.id,
-				name: usersTable.name,
-				jsonb: usersTable.jsonb,
-				verified: usersTable.verified,
-			}).from(usersTable)
+			const result = await db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+					jsonb: usersTable.jsonb,
+					verified: usersTable.verified,
+				})
+				.from(usersTable)
 				.orderBy(asc(usersTable.id));
 
 			expect(result).toEqual([
@@ -802,12 +970,14 @@ export function tests(driver?: string) {
 		test('insert many with returning', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const result = await db.insert(usersTable).values([
-				{ name: 'John' },
-				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
-				{ name: 'Jane' },
-				{ name: 'Austin', verified: true },
-			]);
+			const result = await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]);
 
 			expect(result[0].affectedRows).toBe(4);
 		});
@@ -815,9 +985,15 @@ export function tests(driver?: string) {
 		test('select with group by as field', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
 				.groupBy(usersTable.name)
 				.orderBy(asc(usersTable.id));
 
@@ -827,14 +1003,26 @@ export function tests(driver?: string) {
 		test('select with exists', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
 			const user = alias(usersTable, 'user');
-			const result = await db.select({ name: usersTable.name }).from(usersTable).where(
-				exists(
-					db.select({ one: sql`1` }).from(user).where(and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id))),
-				),
-			)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
+				.where(
+					exists(
+						db
+							.select({ one: sql`1` })
+							.from(user)
+							.where(
+								and(eq(usersTable.name, 'John'), eq(user.id, usersTable.id)),
+							),
+					),
+				)
 				.orderBy(asc(usersTable.id));
 
 			expect(result).toEqual([{ name: 'John' }]);
@@ -843,9 +1031,15 @@ export function tests(driver?: string) {
 		test('select with group by as sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
 				.groupBy(sql`${usersTable.name}`)
 				.orderBy(asc(usersTable.id));
 
@@ -868,16 +1062,20 @@ export function tests(driver?: string) {
 				`,
 			);
 
-			await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
+			await db
+				.insert(orders)
+				.values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 });
 			const selectedOrder = await db.select().from(orders);
 
-			expect(selectedOrder).toEqual([{
-				id: 1,
-				amount: 1,
-				quantity: 1,
-				region: 'Ukraine',
-				product: 'random_string',
-			}]);
+			expect(selectedOrder).toEqual([
+				{
+					id: 1,
+					amount: 1,
+					quantity: 1,
+					region: 'Ukraine',
+					product: 'random_string',
+				},
+			]);
 		});
 
 		test('$default with empty array', async (ctx) => {
@@ -903,43 +1101,71 @@ export function tests(driver?: string) {
 			await db.insert(users).values({ id: 1 });
 			const selectedOrder = await db.select().from(users);
 
-			expect(selectedOrder).toEqual([{
-				id: 1,
-				region: 'Ukraine',
-				product: 'random_string',
-			}]);
+			expect(selectedOrder).toEqual([
+				{
+					id: 1,
+					region: 'Ukraine',
+					product: 'random_string',
+				},
+			]);
 		});
 
 		test('select with group by as sql + column', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
 				.groupBy(sql`${usersTable.name}`, usersTable.id)
 				.orderBy(asc(usersTable.id));
 
-			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			expect(result).toEqual([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Jane' },
+			]);
 		});
 
 		test('select with group by as column + sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
 				.groupBy(usersTable.id, sql`${usersTable.name}`)
 				.orderBy(asc(usersTable.id));
 
-			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			expect(result).toEqual([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Jane' },
+			]);
 		});
 
 		test('select with group by complex query', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, { id: 3, name: 'Jane' }]);
+			await db.insert(usersTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{ id: 3, name: 'Jane' },
+			]);
 
-			const result = await db.select({ name: usersTable.name }).from(usersTable)
+			const result = await db
+				.select({ name: usersTable.name })
+				.from(usersTable)
 				.groupBy(usersTable.id, sql`${usersTable.name}`)
 				.orderBy(asc(usersTable.name))
 				.limit(1);
@@ -950,7 +1176,9 @@ export function tests(driver?: string) {
 		test('build query', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+			const query = db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
 				.groupBy(usersTable.id, usersTable.name)
 				.toSQL();
 
@@ -969,10 +1197,7 @@ export function tests(driver?: string) {
 				state: text('state'),
 			});
 
-			const query = db
-				.insert(users)
-				.values({})
-				.toSQL();
+			const query = db.insert(users).values({}).toSQL();
 
 			expect(query).toEqual({
 				sql: 'insert into `users` (`id`, `name`, `state`) values (default, default, default)',
@@ -989,10 +1214,7 @@ export function tests(driver?: string) {
 				state: text('state').default('UA'),
 			});
 
-			const query = db
-				.insert(users)
-				.values([{}, {}])
-				.toSQL();
+			const query = db.insert(users).values([{}, {}]).toSQL();
 
 			expect(query).toEqual({
 				sql:
@@ -1042,13 +1264,17 @@ export function tests(driver?: string) {
 
 			const res = await db.select().from(users).orderBy(asc(users.id));
 
-			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
+			expect(res).toEqual([
+				{ id: 1, name: 'Dan', state: null },
+				{ id: 2, name: 'Dan', state: null },
+			]);
 		});
 
 		test('build query insert with onDuplicate', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const query = db.insert(usersTable)
+			const query = db
+				.insert(usersTable)
 				.values({ id: 1, name: 'John', jsonb: ['foo', 'bar'] })
 				.onDuplicateKeyUpdate({ set: { id: 1, name: 'John1' } })
 				.toSQL();
@@ -1063,16 +1289,17 @@ export function tests(driver?: string) {
 		test('insert with onDuplicate', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable)
-				.values({ id: 1, name: 'John' });
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
 
-			await db.insert(usersTable)
+			await db
+				.insert(usersTable)
 				.values({ id: 1, name: 'John' })
 				.onDuplicateKeyUpdate({ set: { name: 'John1' } });
 
-			const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-				eq(usersTable.id, 1),
-			);
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1));
 
 			expect(res).toEqual([{ id: 1, name: 'John1' }]);
 		});
@@ -1080,27 +1307,26 @@ export function tests(driver?: string) {
 		test('insert conflict', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable)
-				.values({ id: 1, name: 'John' });
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
 
-			await expect((async () => {
-				db.insert(usersTable).values({ id: 1, name: 'John1' });
-			})()).resolves.not.toThrowError();
+			await expect(
+				(async () => {
+					db.insert(usersTable).values({ id: 1, name: 'John1' });
+				})(),
+			).resolves.not.toThrowError();
 		});
 
 		test('insert conflict with ignore', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(usersTable)
-				.values({ id: 1, name: 'John' });
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
 
-			await db.insert(usersTable)
-				.ignore()
-				.values({ id: 1, name: 'John1' });
+			await db.insert(usersTable).ignore().values({ id: 1, name: 'John1' });
 
-			const res = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(
-				eq(usersTable.id, 1),
-			);
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1));
 
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
@@ -1109,7 +1335,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: sql`${'John'}` });
-			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
+			const result = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable);
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
@@ -1117,7 +1345,10 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 			const customerAlias = alias(usersTable, 'customer');
 
-			await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+			await db.insert(usersTable).values([
+				{ id: 10, name: 'Ivan' },
+				{ id: 11, name: 'Hans' },
+			]);
 			const result = await db
 				.select({
 					user: {
@@ -1128,21 +1359,26 @@ export function tests(driver?: string) {
 						id: customerAlias.id,
 						name: customerAlias.name,
 					},
-				}).from(usersTable)
+				})
+				.from(usersTable)
 				.leftJoin(customerAlias, eq(customerAlias.id, 11))
 				.where(eq(usersTable.id, 10))
 				.orderBy(asc(usersTable.id));
 
-			expect(result).toEqual([{
-				user: { id: 10, name: 'Ivan' },
-				customer: { id: 11, name: 'Hans' },
-			}]);
+			expect(result).toEqual([
+				{
+					user: { id: 10, name: 'Ivan' },
+					customer: { id: 11, name: 'Hans' },
+				},
+			]);
 		});
 
 		test('full join with alias', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const singlestoreTable = singlestoreTableCreator((name) => `prefixed_${name}`);
+			const singlestoreTable = singlestoreTableCreator(
+				(name) => `prefixed_${name}`,
+			);
 
 			const users = singlestoreTable('users', {
 				id: serial('id').primaryKey(),
@@ -1150,27 +1386,35 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+			await db.execute(
+				sql`create table ${users} (id serial primary key, name text not null)`,
+			);
 
 			const customers = alias(users, 'customer');
 
-			await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+			await db.insert(users).values([
+				{ id: 10, name: 'Ivan' },
+				{ id: 11, name: 'Hans' },
+			]);
 			const result = await db
-				.select().from(users)
+				.select()
+				.from(users)
 				.leftJoin(customers, eq(customers.id, 11))
 				.where(eq(users.id, 10))
 				.orderBy(asc(users.id));
 
-			expect(result).toEqual([{
-				users: {
-					id: 10,
-					name: 'Ivan',
+			expect(result).toEqual([
+				{
+					users: {
+						id: 10,
+						name: 'Ivan',
+					},
+					customer: {
+						id: 11,
+						name: 'Hans',
+					},
 				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-				},
-			}]);
+			]);
 
 			await db.execute(sql`drop table ${users}`);
 		});
@@ -1178,7 +1422,9 @@ export function tests(driver?: string) {
 		test('select from alias', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const singlestoreTable = singlestoreTableCreator((name) => `prefixed_${name}`);
+			const singlestoreTable = singlestoreTableCreator(
+				(name) => `prefixed_${name}`,
+			);
 
 			const users = singlestoreTable('users', {
 				id: serial('id').primaryKey(),
@@ -1186,12 +1432,17 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+			await db.execute(
+				sql`create table ${users} (id serial primary key, name text not null)`,
+			);
 
 			const user = alias(users, 'user');
 			const customers = alias(users, 'customer');
 
-			await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+			await db.insert(users).values([
+				{ id: 10, name: 'Ivan' },
+				{ id: 11, name: 'Hans' },
+			]);
 			const result = await db
 				.select()
 				.from(user)
@@ -1199,16 +1450,18 @@ export function tests(driver?: string) {
 				.where(eq(user.id, 10))
 				.orderBy(asc(user.id));
 
-			expect(result).toEqual([{
-				user: {
-					id: 10,
-					name: 'Ivan',
+			expect(result).toEqual([
+				{
+					user: {
+						id: 10,
+						name: 'Ivan',
+					},
+					customer: {
+						id: 11,
+						name: 'Hans',
+					},
 				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-				},
-			}]);
+			]);
 
 			await db.execute(sql`drop table ${users}`);
 		});
@@ -1217,7 +1470,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: sql`'Jo   h     n'` });
-			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
+			const result = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable);
 
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
@@ -1226,10 +1481,12 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
-			const statement = db.select({
-				id: usersTable.id,
-				name: usersTable.name,
-			}).from(usersTable)
+			const statement = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
 				.prepare();
 			const result = await statement.execute();
 
@@ -1241,11 +1498,14 @@ export function tests(driver?: string) {
 
 			const date = new Date('2024-08-07T15:30:00Z');
 
-			const statement = db.insert(usersTable).values({
-				id: 1,
-				name: 'John',
-				createdAt: sql.placeholder('createdAt'),
-			}).prepare();
+			const statement = db
+				.insert(usersTable)
+				.values({
+					id: 1,
+					name: 'John',
+					createdAt: sql.placeholder('createdAt'),
+				})
+				.prepare();
 
 			await statement.execute({ createdAt: date });
 
@@ -1256,29 +1516,32 @@ export function tests(driver?: string) {
 				})
 				.from(usersTable);
 
-			expect(result).toEqual([
-				{ id: 1, createdAt: date },
-			]);
+			expect(result).toEqual([{ id: 1, createdAt: date }]);
 		});
 
 		test('prepared statement reuse', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const stmt = db.insert(usersTable).values({
-				verified: true,
-				id: placeholder('id'),
-				name: placeholder('name'),
-			}).prepare();
+			const stmt = db
+				.insert(usersTable)
+				.values({
+					verified: true,
+					id: placeholder('id'),
+					name: placeholder('name'),
+				})
+				.prepare();
 
 			for (let i = 0; i < 10; i++) {
 				await stmt.execute({ id: i + 1, name: `John ${i}` });
 			}
 
-			const result = await db.select({
-				id: usersTable.id,
-				name: usersTable.name,
-				verified: usersTable.verified,
-			}).from(usersTable)
+			const result = await db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+					verified: usersTable.verified,
+				})
+				.from(usersTable)
 				.orderBy(asc(usersTable.id));
 
 			expect(result).toEqual([
@@ -1299,10 +1562,12 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ id: 1, name: 'John' });
-			const stmt = db.select({
-				id: usersTable.id,
-				name: usersTable.name,
-			}).from(usersTable)
+			const stmt = db
+				.select({
+					id: usersTable.id,
+					name: usersTable.name,
+				})
+				.from(usersTable)
 				.where(eq(usersTable.id, placeholder('id')))
 				.prepare();
 			const result = await stmt.execute({ id: 1 });
@@ -1320,7 +1585,9 @@ export function tests(driver?: string) {
 
 			await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
 
-			await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
+			await db
+				.insert(usersMigratorTable)
+				.values({ id: 1, name: 'John', email: 'email' });
 
 			const result = await db.select().from(usersMigratorTable);
 
@@ -1341,7 +1608,9 @@ export function tests(driver?: string) {
 				)}) values (1,${'John'})`,
 			);
 
-			const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
+			const result = await db.execute<{ id: number; name: string }>(
+				sql`select id, name from ${usersTable}`,
+			);
 			expect(result[0]).toEqual([{ id: 1, name: 'John' }]);
 		});
 
@@ -1394,16 +1663,18 @@ export function tests(driver?: string) {
 			expect(typeof res[0]?.dateAsString).toBe('string');
 			expect(typeof res[0]?.datetimeAsString).toBe('string');
 
-			expect(res).toEqual([{
-				date: toLocalDate(new Date('2022-11-11')),
-				dateAsString: '2022-11-11',
-				time: '12:12:12',
-				datetime: new Date('2022-11-11'),
-				year: 2022,
-				datetimeAsString: '2022-11-11 12:12:12',
-				timestamp: new Date('2022-11-11 12:12:12.123'),
-				timestampAsString: '2022-11-11 12:12:12.123000',
-			}]);
+			expect(res).toEqual([
+				{
+					date: toLocalDate(new Date('2022-11-11')),
+					dateAsString: '2022-11-11',
+					time: '12:12:12',
+					datetime: new Date('2022-11-11'),
+					year: 2022,
+					datetimeAsString: '2022-11-11 12:12:12',
+					timestamp: new Date('2022-11-11 12:12:12.123'),
+					timestampAsString: '2022-11-11 12:12:12.123000',
+				},
+			]);
 
 			await db.execute(sql`drop table if exists \`datestable\``);
 		});
@@ -1435,7 +1706,10 @@ export function tests(driver?: string) {
 				{ id: 3, enum1: 'a' },
 			]);
 
-			const res = await db.select().from(tableWithEnums).orderBy(asc(tableWithEnums.id));
+			const res = await db
+				.select()
+				.from(tableWithEnums)
+				.orderBy(asc(tableWithEnums.id));
 
 			await db.execute(sql`drop table \`enums_test_case\``);
 
@@ -1449,17 +1723,24 @@ export function tests(driver?: string) {
 		test('left join (flat object fields)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane' },
+			]);
 
-			const res = await db.select({
-				userId: users2Table.id,
-				userName: users2Table.name,
-				cityId: citiesTable.id,
-				cityName: citiesTable.name,
-			}).from(users2Table)
+			const res = await db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+				})
+				.from(users2Table)
 				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
 				.orderBy(users2Table.id);
 
@@ -1472,23 +1753,30 @@ export function tests(driver?: string) {
 		test('left join (grouped fields)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane' },
+			]);
 
-			const res = await db.select({
-				id: users2Table.id,
-				user: {
-					name: users2Table.name,
-					nameUpper: sql<string>`upper(${users2Table.name})`,
-				},
-				city: {
-					id: citiesTable.id,
-					name: citiesTable.name,
-					nameUpper: sql<string>`upper(${citiesTable.name})`,
-				},
-			}).from(users2Table)
+			const res = await db
+				.select({
+					id: users2Table.id,
+					user: {
+						name: users2Table.name,
+						nameUpper: sql<string>`upper(${users2Table.name})`,
+					},
+					city: {
+						id: citiesTable.id,
+						name: citiesTable.name,
+						nameUpper: sql<string>`upper(${citiesTable.name})`,
+					},
+				})
+				.from(users2Table)
 				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
 				.orderBy(asc(users2Table.id));
 
@@ -1509,7 +1797,8 @@ export function tests(driver?: string) {
 		test('select from a many subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable)
+			await db
+				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
 
 			await db.insert(users2Table).values([
@@ -1518,14 +1807,16 @@ export function tests(driver?: string) {
 				{ name: 'Jack', cityId: 2 },
 			]);
 
-			const res = await db.select({
-				population: db.select({ count: count().as('count') }).from(users2Table).where(
-					eq(users2Table.cityId, citiesTable.id),
-				).as(
-					'population',
-				),
-				name: citiesTable.name,
-			}).from(citiesTable);
+			const res = await db
+				.select({
+					population: db
+						.select({ count: count().as('count') })
+						.from(users2Table)
+						.where(eq(users2Table.cityId, citiesTable.id))
+						.as('population'),
+					name: citiesTable.name,
+				})
+				.from(citiesTable);
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
@@ -1534,19 +1825,25 @@ export function tests(driver?: string) {
 				}[]
 			>();
 
-			expect(res).toStrictEqual(expect.arrayContaining([{
-				population: 1,
-				name: 'Paris',
-			}, {
-				population: 2,
-				name: 'London',
-			}]));
+			expect(res).toStrictEqual(
+				expect.arrayContaining([
+					{
+						population: 1,
+						name: 'Paris',
+					},
+					{
+						population: 2,
+						name: 'London',
+					},
+				]),
+			);
 		});
 
 		test('select from a one subquery', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable)
+			await db
+				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
 
 			await db.insert(users2Table).values([
@@ -1555,13 +1852,16 @@ export function tests(driver?: string) {
 				{ name: 'Jack', cityId: 2 },
 			]);
 
-			const res = await db.select({
-				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
-					.as(
-						'cityName',
-					),
-				name: users2Table.name,
-			}).from(users2Table);
+			const res = await db
+				.select({
+					cityName: db
+						.select({ name: citiesTable.name })
+						.from(citiesTable)
+						.where(eq(users2Table.cityId, citiesTable.id))
+						.as('cityName'),
+					name: users2Table.name,
+				})
+				.from(users2Table);
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
@@ -1570,27 +1870,40 @@ export function tests(driver?: string) {
 				}[]
 			>();
 
-			expect(res).toStrictEqual(expect.arrayContaining([{
-				cityName: 'Paris',
-				name: 'John',
-			}, {
-				cityName: 'London',
-				name: 'Jane',
-			}, {
-				cityName: 'London',
-				name: 'Jack',
-			}]));
+			expect(res).toStrictEqual(
+				expect.arrayContaining([
+					{
+						cityName: 'Paris',
+						name: 'John',
+					},
+					{
+						cityName: 'London',
+						name: 'Jane',
+					},
+					{
+						cityName: 'London',
+						name: 'Jack',
+					},
+				]),
+			);
 		});
 
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane' },
+			]);
 
-			const res = await db.select().from(users2Table)
+			const res = await db
+				.select()
+				.from(users2Table)
 				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
 				.orderBy(asc(users2Table.id));
 
@@ -1713,33 +2026,31 @@ export function tests(driver?: string) {
 				{ region: 'US', product: 'B', amount: 50, quantity: 5 },
 			]);
 
-			const regionalSales = db
-				.$with('regional_sales')
-				.as(
-					db
-						.select({
-							region: orders.region,
-							totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
-						})
-						.from(orders)
-						.groupBy(orders.region),
-				);
+			const regionalSales = db.$with('regional_sales').as(
+				db
+					.select({
+						region: orders.region,
+						totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+					})
+					.from(orders)
+					.groupBy(orders.region),
+			);
 
-			const topRegions = db
-				.$with('top_regions')
-				.as(
-					db
-						.select({
-							region: regionalSales.region,
-						})
-						.from(regionalSales)
-						.where(
-							gt(
-								regionalSales.totalSales,
-								db.select({ sales: sql`sum(${regionalSales.totalSales})/10` }).from(regionalSales),
-							),
+			const topRegions = db.$with('top_regions').as(
+				db
+					.select({
+						region: regionalSales.region,
+					})
+					.from(regionalSales)
+					.where(
+						gt(
+							regionalSales.totalSales,
+							db
+								.select({ sales: sql`sum(${regionalSales.totalSales})/10` })
+								.from(regionalSales),
 						),
-				);
+					),
+			);
 
 			const result = await db
 				.with(regionalSales, topRegions)
@@ -1750,7 +2061,12 @@ export function tests(driver?: string) {
 					productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`,
 				})
 				.from(orders)
-				.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
+				.where(
+					inArray(
+						orders.region,
+						db.select({ region: topRegions.region }).from(topRegions),
+					),
+				)
 				.groupBy(orders.region, orders.product)
 				.orderBy(orders.region, orders.product);
 
@@ -1811,15 +2127,13 @@ export function tests(driver?: string) {
 				{ id: 5, price: '4.59' },
 			]);
 
-			const averagePrice = db
-				.$with('average_price')
-				.as(
-					db
-						.select({
-							value: sql`avg(${products.price})`.as('value'),
-						})
-						.from(products),
-				);
+			const averagePrice = db.$with('average_price').as(
+				db
+					.select({
+						value: sql`avg(${products.price})`.as('value'),
+					})
+					.from(products),
+			);
 
 			await db
 				.with(averagePrice)
@@ -1837,11 +2151,7 @@ export function tests(driver?: string) {
 				.where(eq(products.cheap, true))
 				.orderBy(asc(products.id));
 
-			expect(result).toEqual([
-				{ id: 1 },
-				{ id: 4 },
-				{ id: 5 },
-			]);
+			expect(result).toEqual([{ id: 1 }, { id: 4 }, { id: 5 }]);
 		});
 
 		test('with ... delete', async (ctx) => {
@@ -1871,15 +2181,13 @@ export function tests(driver?: string) {
 				{ id: 8, region: 'US', product: 'B', amount: 50, quantity: 5 },
 			]);
 
-			const averageAmount = db
-				.$with('average_amount')
-				.as(
-					db
-						.select({
-							value: sql`avg(${orders.amount})`.as('value'),
-						})
-						.from(orders),
-				);
+			const averageAmount = db.$with('average_amount').as(
+				db
+					.select({
+						value: sql`avg(${orders.amount})`.as('value'),
+					})
+					.from(orders),
+			);
 
 			await db
 				.with(averageAmount)
@@ -1905,17 +2213,27 @@ export function tests(driver?: string) {
 		test('select from subquery sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(users2Table).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
 
 			const sq = db
-				.select({ name: sql<string>`concat(${users2Table.name}, " modified")`.as('name') })
+				.select({
+					name: sql<string>`concat(${users2Table.name}, " modified")`.as(
+						'name',
+					),
+				})
 				.from(users2Table)
 				.orderBy(asc(users2Table.id))
 				.as('sq');
 
 			const res = await db.select({ name: sq.name }).from(sq);
 
-			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
+			expect(res).toEqual([
+				{ name: 'John modified' },
+				{ name: 'Jane modified' },
+			]);
 		});
 
 		test('select a field without joining its table', (ctx) => {
@@ -1927,7 +2245,13 @@ export function tests(driver?: string) {
 		test('select all fields from subquery without alias', (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
+			const sq = db
+				.$with('sq')
+				.as(
+					db
+						.select({ name: sql<string>`upper(${users2Table.name})` })
+						.from(users2Table),
+				);
 
 			expect(() => db.select().from(sq).prepare()).toThrowError();
 		});
@@ -1950,11 +2274,19 @@ export function tests(driver?: string) {
 				expect(query.sql).toMatch(/ for update$/);
 			}
 			{
-				const query = db.select().from(users2Table).for('share', { skipLocked: true }).toSQL();
+				const query = db
+					.select()
+					.from(users2Table)
+					.for('share', { skipLocked: true })
+					.toSQL();
 				expect(query.sql).toMatch(/ for share skip locked$/);
 			}
 			{
-				const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
+				const query = db
+					.select()
+					.from(users2Table)
+					.for('update', { noWait: true })
+					.toSQL();
 				expect(query.sql).toMatch(/ for update nowait$/);
 			}
 		});
@@ -1962,16 +2294,24 @@ export function tests(driver?: string) {
 		test('having', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db.insert(citiesTable).values([{ id: 1, name: 'London' }, { id: 2, name: 'Paris' }, {
-				id: 3,
-				name: 'New York',
-			}]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'London' },
+				{ id: 2, name: 'Paris' },
+				{
+					id: 3,
+					name: 'New York',
+				},
+			]);
 
-			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 1 }, {
-				id: 3,
-				name: 'Jack',
-				cityId: 2,
-			}]);
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 1 },
+				{
+					id: 3,
+					name: 'Jack',
+					cityId: 2,
+				},
+			]);
 
 			const result = await db
 				.select({
@@ -2067,16 +2407,16 @@ export function tests(driver?: string) {
 		test('select from raw sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const result = await db.select({
-				id: sql<number>`id`,
-				name: sql<string>`name`,
-			}).from(sql`(select 1 as id, 'John' as name) as users`);
+			const result = await db
+				.select({
+					id: sql<number>`id`,
+					name: sql<string>`name`,
+				})
+				.from(sql`(select 1 as id, 'John' as name) as users`);
 
 			Expect<Equal<{ id: number; name: string }[], typeof result>>;
 
-			expect(result).toEqual([
-				{ id: 1, name: 'John' },
-			]);
+			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
 		test('select from raw sql with joins', async (ctx) => {
@@ -2089,10 +2429,20 @@ export function tests(driver?: string) {
 					userCity: sql<string>`users.city`,
 					cityName: sql<string>`cities.name`,
 				})
-				.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
-				.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, sql`cities.id = users.id`);
+				.from(
+					sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+				)
+				.leftJoin(
+					sql`(select 1 as id, 'Paris' as name) as cities`,
+					sql`cities.id = users.id`,
+				);
 
-			Expect<Equal<{ id: number; name: string; userCity: string; cityName: string }[], typeof result>>;
+			Expect<
+				Equal<
+					{ id: number; name: string; userCity: string; cityName: string }[],
+					typeof result
+				>
+			>;
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John', userCity: 'New York', cityName: 'Paris' },
@@ -2110,15 +2460,32 @@ export function tests(driver?: string) {
 					cityId: sql<number>`cities.id`.as('cityId'),
 					cityName: sql<string>`cities.name`,
 				})
-				.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
+				.from(
+					sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+				)
 				.leftJoin(sql`(select 1 as id, 'Paris' as name) as cities`, (cols) => eq(cols.cityId, cols.userId));
 
 			Expect<
-				Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
+				Equal<
+					{
+						userId: number;
+						name: string;
+						userCity: string;
+						cityId: number;
+						cityName: string;
+					}[],
+					typeof result
+				>
 			>;
 
 			expect(result).toEqual([
-				{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+				{
+					userId: 1,
+					name: 'John',
+					userCity: 'New York',
+					cityId: 1,
+					cityName: 'Paris',
+				},
 			]);
 		});
 
@@ -2126,22 +2493,24 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			const users = db.$with('users').as(
-				db.select({
-					id: sql<number>`id`.as('userId'),
-					name: sql<string>`name`.as('userName'),
-					city: sql<string>`city`.as('city'),
-				}).from(
-					sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
-				),
+				db
+					.select({
+						id: sql<number>`id`.as('userId'),
+						name: sql<string>`name`.as('userName'),
+						city: sql<string>`city`.as('city'),
+					})
+					.from(
+						sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+					),
 			);
 
 			const cities = db.$with('cities').as(
-				db.select({
-					id: sql<number>`id`.as('cityId'),
-					name: sql<string>`name`.as('cityName'),
-				}).from(
-					sql`(select 1 as id, 'Paris' as name) as cities`,
-				),
+				db
+					.select({
+						id: sql<number>`id`.as('cityId'),
+						name: sql<string>`name`.as('cityName'),
+					})
+					.from(sql`(select 1 as id, 'Paris' as name) as cities`),
 			);
 
 			const result = await db
@@ -2157,18 +2526,35 @@ export function tests(driver?: string) {
 				.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
 
 			Expect<
-				Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
+				Equal<
+					{
+						userId: number;
+						name: string;
+						userCity: string;
+						cityId: number;
+						cityName: string;
+					}[],
+					typeof result
+				>
 			>;
 
 			expect(result).toEqual([
-				{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+				{
+					userId: 1,
+					name: 'John',
+					userCity: 'New York',
+					cityId: 1,
+					cityName: 'Paris',
+				},
 			]);
 		});
 
 		test('prefixed table', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const singlestoreTable = singlestoreTableCreator((name) => `myprefix_${name}`);
+			const singlestoreTable = singlestoreTableCreator(
+				(name) => `myprefix_${name}`,
+			);
 
 			const users = singlestoreTable('test_prefixed_table_with_unique_name', {
 				id: int('id').primaryKey(),
@@ -2193,11 +2579,17 @@ export function tests(driver?: string) {
 		test('orderBy with aliased column', (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const query = db.select({
-				test: sql`something`.as('test'),
-			}).from(users2Table).orderBy((fields) => fields.test).toSQL();
+			const query = db
+				.select({
+					test: sql`something`.as('test'),
+				})
+				.from(users2Table)
+				.orderBy((fields) => fields.test)
+				.toSQL();
 
-			expect(query.sql).toBe('select something as `test` from `users2` order by `test`');
+			expect(query.sql).toBe(
+				'select something as `test` from `users2` order by `test`',
+			);
 		});
 
 		test('timestamp timezone', async (ctx) => {
@@ -2211,13 +2603,20 @@ export function tests(driver?: string) {
 				name: 'Without default times',
 				createdAt: date,
 			});
-			const users = await db.select().from(usersTable).orderBy(asc(usersTable.id));
+			const users = await db
+				.select()
+				.from(usersTable)
+				.orderBy(asc(usersTable.id));
 
 			// check that the timestamps are set correctly for default times
-			expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(2000);
+			expect(Math.abs(users[0]!.createdAt.getTime() - Date.now())).toBeLessThan(
+				2000,
+			);
 
 			// check that the timestamps are set correctly for non default times
-			expect(Math.abs(users[1]!.createdAt.getTime() - date.getTime())).toBeLessThan(2000);
+			expect(
+				Math.abs(users[1]!.createdAt.getTime() - date.getTime()),
+			).toBeLessThan(2000);
 		});
 
 		test('transaction', async (ctx) => {
@@ -2236,19 +2635,39 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`drop table if exists ${products}`);
 
-			await db.execute(sql`create table users_transactions (id serial not null primary key, balance int not null)`);
+			await db.execute(
+				sql`create table users_transactions (id serial not null primary key, balance int not null)`,
+			);
 			await db.execute(
 				sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
 			);
 
-			const [{ insertId: userId }] = await db.insert(users).values({ id: 1, balance: 100 });
-			const user = await db.select().from(users).where(eq(users.id, userId)).then((rows) => rows[0]!);
-			const [{ insertId: productId }] = await db.insert(products).values({ id: 1, price: 10, stock: 10 });
-			const product = await db.select().from(products).where(eq(products.id, productId)).then((rows) => rows[0]!);
+			const [{ insertId: userId }] = await db
+				.insert(users)
+				.values({ id: 1, balance: 100 });
+			const user = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, userId))
+				.then((rows) => rows[0]!);
+			const [{ insertId: productId }] = await db
+				.insert(products)
+				.values({ id: 1, price: 10, stock: 10 });
+			const product = await db
+				.select()
+				.from(products)
+				.where(eq(products.id, productId))
+				.then((rows) => rows[0]!);
 
 			await db.transaction(async (tx) => {
-				await tx.update(users).set({ balance: user.balance - product.price }).where(eq(users.id, user.id));
-				await tx.update(products).set({ stock: product.stock - 1 }).where(eq(products.id, product.id));
+				await tx
+					.update(users)
+					.set({ balance: user.balance - product.price })
+					.where(eq(users.id, user.id));
+				await tx
+					.update(products)
+					.set({ stock: product.stock - 1 })
+					.where(eq(products.id, product.id));
 			});
 
 			const result = await db.select().from(users);
@@ -2273,12 +2692,14 @@ export function tests(driver?: string) {
 				sql`create table users_transactions_rollback (id serial not null primary key, balance int not null)`,
 			);
 
-			await expect((async () => {
-				await db.transaction(async (tx) => {
-					await tx.insert(users).values({ balance: 100 });
-					tx.rollback();
-				});
-			})()).rejects.toThrowError(TransactionRollbackError);
+			await expect(
+				(async () => {
+					await db.transaction(async (tx) => {
+						await tx.insert(users).values({ balance: 100 });
+						tx.rollback();
+					});
+				})(),
+			).rejects.toThrowError(TransactionRollbackError);
 
 			const result = await db.select().from(users);
 
@@ -2306,7 +2727,9 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists ${customUser}`);
 			await db.execute(sql`drop table if exists ${ticket}`);
 
-			await db.execute(sql`create table internal_staff (user_id integer not null)`);
+			await db.execute(
+				sql`create table internal_staff (user_id integer not null)`,
+			);
 			await db.execute(sql`create table custom_user (id integer not null)`);
 			await db.execute(sql`create table ticket (staff_id integer not null)`);
 
@@ -2325,13 +2748,15 @@ export function tests(driver?: string) {
 				.from(ticket)
 				.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
-			expect(mainQuery).toEqual([{
-				ticket: { staffId: 1 },
-				internal_staff: {
-					internal_staff: { userId: 1 },
-					custom_user: { id: 1 },
+			expect(mainQuery).toEqual([
+				{
+					ticket: { staffId: 1 },
+					internal_staff: {
+						internal_staff: { userId: 1 },
+						custom_user: { id: 1 },
+					},
 				},
-			}]);
+			]);
 
 			await db.execute(sql`drop table ${internalStaff}`);
 			await db.execute(sql`drop table ${customUser}`);
@@ -2439,15 +2864,15 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial not null primary key)`);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key)`,
+			);
 
 			await db.insert(users).values([{ id: 1 }, { id: 2 }, { id: 3 }]);
 
-			const iter = db.select().from(users)
-				.orderBy(asc(users.id))
-				.iterator();
+			const iter = db.select().from(users).orderBy(asc(users.id)).iterator();
 
-			const result: typeof users.$inferSelect[] = [];
+			const result: (typeof users.$inferSelect)[] = [];
 
 			for await (const row of iter) {
 				result.push(row);
@@ -2464,15 +2889,15 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial not null primary key)`);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key)`,
+			);
 
 			await db.insert(users).values([{ id: 1 }, { id: 2 }, { id: 3 }]);
 
-			const prepared = db.select().from(users)
-				.orderBy(asc(users.id))
-				.prepare();
+			const prepared = db.select().from(users).orderBy(asc(users.id)).prepare();
 			const iter = prepared.iterator();
-			const result: typeof users.$inferSelect[] = [];
+			const result: (typeof users.$inferSelect)[] = [];
 
 			for await (const row of iter) {
 				result.push(row);
@@ -2495,9 +2920,11 @@ export function tests(driver?: string) {
 				sql`create table ${users} (id serial not null primary key, name text)`,
 			);
 
-			await expect((async () => {
-				await db.insert(users).values({ name: undefined });
-			})()).resolves.not.toThrowError();
+			await expect(
+				(async () => {
+					await db.insert(users).values({ name: undefined });
+				})(),
+			).resolves.not.toThrowError();
 
 			await db.execute(sql`drop table ${users}`);
 		});
@@ -2516,13 +2943,17 @@ export function tests(driver?: string) {
 				sql`create table ${users} (id serial not null primary key, name text)`,
 			);
 
-			await expect((async () => {
-				await db.update(users).set({ name: undefined });
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					await db.update(users).set({ name: undefined });
+				})(),
+			).rejects.toThrowError();
 
-			await expect((async () => {
-				await db.update(users).set({ id: 1, name: undefined });
-			})()).resolves.not.toThrowError();
+			await expect(
+				(async () => {
+					await db.update(users).set({ id: 1, name: undefined });
+				})(),
+			).resolves.not.toThrowError();
 
 			await db.execute(sql`drop table ${users}`);
 		});
@@ -2554,19 +2985,27 @@ export function tests(driver?: string) {
 
 			const res = await db.select().from(datesTable);
 
-			const [rawSelect] = await db.execute(sql`select \`datetime_utc\` from \`datestable\``);
-			const selectedRow = (rawSelect as unknown as [{ datetime_utc: string }])[0];
+			const [rawSelect] = await db.execute(
+				sql`select \`datetime_utc\` from \`datestable\``,
+			);
+			const selectedRow = (
+				rawSelect as unknown as [{ datetime_utc: string }]
+			)[0];
 
 			expect(selectedRow.datetime_utc).toBe('2022-11-11 12:12:12.122000');
-			expect(new Date(selectedRow.datetime_utc.replace(' ', 'T') + 'Z')).toEqual(dateUtc);
+			expect(
+				new Date(selectedRow.datetime_utc.replace(' ', 'T') + 'Z'),
+			).toEqual(dateUtc);
 
 			expect(res[0]?.datetime).toBeInstanceOf(Date);
 			expect(res[0]?.datetimeUTC).toBeInstanceOf(Date);
 
-			expect(res).toEqual([{
-				datetimeUTC: dateUtc,
-				datetime: new Date('2022-11-11'),
-			}]);
+			expect(res).toEqual([
+				{
+					datetimeUTC: dateUtc,
+					datetime: new Date('2022-11-11'),
+				},
+			]);
 
 			await db.execute(sql`drop table if exists \`datestable\``);
 		});
@@ -2597,9 +3036,7 @@ export function tests(driver?: string) {
 					id: sql`id`,
 					name: sql`name`,
 				})
-				.from(
-					citiesQuery.union(usersQuery).as('combined'),
-				)
+				.from(citiesQuery.union(usersQuery).as('combined'))
 				.orderBy(sql`orderCol`, sql`id`)
 				.limit(8);
 
@@ -2619,15 +3056,17 @@ export function tests(driver?: string) {
 			]);
 
 			// union should throw if selected fields are not in the same order
-			await expect((async () => {
-				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).union(
-						db
-							.select({ name: users2Table.name, id: users2Table.id })
-							.from(users2Table),
-					);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					db.select({ id: citiesTable.id, name: citiesTable.name })
+						.from(citiesTable)
+						.union(
+							db
+								.select({ name: users2Table.name, id: users2Table.id })
+								.from(users2Table),
+						);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (union) as function', async (ctx) => {
@@ -2638,13 +3077,16 @@ export function tests(driver?: string) {
 			const result = await union(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.from(citiesTable)
+					.where(eq(citiesTable.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 			);
 
 			expect(result).toHaveLength(2);
@@ -2654,19 +3096,24 @@ export function tests(driver?: string) {
 				{ id: 1, name: 'John' },
 			]);
 
-			await expect((async () => {
-				union(
-					db
-						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).where(eq(citiesTable.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					db
-						.select({ name: users2Table.name, id: users2Table.id })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-				);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					union(
+						db
+							.select({ id: citiesTable.id, name: citiesTable.name })
+							.from(citiesTable)
+							.where(eq(citiesTable.id, 1)),
+						db
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+						db
+							.select({ name: users2Table.name, id: users2Table.id })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+					);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (union all) from query builder', async (ctx) => {
@@ -2676,13 +3123,23 @@ export function tests(driver?: string) {
 
 			const sq = db
 				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).orderBy(asc(sql`id`)).limit(2).unionAll(
+				.from(citiesTable)
+				.orderBy(asc(sql`id`))
+				.limit(2)
+				.unionAll(
 					db
 						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).orderBy(asc(sql`id`)).limit(2),
-				).as('sq');
+						.from(citiesTable)
+						.orderBy(asc(sql`id`))
+						.limit(2),
+				)
+				.as('sq');
 
-			const result = await db.select().from(sq).orderBy(asc(sql`id`)).limit(3);
+			const result = await db
+				.select()
+				.from(sq)
+				.orderBy(asc(sql`id`))
+				.limit(3);
 
 			expect(result).toHaveLength(3);
 
@@ -2692,15 +3149,20 @@ export function tests(driver?: string) {
 				{ id: 2, name: 'London' },
 			]);
 
-			await expect((async () => {
-				db
-					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).limit(2).unionAll(
-						db
-							.select({ name: citiesTable.name, id: citiesTable.id })
-							.from(citiesTable).limit(2),
-					).orderBy(asc(sql`id`));
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					db.select({ id: citiesTable.id, name: citiesTable.name })
+						.from(citiesTable)
+						.limit(2)
+						.unionAll(
+							db
+								.select({ name: citiesTable.name, id: citiesTable.id })
+								.from(citiesTable)
+								.limit(2),
+						)
+						.orderBy(asc(sql`id`));
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (union all) as function', async (ctx) => {
@@ -2711,36 +3173,42 @@ export function tests(driver?: string) {
 			const sq = unionAll(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.from(citiesTable)
+					.where(eq(citiesTable.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 			).as('sq');
 
 			const result = await db.select().from(sq).limit(1);
 
 			expect(result).toHaveLength(1);
 
-			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
-			]);
+			expect(result).toEqual([{ id: 1, name: 'New York' }]);
 
-			await expect((async () => {
-				unionAll(
-					db
-						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).where(eq(citiesTable.id, 1)),
-					db
-						.select({ name: users2Table.name, id: users2Table.id })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-				).limit(1);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					unionAll(
+						db
+							.select({ id: citiesTable.id, name: citiesTable.name })
+							.from(citiesTable)
+							.where(eq(citiesTable.id, 1)),
+						db
+							.select({ name: users2Table.name, id: users2Table.id })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+						db
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+					).limit(1);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (intersect) from query builder', async (ctx) => {
@@ -2750,14 +3218,19 @@ export function tests(driver?: string) {
 
 			const sq = db
 				.select({ id: citiesTable.id, name: citiesTable.name })
-				.from(citiesTable).intersect(
+				.from(citiesTable)
+				.intersect(
 					db
 						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).where(gt(citiesTable.id, 1)),
+						.from(citiesTable)
+						.where(gt(citiesTable.id, 1)),
 				)
 				.as('sq');
 
-			const result = await db.select().from(sq).orderBy(asc(sql`id`));
+			const result = await db
+				.select()
+				.from(sq)
+				.orderBy(asc(sql`id`));
 
 			expect(result).toHaveLength(2);
 
@@ -2766,15 +3239,18 @@ export function tests(driver?: string) {
 				{ id: 3, name: 'Tampa' },
 			]);
 
-			await expect((async () => {
-				db
-					.select({ name: citiesTable.name, id: citiesTable.id })
-					.from(citiesTable).intersect(
-						db
-							.select({ id: citiesTable.id, name: citiesTable.name })
-							.from(citiesTable).where(gt(citiesTable.id, 1)),
-					);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					db.select({ name: citiesTable.name, id: citiesTable.id })
+						.from(citiesTable)
+						.intersect(
+							db
+								.select({ id: citiesTable.id, name: citiesTable.name })
+								.from(citiesTable)
+								.where(gt(citiesTable.id, 1)),
+						);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (intersect) as function', async (ctx) => {
@@ -2785,13 +3261,16 @@ export function tests(driver?: string) {
 			const sq = await intersect(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.from(citiesTable)
+					.where(eq(citiesTable.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 			).as('sq');
 
 			const result = await db.select().from(sq).limit(1);
@@ -2800,19 +3279,24 @@ export function tests(driver?: string) {
 
 			expect(result).toEqual([]);
 
-			await expect((async () => {
-				intersect(
-					db
-						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).where(eq(citiesTable.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					db
-						.select({ name: users2Table.name, id: users2Table.id })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-				).limit(1);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					intersect(
+						db
+							.select({ id: citiesTable.id, name: citiesTable.name })
+							.from(citiesTable)
+							.where(eq(citiesTable.id, 1)),
+						db
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+						db
+							.select({ name: users2Table.name, id: users2Table.id })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+					).limit(1);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (except) from query builder', async (ctx) => {
@@ -2822,17 +3306,12 @@ export function tests(driver?: string) {
 
 			const result = await db
 				.select()
-				.from(citiesTable).except(
-					db
-						.select()
-						.from(citiesTable).where(gt(citiesTable.id, 1)),
-				);
+				.from(citiesTable)
+				.except(db.select().from(citiesTable).where(gt(citiesTable.id, 1)));
 
 			expect(result).toHaveLength(1);
 
-			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
-			]);
+			expect(result).toEqual([{ id: 1, name: 'New York' }]);
 		});
 
 		test('set operations (except) as function', async (ctx) => {
@@ -2846,10 +3325,12 @@ export function tests(driver?: string) {
 					.from(citiesTable),
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).where(eq(citiesTable.id, 1)),
+					.from(citiesTable)
+					.where(eq(citiesTable.id, 1)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 			).as('sq');
 
 			const result = await db.select().from(sq).limit(3);
@@ -2859,30 +3340,38 @@ export function tests(driver?: string) {
 			expect(result).toContainEqual({ id: 2, name: 'London' });
 			expect(result).toContainEqual({ id: 3, name: 'Tampa' });
 
-			await expect((async () => {
-				except(
-					db
-						.select({ name: citiesTable.name, id: citiesTable.id })
-						.from(citiesTable),
-					db
-						.select({ id: citiesTable.id, name: citiesTable.name })
-						.from(citiesTable).where(eq(citiesTable.id, 1)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-				).limit(3);
-			})()).rejects.toThrowError();
+			await expect(
+				(async () => {
+					except(
+						db
+							.select({ name: citiesTable.name, id: citiesTable.id })
+							.from(citiesTable),
+						db
+							.select({ id: citiesTable.id, name: citiesTable.name })
+							.from(citiesTable)
+							.where(eq(citiesTable.id, 1)),
+						db
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+					).limit(3);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('define constraints as array', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const table = singlestoreTable('name', {
-				id: int(),
-			}, (t) => [
-				index('name').on(t.id),
-				primaryKey({ columns: [t.id], name: 'custom' }),
-			]);
+			const table = singlestoreTable(
+				'name',
+				{
+					id: int(),
+				},
+				(t) => [
+					index('name').on(t.id),
+					primaryKey({ columns: [t.id], name: 'custom' }),
+				],
+			);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
 
@@ -2893,11 +3382,18 @@ export function tests(driver?: string) {
 		test('define constraints as array inside third param', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const table = singlestoreTable('name', {
-				id: int(),
-			}, (t) => [
-				[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
-			]);
+			const table = singlestoreTable(
+				'name',
+				{
+					id: int(),
+				},
+				(t) => [
+					[
+						index('name').on(t.id),
+						primaryKey({ columns: [t.id], name: 'custom' }),
+					],
+				],
+			);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
 
@@ -2911,24 +3407,22 @@ export function tests(driver?: string) {
 			await setupSetOperationTest(db);
 
 			const sq1 = unionAll(
-				db
-					.select()
-					.from(citiesTable).where(gt(citiesTable.id, 1)),
+				db.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 				db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
 			).as('sq1');
 
-			const sq2 = await db.select().from(sq1).orderBy(asc(sql`id`)).as('sq2');
+			const sq2 = await db
+				.select()
+				.from(sq1)
+				.orderBy(asc(sql`id`))
+				.as('sq2');
 
 			const sq3 = await db.select().from(sq2).limit(1).offset(1).as('sq3');
 
 			const result = await db
 				.select()
 				.from(citiesTable)
-				.except(
-					db
-						.select()
-						.from(sq3),
-				);
+				.except(db.select().from(sq3));
 
 			expect(result).toHaveLength(2);
 
@@ -2937,19 +3431,21 @@ export function tests(driver?: string) {
 				{ id: 1, name: 'New York' },
 			]);
 
-			await expect((async () => {
-				db
-					.select()
-					.from(citiesTable).except(
-						({ unionAll }) =>
+			await expect(
+				(async () => {
+					db.select()
+						.from(citiesTable)
+						.except(({ unionAll }) =>
 							unionAll(
 								db
 									.select({ name: citiesTable.name, id: citiesTable.id })
-									.from(citiesTable).where(gt(citiesTable.id, 1)),
+									.from(citiesTable)
+									.where(gt(citiesTable.id, 1)),
 								db.select().from(citiesTable).where(eq(citiesTable.id, 2)),
-							),
-					);
-			})()).rejects.toThrowError();
+							)
+						);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('set operations (mixed all) as function with subquery', async (ctx) => {
@@ -2960,23 +3456,29 @@ export function tests(driver?: string) {
 			const sq1 = except(
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(gte(users2Table.id, 5)),
+					.from(users2Table)
+					.where(gte(users2Table.id, 5)),
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 7)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 7)),
 			).as('sq1');
 
-			const sq2 = await db.select().from(sq1).orderBy(asc(sql`id`)).as('sq2');
+			const sq2 = await db
+				.select()
+				.from(sq1)
+				.orderBy(asc(sql`id`))
+				.as('sq2');
 
 			const sq3 = await db.select().from(sq2).limit(1).as('sq3');
 
 			const result = await union(
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
+					.from(users2Table)
+					.where(eq(users2Table.id, 1)),
 				db.select().from(sq3),
-				db
-					.select().from(citiesTable).where(gt(citiesTable.id, 1)),
+				db.select().from(citiesTable).where(gt(citiesTable.id, 1)),
 			);
 
 			expect(result).toHaveLength(4);
@@ -2985,7 +3487,9 @@ export function tests(driver?: string) {
 			// dynamically validate results
 			const hasValidEntry = (entry: { id: number; name: string }) => {
 				if (entry.id === 1) return entry.name === 'John';
-				if (entry.id > 1 && entry.id < 5) return entry.name === 'Tampa' || entry.name === 'London';
+				if (entry.id > 1 && entry.id < 5) {
+					return entry.name === 'Tampa' || entry.name === 'London';
+				}
 				if (entry.id >= 5 && entry.id !== 7) return true; // Accept any entry with id >= 5 and not 7
 				return false;
 			};
@@ -2994,23 +3498,27 @@ export function tests(driver?: string) {
 				expect(hasValidEntry(entry)).toBe(true);
 			}
 
-			await expect((async () => {
-				union(
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
-					except(
+			await expect(
+				(async () => {
+					union(
 						db
 							.select({ id: users2Table.id, name: users2Table.name })
-							.from(users2Table).where(gte(users2Table.id, 5)),
-						db
-							.select({ name: users2Table.name, id: users2Table.id })
-							.from(users2Table).where(eq(users2Table.id, 7)),
-					).limit(1),
-					db
-						.select().from(citiesTable).where(gt(citiesTable.id, 1)),
-				);
-			})()).rejects.toThrowError();
+							.from(users2Table)
+							.where(eq(users2Table.id, 1)),
+						except(
+							db
+								.select({ id: users2Table.id, name: users2Table.name })
+								.from(users2Table)
+								.where(gte(users2Table.id, 5)),
+							db
+								.select({ name: users2Table.name, id: users2Table.id })
+								.from(users2Table)
+								.where(eq(users2Table.id, 7)),
+						).limit(1),
+						db.select().from(citiesTable).where(gt(citiesTable.id, 1)),
+					);
+				})(),
+			).rejects.toThrowError();
 		});
 
 		test('aggregate function: count', async (ctx) => {
@@ -3020,7 +3528,9 @@ export function tests(driver?: string) {
 
 			const result1 = await db.select({ value: count() }).from(table);
 			const result2 = await db.select({ value: count(table.a) }).from(table);
-			const result3 = await db.select({ value: countDistinct(table.name) }).from(table);
+			const result3 = await db
+				.select({ value: countDistinct(table.name) })
+				.from(table);
 
 			expect(result1[0]?.value).toBe(7);
 			expect(result2[0]?.value).toBe(5);
@@ -3033,8 +3543,12 @@ export function tests(driver?: string) {
 			await setupAggregateFunctionsTest(db);
 
 			const result1 = await db.select({ value: avg(table.b) }).from(table);
-			const result2 = await db.select({ value: avg(table.nullOnly) }).from(table);
-			const result3 = await db.select({ value: avgDistinct(table.b) }).from(table);
+			const result2 = await db
+				.select({ value: avg(table.nullOnly) })
+				.from(table);
+			const result3 = await db
+				.select({ value: avgDistinct(table.b) })
+				.from(table);
 
 			expect(result1[0]?.value).toBe('33.3333');
 			expect(result2[0]?.value).toBe(null);
@@ -3047,8 +3561,12 @@ export function tests(driver?: string) {
 			await setupAggregateFunctionsTest(db);
 
 			const result1 = await db.select({ value: sum(table.b) }).from(table);
-			const result2 = await db.select({ value: sum(table.nullOnly) }).from(table);
-			const result3 = await db.select({ value: sumDistinct(table.b) }).from(table);
+			const result2 = await db
+				.select({ value: sum(table.nullOnly) })
+				.from(table);
+			const result3 = await db
+				.select({ value: sumDistinct(table.b) })
+				.from(table);
 
 			expect(result1[0]?.value).toBe('200');
 			expect(result2[0]?.value).toBe(null);
@@ -3061,7 +3579,9 @@ export function tests(driver?: string) {
 			await setupAggregateFunctionsTest(db);
 
 			const result1 = await db.select({ value: max(table.b) }).from(table);
-			const result2 = await db.select({ value: max(table.nullOnly) }).from(table);
+			const result2 = await db
+				.select({ value: max(table.nullOnly) })
+				.from(table);
 
 			expect(result1[0]?.value).toBe(90);
 			expect(result2[0]?.value).toBe(null);
@@ -3073,7 +3593,9 @@ export function tests(driver?: string) {
 			await setupAggregateFunctionsTest(db);
 
 			const result1 = await db.select({ value: min(table.b) }).from(table);
-			const result2 = await db.select({ value: min(table.nullOnly) }).from(table);
+			const result2 = await db
+				.select({ value: min(table.nullOnly) })
+				.from(table);
 
 			expect(result1[0]?.value).toBe(10);
 			expect(result2[0]?.value).toBe(null);
@@ -3082,25 +3604,48 @@ export function tests(driver?: string) {
 		test('simple vector search', async (ctx) => {
 			const { db } = ctx.singlestore;
 			const table = vectorSearchTable;
-			const embedding = [0.42, 0.93, 0.88, 0.57, 0.32, 0.64, 0.76, 0.52, 0.19, 0.81]; // ChatGPT's 10 dimension embedding for "dogs are cool" not sure how accurate but it works
+			const embedding = [
+				0.42,
+				0.93,
+				0.88,
+				0.57,
+				0.32,
+				0.64,
+				0.76,
+				0.52,
+				0.19,
+				0.81,
+			]; // ChatGPT's 10 dimension embedding for "dogs are cool" not sure how accurate but it works
 			await setupVectorSearchTest(db);
 
-			const withRankEuclidean = db.select({
-				id: table.id,
-				text: table.text,
-				rank: sql`row_number() over (order by ${euclideanDistance(table.embedding, embedding)})`.as('rank'),
-			}).from(table).as('with_rank');
-			const withRankDotProduct = db.select({
-				id: table.id,
-				text: table.text,
-				rank: sql`row_number() over (order by ${dotProduct(table.embedding, embedding)})`.as('rank'),
-			}).from(table).as('with_rank');
-			const result1 = await db.select({ id: withRankEuclidean.id, text: withRankEuclidean.text }).from(
-				withRankEuclidean,
-			).where(eq(withRankEuclidean.rank, 1));
-			const result2 = await db.select({ id: withRankDotProduct.id, text: withRankDotProduct.text }).from(
-				withRankDotProduct,
-			).where(eq(withRankDotProduct.rank, 1));
+			const withRankEuclidean = db
+				.select({
+					id: table.id,
+					text: table.text,
+					rank: sql`row_number() over (order by ${euclideanDistance(table.embedding, embedding)})`.as(
+						'rank',
+					),
+				})
+				.from(table)
+				.as('with_rank');
+			const withRankDotProduct = db
+				.select({
+					id: table.id,
+					text: table.text,
+					rank: sql`row_number() over (order by ${dotProduct(table.embedding, embedding)})`.as(
+						'rank',
+					),
+				})
+				.from(table)
+				.as('with_rank');
+			const result1 = await db
+				.select({ id: withRankEuclidean.id, text: withRankEuclidean.text })
+				.from(withRankEuclidean)
+				.where(eq(withRankEuclidean.rank, 1));
+			const result2 = await db
+				.select({ id: withRankDotProduct.id, text: withRankDotProduct.text })
+				.from(withRankDotProduct)
+				.where(eq(withRankDotProduct.rank, 1));
 
 			expect(result1.length).toEqual(1);
 			expect(result1[0]).toEqual({ id: 1, text: 'I like dogs' });
@@ -3136,7 +3681,10 @@ export function tests(driver?: string) {
 
 			const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
 
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+			const response = await db
+				.select({ ...rest })
+				.from(usersOnUpdate)
+				.orderBy(asc(usersOnUpdate.id));
 
 			expect(response).toEqual([
 				{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
@@ -3147,7 +3695,9 @@ export function tests(driver?: string) {
 			const msDelay = 750;
 
 			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(
+					Date.now() - msDelay,
+				);
 			}
 		});
 
@@ -3169,38 +3719,78 @@ export function tests(driver?: string) {
 			);
 
 			await db.insert(usersOnUpdate).values([
-				{ id: 1, name: 'John', alwaysNull: 'this will will be null after updating' },
+				{
+					id: 1,
+					name: 'John',
+					alwaysNull: 'this will will be null after updating',
+				},
 				{ id: 2, name: 'Jane' },
 				{ id: 3, name: 'Jack' },
 				{ id: 4, name: 'Jill' },
 			]);
 			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-			const initial = await db.select({ id: usersOnUpdate.id, updatedAt: usersOnUpdate.updatedAt }).from(usersOnUpdate);
+			const initial = await db
+				.select({ id: usersOnUpdate.id, updatedAt: usersOnUpdate.updatedAt })
+				.from(usersOnUpdate);
 
-			await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
+			await db
+				.update(usersOnUpdate)
+				.set({ name: 'Angel' })
+				.where(eq(usersOnUpdate.id, 1));
 
-			const justDates = await db.select({ id: usersOnUpdate.id, updatedAt: usersOnUpdate.updatedAt }).from(
-				usersOnUpdate,
-			);
+			const justDates = await db
+				.select({ id: usersOnUpdate.id, updatedAt: usersOnUpdate.updatedAt })
+				.from(usersOnUpdate);
 
-			const response = await db.select().from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+			const response = await db
+				.select()
+				.from(usersOnUpdate)
+				.orderBy(asc(usersOnUpdate.id));
 
 			expect(response).toEqual([
-				{ id: 1, name: 'Angel', updateCounter: 2, updatedAt: expect.any(Date), alwaysNull: null },
-				{ id: 2, name: 'Jane', updateCounter: 1, updatedAt: expect.any(Date), alwaysNull: null },
-				{ id: 3, name: 'Jack', updateCounter: 1, updatedAt: expect.any(Date), alwaysNull: null },
-				{ id: 4, name: 'Jill', updateCounter: 1, updatedAt: expect.any(Date), alwaysNull: null },
+				{
+					id: 1,
+					name: 'Angel',
+					updateCounter: 2,
+					updatedAt: expect.any(Date),
+					alwaysNull: null,
+				},
+				{
+					id: 2,
+					name: 'Jane',
+					updateCounter: 1,
+					updatedAt: expect.any(Date),
+					alwaysNull: null,
+				},
+				{
+					id: 3,
+					name: 'Jack',
+					updateCounter: 1,
+					updatedAt: expect.any(Date),
+					alwaysNull: null,
+				},
+				{
+					id: 4,
+					name: 'Jill',
+					updateCounter: 1,
+					updatedAt: expect.any(Date),
+					alwaysNull: null,
+				},
 			]);
 
 			const initialRecord = initial.find((record) => record.id === 1);
 			const updatedRecord = justDates.find((record) => record.id === 1);
 
-			expect(initialRecord?.updatedAt?.valueOf()).not.toBe(updatedRecord?.updatedAt?.valueOf());
+			expect(initialRecord?.updatedAt?.valueOf()).not.toBe(
+				updatedRecord?.updatedAt?.valueOf(),
+			);
 
 			const msDelay = 2000;
 
 			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(
+					Date.now() - msDelay,
+				);
 			}
 		});
 
@@ -3214,7 +3804,15 @@ export function tests(driver?: string) {
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			// not timezone based timestamp, thats why it should not work here
 			// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 		});
 
 		test('mySchema :: select sql', async (ctx) => {
@@ -3222,9 +3820,11 @@ export function tests(driver?: string) {
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql`upper(${usersMySchemaTable.name})`,
-			}).from(usersMySchemaTable);
+			const users = await db
+				.select({
+					name: sql`upper(${usersMySchemaTable.name})`,
+				})
+				.from(usersMySchemaTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
@@ -3234,9 +3834,11 @@ export function tests(driver?: string) {
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const users = await db.select({
-				name: sql<string>`upper(${usersMySchemaTable.name})`,
-			}).from(usersMySchemaTable);
+			const users = await db
+				.select({
+					name: sql<string>`upper(${usersMySchemaTable.name})`,
+				})
+				.from(usersMySchemaTable);
 
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
@@ -3250,7 +3852,9 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${usersDistinctTable}`);
-			await db.execute(sql`create table ${usersDistinctTable} (id int, name text)`);
+			await db.execute(
+				sql`create table ${usersDistinctTable} (id int, name text)`,
+			);
 
 			await db.insert(usersDistinctTable).values([
 				{ id: 1, name: 'John' },
@@ -3258,21 +3862,27 @@ export function tests(driver?: string) {
 				{ id: 2, name: 'John' },
 				{ id: 1, name: 'Jane' },
 			]);
-			const users = await db.selectDistinct().from(usersDistinctTable).orderBy(
-				usersDistinctTable.id,
-				usersDistinctTable.name,
-			);
+			const users = await db
+				.selectDistinct()
+				.from(usersDistinctTable)
+				.orderBy(usersDistinctTable.id, usersDistinctTable.name);
 
 			await db.execute(sql`drop table ${usersDistinctTable}`);
 
-			expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+			expect(users).toEqual([
+				{ id: 1, name: 'Jane' },
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'John' },
+			]);
 		});
 
 		test('mySchema :: insert returning sql', async (ctx) => {
 			const { db } = ctx.singlestore;
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
-			const [result, _] = await db.insert(usersMySchemaTable).values({ id: 1, name: 'John' });
+			const [result, _] = await db
+				.insert(usersMySchemaTable)
+				.values({ id: 1, name: 'John' });
 
 			expect(result.insertId).toBe(1);
 		});
@@ -3282,7 +3892,9 @@ export function tests(driver?: string) {
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John'));
+			const users = await db
+				.delete(usersMySchemaTable)
+				.where(eq(usersMySchemaTable.name, 'John'));
 
 			expect(users[0].affectedRows).toBe(1);
 		});
@@ -3292,16 +3904,15 @@ export function tests(driver?: string) {
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
 			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John' });
-			const updatedUsers = await db.update(usersMySchemaTable).set({ name: 'Jane' }).where(
-				eq(usersMySchemaTable.name, 'John'),
-			);
+			const updatedUsers = await db
+				.update(usersMySchemaTable)
+				.set({ name: 'Jane' })
+				.where(eq(usersMySchemaTable.name, 'John'));
 
-			const users = await db.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name }).from(
-				usersMySchemaTable,
-			)
-				.where(
-					eq(usersMySchemaTable.id, 1),
-				);
+			const users = await db
+				.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name })
+				.from(usersMySchemaTable)
+				.where(eq(usersMySchemaTable.id, 1));
 
 			expect(updatedUsers[0].changedRows).toBe(1);
 
@@ -3312,7 +3923,9 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
-			const deletedUser = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John'));
+			const deletedUser = await db
+				.delete(usersMySchemaTable)
+				.where(eq(usersMySchemaTable.name, 'John'));
 
 			expect(deletedUser[0].affectedRows).toBe(1);
 		});
@@ -3323,13 +3936,36 @@ export function tests(driver?: string) {
 
 			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John' });
 			const result = await db.select().from(usersMySchemaTable);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 
 			await db.insert(usersMySchemaTable).values({ id: 2, name: 'Jane' });
-			const result2 = await db.select().from(usersMySchemaTable).orderBy(asc(usersMySchemaTable.id));
+			const result2 = await db
+				.select()
+				.from(usersMySchemaTable)
+				.orderBy(asc(usersMySchemaTable.id));
 			expect(result2).toEqual([
-				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[0]!.createdAt,
+				},
+				{
+					id: 2,
+					name: 'Jane',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[1]!.createdAt,
+				},
 			]);
 		});
 
@@ -3337,10 +3973,20 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
-			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John', verified: true });
+			await db
+				.insert(usersMySchemaTable)
+				.values({ id: 1, name: 'John', verified: true });
 			const result = await db.select().from(usersMySchemaTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: true,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 		});
 
 		test('mySchema :: insert many', async (ctx) => {
@@ -3353,12 +3999,14 @@ export function tests(driver?: string) {
 				{ id: 3, name: 'Jane' },
 				{ id: 4, name: 'Austin', verified: true },
 			]);
-			const result = await db.select({
-				id: usersMySchemaTable.id,
-				name: usersMySchemaTable.name,
-				jsonb: usersMySchemaTable.jsonb,
-				verified: usersMySchemaTable.verified,
-			}).from(usersMySchemaTable)
+			const result = await db
+				.select({
+					id: usersMySchemaTable.id,
+					name: usersMySchemaTable.name,
+					jsonb: usersMySchemaTable.jsonb,
+					verified: usersMySchemaTable.verified,
+				})
+				.from(usersMySchemaTable)
 				.orderBy(asc(usersMySchemaTable.id));
 
 			expect(result).toEqual([
@@ -3373,12 +4021,18 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
-			await db.insert(usersMySchemaTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, {
-				id: 3,
-				name: 'Jane',
-			}]);
+			await db.insert(usersMySchemaTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{
+					id: 3,
+					name: 'Jane',
+				},
+			]);
 
-			const result = await db.select({ name: usersMySchemaTable.name }).from(usersMySchemaTable)
+			const result = await db
+				.select({ name: usersMySchemaTable.name })
+				.from(usersMySchemaTable)
 				.groupBy(usersMySchemaTable.name)
 				.orderBy(asc(usersMySchemaTable.id));
 
@@ -3389,22 +4043,34 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
-			await db.insert(usersMySchemaTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }, {
-				id: 3,
-				name: 'Jane',
-			}]);
+			await db.insert(usersMySchemaTable).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+				{
+					id: 3,
+					name: 'Jane',
+				},
+			]);
 
-			const result = await db.select({ name: usersMySchemaTable.name }).from(usersMySchemaTable)
+			const result = await db
+				.select({ name: usersMySchemaTable.name })
+				.from(usersMySchemaTable)
 				.groupBy(usersMySchemaTable.id, sql`${usersMySchemaTable.name}`)
 				.orderBy(asc(usersMySchemaTable.id));
 
-			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			expect(result).toEqual([
+				{ name: 'John' },
+				{ name: 'Jane' },
+				{ name: 'Jane' },
+			]);
 		});
 
 		test('mySchema :: build query', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const query = db.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name }).from(usersMySchemaTable)
+			const query = db
+				.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name })
+				.from(usersMySchemaTable)
 				.groupBy(usersMySchemaTable.id, usersMySchemaTable.name)
 				.toSQL();
 
@@ -3419,10 +4085,12 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
-			await db.insert(usersMySchemaTable).values({ id: 1, name: sql`'Jo   h     n'` });
-			const result = await db.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name }).from(
-				usersMySchemaTable,
-			);
+			await db
+				.insert(usersMySchemaTable)
+				.values({ id: 1, name: sql`'Jo   h     n'` });
+			const result = await db
+				.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name })
+				.from(usersMySchemaTable);
 
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
@@ -3432,10 +4100,12 @@ export function tests(driver?: string) {
 			await db.execute(sql`truncate table \`mySchema\`.\`userstest\``);
 
 			await db.insert(usersMySchemaTable).values({ id: 1, name: 'John' });
-			const stmt = db.select({
-				id: usersMySchemaTable.id,
-				name: usersMySchemaTable.name,
-			}).from(usersMySchemaTable)
+			const stmt = db
+				.select({
+					id: usersMySchemaTable.id,
+					name: usersMySchemaTable.name,
+				})
+				.from(usersMySchemaTable)
 				.where(eq(usersMySchemaTable.id, sql.placeholder('id')))
 				.prepare();
 			const result = await stmt.execute({ id: 1 });
@@ -3466,36 +4136,44 @@ export function tests(driver?: string) {
 			const customerAlias = alias(usersTable, 'customer');
 
 			const result = await db
-				.select().from(usersMySchemaTable)
+				.select()
+				.from(usersMySchemaTable)
 				.leftJoin(customerAlias, eq(customerAlias.id, 11))
 				.where(eq(usersMySchemaTable.id, 10));
 
-			expect(result).toEqual([{
-				userstest: {
-					id: 10,
-					name: 'Ivan',
-					verified: false,
-					jsonb: null,
-					createdAt: result[0]!.userstest.createdAt,
+			expect(result).toEqual([
+				{
+					userstest: {
+						id: 10,
+						name: 'Ivan',
+						verified: false,
+						jsonb: null,
+						createdAt: result[0]!.userstest.createdAt,
+					},
+					customer: {
+						id: 11,
+						name: 'Hans',
+						verified: false,
+						jsonb: null,
+						createdAt: result[0]!.customer!.createdAt,
+					},
 				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-					verified: false,
-					jsonb: null,
-					createdAt: result[0]!.customer!.createdAt,
-				},
-			}]);
+			]);
 		});
 
 		test('insert $returningId: serial as id', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const result = await db.insert(usersTable).values({ id: 1, name: 'John' }).$returningId();
+			const result = await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John' })
+				.$returningId();
 
-			expectTypeOf(result).toEqualTypeOf<{
-				id: number;
-			}[]>();
+			expectTypeOf(result).toEqualTypeOf<
+				{
+					id: number;
+				}[]
+			>();
 
 			expect(result).toStrictEqual([{ id: 1 }]);
 		});
@@ -3503,12 +4181,19 @@ export function tests(driver?: string) {
 		test('insert $returningId: serial as id, batch insert', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const result = await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'John1' }])
+			const result = await db
+				.insert(usersTable)
+				.values([
+					{ id: 1, name: 'John' },
+					{ id: 2, name: 'John1' },
+				])
 				.$returningId();
 
-			expectTypeOf(result).toEqualTypeOf<{
-				id: number;
-			}[]>();
+			expectTypeOf(result).toEqualTypeOf<
+				{
+					id: number;
+				}[]
+			>();
 
 			// singlestore auto increments when batch inserting, so the ids increment by one
 			expect(result).toStrictEqual([{ id: 2 }, { id: 3 }]);
@@ -3517,59 +4202,83 @@ export function tests(driver?: string) {
 		test('insert $returningId: $default as primary key', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+			const uniqueKeys = [
+				'ao865jf3mcmkfkk8o5ri495z',
+				'dyqs529eom0iczo2efxzbcut',
+			];
 			let iterator = 0;
 
 			const usersTableDefFn = singlestoreTable('users_default_fn', {
-				customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
-					const value = uniqueKeys[iterator]!;
-					iterator++;
-					return value;
-				}),
+				customId: varchar('id', { length: 256 })
+					.primaryKey()
+					.$defaultFn(() => {
+						const value = uniqueKeys[iterator]!;
+						iterator++;
+						return value;
+					}),
 				name: text('name').notNull(),
 			});
 
 			await setupReturningFunctionsTest(db);
 
-			const result = await db.insert(usersTableDefFn).values([{ name: 'John' }, { name: 'John1' }])
+			const result = await db
+				.insert(usersTableDefFn)
+				.values([{ name: 'John' }, { name: 'John1' }])
 				//    ^?
 				.$returningId();
 
-			expectTypeOf(result).toEqualTypeOf<{
-				customId: string;
-			}[]>();
+			expectTypeOf(result).toEqualTypeOf<
+				{
+					customId: string;
+				}[]
+			>();
 
-			expect(result).toStrictEqual([{ customId: 'ao865jf3mcmkfkk8o5ri495z' }, {
-				customId: 'dyqs529eom0iczo2efxzbcut',
-			}]);
+			expect(result).toStrictEqual([
+				{ customId: 'ao865jf3mcmkfkk8o5ri495z' },
+				{
+					customId: 'dyqs529eom0iczo2efxzbcut',
+				},
+			]);
 		});
 
 		test('insert $returningId: $default as primary key with value', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+			const uniqueKeys = [
+				'ao865jf3mcmkfkk8o5ri495z',
+				'dyqs529eom0iczo2efxzbcut',
+			];
 			let iterator = 0;
 
 			const usersTableDefFn = singlestoreTable('users_default_fn', {
-				customId: varchar('id', { length: 256 }).primaryKey().$defaultFn(() => {
-					const value = uniqueKeys[iterator]!;
-					iterator++;
-					return value;
-				}),
+				customId: varchar('id', { length: 256 })
+					.primaryKey()
+					.$defaultFn(() => {
+						const value = uniqueKeys[iterator]!;
+						iterator++;
+						return value;
+					}),
 				name: text('name').notNull(),
 			});
 
 			await setupReturningFunctionsTest(db);
 
-			const result = await db.insert(usersTableDefFn).values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
+			const result = await db
+				.insert(usersTableDefFn)
+				.values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
 				//    ^?
 				.$returningId();
 
-			expectTypeOf(result).toEqualTypeOf<{
-				customId: string;
-			}[]>();
+			expectTypeOf(result).toEqualTypeOf<
+				{
+					customId: string;
+				}[]
+			>();
 
-			expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
+			expect(result).toStrictEqual([
+				{ customId: 'test' },
+				{ customId: 'ao865jf3mcmkfkk8o5ri495z' },
+			]);
 		});
 
 		// TODO: Unkip this test when views are supported
@@ -3640,10 +4349,7 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.select()
-				.from(usersTable)
-				.limit(0);
+			const users = await db.select().from(usersTable).limit(0);
 
 			expect(users).toEqual([]);
 		});
@@ -3652,10 +4358,7 @@ export function tests(driver?: string) {
 			const { db } = ctx.singlestore;
 
 			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db
-				.select()
-				.from(usersTable)
-				.limit(-1);
+			const users = await db.select().from(usersTable).limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
 		});
@@ -3669,26 +4372,29 @@ export function tests(driver?: string) {
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
-			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
-			await db.insert(users).values([
-				{ name: 'John' },
-				{ name: 'Jane' },
-			]);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key, name text not null)`,
+			);
+			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
 
-			const sq1 = db.$with('sq', {
-				userId: users.id,
-				data: {
-					name: users.name,
-				},
-			}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+			const sq1 = db
+				.$with('sq', {
+					userId: users.id,
+					data: {
+						name: users.name,
+					},
+				})
+				.as(sql`select * from ${users} where ${users.name} = 'John'`);
 			const result1 = await db.with(sq1).select().from(sq1);
 
-			const sq2 = db.$with('sq', {
-				userId: users.id,
-				data: {
-					name: users.name,
-				},
-			}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+			const sq2 = db
+				.$with('sq', {
+					userId: users.id,
+					data: {
+						name: users.name,
+					},
+				})
+				.as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
 			const result2 = await db.with(sq2).select().from(sq1);
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
@@ -3698,19 +4404,11 @@ export function tests(driver?: string) {
 		test('cross join', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db
-				.insert(usersTable)
-				.values([
-					{ name: 'John' },
-					{ name: 'Jane' },
-				]);
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			await db
 				.insert(citiesTable)
-				.values([
-					{ name: 'Seattle' },
-					{ name: 'New York City' },
-				]);
+				.values([{ name: 'Seattle' }, { name: 'New York City' }]);
 
 			const result = await db
 				.select({
@@ -3732,11 +4430,14 @@ export function tests(driver?: string) {
 		test('left join (lateral)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			await db
+				.insert(users2Table)
+				.values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -3768,11 +4469,14 @@ export function tests(driver?: string) {
 		test('inner join (lateral)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			await db
+				.insert(users2Table)
+				.values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -3802,14 +4506,19 @@ export function tests(driver?: string) {
 		test('cross join (lateral)', async (ctx) => {
 			const { db } = ctx.singlestore;
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, {
-				name: 'Patrick',
-				cityId: 2,
-			}]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{
+					name: 'Patrick',
+					cityId: 2,
+				},
+			]);
 
 			const sq = db
 				.select({
@@ -3879,7 +4588,9 @@ export function tests(driver?: string) {
 			await db.insert(users).values({
 				name: 'John',
 			});
-			const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			const insertResp = await db
+				.select({ updatedAt: users.updatedAt })
+				.from(users);
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			const now = Date.now();
@@ -3887,7 +4598,9 @@ export function tests(driver?: string) {
 			await db.update(users).set({
 				name: 'John',
 			});
-			const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+			const updateResp = await db
+				.select({ updatedAt: users.updatedAt })
+				.from(users);
 
 			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
@@ -3939,9 +4652,15 @@ export function tests(driver?: string) {
 				boolean: true,
 				char: 'c',
 				date: new Date(1741743161623),
-				dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				dateStr: new Date(1741743161623)
+					.toISOString()
+					.slice(0, 19)
+					.replace('T', ' '),
 				datetime: new Date(1741743161623),
-				datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				datetimeStr: new Date(1741743161623)
+					.toISOString()
+					.slice(0, 19)
+					.replace('T', ' '),
 				decimal: '47521',
 				decimalNum: 9007199254740991,
 				decimalBig: 5044565289845416380n,
@@ -3959,7 +4678,10 @@ export function tests(driver?: string) {
 				smallInt: 14,
 				time: '04:13:22',
 				timestamp: new Date(1741743161623),
-				timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				timestampStr: new Date(1741743161623)
+					.toISOString()
+					.slice(0, 19)
+					.replace('T', ' '),
 				tinyInt: 7,
 				varbin: '1010110101001101',
 				varchar: 'VCHAR',
@@ -4037,5 +4759,30 @@ export function tests(driver?: string) {
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
+	});
+
+	test('sql.identifier escape', async (ctx) => {
+		const { db } = ctx.singlestore;
+
+		const users = singlestoreTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(
+			sql`create table ${users} (id serial not null primary key, name text not null)`,
+		);
+		await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
+
+		const singlestoreDialect = new SingleStoreDialect();
+		const userInput = 'id` ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--';
+
+		const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
+
+		const str = singlestoreDialect.sqlToQuery(query);
+		expect(str.sql).toBe(
+			'SELECT * FROM `users` ORDER BY `id`` ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--` ASC',
+		);
 	});
 }
