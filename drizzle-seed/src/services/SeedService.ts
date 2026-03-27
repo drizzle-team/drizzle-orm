@@ -218,7 +218,7 @@ export class SeedService {
 						&& col.notNull === true
 					) {
 						throw new Error(
-							`Column '${col.name}' has not null contraint,`
+							`Column '${col.name}' has not null constraint,`
 								+ `\nand you didn't specify a table for foreign key on column '${col.name}' in '${table.name}' table.`
 								+ `\n\nFor more details, check this: https://orm.drizzle.team/docs/guides/seeding-with-partially-exposed-tables#example-1`,
 						);
