@@ -365,9 +365,6 @@ export const fromDatabase = async (
 			})
 		: [] as SequenceListItem[];
 
-	// I'm not yet aware of how we handle policies down the pipeline for push,
-	// and since postgres does not have any default policies, we can safely fetch all of them for now
-	// and filter them out in runtime, simplifying filterings
 	progressCallback('policies', 0, 'fetching');
 	const policiesQuery = db.query<
 		{
@@ -390,6 +387,7 @@ export const fromDatabase = async (
 			qual as "using", 
 			with_check as "withCheck" 
 		FROM pg_catalog.pg_policies
+		WHERE schemaname IN (${filteredNamespacesStringForSQL})
 		ORDER BY
 			pg_catalog.lower(schemaname),
 			pg_catalog.lower(tablename),
