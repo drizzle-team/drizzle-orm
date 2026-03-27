@@ -241,7 +241,7 @@ function numberColumnToSchema(
 	}
 
 	let schema = coerce === true || coerce?.number
-		? integer ? z.coerce.number() : z.coerce.number().int()
+		? integer ? z.coerce.number().int() : z.coerce.number()
 		: integer
 		? z.int()
 		: z.number();
