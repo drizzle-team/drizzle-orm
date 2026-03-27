@@ -388,13 +388,15 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
+		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled, isUnlogged } =
 			st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
 
-		statement += `CREATE TABLE ${name} (\n`;
+		const createPrefix = isUnlogged ? 'CREATE UNLOGGED TABLE' : 'CREATE TABLE';
+
+		statement += `${createPrefix} ${name} (\n`;
 		for (let i = 0; i < columns.length; i++) {
 			const column = columns[i];
 
@@ -3272,7 +3274,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
 
 	convert(statement: JsonAlterColumnDropPrimaryKeyStatement) {
 		const { tableName, columnName, schema } = statement;
-		return `/* 
+		return `/*
     Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
     We are working on making it available!
 
@@ -3283,7 +3285,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
                 AND table_name = '${tableName}'
                 AND constraint_type = 'PRIMARY KEY';
         2. Uncomment code below and paste pk name manually
-        
+
     Hope to release this update as soon as possible
 */
 
