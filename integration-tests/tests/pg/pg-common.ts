@@ -6018,7 +6018,7 @@ export function tests() {
 
 			const str = pgDialect.sqlToQuery(query);
 			expect(str.sql).toBe(
-				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--" ASC',
+				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--" ASC',
 			);
 		});
 
