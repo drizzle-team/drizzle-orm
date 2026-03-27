@@ -3,6 +3,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type PostgresColumnType, type PostgresType, resolvePgType } from '../codecs.ts';
 import { parsePgArray } from '../utils/array.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -50,6 +51,9 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> 
 export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends PgColumn<'custom'> {
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
+	/** @internal */
+	override readonly useCodecType: PostgresType;
+
 	private sqlName: string;
 	readonly mapFromJsonValue?: (value: unknown) => T['data'];
 	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
@@ -64,6 +68,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		this.useCodecType = resolvePgType(config.customTypeParams.useCodecType ?? this.sqlName);
 
 		if (this.dimensions && config.customTypeParams.fromJson) {
 			this.mapFromJsonValue = (value: unknown): unknown => {
@@ -105,6 +110,8 @@ export interface CustomTypeValues {
 	driverData?: unknown;
 
 	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type database driver is returning for specific database data type
 	 *
 	 * Needed only in case driver's output and input for type differ
@@ -114,6 +121,8 @@ export interface CustomTypeValues {
 	driverOutput?: unknown;
 
 	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type field returns after being aggregated to JSON
 	 */
 	jsonData?: unknown;
@@ -224,6 +233,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -254,6 +265,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
@@ -308,6 +321,13 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 *
+	 * Defaults to {@link dataType}
+	 */
+	useCodecType?: PostgresColumnType;
 }
 
 /**

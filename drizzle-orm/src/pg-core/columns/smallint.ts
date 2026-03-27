@@ -23,6 +23,9 @@ export class PgSmallIntBuilder extends PgIntColumnBuilder<{
 export class PgSmallInt extends PgColumn<'number int16'> {
 	static override readonly [entityKind]: string = 'PgSmallInt';
 
+	/** @internal */
+	override readonly useCodecType = 'smallint';
+
 	getSQLType(): string {
 		return 'smallint';
 	}

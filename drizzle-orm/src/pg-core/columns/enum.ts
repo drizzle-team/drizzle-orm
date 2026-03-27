@@ -41,6 +41,9 @@ export class PgEnumObjectColumnBuilder<
 export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string enum'> {
 	static override readonly [entityKind]: string = 'PgEnumObjectColumn';
 
+	/** @internal */
+	override readonly useCodecType = 'enum';
+
 	readonly enum: PgEnumObject<TValues>;
 	override readonly enumValues: string[];
 
@@ -55,14 +58,6 @@ export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string
 
 	getSQLType(): string {
 		return this.enum.enumName;
-	}
-
-	/** @internal */
-	override get sqlTypeMeta() {
-		const meta = super.sqlTypeMeta;
-		meta.type = 'enum';
-
-		return meta;
 	}
 }
 
@@ -110,6 +105,9 @@ export class PgEnumColumnBuilder<
 export class PgEnumColumn<TValues extends [string, ...string[]]> extends PgColumn<'string enum'> {
 	static override readonly [entityKind]: string = 'PgEnumColumn';
 
+	/** @internal */
+	override readonly useCodecType = 'enum';
+
 	readonly enum: PgEnum<TValues>;
 	override readonly enumValues: TValues;
 
@@ -124,14 +122,6 @@ export class PgEnumColumn<TValues extends [string, ...string[]]> extends PgColum
 
 	getSQLType(): string {
 		return this.enum.enumName;
-	}
-
-	/** @internal */
-	override get sqlTypeMeta() {
-		const meta = super.sqlTypeMeta;
-		meta.type = 'enum';
-
-		return meta;
 	}
 }
 

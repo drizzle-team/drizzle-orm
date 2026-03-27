@@ -31,6 +31,9 @@ export class PgNumericBuilder extends PgColumnBuilder<
 export class PgNumeric extends PgColumn<'string numeric'> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
+	/** @internal */
+	override readonly useCodecType = 'numeric';
+
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
@@ -81,6 +84,9 @@ export class PgNumericNumberBuilder extends PgColumnBuilder<
 
 export class PgNumericNumber extends PgColumn<'number'> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
+
+	/** @internal */
+	override readonly useCodecType = 'numeric';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
@@ -138,6 +144,9 @@ export class PgNumericBigIntBuilder extends PgColumnBuilder<
 
 export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
+
+	/** @internal */
+	override readonly useCodecType = 'numeric';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;

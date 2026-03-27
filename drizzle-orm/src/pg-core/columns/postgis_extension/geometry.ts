@@ -31,6 +31,9 @@ export class PgGeometry
 {
 	static override readonly [entityKind]: string = 'PgGeometry';
 
+	/** @internal */
+	override readonly useCodecType = 'geometry';
+
 	readonly srid = this.config.srid;
 	readonly mode = 'tuple';
 
@@ -74,6 +77,9 @@ export class PgGeometryObject
 	extends PgColumn<'object geometry', PgColumnBaseConfig<'object geometry'>, { srid: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
+
+	/** @internal */
+	override readonly useCodecType = 'geometry';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'object';

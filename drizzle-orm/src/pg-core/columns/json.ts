@@ -24,6 +24,9 @@ export class PgJsonBuilder extends PgColumnBuilder<
 export class PgJson extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJson';
 
+	/** @internal */
+	override readonly useCodecType = 'json';
+
 	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
 		super(table, config);
 	}

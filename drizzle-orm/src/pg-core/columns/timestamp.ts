@@ -33,6 +33,9 @@ export class PgTimestampBuilder extends PgDateColumnBuilder<
 export class PgTimestamp extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgTimestamp';
 
+	/** @internal */
+	override readonly useCodecType: 'timestamp' | 'timestamptz';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
@@ -40,6 +43,7 @@ export class PgTimestamp extends PgColumn<'object date'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.useCodecType = this.withTimezone ? 'timestamptz' : 'timestamp';
 	}
 
 	getSQLType(): string {
@@ -89,6 +93,9 @@ export class PgTimestampStringBuilder extends PgDateColumnBuilder<
 export class PgTimestampString extends PgColumn<'string timestamp'> {
 	static override readonly [entityKind]: string = 'PgTimestampString';
 
+	/** @internal */
+	override readonly useCodecType: 'timestamp' | 'timestamptz';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
@@ -96,6 +103,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.useCodecType = this.withTimezone ? 'timestamptz' : 'timestamp';
 	}
 
 	getSQLType(): string {
