@@ -62,6 +62,7 @@ const table = object({
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
+	isStrict: boolean().default(false),
 }).strict();
 
 export const view = object({
@@ -144,6 +145,7 @@ const tableSquashed = object({
 	compositePrimaryKeys: record(string(), string()),
 	uniqueConstraints: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
+	isStrict: boolean().default(false),
 }).strict();
 
 export const schemaSquashed = object({
@@ -315,6 +317,7 @@ export const squashSqliteScheme = (
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
 					checkConstraints: squashedCheckConstraints,
+					isStrict: it[1].isStrict ?? false,
 				},
 			];
 		}),
