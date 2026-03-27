@@ -1216,6 +1216,7 @@ WHERE
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
 				const tableSchema = row.table_schema;
+				const tableKey = schemaQualifiedTableName(tableSchema, tableName);
 
 				try {
 					const columnToReturn: Record<string, Column> = {};
@@ -1423,49 +1424,18 @@ WHERE
 
 						// Set default to internal object
 						if (columnAdditionalDT === 'ARRAY') {
-							if (typeof internals.tables[tableName] === 'undefined') {
-								internals.tables[tableName] = {
-									columns: {
-										[columnName]: {
-											isArray: true,
-											dimensions: columnDimensions,
-											rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-										},
-									},
-								};
-							} else {
-								if (typeof internals.tables[tableName]!.columns[columnName] === 'undefined') {
-									internals.tables[tableName]!.columns[columnName] = {
-										isArray: true,
-										dimensions: columnDimensions,
-										rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-									};
-								}
-							}
+							const columnInternals = ensureInternalsColumn(internals, tableKey, columnName);
+							columnInternals.isArray = true;
+							columnInternals.dimensions = columnDimensions;
+							columnInternals.rawType = columnTypeMapped.substring(0, columnTypeMapped.length - 2);
 						}
 
-						const defaultValue = defaultForColumn(columnResponse, internals, tableName);
+						const defaultValue = defaultForColumn(columnResponse, internals, tableKey);
 						if (
 							defaultValue === 'NULL'
 							|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
 						) {
-							if (typeof internals!.tables![tableName] === 'undefined') {
-								internals!.tables![tableName] = {
-									columns: {
-										[columnName]: {
-											isDefaultAnExpression: true,
-										},
-									},
-								};
-							} else {
-								if (typeof internals!.tables![tableName]!.columns[columnName] === 'undefined') {
-									internals!.tables![tableName]!.columns[columnName] = {
-										isDefaultAnExpression: true,
-									};
-								} else {
-									internals!.tables![tableName]!.columns[columnName]!.isDefaultAnExpression = true;
-								}
-							}
+							ensureInternalsColumn(internals, tableKey, columnName).isDefaultAnExpression = true;
 						}
 
 						const isSerial = columnType === 'serial';
@@ -1685,6 +1655,7 @@ WHERE
 				if (!tablesFilter(viewName)) return res('');
 				tableCount += 1;
 				const viewSchema = row.table_schema;
+				const viewKey = schemaQualifiedTableName(viewSchema, viewName);
 
 				try {
 					const columnToReturn: Record<string, Column> = {};
@@ -1718,49 +1689,18 @@ WHERE
 
 						// Set default to internal object
 						if (columnAdditionalDT === 'ARRAY') {
-							if (typeof internals.tables[viewName] === 'undefined') {
-								internals.tables[viewName] = {
-									columns: {
-										[columnName]: {
-											isArray: true,
-											dimensions: columnDimensions,
-											rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-										},
-									},
-								};
-							} else {
-								if (typeof internals.tables[viewName]!.columns[columnName] === 'undefined') {
-									internals.tables[viewName]!.columns[columnName] = {
-										isArray: true,
-										dimensions: columnDimensions,
-										rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-									};
-								}
-							}
+							const columnInternals = ensureInternalsColumn(internals, viewKey, columnName);
+							columnInternals.isArray = true;
+							columnInternals.dimensions = columnDimensions;
+							columnInternals.rawType = columnTypeMapped.substring(0, columnTypeMapped.length - 2);
 						}
 
-						const defaultValue = defaultForColumn(viewResponse, internals, viewName);
+						const defaultValue = defaultForColumn(viewResponse, internals, viewKey);
 						if (
 							defaultValue === 'NULL'
 							|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
 						) {
-							if (typeof internals!.tables![viewName] === 'undefined') {
-								internals!.tables![viewName] = {
-									columns: {
-										[columnName]: {
-											isDefaultAnExpression: true,
-										},
-									},
-								};
-							} else {
-								if (typeof internals!.tables![viewName]!.columns[columnName] === 'undefined') {
-									internals!.tables![viewName]!.columns[columnName] = {
-										isDefaultAnExpression: true,
-									};
-								} else {
-									internals!.tables![viewName]!.columns[columnName]!.isDefaultAnExpression = true;
-								}
-							}
+							ensureInternalsColumn(internals, viewKey, columnName).isDefaultAnExpression = true;
 						}
 
 						const isSerial = columnType === 'serial';
@@ -1936,9 +1876,23 @@ WHERE
 	};
 };
 
-const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
+const schemaQualifiedTableName = (tableSchema: string, tableName: string) => `${tableSchema}.${tableName}`;
+
+const ensureInternalsColumn = (internals: PgKitInternals, tableKey: string, columnName: string) => {
+	if (typeof internals.tables[tableKey] === 'undefined') {
+		internals.tables[tableKey] = { columns: {} };
+	}
+
+	if (typeof internals.tables[tableKey]!.columns[columnName] === 'undefined') {
+		internals.tables[tableKey]!.columns[columnName] = {};
+	}
+
+	return internals.tables[tableKey]!.columns[columnName]!;
+};
+
+const defaultForColumn = (column: any, internals: PgKitInternals, tableKey: string) => {
 	const columnName = column.column_name;
-	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
+	const isArray = internals?.tables[tableKey]?.columns[columnName]?.isArray ?? false;
 
 	if (
 		column.column_default === null
@@ -1990,23 +1944,7 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 		if (/^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultAsString)) {
 			return Number(columnDefaultAsString);
 		} else {
-			if (typeof internals!.tables![tableName] === 'undefined') {
-				internals!.tables![tableName] = {
-					columns: {
-						[columnName]: {
-							isDefaultAnExpression: true,
-						},
-					},
-				};
-			} else {
-				if (typeof internals!.tables![tableName]!.columns[columnName] === 'undefined') {
-					internals!.tables![tableName]!.columns[columnName] = {
-						isDefaultAnExpression: true,
-					};
-				} else {
-					internals!.tables![tableName]!.columns[columnName]!.isDefaultAnExpression = true;
-				}
-			}
+			ensureInternalsColumn(internals, tableKey, columnName).isDefaultAnExpression = true;
 			return columnDefaultAsString;
 		}
 	} else if (column.data_type.includes('numeric')) {
