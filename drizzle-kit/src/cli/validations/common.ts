@@ -159,22 +159,24 @@ export const wrapParam = (
 	param: any | undefined,
 	optional: boolean = false,
 	type?: 'url' | 'secret',
+	isValid: boolean = true,
 ) => {
 	const check = `[${chalk.green('✓')}]`;
 	const cross = `[${chalk.red('x')}]`;
+	const prefix = isValid === true ? check : cross;
+	if (optional) {
+		return chalk.gray(`    ${prefix} ${name}?: `);
+	}
 	if (typeof param === 'string') {
 		if (param.length === 0) {
 			return `    ${cross} ${name}: ''`;
 		}
 		if (type === 'secret') {
-			return `    ${check} ${name}: '*****'`;
+			return `    ${prefix} ${name}: '*****'`;
 		} else if (type === 'url') {
-			return `    ${check} ${name}: '${param.replace(/(?<=:\/\/[^:\n]*:)([^@]*)/, '****')}'`;
+			return `    ${prefix} ${name}: '${param.replace(/(?<=:\/\/[^:\n]*:)([^@]*)/, '****')}'`;
 		}
-		return `    ${check} ${name}: '${param}'`;
-	}
-	if (optional) {
-		return chalk.gray(`        ${name}?: `);
+		return `    ${prefix} ${name}: '${param}'`;
 	}
 	return `    ${cross} ${name}: ${chalk.gray('undefined')}`;
 };
