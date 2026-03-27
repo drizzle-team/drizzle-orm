@@ -9,6 +9,7 @@
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
+		"test:dsql": "vitest run --reporter=verbose --silent=false tests/aws-dsql/aws-dsql.test.ts",
 		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/relational/mysql.test.ts tests/relational/mysql-v1.test.ts",
 		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/relational/mysql.planetscale",
 		"test:other": "vitest run tests/utils tests/extensions",
@@ -46,6 +47,7 @@
 		"zx": "^8.3.2"
 	},
 	"dependencies": {
+		"@aws/aurora-dsql-node-postgres-connector": "^0.1.8",
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
 		"@effect/sql-pg": "^0.49.7",

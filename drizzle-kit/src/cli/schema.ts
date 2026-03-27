@@ -168,6 +168,8 @@ export const migrate = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'aws-dsql') {
+					// DSQL driver - no version check needed for now
 				} else {
 					assertUnreachable(driver);
 				}
@@ -381,6 +383,7 @@ export const push = command({
 					);
 					process.exit(1);
 				}
+				// aws-dsql driver - no version check needed
 			}
 
 			const { handle } = await import('./commands/push-postgres');
@@ -612,6 +615,8 @@ export const pull = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'aws-dsql') {
+					// DSQL driver - no version check needed
 				} else {
 					assertUnreachable(driver);
 				}
@@ -826,6 +831,8 @@ export const studio = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'aws-dsql') {
+					// DSQL driver - no version check needed
 				} else {
 					assertUnreachable(driver);
 				}

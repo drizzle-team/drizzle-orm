@@ -41,6 +41,10 @@ export default defineConfig({
 				]
 				: []),
 			'tests/awsdatapi.alltypes.test.ts',
+			// Skip AWS DSQL tests if no cluster endpoint configured
+			...(process.env['AWS_DSQL_CLUSTER_ENDPOINT']
+				? []
+				: ['tests/aws-dsql/**/*.test.ts']),
 			'tests/relational/vercel.test.ts',
 			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
