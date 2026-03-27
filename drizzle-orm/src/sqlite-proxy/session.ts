@@ -109,7 +109,8 @@ export class SQLiteRemoteSession<
 	}
 
 	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as SqliteRemoteResult).rows![0];
+		const rows = (result as SqliteRemoteResult).rows;
+		return rows?.[0];
 	}
 
 	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
@@ -226,7 +227,12 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			return await (client as AsyncRemoteCallback)(query.sql, params, 'get');
 		});
 
-		return this.mapGetResult(clientResult.rows);
+		// Normalize empty array to undefined for 'get' with no matching row.
+		// Native SQLite drivers (better-sqlite3, bun:sqlite) return undefined when
+		// get() finds no row, but proxy implementers often return [] following the
+		// typed callback signature. Treat both as "no result".
+		const rows = clientResult.rows;
+		return this.mapGetResult(Array.isArray(rows) && rows.length === 0 ? undefined : rows);
 	}
 
 	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {

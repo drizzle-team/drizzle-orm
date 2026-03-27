@@ -27,17 +27,26 @@ export class SqliteRemoteDatabase<
 	}
 }
 
+/**
+ * Callback for executing individual SQL queries against the remote SQLite database.
+ *
+ * The `rows` field in the return value depends on the method:
+ * - `'run'`: `rows` is ignored (can be `[]` or `undefined`)
+ * - `'all'` / `'values'`: `rows` must be an array of result rows
+ * - `'get'`: `rows` should be `undefined` when no matching row is found;
+ *   returning an empty array `[]` is also handled gracefully
+ */
 export type AsyncRemoteCallback = (
 	sql: string,
 	params: any[],
 	method: 'run' | 'all' | 'values' | 'get',
-) => Promise<{ rows: any[] }>;
+) => Promise<{ rows: any[] | undefined }>;
 
 export type AsyncBatchRemoteCallback = (batch: {
 	sql: string;
 	params: any[];
 	method: 'run' | 'all' | 'values' | 'get';
-}[]) => Promise<{ rows: any[] }[]>;
+}[]) => Promise<{ rows: any[] | undefined }[]>;
 
 export type RemoteCallback = AsyncRemoteCallback;
 
