@@ -10,3 +10,12 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrations = readMigrationFiles(config);
 	return await db.dialect.migrate(migrations, db.session, config);
 }
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: BunSQLiteDatabase<TSchema, TRelations>,
+	config: MigrationConfig,
+	steps?: number,
+) {
+	const migrations = readMigrationFiles(config);
+	return await db.dialect.rollback(migrations, db.session, config, steps);
+}
