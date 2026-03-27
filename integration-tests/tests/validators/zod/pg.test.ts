@@ -13,7 +13,13 @@ import {
 	text,
 } from 'drizzle-orm/pg-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
+import {
+	createInsertSchema,
+	createSchemaFactory,
+	createSelectSchema,
+	createUpdateSchema,
+	createUpsertSchema,
+} from 'drizzle-orm/zod';
 import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -85,6 +91,23 @@ test('table - update', (t) => {
 	const result = createUpdateSchema(table);
 	const expected = z.object({
 		name: textOptionalSchema,
+		age: integerNullableOptionalSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table - upsert', (t) => {
+	const table = pgTable('test', {
+		id: integer().generatedAlwaysAsIdentity().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({
+		id: integerOptionalSchema,
+		name: textSchema,
 		age: integerNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -240,6 +263,31 @@ test('nullability - update', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('nullability - upsert', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().default(1),
+		c4: integer().notNull().default(1),
+		c5: integer().generatedAlwaysAs(sql`1`),
+		c6: integer().generatedAlwaysAsIdentity(),
+		c7: integer().generatedByDefaultAsIdentity(),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({
+		c1: integerNullableOptionalSchema,
+		c2: integerSchema,
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
+		c5: integerNullableOptionalSchema,
+		c6: integerOptionalSchema,
+		c7: integerOptionalSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 test('refine table - select', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),
@@ -323,6 +371,28 @@ test('refine table - update', (t) => {
 		c1: integerNullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - upsert', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+		c4: integer().generatedAlwaysAs(sql`1`),
+	});
+
+	const result = createUpsertSchema(table, {
+		c2: (schema) => schema.lte(1000),
+		c3: z.string().transform(Number),
+	});
+	const expected = z.object({
+		c1: integerNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
+		c4: integerNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -614,6 +684,12 @@ test('type coercion - mixed', (t) => {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error
 	createUpdateSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in table refinement - upsert */ {
+	const table = pgTable('test', { id: integer() });
+	// @ts-expect-error
+	createUpsertSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in view qb - select */ {

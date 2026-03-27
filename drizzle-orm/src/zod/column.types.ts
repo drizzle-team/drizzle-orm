@@ -101,7 +101,7 @@ type HandleUpdateColumn<
 	: z.ZodOptional<z.ZodNullable<TSchema>>;
 
 export type HandleColumn<
-	TType extends 'select' | 'insert' | 'update',
+	TType extends 'select' | 'insert' | 'update' | 'upsert',
 	TColumn extends Column,
 	TCoerce extends CoerceOptions,
 > = TType extends 'select' ? HandleSelectColumn<GetZodType<TColumn, TCoerce>, TColumn>
