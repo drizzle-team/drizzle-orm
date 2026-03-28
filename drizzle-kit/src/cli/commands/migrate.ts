@@ -67,14 +67,16 @@ export type NamedWithSchema = {
 
 export const schemasResolver = async (
 	input: ResolverInput<Table>,
+	force?: boolean,
 ): Promise<ResolverOutput<Table>> => {
 	try {
 		const { created, deleted, renamed } = await promptSchemasConflict(
 			input.created,
 			input.deleted,
+			force,
 		);
 
-		return { created: created, deleted: deleted, renamed: renamed };
+		return { created, deleted, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -83,20 +85,17 @@ export const schemasResolver = async (
 
 export const tablesResolver = async (
 	input: ResolverInput<Table>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<Table>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'table',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -105,20 +104,17 @@ export const tablesResolver = async (
 
 export const viewsResolver = async (
 	input: ResolverInput<View>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<View>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'view',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -127,64 +123,36 @@ export const viewsResolver = async (
 
 export const mySqlViewsResolver = async (
 	input: ResolverInput<ViewSquashed & { schema: '' }>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'view',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
 	}
 };
 
-/* export const singleStoreViewsResolver = async (
-	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<SingleStoreViewSquashed>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
-			input.created,
-			input.deleted,
-			'view',
-		);
-
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-}; */
-
 export const sqliteViewsResolver = async (
 	input: ResolverInput<SQLiteView & { schema: '' }>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<SQLiteView>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'view',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -193,20 +161,17 @@ export const sqliteViewsResolver = async (
 
 export const sequencesResolver = async (
 	input: ResolverInput<Sequence>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<Sequence>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'sequence',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -215,11 +180,13 @@ export const sequencesResolver = async (
 
 export const roleResolver = async (
 	input: RolesResolverInput<Role>,
+	force?: boolean,
 ): Promise<RolesResolverOutput<Role>> => {
 	const result = await promptNamedConflict(
 		input.created,
 		input.deleted,
 		'role',
+		force,
 	);
 	return {
 		created: result.created,
@@ -230,11 +197,13 @@ export const roleResolver = async (
 
 export const policyResolver = async (
 	input: TablePolicyResolverInput<Policy>,
+	force?: boolean,
 ): Promise<TablePolicyResolverOutput<Policy>> => {
 	const result = await promptColumnsConflicts(
 		input.tableName,
 		input.created,
 		input.deleted,
+		force,
 	);
 	return {
 		tableName: input.tableName,
@@ -247,11 +216,13 @@ export const policyResolver = async (
 
 export const indPolicyResolver = async (
 	input: PolicyResolverInput<Policy>,
+	force?: boolean,
 ): Promise<PolicyResolverOutput<Policy>> => {
 	const result = await promptNamedConflict(
 		input.created,
 		input.deleted,
 		'policy',
+		force,
 	);
 	return {
 		created: result.created,
@@ -262,20 +233,17 @@ export const indPolicyResolver = async (
 
 export const enumsResolver = async (
 	input: ResolverInput<Enum>,
+	force?: boolean,
 ): Promise<ResolverOutputWithMoved<Enum>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
 			input.deleted,
 			'enum',
+			force,
 		);
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
+		return { created, deleted, moved, renamed };
 	} catch (e) {
 		console.error(e);
 		throw e;
@@ -284,11 +252,13 @@ export const enumsResolver = async (
 
 export const columnsResolver = async (
 	input: ColumnsResolverInput<Column>,
+	force?: boolean,
 ): Promise<ColumnsResolverOutput<Column>> => {
 	const result = await promptColumnsConflicts(
 		input.tableName,
 		input.created,
 		input.deleted,
+		force,
 	);
 	return {
 		tableName: input.tableName,
@@ -409,6 +379,7 @@ export const prepareAndExportPg = async (config: ExportConfig) => {
 export const preparePgPush = async (
 	cur: PgSchema,
 	prev: PgSchema,
+	force?: boolean,
 ) => {
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
@@ -419,15 +390,15 @@ export const preparePgPush = async (
 	const { sqlStatements, statements, _meta } = await applyPgSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		schemasResolver,
-		enumsResolver,
-		sequencesResolver,
-		policyResolver,
-		indPolicyResolver,
-		roleResolver,
-		tablesResolver,
-		columnsResolver,
-		viewsResolver,
+		(input: ResolverInput<Table>) => schemasResolver(input, force),
+		(input: ResolverInput<Enum>) => enumsResolver(input, force),
+		(input: ResolverInput<Sequence>) => sequencesResolver(input, force),
+		(input: TablePolicyResolverInput<Policy>) => policyResolver(input, force),
+		(input: PolicyResolverInput<Policy>) => indPolicyResolver(input, force),
+		(input: RolesResolverInput<Role>) => roleResolver(input, force),
+		(input: ResolverInput<Table>) => tablesResolver(input, force),
+		(input: ColumnsResolverInput<Column>) => columnsResolver(input, force),
+		(input: ResolverInput<View>) => viewsResolver(input, force),
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -492,6 +463,7 @@ export const prepareMySQLPush = async (
 	schemaPath: string | string[],
 	snapshot: MySqlSchema,
 	casing: CasingType | undefined,
+	force?: boolean,
 ) => {
 	try {
 		const { prev, cur } = await prepareMySqlDbPushSnapshot(
@@ -509,9 +481,9 @@ export const prepareMySQLPush = async (
 		const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
+			(input: ResolverInput<Table>) => tablesResolver(input, force),
+			(input: ColumnsResolverInput<Column>) => columnsResolver(input, force),
+			(input: ResolverInput<ViewSquashed & { schema: '' }>) => mySqlViewsResolver(input, force),
 			validatedPrev,
 			validatedCur,
 			'push',
@@ -642,6 +614,7 @@ export const prepareSingleStorePush = async (
 	schemaPath: string | string[],
 	snapshot: SingleStoreSchema,
 	casing: CasingType | undefined,
+	force?: boolean,
 ) => {
 	try {
 		const { prev, cur } = await prepareSingleStoreDbPushSnapshot(
@@ -659,8 +632,8 @@ export const prepareSingleStorePush = async (
 		const { sqlStatements, statements } = await applySingleStoreSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
+			(input: ResolverInput<Table>) => tablesResolver(input, force),
+			(input: ColumnsResolverInput<Column>) => columnsResolver(input, force),
 			/* singleStoreViewsResolver, */
 			validatedPrev,
 			validatedCur,
@@ -992,6 +965,7 @@ export const prepareSQLitePush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
 	casing: CasingType | undefined,
+	force?: boolean,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
@@ -1004,9 +978,9 @@ export const prepareSQLitePush = async (
 	const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		tablesResolver,
-		columnsResolver,
-		sqliteViewsResolver,
+		(input: ResolverInput<Table>) => tablesResolver(input, force),
+		(input: ColumnsResolverInput<Column>) => columnsResolver(input, force),
+		(input: ResolverInput<SQLiteView & { schema: '' }>) => sqliteViewsResolver(input, force),
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -1025,6 +999,7 @@ export const prepareLibSQLPush = async (
 	schemaPath: string | string[],
 	snapshot: SQLiteSchema,
 	casing: CasingType | undefined,
+	force?: boolean,
 ) => {
 	const { prev, cur } = await prepareSQLiteDbPushSnapshot(snapshot, schemaPath, casing);
 
@@ -1037,9 +1012,9 @@ export const prepareLibSQLPush = async (
 	const { sqlStatements, statements, _meta } = await applyLibSQLSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		tablesResolver,
-		columnsResolver,
-		sqliteViewsResolver,
+		(input: ResolverInput<Table>) => tablesResolver(input, force),
+		(input: ColumnsResolverInput<Column>) => columnsResolver(input, force),
+		(input: ResolverInput<SQLiteView & { schema: '' }>) => sqliteViewsResolver(input, force),
 		validatedPrev,
 		validatedCur,
 		'push',
@@ -1067,8 +1042,9 @@ export const promptColumnsConflicts = async <T extends Named>(
 	tableName: string,
 	newColumns: T[],
 	missingColumns: T[],
+	force?: boolean,
 ) => {
-	if (newColumns.length === 0 || missingColumns.length === 0) {
+	if (force || newColumns.length === 0 || missingColumns.length === 0) {
 		return { created: newColumns, renamed: [], deleted: missingColumns };
 	}
 	const result: { created: T[]; renamed: { from: T; to: T }[]; deleted: T[] } = {
@@ -1134,12 +1110,13 @@ export const promptNamedConflict = async <T extends Named>(
 	newItems: T[],
 	missingItems: T[],
 	entity: 'role' | 'policy',
+	force?: boolean,
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
 	deleted: T[];
 }> => {
-	if (missingItems.length === 0 || newItems.length === 0) {
+	if (force || missingItems.length === 0 || newItems.length === 0) {
 		return {
 			created: newItems,
 			renamed: [],
@@ -1206,13 +1183,14 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	newItems: T[],
 	missingItems: T[],
 	entity: 'table' | 'enum' | 'sequence' | 'view',
+	force?: boolean,
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
 	moved: { name: string; schemaFrom: string; schemaTo: string }[];
 	deleted: T[];
 }> => {
-	if (missingItems.length === 0 || newItems.length === 0) {
+	if (force || missingItems.length === 0 || newItems.length === 0) {
 		return {
 			created: newItems,
 			renamed: [],
@@ -1295,8 +1273,9 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 export const promptSchemasConflict = async <T extends Named>(
 	newSchemas: T[],
 	missingSchemas: T[],
+	force?: boolean,
 ): Promise<{ created: T[]; renamed: { from: T; to: T }[]; deleted: T[] }> => {
-	if (missingSchemas.length === 0 || newSchemas.length === 0) {
+	if (force || missingSchemas.length === 0 || newSchemas.length === 0) {
 		return { created: newSchemas, renamed: [], deleted: missingSchemas };
 	}
 
