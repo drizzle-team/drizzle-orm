@@ -610,3 +610,271 @@ test('type coercion - mixed', (t) => {
 	// @ts-expect-error
 	createSelectSchema(mView, { unknown: z.string() });
 }
+
+// Unified createSchema API Tests
+
+test('createSchema - basic select type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'select' });
+	const result = schema.safeParse({ id: 1, name: 'test', age: 25 });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - basic insert type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'insert' });
+	const result = schema.safeParse({ name: 'test' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - basic update type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, { type: 'update' });
+	const result = schema.safeParse({ name: 'updated' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pick option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+	});
+
+	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(result.success).toBe(true);
+
+	const resultWithAge = schema.safeParse({ name: 'test', email: 'test@example.com', age: 25 });
+	t.expect(resultWithAge.success).toBe(true);
+	t.expect(resultWithAge.data).not.toHaveProperty('age');
+});
+
+test('createSchema - omit option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		omit: ['id', 'age'],
+	});
+
+	const result = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pick and omit together throws error', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+
+	t.expect(() => {
+		createSchema(table, {
+			type: 'insert',
+			pick: ['name'],
+			omit: ['id'],
+		} as any);
+	}).toThrow('Cannot use both "pick" and "omit" options together');
+});
+
+test('createSchema - allOptional makes all fields optional', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		allOptional: true,
+	});
+
+	const result = schema.safeParse({});
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - allNullable makes all fields nullable', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'select',
+		allNullable: true,
+	});
+
+	const result = schema.safeParse({ id: null, name: null, email: null });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - combined allOptional and allNullable', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'select',
+		allOptional: true,
+		allNullable: true,
+	});
+
+	const emptyResult = schema.safeParse({});
+	t.expect(emptyResult.success).toBe(true);
+
+	const nullResult = schema.safeParse({ id: null, name: null });
+	t.expect(nullResult.success).toBe(true);
+});
+
+test('createSchema - pick with allOptional', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+		allOptional: true,
+	});
+
+	const result = schema.safeParse({});
+	t.expect(result.success).toBe(true);
+
+	const partialResult = schema.safeParse({ name: 'test' });
+	t.expect(partialResult.success).toBe(true);
+});
+
+test('createSchema - refine option', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		refine: {
+			email: (schema) => schema.email(),
+		},
+	});
+
+	const validResult = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(validResult.success).toBe(true);
+
+	const invalidResult = schema.safeParse({ name: 'test', email: 'not-an-email' });
+	t.expect(invalidResult.success).toBe(false);
+});
+
+test('createSchema - refine with pick', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		email: text().notNull(),
+		age: integer(),
+	});
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(table, {
+		type: 'insert',
+		pick: ['name', 'email'],
+		refine: {
+			email: (schema) => schema.email(),
+		},
+	});
+
+	const validResult = schema.safeParse({ name: 'test', email: 'test@example.com' });
+	t.expect(validResult.success).toBe(true);
+
+	const invalidResult = schema.safeParse({ name: 'test', email: 'invalid' });
+	t.expect(invalidResult.success).toBe(false);
+});
+
+test('createSchema - view support without type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const view = pgView('test_view').as((qb) => qb.select().from(table));
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(view);
+
+	const result = schema.safeParse({ id: 1, name: 'test' });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - view with allNullable without type', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const view = pgView('test_view').as((qb) => qb.select().from(table));
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(view, { allNullable: true });
+
+	const result = schema.safeParse({ id: null, name: null });
+	t.expect(result.success).toBe(true);
+});
+
+test('createSchema - pgEnum support', (t) => {
+	const statusEnum = pgEnum('status', ['active', 'inactive', 'pending']);
+
+	const { createSchema } = createSchemaFactory();
+	const schema = createSchema(statusEnum);
+
+	t.expect(schema.safeParse('active').success).toBe(true);
+	t.expect(schema.safeParse('inactive').success).toBe(true);
+	t.expect(schema.safeParse('invalid').success).toBe(false);
+});
+
+/* Disallow unknown keys in createSchema refinement */ {
+	const table = pgTable('test', { id: integer(), name: text() });
+	const { createSchema } = createSchemaFactory();
+	// @ts-expect-error - unknown key in refinement
+	createSchema(table, { type: 'insert', refine: { unknown: z.string() } });
+}
