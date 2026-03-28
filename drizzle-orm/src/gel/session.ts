@@ -32,8 +32,9 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig> extends GelPrepar
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		private transaction: boolean = false,
+		onError?: (err: import('~/errors.ts').DrizzleQueryError) => void,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, onError);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -104,6 +105,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig> extends GelPrepar
 export interface GelSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
@@ -113,6 +115,7 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 
 	private logger: Logger;
 	private cache: Cache;
+	private onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 
 	constructor(
 		private client: GelClient,
@@ -123,6 +126,7 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -148,6 +152,8 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
+			undefined,
+			this.onError,
 		);
 	}
 
