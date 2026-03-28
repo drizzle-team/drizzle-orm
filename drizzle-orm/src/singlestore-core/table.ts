@@ -3,12 +3,14 @@ import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
+import type { CommentBuilder } from './comments.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
 export type SingleStoreTableExtraConfigValue =
 	| AnyIndexBuilder
+	| CommentBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 

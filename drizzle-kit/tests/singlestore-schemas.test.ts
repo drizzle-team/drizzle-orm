@@ -121,6 +121,7 @@ test('add table to schema #3', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
+		comment: undefined,
 		columns: [],
 		uniqueConstraints: [],
 		internals: {

@@ -1,5 +1,6 @@
 export * from './alias.ts';
 export * from './columns/index.ts';
+export * from './comments.ts';
 export * from './db.ts';
 export * from './dialect.ts';
 export * from './indexes.ts';
