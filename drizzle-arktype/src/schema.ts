@@ -6,22 +6,31 @@ import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
+import { SchemaValidationError } from './errors.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
 }
 
-function handleColumns(
-	columns: Record<string, any>,
+function validateSchema(
+	schema: Record<string, Type>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-): Type {
-	const columnSchemas: Record<string, Type> = {};
+): Record<string, Type> {
+	const errors: Record<string, string> = {};
+	const validatedSchemas: Record<string, Type> = {};
 
-	for (const [key, selected] of Object.entries(columns)) {
+	for (const [key, selected] of Object.entries(schema)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
-			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions);
+			try {
+				validatedSchemas[key] = validateSchema(columns, refinements[key] ?? {}, conditions);
+			} catch (error) {
+				throw new SchemaValidationError(
+					key,
+					{ _: `Failed to validate nested schema: ${error instanceof Error ? error.message : String(error)}` },
+				);
+			}
 			continue;
 		}
 
@@ -30,43 +39,57 @@ function handleColumns(
 			refinement !== undefined
 			&& (typeof refinement !== 'function' || (typeof refinement === 'function' && refinement.expression !== undefined))
 		) {
-			columnSchemas[key] = refinement;
+			validatedSchemas[key] = refinement;
 			continue;
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column) : type.unknown;
-		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
+		let columnSchema;
+
+		try {
+			columnSchema = column ? columnToSchema(column) : type.unknown;
+		} catch (error) {
+			throw new SchemaValidationError(
+				key,
+				{ [key]: `Failed to convert column schema: ${error instanceof Error ? error.message : String(error)}` },
+			);
+		}
+
+		const refined = typeof refinement === 'function' ? refinement(columnSchema) : columnSchema;
 
 		if (conditions.never(column)) {
 			continue;
 		} else {
-			columnSchemas[key] = refined;
+			validatedSchemas[key] = refined;
 		}
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = columnSchemas[key]!.or(type.null);
+				validatedSchemas[key] = validatedSchemas[key]!.or(type.null);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = columnSchemas[key]!.optional() as any;
+				validatedSchemas[key] = validatedSchemas[key]!.optional() as any;
 			}
 		}
 	}
 
-	return type(columnSchemas);
+	if (Object.keys(errors).length > 0) {
+		throw new SchemaValidationError('schema', errors);
+	}
+
+	return validatedSchemas;
 }
 
 export const createSelectSchema = ((
-	entity: Table | View | PgEnum<[string, ...string[]]>,
+	entity: Table | View | PgEnum<[string, string[]]>,
 	refine?: Record<string, any>,
 ) => {
 	if (isPgEnum(entity)) {
 		return type.enumerated(...entity.enumValues);
 	}
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
+	return validateSchema(columns, refine ?? {}, {
 		never: () => false,
 		optional: () => false,
 		nullable: (column) => !column.notNull,
@@ -78,7 +101,7 @@ export const createInsertSchema = ((
 	refine?: Record<string, any>,
 ) => {
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
+	return validateSchema(columns, refine ?? {}, {
 		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
 		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
 		nullable: (column) => !column.notNull,
@@ -90,7 +113,7 @@ export const createUpdateSchema = ((
 	refine?: Record<string, any>,
 ) => {
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
+	return validateSchema(columns, refine ?? {}, {
 		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
 		optional: () => true,
 		nullable: (column) => !column.notNull,
