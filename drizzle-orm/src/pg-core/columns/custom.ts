@@ -68,7 +68,13 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
-		this.useCodecType = resolvePgType(config.customTypeParams.useCodecType ?? this.sqlName);
+		this.useCodecType = resolvePgType(
+			config.customTypeParams.useCodecType
+				?? this.sqlName.slice(
+					0,
+					Math.min(...[this.sqlName.indexOf('('), this.sqlName.indexOf('[')].filter((e) => e !== -1)),
+				),
+		);
 
 		if (this.dimensions && config.customTypeParams.fromJson) {
 			this.mapFromJsonValue = (value: unknown): unknown => {

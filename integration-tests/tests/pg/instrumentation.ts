@@ -248,6 +248,7 @@ export const prepareNeonWsClient = async (db: string) => {
 export const preparePglite = async () => {
 	const client = new PGlite();
 	await client.query('create schema "mySchema";');
+	await client.query("SET TIME ZONE 'UTC';");
 
 	const query = async (sql: string, params: any[] = []) => {
 		const res = await client.query(sql, params);

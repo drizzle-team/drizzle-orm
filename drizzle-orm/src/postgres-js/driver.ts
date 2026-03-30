@@ -51,6 +51,7 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 
 	bit: {
 		normalizeParamArray: makePgArray,
+		normalizeArray: undefined,
 	},
 	bool: {
 		normalizeParamArray: makePgArray,
@@ -87,6 +88,7 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	halfvec: {
 		normalizeParamArray: makePgArray,
+		normalizeArray: undefined,
 	},
 	inet: {
 		normalizeParamArray: makePgArray,
@@ -171,6 +173,7 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	sparsevec: {
 		normalizeParamArray: makePgArray,
+		normalizeArray: undefined,
 	},
 	text: {
 		normalizeParamArray: makePgArray,
@@ -207,6 +210,7 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	vector: {
 		normalizeParamArray: makePgArray,
+		normalizeArray: undefined,
 	},
 	xml: {
 		normalizeParamArray: makePgArray,
@@ -218,6 +222,7 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geometry: {
+		normalizeArray: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	numeric: {

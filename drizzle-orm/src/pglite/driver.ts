@@ -14,6 +14,7 @@ import {
 	refineGenericPgCodecs,
 } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { makePgArray } from '~/pg-core/index.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array, type DrizzleConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
@@ -58,6 +59,29 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	},
 	jsonb: {
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
+	},
+	geometry: {
+		castParam: (name) => `${name}::geometry`,
+		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
+		normalizeParamArray: makePgArray,
+	},
+	bit: {
+		normalizeArray: undefined,
+	},
+	halfvec: {
+		castParam: (name) => `${name}::halfvec`,
+		castArrayParam: (name, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		castParam: (name) => `${name}::vector`,
+		castArrayParam: (name, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		castParam: (name) => `${name}::sparsevec`,
+		castArrayParam: (name, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
+		normalizeParamArray: makePgArray,
 	},
 	point: {
 		cast: undefined,

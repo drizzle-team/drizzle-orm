@@ -41,9 +41,7 @@ export class PgGeometry
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
-	override mapFromDriverValue = (value: string | [number, number]): [number, number] => {
-		if (typeof value !== 'string') return value as [number, number];
-
+	override mapFromDriverValue = (value: string): [number, number] => {
 		return parseEWKB(value).point;
 	};
 
