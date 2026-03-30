@@ -198,6 +198,7 @@
 	},
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
+		"@auth/core": "^0.34.3",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
 		"@effect/sql": "^0.48.5",
