@@ -141,10 +141,9 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
 		const { fields, stmt, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
+			this.logger.logQuery(this.query.sql, params);
 			return stmt.executeSync(params as any[]).getFirstSync();
 		}
 
