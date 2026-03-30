@@ -299,6 +299,18 @@ export const genericPgCodecs: PgCodecs = {
 		castArrayInJson: castToTextArr,
 		castArray: castToTextArr,
 	},
+	bit: {
+		normalizeArray: parsePgArray,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
+	},
 };
 
 export const refineGenericPgCodecs = (extension?: PartialWithUndefined<PgCodecs>): PgCodecs =>

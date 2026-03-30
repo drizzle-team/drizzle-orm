@@ -99,6 +99,7 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 
 	bit: {
 		normalizeParamArray: makePgArray,
+		normalizeArray: undefined,
 	},
 	bool: {
 		normalizeParamArray: makePgArray,
