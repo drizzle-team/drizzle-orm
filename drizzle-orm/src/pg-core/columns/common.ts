@@ -10,12 +10,6 @@ import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
-declare const PgColumnBuilderBrand: unique symbol;
-export type PgColumnBuilderBrand = typeof PgColumnBuilderBrand;
-
-declare const PgColumnBrand: unique symbol;
-export type PgColumnBrand = typeof PgColumnBrand;
-
 export type PgArrayDimension = 0 | 1 | 2 | 3 | 4 | 5;
 type PgArrayDimensionString = '[]' | '[][]' | '[][][]' | '[][][][]' | '[][][][][]';
 
@@ -87,21 +81,21 @@ type WrapArray<T, N extends number> = N extends 1 ? T[]
 	: N extends 5 ? T[][][][][]
 	: T;
 
-export type SetNotNull<T> = T & { readonly [PgColumnBuilderBrand]: { notNull: true } };
-export type SetHasDefault<T> = T & { readonly [PgColumnBuilderBrand]: { hasDefault: true } };
-export type SetIsPrimaryKey<T> = T & { readonly [PgColumnBuilderBrand]: { isPrimaryKey: true; notNull: true } };
+export type SetNotNull<T> = T & { readonly _: { notNull: true } };
+export type SetHasDefault<T> = T & { readonly _: { hasDefault: true } };
+export type SetIsPrimaryKey<T> = T & { readonly _: { isPrimaryKey: true; notNull: true } };
 export type SetHasRuntimeDefault<T> = T & {
-	readonly [PgColumnBuilderBrand]: { hasRuntimeDefault: true; hasDefault: true };
+	readonly _: { hasRuntimeDefault: true; hasDefault: true };
 };
-export type Set$Type<T, TType> = T & { readonly [PgColumnBuilderBrand]: { $type: TType } };
+export type Set$Type<T, TType> = T & { readonly _: { $type: TType } };
 export type SetHasGenerated<T> = T & {
-	readonly [PgColumnBuilderBrand]: { hasDefault: true; generated: true };
+	readonly _: { hasDefault: true; generated: true };
 };
 export type SetDimensions<T, TDim extends PgArrayDimension> = T & {
-	readonly [PgColumnBuilderBrand]: { dimensions: TDim };
+	readonly _: { dimensions: TDim };
 };
 export type SetIdentity<T, TType extends 'always' | 'byDefault'> = T & {
-	readonly [PgColumnBuilderBrand]: { notNull: true; hasDefault: true; identity: TType };
+	readonly _: { notNull: true; hasDefault: true; identity: TType };
 };
 
 export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
@@ -135,18 +129,18 @@ export type ResolvePgColumnConfig<
 } & {};
 
 export interface AnyPgColumnBuilder {
-	readonly [PgColumnBuilderBrand]: PgColumnBuilderConfig;
+	readonly _: PgColumnBuilderConfig;
 }
 
 export interface AnyPostgresColumn {
-	readonly [PgColumnBrand]: PgColumnBaseConfig;
+	readonly _: PgColumnBaseConfig;
 }
 
 export type PgBuildColumn<
 	TTableName extends string,
 	TBuilder extends AnyPgColumnBuilder,
 	TBuiltConfig extends PgColumnBaseConfig<ColumnType> = ResolvePgColumnConfig<
-		TBuilder[PgColumnBuilderBrand],
+		TBuilder['_'],
 		TTableName
 	>,
 > = PgColumn<ColumnType, TBuiltConfig, {}>;
@@ -185,7 +179,7 @@ export abstract class PgColumnBuilder<
 > {
 	static readonly [entityKind]: string = 'PgColumnBuilder';
 
-	declare readonly [PgColumnBuilderBrand]: T;
+	declare readonly _: T;
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
@@ -245,12 +239,12 @@ export abstract class PgColumnBuilder<
 	 */
 	default(
 		value:
-			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
-					this[PgColumnBuilderBrand]['dimensions']
+			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this['_'] extends { $type: infer U } ? U : this['_']['data'],
+					this['_']['dimensions']
 				>
-				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
-				: this[PgColumnBuilderBrand]['data'])
+				: this['_'] extends { $type: infer U } ? U
+				: this['_']['data'])
 			| SQL,
 	): SetHasDefault<this> {
 		this.config.default = value;
@@ -266,12 +260,12 @@ export abstract class PgColumnBuilder<
 	 */
 	$defaultFn(
 		fn: () =>
-			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
-					this[PgColumnBuilderBrand]['dimensions']
+			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this['_'] extends { $type: infer U } ? U : this['_']['data'],
+					this['_']['dimensions']
 				>
-				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
-				: this[PgColumnBuilderBrand]['data'])
+				: this['_'] extends { $type: infer U } ? U
+				: this['_']['data'])
 			| SQL,
 	): SetHasRuntimeDefault<this> {
 		this.config.defaultFn = fn;
@@ -293,12 +287,12 @@ export abstract class PgColumnBuilder<
 	 */
 	$onUpdateFn(
 		fn: () =>
-			| (this[PgColumnBuilderBrand] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this[PgColumnBuilderBrand] extends { $type: infer U } ? U : this[PgColumnBuilderBrand]['data'],
-					this[PgColumnBuilderBrand]['dimensions']
+			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this['_'] extends { $type: infer U } ? U : this['_']['data'],
+					this['_']['dimensions']
 				>
-				: this[PgColumnBuilderBrand] extends { $type: infer U } ? U
-				: this[PgColumnBuilderBrand]['data'])
+				: this['_'] extends { $type: infer U } ? U
+				: this['_']['data'])
 			| SQL,
 	): SetHasDefault<this> {
 		this.config.onUpdateFn = fn;

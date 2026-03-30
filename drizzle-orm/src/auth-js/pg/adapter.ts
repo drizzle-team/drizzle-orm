@@ -10,7 +10,6 @@ import type { Awaitable } from '@auth/core/types';
 import type {
 	PgAsyncDatabase,
 	PgBuildColumn,
-	PgColumnBuilderBrand,
 	PgColumnBuilderConfig,
 	PgQueryResultHKT,
 	PgTableWithColumns,
@@ -248,7 +247,7 @@ type DefaultPostgresColumn<
 		isPrimaryKey?: boolean;
 	},
 > = PgBuildColumn<string, {
-	[PgColumnBuilderBrand]: PgColumnBuilderConfig & {
+	['_']: PgColumnBuilderConfig & {
 		data: T['data'];
 		dataType: T['dataType'];
 		notNull: T['notNull'];
