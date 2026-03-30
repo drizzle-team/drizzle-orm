@@ -1,7 +1,10 @@
 import { type Client, createClient } from '@libsql/client';
 import retry from 'async-retry';
+import type { MutationOption } from 'drizzle-orm/cache/core';
+import { Cache } from 'drizzle-orm/cache/core';
 import { sql } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
@@ -14,7 +17,33 @@ const ENABLE_LOGGING = false;
 let db: LibSQLDatabase;
 let dbGlobalCached: LibSQLDatabase;
 let cachedDb: LibSQLDatabase;
+let roundTripCachedDb: LibSQLDatabase;
 let client: Client;
+
+// eslint-disable-next-line drizzle-internal/require-entity-kind
+class JsonRoundTripCache extends Cache {
+	private data = new Map<string, string>();
+
+	override strategy(): 'explicit' | 'all' {
+		return 'explicit';
+	}
+
+	override async get(key: string): Promise<any[] | undefined> {
+		const stored = this.data.get(key);
+		return stored === undefined ? undefined : JSON.parse(stored);
+	}
+
+	override async put(key: string, response: any): Promise<void> {
+		this.data.set(key, JSON.stringify(response));
+	}
+
+	override async onMutate(_params: MutationOption): Promise<void> {}
+}
+
+const cacheRoundTripUsers = sqliteTable('cache_roundtrip_users', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	payload: text('payload', { mode: 'json' }).$type<{ a: number }>().notNull(),
+});
 
 beforeAll(async () => {
 	const url = process.env['LIBSQL_URL'];
@@ -38,6 +67,7 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	roundTripCachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new JsonRoundTripCache() });
 });
 
 afterAll(async () => {
@@ -95,6 +125,30 @@ test('migrator : migrate with custom table', async () => {
 	await db.run(sql`drop table another_users`);
 	await db.run(sql`drop table users12`);
 	await db.run(sql`drop table ${sql.identifier(customTable)}`);
+});
+
+test('libsql cache hit should keep row values after JSON roundtrip', async () => {
+	await db.run(sql`drop table if exists cache_roundtrip_users`);
+	await db.run(
+		sql`
+			create table cache_roundtrip_users (
+				id integer primary key AUTOINCREMENT,
+				payload text not null
+			)
+		`,
+	);
+
+	await db.insert(cacheRoundTripUsers).values({
+		payload: { a: 1 },
+	});
+
+	const first = await roundTripCachedDb.select().from(cacheRoundTripUsers).$withCache();
+	const second = await roundTripCachedDb.select().from(cacheRoundTripUsers).$withCache();
+
+	expect(first).toEqual([{ id: 1, payload: { a: 1 } }]);
+	expect(second).toEqual(first);
+
+	await db.run(sql`drop table if exists cache_roundtrip_users`);
 });
 
 skipTests([
