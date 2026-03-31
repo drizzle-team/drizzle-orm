@@ -116,7 +116,7 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 
 export const prepareSnapshotFolderName = (ms?: number) => {
 	const now = ms ? new Date(ms) : new Date();
-	return `${now.getFullYear()}${two(now.getUTCMonth() + 1)}${
+	return `${now.getUTCFullYear()}${two(now.getUTCMonth() + 1)}${
 		two(
 			now.getUTCDate(),
 		)
