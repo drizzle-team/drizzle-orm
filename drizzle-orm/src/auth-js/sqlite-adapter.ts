@@ -7,25 +7,22 @@ import type {
 	VerificationToken,
 } from '@auth/core/adapters';
 import type { Awaitable } from '@auth/core/types';
-import type {
-	PgAsyncDatabase,
-	PgBuildColumn,
-	PgColumnBuilderConfig,
-	PgQueryResultHKT,
-	PgTableWithColumns,
-} from '~/pg-core/index.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
 import { and, eq } from '~/sql/index.ts';
+import type { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
+import type { SQLiteColumn } from '~/sqlite-core/index.ts';
+import type { SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
 import { getColumns } from '~/utils.ts';
-import * as defaultSchema from './schema.ts';
+import * as defaultSchema from './sqlite-schema.ts';
 
-export function defineTables(
-	schema: Partial<DefaultPostgresSchema> = {},
-): Required<DefaultPostgresSchema> {
-	const usersTable = schema.usersTable ?? defaultSchema.usersTable;
-	const accountsTable = schema.accountsTable ?? defaultSchema.accountsTable;
-	const sessionsTable = schema.sessionsTable ?? defaultSchema.sessionsTable;
-	const verificationTokensTable = schema.verificationTokensTable ?? defaultSchema.verificationTokensTable;
-	const authenticatorsTable = schema.authenticatorsTable ?? defaultSchema.authenticatorsTable;
+function defineTables(
+	schema: Partial<DefaultSqliteSchema> = {},
+): Required<DefaultSqliteSchema> {
+	const usersTable = schema.usersTable ?? defaultSchema.users;
+	const accountsTable = schema.accountsTable ?? defaultSchema.accounts;
+	const sessionsTable = schema.sessionsTable ?? defaultSchema.sessions;
+	const verificationTokensTable = schema.verificationTokensTable ?? defaultSchema.verificationTokens;
+	const authenticatorsTable = schema.authenticatorsTable ?? defaultSchema.authenticators;
 
 	return {
 		usersTable,
@@ -36,9 +33,9 @@ export function defineTables(
 	};
 }
 
-export function PostgresDrizzleAdapter(
-	client: PgAsyncDatabase<PgQueryResultHKT, any>,
-	schema?: DefaultPostgresSchema,
+export function defineAdapter(
+	client: BaseSQLiteDatabase<'sync' | 'async', any, any>,
+	schema?: Partial<DefaultSqliteSchema>,
 ): Adapter {
 	const {
 		usersTable,
@@ -57,35 +54,35 @@ export function PostgresDrizzleAdapter(
 				.insert(usersTable)
 				.values(hasDefaultId ? insertData : { ...insertData, id })
 				.returning()
-				.then((res) => res[0]) as Awaitable<AdapterUser>;
+				.get() as Awaitable<AdapterUser>;
 		},
 		async getUser(userId: string) {
-			return client
+			const result = (await client
 				.select()
 				.from(usersTable)
 				.where(eq(usersTable.id, userId))
-				.then((res) => res.length > 0 ? res[0] : null) as Awaitable<AdapterUser | null>;
+				.get()) ?? null;
+
+			return result as Awaitable<AdapterUser | null>;
 		},
 		async getUserByEmail(email: string) {
-			return client
+			const result = (await client
 				.select()
 				.from(usersTable)
 				.where(eq(usersTable.email, email))
-				.then((res) => res.length > 0 ? res[0] : null) as Awaitable<AdapterUser | null>;
+				.get()) ?? null;
+
+			return result as Awaitable<AdapterUser | null>;
 		},
 		async createSession(data: {
 			sessionToken: string;
 			userId: string;
 			expires: Date;
 		}) {
-			return client
-				.insert(sessionsTable)
-				.values(data)
-				.returning()
-				.then((res) => res[0]) as Awaitable<AdapterSession>;
+			return client.insert(sessionsTable).values(data).returning().get();
 		},
 		async getSessionAndUser(sessionToken: string) {
-			return client
+			const result = (await client
 				.select({
 					session: sessionsTable,
 					user: usersTable,
@@ -93,26 +90,29 @@ export function PostgresDrizzleAdapter(
 				.from(sessionsTable)
 				.where(eq(sessionsTable.sessionToken, sessionToken))
 				.innerJoin(usersTable, eq(usersTable.id, sessionsTable.userId))
-				.then((res) => (res.length > 0 ? res[0] : null)) as Awaitable<
-					{
-						session: AdapterSession;
-						user: AdapterUser;
-					} | null
-				>;
+				.get()) ?? null;
+
+			return result as Awaitable<
+				{
+					session: AdapterSession;
+					user: AdapterUser;
+				} | null
+			>;
 		},
 		async updateUser(data: Partial<AdapterUser> & Pick<AdapterUser, 'id'>) {
 			if (!data.id) {
 				throw new Error('No user id.');
 			}
 
-			const [result] = await client
+			const result = await client
 				.update(usersTable)
 				.set(data)
 				.where(eq(usersTable.id, data.id))
-				.returning();
+				.returning()
+				.get();
 
 			if (!result) {
-				throw new Error('No user found.');
+				throw new Error('User not found.');
 			}
 
 			return result as Awaitable<AdapterUser>;
@@ -120,15 +120,17 @@ export function PostgresDrizzleAdapter(
 		async updateSession(
 			data: Partial<AdapterSession> & Pick<AdapterSession, 'sessionToken'>,
 		) {
-			return client
+			const result = await client
 				.update(sessionsTable)
 				.set(data)
 				.where(eq(sessionsTable.sessionToken, data.sessionToken))
 				.returning()
-				.then((res) => res[0]);
+				.get();
+
+			return result ?? null;
 		},
 		async linkAccount(data: AdapterAccount) {
-			await client.insert(accountsTable).values(data);
+			await client.insert(accountsTable).values(data).run();
 		},
 		async getUserByAccount(
 			account: Pick<AdapterAccount, 'provider' | 'providerAccountId'>,
@@ -146,25 +148,27 @@ export function PostgresDrizzleAdapter(
 						eq(accountsTable.providerAccountId, account.providerAccountId),
 					),
 				)
-				.then((res) => res[0]);
+				.get();
 
 			const user = result?.user ?? null;
+
 			return user as Awaitable<AdapterUser | null>;
 		},
 		async deleteSession(sessionToken: string) {
 			await client
 				.delete(sessionsTable)
-				.where(eq(sessionsTable.sessionToken, sessionToken));
+				.where(eq(sessionsTable.sessionToken, sessionToken))
+				.run();
 		},
 		async createVerificationToken(data: VerificationToken) {
 			return client
 				.insert(verificationTokensTable)
 				.values(data)
 				.returning()
-				.then((res) => res[0]);
+				.get();
 		},
 		async useVerificationToken(params: { identifier: string; token: string }) {
-			return client
+			const result = await client
 				.delete(verificationTokensTable)
 				.where(
 					and(
@@ -173,10 +177,12 @@ export function PostgresDrizzleAdapter(
 					),
 				)
 				.returning()
-				.then((res) => (res.length > 0 ? res[0] : null)) as Awaitable<VerificationToken | null>;
+				.get();
+
+			return result ?? null;
 		},
 		async deleteUser(id: string) {
-			await client.delete(usersTable).where(eq(usersTable.id, id));
+			await client.delete(usersTable).where(eq(usersTable.id, id)).run();
 		},
 		async unlinkAccount(
 			params: Pick<AdapterAccount, 'provider' | 'providerAccountId'>,
@@ -188,7 +194,8 @@ export function PostgresDrizzleAdapter(
 						eq(accountsTable.provider, params.provider),
 						eq(accountsTable.providerAccountId, params.providerAccountId),
 					),
-				);
+				)
+				.run();
 		},
 		async getAccount(providerAccountId: string, provider: string) {
 			return client
@@ -238,220 +245,221 @@ export function PostgresDrizzleAdapter(
 	};
 }
 
-type DefaultPostgresColumn<
+type DefaultMyqlColumn<
 	T extends {
 		data: string | number | boolean | Date;
-		dataType: 'string' | 'number' | 'number int32' | 'boolean' | 'object date';
+		dataType: 'string' | 'number' | 'number int53' | 'boolean' | 'object date';
 		notNull: boolean;
 		hasDefault?: boolean;
 		isPrimaryKey?: boolean;
 	},
-> = PgBuildColumn<string, {
-	['_']: PgColumnBuilderConfig & {
+> = SQLiteColumn<
+	ColumnBaseConfig<T['dataType']> & {
 		data: T['data'];
 		dataType: T['dataType'];
 		notNull: T['notNull'];
 		hasDefault: T['hasDefault'] extends true ? true : false;
-	};
-}>;
+	}
+>;
 
-export type DefaultPostgresUsersTable = PgTableWithColumns<{
+type DefaultSqliteUsersTable = SQLiteTableWithColumns<{
 	name: string;
 	columns: {
-		id: DefaultPostgresColumn<{
-			dataType: 'string';
+		id: DefaultMyqlColumn<{
 			isPrimaryKey: true;
 			data: string;
+			dataType: 'string';
 			notNull: true;
 			hasDefault: true;
 		}>;
-		name: DefaultPostgresColumn<{
+		name: DefaultMyqlColumn<{
 			data: string;
-			notNull: boolean;
 			dataType: 'string';
+			notNull: boolean;
 		}>;
-		email: DefaultPostgresColumn<{
+		email: DefaultMyqlColumn<{
 			data: string;
-			notNull: boolean;
 			dataType: 'string';
+			notNull: boolean;
 		}>;
-		emailVerified: DefaultPostgresColumn<{
-			dataType: 'object date';
+		emailVerified: DefaultMyqlColumn<{
 			data: Date;
+			dataType: 'object date';
 			notNull: boolean;
 		}>;
-		image: DefaultPostgresColumn<{
-			dataType: 'string';
+		image: DefaultMyqlColumn<{
 			data: string;
+			dataType: 'string';
 			notNull: boolean;
 		}>;
 	};
-	dialect: 'pg';
+	dialect: 'sqlite';
 	schema: string | undefined;
 }>;
 
-export type DefaultPostgresAccountsTable = PgTableWithColumns<{
+type DefaultSqliteAccountsTable = SQLiteTableWithColumns<{
 	name: string;
 	columns: {
-		userId: DefaultPostgresColumn<{
+		userId: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		type: DefaultPostgresColumn<{
+		type: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		provider: DefaultPostgresColumn<{
+		provider: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		providerAccountId: DefaultPostgresColumn<{
+		providerAccountId: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: true;
 		}>;
-		refresh_token: DefaultPostgresColumn<{
+		refresh_token: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: boolean;
 		}>;
-		access_token: DefaultPostgresColumn<{
+		access_token: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
+			driverParam: string | number;
 			notNull: boolean;
 		}>;
-		expires_at: DefaultPostgresColumn<{
-			dataType: 'number int32';
+		expires_at: DefaultMyqlColumn<{
+			dataType: 'number int53';
 			data: number;
 			notNull: boolean;
 		}>;
-		token_type: DefaultPostgresColumn<{
+		token_type: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: boolean;
 		}>;
-		scope: DefaultPostgresColumn<{
+		scope: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: boolean;
 		}>;
-		id_token: DefaultPostgresColumn<{
+		id_token: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: boolean;
 		}>;
-		session_state: DefaultPostgresColumn<{
+		session_state: DefaultMyqlColumn<{
 			dataType: 'string';
 			data: string;
 			notNull: boolean;
 		}>;
 	};
-	dialect: 'pg';
+	dialect: 'sqlite';
 	schema: string | undefined;
 }>;
 
-export type DefaultPostgresSessionsTable = PgTableWithColumns<{
+type DefaultSqliteSessionsTable = SQLiteTableWithColumns<{
 	name: string;
 	columns: {
-		sessionToken: DefaultPostgresColumn<{
-			data: string;
+		sessionToken: DefaultMyqlColumn<{
 			isPrimaryKey: true;
-			notNull: true;
-			dataType: 'string';
-		}>;
-		userId: DefaultPostgresColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		expires: DefaultPostgresColumn<{
+		userId: DefaultMyqlColumn<{
+			data: string;
+			notNull: true;
+			dataType: 'string';
+		}>;
+		expires: DefaultMyqlColumn<{
 			dataType: 'object date';
 			data: Date;
 			notNull: true;
 		}>;
 	};
-	dialect: 'pg';
+	dialect: 'sqlite';
 	schema: string | undefined;
 }>;
 
-export type DefaultPostgresVerificationTokenTable = PgTableWithColumns<{
+type DefaultSqliteVerificationTokenTable = SQLiteTableWithColumns<{
 	name: string;
 	columns: {
-		identifier: DefaultPostgresColumn<{
+		identifier: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		token: DefaultPostgresColumn<{
+		token: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		expires: DefaultPostgresColumn<{
+		expires: DefaultMyqlColumn<{
 			dataType: 'object date';
 			data: Date;
 			notNull: true;
 		}>;
 	};
-	dialect: 'pg';
+	dialect: 'sqlite';
 	schema: string | undefined;
 }>;
 
-export type DefaultPostgresAuthenticatorTable = PgTableWithColumns<{
+type DefaultSqliteAuthenticatorTable = SQLiteTableWithColumns<{
 	name: string;
 	columns: {
-		credentialID: DefaultPostgresColumn<{
+		credentialID: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		userId: DefaultPostgresColumn<{
+		userId: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		providerAccountId: DefaultPostgresColumn<{
+		providerAccountId: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		credentialPublicKey: DefaultPostgresColumn<{
+		credentialPublicKey: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		counter: DefaultPostgresColumn<{
+		counter: DefaultMyqlColumn<{
 			data: number;
 			notNull: true;
-			dataType: 'number int32';
+			dataType: 'number int53';
 		}>;
-		credentialDeviceType: DefaultPostgresColumn<{
+		credentialDeviceType: DefaultMyqlColumn<{
 			data: string;
 			notNull: true;
 			dataType: 'string';
 		}>;
-		credentialBackedUp: DefaultPostgresColumn<{
+		credentialBackedUp: DefaultMyqlColumn<{
 			data: boolean;
 			notNull: true;
 			dataType: 'boolean';
 		}>;
-		transports: DefaultPostgresColumn<{
+		transports: DefaultMyqlColumn<{
 			data: string;
 			notNull: false;
 			dataType: 'string';
 		}>;
 	};
-	dialect: 'pg';
+	dialect: 'sqlite';
 	schema: string | undefined;
 }>;
 
-export type DefaultPostgresSchema = {
-	usersTable: DefaultPostgresUsersTable;
-	accountsTable: DefaultPostgresAccountsTable;
-	sessionsTable?: DefaultPostgresSessionsTable;
-	verificationTokensTable?: DefaultPostgresVerificationTokenTable;
-	authenticatorsTable?: DefaultPostgresAuthenticatorTable;
+export type DefaultSqliteSchema = {
+	usersTable: DefaultSqliteUsersTable;
+	accountsTable: DefaultSqliteAccountsTable;
+	sessionsTable?: DefaultSqliteSessionsTable;
+	verificationTokensTable?: DefaultSqliteVerificationTokenTable;
+	authenticatorsTable?: DefaultSqliteAuthenticatorTable;
 };
