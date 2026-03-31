@@ -61,6 +61,7 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.556.0",
+		"@aws/aurora-dsql-node-postgres-connector": "^0.1.8",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
