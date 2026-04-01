@@ -67,8 +67,8 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import {
 	type Casing,
-	makeInterpretedQueryMapper,
 	makeJitQueryMapper,
+	makeQueryMapper,
 	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
@@ -103,7 +103,7 @@ export class PgDialect {
 				relationalRows: makeRqbJitMapper,
 			}
 			: {
-				rows: makeInterpretedQueryMapper,
+				rows: makeQueryMapper,
 				relationalRows: makeRqbMapper,
 			};
 	}

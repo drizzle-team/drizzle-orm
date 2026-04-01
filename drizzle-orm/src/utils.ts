@@ -156,7 +156,6 @@ export type RowsMapperGenerator = <TResult = any>(
 ) => RowsMapper<TResult>;
 export type RowsMapper<TResult = Record<string, unknown>[]> = (rows: unknown[][]) => TResult;
 
-/** @internal */
 export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
@@ -178,8 +177,7 @@ export function makeJitQueryMapper<TResult>(
 	}) as any;
 }
 
-/** @internal */
-export function makeInterpretedQueryMapper<TResult>(
+export function makeQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
