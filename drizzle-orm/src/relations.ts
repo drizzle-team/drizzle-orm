@@ -767,7 +767,8 @@ export interface BuildRelationalQueryResult {
 }
 
 export function mapRelationalRow(
-	row: Record<string, unknown>,
+	rows: Record<string, unknown> | Record<string, unknown>[],
+	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
 	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
@@ -776,70 +777,90 @@ export function mapRelationalRow(
 	parseJsonIfString: boolean = false,
 	/** Root level data of query is usually not nested in JSON */
 	useJsonMappers: boolean = true,
-): Record<string, unknown> {
-	for (const selectionItem of buildQueryResultSelection) {
-		if (selectionItem.selection) {
-			if (row[selectionItem.key] === null) continue;
+): Record<string, unknown> | Record<string, unknown>[] {
+	const maxIdx = isOne ? 1 : (rows as Record<string, unknown>[]).length;
+	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
+		({ field, codec, arrayDimensions }) => {
+			let decoder;
+			if (is(field, Column)) {
+				// Support for old custom column JSON field API
+				if (useJsonMappers && (<any> field).mapFromJsonValue) {
+					return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
+				}
 
-			if (parseJson) {
-				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+				decoder = field;
+			} else if (is(field, SQL)) {
+				decoder = field.decoder;
+			} else if (is(field, SQL.Aliased)) {
+				decoder = field.sql.decoder;
+			} else if (is(field, Table) || is(field, View)) {
+				decoder = noopDecoder;
+			} else {
+				decoder = field.getSQL().decoder;
+			}
+
+			return decoder.mapFromDriverValue.isNoop
+				? codec
+					? (value) => codec(value, arrayDimensions!)
+					: undefined
+				: codec
+				? (value) => decoder.mapFromDriverValue(codec(value, arrayDimensions!))
+				: (value) => decoder.mapFromDriverValue(value);
+		},
+	);
+
+	for (let i = 0; i < maxIdx; ++i) {
+		const row = (isOne ? rows : (rows as Record<string, unknown>[])[i]) as Record<string, unknown>;
+
+		for (let selectionItemIdx = 0; selectionItemIdx < buildQueryResultSelection.length; ++selectionItemIdx) {
+			const selectionItem = buildQueryResultSelection[selectionItemIdx]!;
+
+			if (selectionItem.selection) {
 				if (row[selectionItem.key] === null) continue;
-			}
-			if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
-				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
-			}
 
-			if (selectionItem.isArray) {
-				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {
+				if (parseJson) {
+					row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+					if (row[selectionItem.key] === null) continue;
+				} else if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
+					row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+				}
+
+				if (selectionItem.isArray) {
 					mapRelationalRow(
-						item,
+						row[selectionItem.key] as Array<Record<string, unknown>>,
+						false,
 						selectionItem.selection!,
 						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
+
+					continue;
 				}
+
+				mapRelationalRow(
+					row[selectionItem.key] as Record<string, unknown>,
+					true,
+					selectionItem.selection!,
+					mapColumnValue,
+					false,
+					parseJsonIfString,
+				);
 
 				continue;
 			}
 
-			mapRelationalRow(
-				row[selectionItem.key] as Record<string, unknown>,
-				selectionItem.selection!,
-				mapColumnValue,
-				false,
-				parseJsonIfString,
-			);
+			if (mapColumnValue) row[selectionItem.key] = mapColumnValue(row[selectionItem.key]);
+			if (row[selectionItem.key] === null) continue;
 
-			continue;
+			const decoder = decoders[selectionItemIdx];
+			if (!decoder) continue;
+
+			row[selectionItem.key] = decoder(row[selectionItem.key]);
 		}
-
-		const field = selectionItem.field!;
-		const value = mapColumnValue ? mapColumnValue(row[selectionItem.key]) : row[selectionItem.key];
-
-		if (value === null) continue;
-
-		let decoder;
-		if (is(field, Column)) {
-			decoder = field;
-		} else if (is(field, SQL)) {
-			decoder = field.decoder;
-		} else if (is(field, SQL.Aliased)) {
-			decoder = field.sql.decoder;
-		} else if (is(field, Table) || is(field, View)) {
-			decoder = noopDecoder;
-		} else {
-			decoder = field.getSQL().decoder;
-		}
-
-		row[selectionItem.key] = useJsonMappers && (<any> decoder).mapFromJsonValue
-			? (<(value: unknown) => unknown> (<any> decoder).mapFromJsonValue)(value)
-			: decoder.mapFromDriverValue(
-				selectionItem.codec ? selectionItem.codec(value, selectionItem.arrayDimensions!) : value,
-			);
 	}
 
-	return row;
+	return rows;
 }
 
 export type RelationalRowsMapper<T = any> = (rows: Record<string, unknown>[]) => T;
@@ -852,16 +873,19 @@ export function makeRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
-	const mapRow: RelationalRowsMapper = (rows) => {
-		for (let i = 0; i < rows.length; ++i) {
-			mapRelationalRow(rows[i]!, selection, mapColumnValue, parseJson, parseJsonIfString, rootJsonMappers);
-		}
+	return ((rows) => {
+		if (isFirst && !rows[0]) return rows[0];
 
-		if (isFirst) return rows[0];
-		return rows;
-	};
-
-	return mapRow;
+		return mapRelationalRow(
+			isFirst ? rows[0]! : rows,
+			isFirst,
+			selection,
+			mapColumnValue,
+			parseJson,
+			parseJsonIfString,
+			rootJsonMappers,
+		);
+	}) as RelationalRowsMapper<T>;
 }
 
 function makeRqbJitMapperInner(

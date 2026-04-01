@@ -4,7 +4,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfigWithComment,
-	mapRelationalRow,
+	makeRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -88,16 +88,13 @@ export class MySqlRelationalQuery<
 		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
-			(rows) => {
-				for (let i = 0; i < rows.length; ++i) {
-					mapRelationalRow(rows[i]!, query.selection);
-				}
-
-				if (this.mode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			},
+			makeRqbMapper({
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: false,
+				rootJsonMappers: true,
+				selection: query.selection,
+			}),
 			{
 				isFirst: this.mode === 'first',
 				parseJson: false,
