@@ -5,7 +5,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	mapRelationalRow,
+	makeRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -91,16 +91,13 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				builtQuery,
 				undefined,
 				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rows, mapColumnValue) => {
-					for (let i = 0; i < rows.length; ++i) {
-						mapRelationalRow(rows[i]!, query.selection, mapColumnValue);
-					}
-
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
+				makeRqbMapper({
+					isFirst: this.mode === 'first',
+					parseJson: false,
+					parseJsonIfString: false,
+					rootJsonMappers: true,
+					selection: query.selection,
+				}),
 				{
 					isFirst: this.mode === 'first',
 					parseJson: false,

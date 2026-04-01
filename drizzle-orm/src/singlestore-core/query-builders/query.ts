@@ -4,7 +4,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	mapRelationalRow,
+	makeRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -89,16 +89,13 @@ export class SingleStoreRelationalQuery<
 		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
-			(rows) => {
-				for (let i = 0; i < rows.length; ++i) {
-					mapRelationalRow(rows[i]!, query.selection, undefined, undefined, true);
-				}
-
-				if (this.mode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			},
+			makeRqbMapper({
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: true,
+				rootJsonMappers: true,
+				selection: query.selection,
+			}),
 			{
 				isFirst: this.mode === 'first',
 				parseJson: false,
