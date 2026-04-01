@@ -14,6 +14,7 @@ import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/effect-pg.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import {
@@ -255,15 +256,24 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-	const migrationTableCreate = sql`
+
+	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
+	const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+
+	if (newDb) {
+		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 				id SERIAL PRIMARY KEY,
 				hash text NOT NULL,
-				created_at bigint
+				created_at bigint,
+				name text,
+				applied_at timestamp with time zone DEFAULT now()
 			)
 		`;
-	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-	yield* session.execute(migrationTableCreate);
+
+		yield* session.execute(migrationTableCreate);
+	}
 
 	const dbMigrations = yield* session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
@@ -285,7 +295,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		yield* session.execute(
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 
 		return;
@@ -302,7 +312,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 				yield* tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
 		})
