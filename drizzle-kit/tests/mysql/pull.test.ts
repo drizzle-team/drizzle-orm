@@ -235,6 +235,30 @@ test('view #2', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+test('introspect view with varchar column length', async () => {
+  const baseTable = mysqlTable('base_table', {
+    id: int('id'),
+    name: varchar('name', { length: 50 }),
+  });
+
+  const testView = mysqlView('test_view', {
+    id: int('id'),
+    name: varchar('name', { length: 50 }),
+  }).as(
+    sql`select \`drizzle\`.\`base_table\`.\`id\` AS \`id\`, \`drizzle\`.\`base_table\`.\`name\` AS \`name\` from \`drizzle\`.\`base_table\``,
+  );
+
+  const schema = {
+    baseTable,
+    testView,
+  };
+
+  const { statements, sqlStatements } = await diffIntrospect(db, schema, 'view-varchar-length');
+  
+  expect(statements).toStrictEqual([]);
+  expect(sqlStatements).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3285
 test('handle float type', async () => {
 	const schema = {
