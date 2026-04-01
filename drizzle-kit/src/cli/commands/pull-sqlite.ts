@@ -85,14 +85,14 @@ export const handle = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 	);
 	render(
 		`[${
 			chalk.green(
 				'✓',
 			)
-		}] You relations file is ready ➜ ${
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)

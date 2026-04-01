@@ -20,7 +20,6 @@ import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
-import { prepareFilenames } from '../../utils/utils-node';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -30,7 +29,7 @@ import type { CasingType } from '../validations/common';
 import { cockroachSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	verbose: boolean,
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
@@ -46,7 +45,6 @@ export const handle = async (
 	const { introspect: cockroachPushIntrospect } = await import('./pull-cockroach');
 
 	const db = await prepareCockroach(credentials);
-	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractCrdbExisting(res.schemas, res.views, res.matViews);
@@ -215,7 +213,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 				grouped.push({
 					hint: `· You're about to drop ${
 						chalk.underline(id)
-					} primary key, this statements may fail and your table may loose primary key`,
+					} primary key, these statements may fail and your table may lose the primary key`,
 				});
 			}
 

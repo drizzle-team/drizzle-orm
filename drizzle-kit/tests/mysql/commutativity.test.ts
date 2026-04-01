@@ -36,7 +36,7 @@ function mkTmp(): { tmp: string; fs: any; path: any; os: any } {
 }
 
 describe('commutativity integration (mysql)', () => {
-	test.skipIf(Date.now() < +new Date('2026-04-05'))(
+	test(
 		'Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B',
 		async () => {
 			const parentDDL = createDDL();
@@ -300,7 +300,7 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-04-05'))(
+	test(
 		'detects conflict when drop table in one branch and add column in other',
 		async () => {
 			const parentDDL = createDDL();
@@ -516,8 +516,8 @@ describe('commutativity integration (mysql)', () => {
 
 		const report = await detectNonCommutative(files, 'mysql');
 		expect(report.conflicts.length).toBe(1);
-		expect(report.conflicts[0].branchA.headId).toStrictEqual('a_drop');
-		expect(report.conflicts[0].branchB.headId).toStrictEqual('b_drop');
+		expect(report.conflicts[0].branchA.chain[report.conflicts[0].branchA.chain.length - 1].id).toStrictEqual('a_drop');
+		expect(report.conflicts[0].branchB.chain[report.conflicts[0].branchB.chain.length - 1].id).toStrictEqual('b_drop');
 	});
 
 	test('unique constraint same name on same table', async () => {
@@ -732,7 +732,7 @@ describe('commutativity integration (mysql)', () => {
 		expect(report.conflicts.length).toBeGreaterThanOrEqual(0);
 	});
 
-	test.skipIf(Date.now() < +new Date('2026-04-05'))('complex mixed: multiple tables and views diverging', async () => {
+	test('complex mixed: multiple tables and views diverging', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 

@@ -75,6 +75,11 @@ export const dbFrom = (client: Database) => {
 		run: async (query: string) => {
 			client.prepare(query).run();
 		},
+		batch: async (sqlStatements: string[]) => {
+			for (const sql of sqlStatements) {
+				client.prepare(sql).run();
+			}
+		},
 	};
 };
 
@@ -357,6 +362,16 @@ export const prepareTestDatabase = () => {
 			} catch (error) {
 				const newError = new Error(`query error: ${sql}\n\n${(error as Error).message}`);
 				throw newError;
+			}
+		},
+		batch: async (sqlStatements: string[]) => {
+			for (const sql of sqlStatements) {
+				try {
+					const stmt = client.prepare(sql).run();
+				} catch (error) {
+					const newError = new Error(`batch error: ${sql}\n\n${(error as Error).message}`);
+					throw newError;
+				}
 			}
 		},
 	};

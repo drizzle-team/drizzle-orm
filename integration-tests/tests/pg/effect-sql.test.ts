@@ -51,7 +51,7 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Redacted from 'effect/Redacted';
 import * as Ref from 'effect/Ref';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { types } from 'pg';
 import { randomString } from '~/utils';
 import { relations } from './relations';
@@ -3004,7 +3004,7 @@ it.layer(TestLive)((it) => {
 
 			// create migration directory
 			const migrationDir = './migrations/effect-sql';
-			if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+			if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 			mkdirSync(migrationDir, { recursive: true });
 
 			// first branch
@@ -3041,7 +3041,7 @@ it.layer(TestLive)((it) => {
 			expect(res1).toStrictEqual(expected);
 			expect(res2).toStrictEqual(expected);
 
-			rmdirSync(migrationDir, { recursive: true });
+			rmSync(migrationDir, { recursive: true });
 		}));
 
 	it.effect(

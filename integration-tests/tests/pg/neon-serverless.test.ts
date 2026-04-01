@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe } from 'node:test';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
@@ -608,7 +608,7 @@ describe('neon-serverless', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/postgres-neon-serverless';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -643,6 +643,6 @@ describe('neon-serverless', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 });

@@ -17,8 +17,8 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
@@ -1029,6 +1029,14 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 */
 	for(strength: LockStrength, config: LockConfig = {}): MySqlSelectWithout<this, TDynamic, 'for'> {
 		this.config.lockingClause = { strength, config };
+		return this as any;
+	}
+
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: SqlCommenterInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 

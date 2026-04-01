@@ -81,7 +81,7 @@ export const prepareDropParams = async (
 
 export type GenerateConfig = {
 	dialect: Dialect;
-	schema: string | string[];
+	filenames: string[];
 	out: string;
 	breakpoints: boolean;
 	name?: string;
@@ -89,13 +89,14 @@ export type GenerateConfig = {
 	bundle: boolean;
 	casing?: CasingType;
 	driver?: Driver;
+	ignoreConflicts?: boolean;
 };
 
 export type ExportConfig = {
 	dialect: Dialect;
-	schema: string | string[];
 	sql: boolean;
 	casing?: CasingType;
+	filenames: string[];
 };
 
 export const prepareGenerateConfig = async (
@@ -109,6 +110,7 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		casing?: CasingType;
+		ignoreConflicts?: boolean;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -135,11 +137,12 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
-		schema: schema,
+		filenames: fileNames,
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 	};
 };
 
@@ -174,8 +177,8 @@ export const prepareExportConfig = async (
 	return {
 		casing: config.casing,
 		dialect: dialect,
-		schema: schema,
 		sql: sql,
+		filenames: fileNames,
 	};
 };
 
@@ -236,7 +239,6 @@ export const preparePushConfig = async (
 			credentials: CockroachCredentials;
 		}
 	) & {
-		schemaPath: string | string[];
 		verbose: boolean;
 		force: boolean;
 		explain: boolean;
@@ -246,6 +248,7 @@ export const preparePushConfig = async (
 			table: string;
 			schema: string;
 		};
+		filenames: string[];
 	}
 > => {
 	const raw = flattenDatabaseCredentials(
@@ -269,6 +272,7 @@ export const preparePushConfig = async (
 	const config = parsed.data;
 
 	const schemaFiles = prepareFilenames(config.schema);
+	console.log(chalk.gray(`Reading schema files:\n${schemaFiles.join('\n')}\n`));
 	if (schemaFiles.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);
 		process.exit(0);
@@ -290,7 +294,6 @@ export const preparePushConfig = async (
 
 		return {
 			dialect: 'postgresql',
-			schemaPath: config.schema,
 			explain: (options.explain as boolean) ?? false,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
@@ -298,6 +301,7 @@ export const preparePushConfig = async (
 			casing: config.casing,
 			filters,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -309,7 +313,6 @@ export const preparePushConfig = async (
 		}
 		return {
 			dialect: 'mysql',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -317,6 +320,7 @@ export const preparePushConfig = async (
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -329,13 +333,13 @@ export const preparePushConfig = async (
 
 		return {
 			dialect: 'singlestore',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -347,7 +351,6 @@ export const preparePushConfig = async (
 		}
 		return {
 			dialect: 'sqlite',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -355,6 +358,7 @@ export const preparePushConfig = async (
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -366,7 +370,6 @@ export const preparePushConfig = async (
 		}
 		return {
 			dialect: 'turso',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -374,6 +377,7 @@ export const preparePushConfig = async (
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -390,7 +394,6 @@ export const preparePushConfig = async (
 		}
 		return {
 			dialect: 'mssql',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -398,6 +401,7 @@ export const preparePushConfig = async (
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
@@ -410,7 +414,6 @@ export const preparePushConfig = async (
 
 		return {
 			dialect: 'cockroach',
-			schemaPath: config.schema,
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
@@ -418,15 +421,12 @@ export const preparePushConfig = async (
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
+			filenames: schemaFiles,
 		};
 	}
 
 	if (config.dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'push' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'push' command with DuckDb dialect`));
 		process.exit(1);
 	}
 
@@ -656,11 +656,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'pull' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'pull' command with DuckDb dialect`));
 		process.exit(1);
 	}
 
@@ -950,11 +946,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(
-			error(
-				`You can't use 'migrate' command with DuckDb dialect`,
-			),
-		);
+		console.log(error(`You can't use 'migrate' command with DuckDb dialect`));
 		process.exit(1);
 	}
 

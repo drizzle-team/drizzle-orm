@@ -94,8 +94,7 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'd1\\_%' ESCAPE '\\'
-		ORDER BY p.cid
-		;
+		ORDER BY p.cid;
     `,
 	).then((columns) => {
 		queryCallback('columns', columns, null);

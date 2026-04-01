@@ -3,12 +3,12 @@ import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
-	type DBQueryConfig,
+	type DBQueryConfigWithComment,
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { Query, QueryWithTypings, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
@@ -30,8 +30,10 @@ export class RelationalQueryBuilder<
 		private session: MySqlSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>> & {
+			comment?: SqlCommenterInput;
+		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
 			this.schema,
@@ -39,13 +41,15 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
+			config as DBQueryConfigWithComment<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
+	findFirst<TSelection extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TSelection, DBQueryConfigWithComment<'one', TSchema, TFields>> & {
+			comment?: SqlCommenterInput;
+		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
 			this.schema,
@@ -53,7 +57,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
+			config as DBQueryConfigWithComment<'one'> | undefined ?? true,
 			'first',
 		);
 	}
@@ -73,7 +77,7 @@ export class MySqlRelationalQuery<
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
-		private config: DBQueryConfig<'many' | 'one'> | true,
+		private config: DBQueryConfigWithComment<'many' | 'one'> | true,
 		private mode: 'many' | 'first',
 	) {
 		super();

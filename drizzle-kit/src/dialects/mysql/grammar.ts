@@ -358,7 +358,14 @@ export const Binary: SqlType = {
 	defaultFromIntrospect: (value) => {
 		// when you do `binary default 'text'` instead of `default ('text')`
 		if (value.startsWith('0x')) {
-			return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+			if (typeof Buffer !== 'undefined') {
+				return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+			}
+			const hex = value.slice(2);
+			const matches = hex.match(/.{1,2}/g) ?? [];
+			const bytes = new Uint8Array(matches.map((b) => parseInt(b, 16)));
+			const decoded = new TextDecoder().decode(bytes);
+			return `'${decoded}'`;
 		}
 		return value;
 	},
@@ -369,7 +376,12 @@ export const Varbinary: SqlType = {
 	is: (type) => /^(?:varbinary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'varbinary',
 	defaultFromDrizzle: (value) => {
-		return `(0x${Buffer.from(value as string).toString('hex').toLowerCase()})`;
+		if (typeof Buffer !== 'undefined') {
+			return `(0x${Buffer.from(value as string).toString('hex').toLowerCase()})`;
+		}
+		const bytes = new TextEncoder().encode(value as string);
+		const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+		return `(0x${hex})`;
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
@@ -382,7 +394,14 @@ export const Varbinary: SqlType = {
 		let trimmed = value.startsWith('(') ? value.substring(1, value.length - 1) : value;
 		trimmed = trimChar(value, "'");
 		if (trimmed.startsWith('0x')) {
-			trimmed = Buffer.from(trimmed.slice(2), 'hex').toString('utf-8');
+			if (typeof Buffer !== 'undefined') {
+				trimmed = Buffer.from(trimmed.slice(2), 'hex').toString('utf-8');
+			} else {
+				const hex = trimmed.slice(2);
+				const matches = hex.match(/.{1,2}/g) ?? [];
+				const bytes = new Uint8Array(matches.map((b) => parseInt(b, 16)));
+				trimmed = new TextDecoder().decode(bytes);
+			}
 			return { options, default: `"${trimmed.replaceAll('"', '\\"')}"` };
 		} else {
 			return { options, default: `sql\`${value}\`` };

@@ -53,16 +53,13 @@ export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
 };
 
-export type SQLiteDB = {
+export interface SQLiteClient {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
 	run(query: string): Promise<void>;
-};
-
-export type LibSQLDB = {
-	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
-	run(query: string): Promise<void>;
-	batchWithPragma?(queries: string[]): Promise<void>;
-};
+	batch(statements: string[]): Promise<void>;
+}
+export interface SQLiteDB extends SQLiteClient {}
+export interface LibSQLDB extends SQLiteClient {}
 
 export type Simplify<T> =
 	& {
