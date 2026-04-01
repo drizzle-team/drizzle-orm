@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { SQLiteCloudDatabase } from 'drizzle-orm/sqlite-cloud';
 import { migrate } from 'drizzle-orm/sqlite-cloud/migrator';
 import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { sqliteCloudTest as test } from './instrumentation';
 import relations from './relations';
@@ -159,7 +159,7 @@ test.concurrent('migrator: local migration is unapplied. Migrations timestamp is
 
 	// create migration directory
 	const migrationDir = './migrations/sqlite-cloud';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -194,10 +194,13 @@ test.concurrent('migrator: local migration is unapplied. Migrations timestamp is
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 const skip = [
+	// Uses async versions
+	'sync transaction rollback',
+	'sync nested transaction rollback',
 	// Currently not supported by provider
 	'update with limit and order by',
 	'delete with limit and order by',

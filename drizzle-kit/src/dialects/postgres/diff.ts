@@ -851,6 +851,14 @@ export const ddlDiff = async (
 	const jsonDropCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_check', { check: it })
 	);
+	const jsonRenamedCheckConstraints = checkRenames.map((it) =>
+		prepareStatement('rename_constraint', {
+			schema: it.to.schema,
+			table: it.to.table,
+			from: it.from.name,
+			to: it.to.name,
+		})
+	);
 
 	// group by tables?
 	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
@@ -865,13 +873,7 @@ export const ddlDiff = async (
 	});
 
 	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
-		if (
-			x.nameExplicit
-			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-				|| x.nameExplicit.to && !x.nameExplicit.from)
-		) {
-			delete x.nameExplicit;
-		}
+		if (x.nameExplicit) delete x.nameExplicit;
 
 		return ddl2.fks.hasDiff(x);
 	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right, diff: it }));
@@ -1125,7 +1127,10 @@ export const ddlDiff = async (
 		// default access method
 		// from db -> heap,
 		// drizzle schema -> null
-		if (mode === 'push' && it.using && !it.using.to && it.using.from === defaults.accessMethod) {
+		//
+		// should work for push and generate since that is commutative
+		// + when we introspect we recieve heap,
+		if (it.using && !it.using.to && it.using.from === defaults.accessMethod) {
 			delete it.using;
 		}
 
@@ -1240,6 +1245,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
+	jsonStatements.push(...jsonRenamedCheckConstraints);
 
 	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation

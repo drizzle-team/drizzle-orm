@@ -1,4 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { lstatSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { assert, expect, test } from 'vitest';
 import { push } from '../../src/cli/schema';
 
@@ -13,6 +15,7 @@ import { push } from '../../src/cli/schema';
 // #1 drizzle-kit push --config=expo.config.ts
 // TODO: missing required params in config?
 
+const filename = join(process.cwd(), 'tests/cli/schema.ts');
 test('push #1', async (t) => {
 	const res = await brotest(push, '');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -22,7 +25,7 @@ test('push #1', async (t) => {
 			url: 'postgresql://postgres:postgres@127.0.0.1:5432/db',
 		},
 		force: false,
-		schemaPath: './schema.ts',
+		filenames: [filename],
 		explain: false,
 		filters: {
 			schemas: undefined,
@@ -49,7 +52,7 @@ test('push #2', async (t) => {
 			url: 'turso.dev',
 		},
 		force: false,
-		schemaPath: './schema.ts',
+		filenames: [filename],
 		explain: false,
 		filters: {
 			schemas: undefined,
@@ -78,7 +81,7 @@ test('push #3', async (t) => {
 			token: 'token',
 		},
 		force: false,
-		schemaPath: './schema.ts',
+		filenames: [filename],
 		explain: false,
 		filters: {
 			schemas: undefined,
@@ -115,7 +118,7 @@ test('push #4', async (t) => {
 			entities: undefined,
 			extensions: undefined,
 		},
-		schemaPath: './schema.ts',
+		filenames: [filename],
 		verbose: false,
 		casing: undefined,
 		migrations: {
@@ -141,7 +144,7 @@ test('push #5', async (t) => {
 			port: 5432,
 			user: 'postgresql',
 		},
-		schemaPath: './schema.ts',
+		filenames: [filename],
 		explain: false,
 		filters: {
 			schemas: undefined,

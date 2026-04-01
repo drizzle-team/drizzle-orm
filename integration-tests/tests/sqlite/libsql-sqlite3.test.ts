@@ -3,7 +3,7 @@ import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { drizzle } from 'drizzle-orm/libsql/sqlite3';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
@@ -176,7 +176,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/libsql-sqlite3';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -211,7 +211,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 const skip = [
@@ -219,8 +219,10 @@ const skip = [
 	'update with limit and order by',
 	'transaction',
 	'transaction rollback',
+	'sync transaction rollback',
 	'nested transaction',
 	'nested transaction rollback',
+	'sync nested transaction rollback',
 ];
 
 tests(test, skip);

@@ -74,7 +74,8 @@ export type Setup = {
 		| '@tursodatabase/database'
 		| 'bun'
 		| 'duckdb'
-		| '@duckdb/node-api';
+		| '@duckdb/node-api'
+		| 'node:sqlite';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;

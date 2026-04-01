@@ -3,6 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import type { PgRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -17,23 +18,30 @@ export async function migrate<
 ) {
 	const migrations = readMigrationFiles(config);
 
+	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
 	const migrationsTable = typeof config === 'string'
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-	const migrationTableCreate = sql`
+
+	// Detect DB version and upgrade table schema if needed
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations, 'execute');
+
+	if (newDb) {
+		const migrationTableCreate = sql`
 		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
 			id SERIAL PRIMARY KEY,
 			hash text NOT NULL,
-			created_at bigint
-		)
-	`;
+			created_at bigint,
+			name text,
+			applied_at timestamp with time zone DEFAULT now()
+		)`;
+		await db.session.execute(migrationTableCreate);
+	}
 
-	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-	await db.execute(migrationTableCreate);
-
-	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -54,7 +62,8 @@ export async function migrate<
 				db.dialect.sqlToQuery(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
-					} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`.inlineParams(),
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`
+						.inlineParams(),
 				).sql,
 			],
 		);
@@ -70,7 +79,8 @@ export async function migrate<
 			db.dialect.sqlToQuery(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
-				} ("hash", "created_at") values(${migration.hash}, '${migration.folderMillis}')`.inlineParams(),
+				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`
+					.inlineParams(),
 			).sql,
 		);
 	}

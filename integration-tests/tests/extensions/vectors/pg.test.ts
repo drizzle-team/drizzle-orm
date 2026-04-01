@@ -144,7 +144,7 @@ test('insert + order by subquery', async () => {
 
 	expect(query.toSQL()).toStrictEqual({
 		sql:
-			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where not "items"."id" = $1 order by "items"."vector" <-> (select "vector" from "items" where "items"."id" = $2) limit $3',
+			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where not ("items"."id" = $1) order by "items"."vector" <-> (select "vector" from "items" where "items"."id" = $2) limit $3',
 		params: [1, 1, 5],
 	});
 	const res = await query;

@@ -41,6 +41,7 @@ import {
 	uniqueIndex,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
@@ -79,10 +80,17 @@ test('basic introspect test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-introspect');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-introspect');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic identity always test', async () => {
@@ -93,10 +101,17 @@ test('basic identity always test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-identity-always-introspect');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-identity-always-introspect');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('identity always test: few schemas', async () => {
@@ -112,13 +127,20 @@ test('identity always test: few schemas', async () => {
 			email: text('email'),
 		}),
 	};
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'identity always test: few schemas', [
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'identity always test: few schemas', [
 		'public',
 		'test',
 	]);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic identity by default test', async () => {
@@ -129,14 +151,17 @@ test('basic identity by default test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-identity-default-introspect',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-identity-default-introspect');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3240
@@ -144,38 +169,52 @@ test('basic index test', async () => {
 	const client = new PGlite();
 
 	const schema = {
-		users: pgTable('users', {
-			firstName: text('first_name'),
-			lastName: text('last_name'),
-			data: jsonb('data'),
-		}, (table) => [
-			index('single_column').on(table.firstName),
-			index('multi_column').on(table.firstName, table.lastName),
-			index('single_expression').on(sql`lower(${table.firstName})`),
-			index('multi_expression').on(sql`lower(${table.firstName})`, sql`lower(${table.lastName})`),
-			index('expression_with_comma').on(
-				sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`,
-			),
-			index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
-			index('expression_with_jsonb_operator').on(
-				sql`(${table.data} #>> '{a,b,1}'::text[])`,
-			),
-		]),
+		users: pgTable(
+			'users',
+			{
+				firstName: text('first_name'),
+				lastName: text('last_name'),
+				data: jsonb('data'),
+			},
+			(table) => [
+				index('single_column').on(table.firstName),
+				index('multi_column').on(table.firstName, table.lastName),
+				index('single_expression').on(sql`lower(${table.firstName})`),
+				index('multi_expression').on(
+					sql`lower(${table.firstName})`,
+					sql`lower(${table.lastName})`,
+				),
+				index('expression_with_comma').on(
+					sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`,
+				),
+				index('expression_with_double_quote').on(
+					sql`('"'::text || ${table.firstName})`,
+				),
+				index('expression_with_jsonb_operator').on(
+					sql`(${table.data} #>> '{a,b,1}'::text[])`,
+				),
+			],
+		),
 	};
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'basic-index-introspect',
 	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // TODO: Refactor this test
 test('advanced index test', async () => {
-	db.query('CREATE table job (name text, start_after text, priority text, created_on text, id text, state text);');
-	db.query("CREATE INDEX job_i5 ON job (name, start_after) INCLUDE (priority, created_on, id) WHERE state < 'active';");
+	db.query(
+		'CREATE table job (name text, start_after text, priority text, created_on text, id text, state text);',
+	);
+	db.query(
+		"CREATE INDEX job_i5 ON job (name, start_after) INCLUDE (priority, created_on, id) WHERE state < 'active';",
+	);
 
 	const { indexes } = await fromDatabase(db, () => true);
 
@@ -209,7 +248,7 @@ test('advanced index test', async () => {
 			schema: 'public',
 			where: "(state < 'active'::text)",
 			with: '',
-		} satisfies typeof indexes[number],
+		} satisfies (typeof indexes)[number],
 	]);
 });
 
@@ -224,14 +263,17 @@ test('identity always test: few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-few-params-introspect',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'identity-always-few-params-introspect');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('identity by default test: few params', async () => {
@@ -245,14 +287,21 @@ test('identity by default test: few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'identity-default-few-params-introspect',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('identity always test: all params', async () => {
@@ -270,14 +319,17 @@ test('identity always test: all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-all-params-introspect',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'identity-always-all-params-introspect');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('identity by default test: all params', async () => {
@@ -295,14 +347,21 @@ test('identity by default test: all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'identity-default-all-params-introspect',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('generated column: link to another column', async () => {
@@ -316,33 +375,40 @@ test('generated column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'generated-link-column',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'generated-link-column');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('generated column: link to another jsonb column', async () => {
 	const schema = {
 		users: pgTable('users', {
 			predict: jsonb('predict'),
-			predictions: jsonb('predictions')
-				.generatedAlwaysAs((): SQL => sql`predict -> 'predictions'`),
+			predictions: jsonb('predictions').generatedAlwaysAs(
+				(): SQL => sql`predict -> 'predictions'`,
+			),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'generated-link-jsonb-column',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'generated-link-jsonb-column');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5149
@@ -383,17 +449,28 @@ test('introspect all column types', async () => {
 			real: real('real').default(100),
 			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
 			json1: json('json1').default(sql`jsonb_build_object()`),
-			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
+			jsonb: jsonb('jsonb')
+				.$type<{ attr: string }>()
+				.default({ attr: 'value' }),
 			jsonb1: jsonb('jsonb1').default(sql`jsonb_build_object()`),
 			jsonb2: jsonb('jsonb2').default({}),
-			jsonb3: jsonb('jsonb3').default({ confirmed: true, not_received: true }).notNull(),
+			jsonb3: jsonb('jsonb3')
+				.default({ confirmed: true, not_received: true })
+				.notNull(),
 			time1: time('time1').default('00:00:00'),
 			time2: time('time2').defaultNow(),
-			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
-			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow(),
-			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(
-				sql`timezone('utc'::text, now())`,
-			),
+			timestamp1: timestamp('timestamp1', {
+				withTimezone: true,
+				precision: 6,
+			}).default(new Date()),
+			timestamp2: timestamp('timestamp2', {
+				withTimezone: true,
+				precision: 6,
+			}).defaultNow(),
+			timestamp3: timestamp('timestamp3', {
+				withTimezone: true,
+				precision: 6,
+			}).default(sql`timezone('utc'::text, now())`),
 			date1: date('date1').default('2024-01-01'),
 			date2: date('date2').defaultNow(),
 			date3: date('date3').default(sql`CURRENT_TIMESTAMP`),
@@ -410,14 +487,17 @@ test('introspect all column types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-types',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-all-columns-types');
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4956
@@ -435,20 +515,25 @@ $$;`);
 		columns: pgTable('columns', {
 			uuid1: uuid().default(sql`uuidv7()`),
 			text: text().default(sql`uuidv7()`),
-			text1: text().default(sql`upper(substr(md5((random())::text), 1, 6))`).notNull(),
+			text1: text()
+				.default(sql`upper(substr(md5((random())::text), 1, 6))`)
+				.notNull(),
 			char: char().default(sql`uuidv7()`),
 			varchar: varchar().default(sql`uuidv7()`),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-uuid-column-custom-default',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-uuid-column-custom-default');
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4231#:~:text=Scenario%201%3A%20jsonb().array().default(%5B%5D)
@@ -462,43 +547,68 @@ test('introspect all column array types', async () => {
 			enum: myEnum('my_enum').array().default(['a', 'b']),
 			smallint: smallint('smallint').array().default([10, 20]),
 			integer: integer('integer').array().default([10, 20]),
-			numeric: numeric('numeric', { precision: 3, scale: 1 }).array().default(['99.9', '88.8']),
+			numeric: numeric('numeric', { precision: 3, scale: 1 })
+				.array()
+				.default(['99.9', '88.8']),
 			bigint: bigint('bigint', { mode: 'number' }).array().default([100, 200]),
 			boolean: boolean('boolean').array().default([true, false]),
 			text: text('test').array().default(['abc', 'def']),
-			varchar: varchar('varchar', { length: 25 }).array().default(['abc', 'def']),
+			varchar: varchar('varchar', { length: 25 })
+				.array()
+				.default(['abc', 'def']),
 			char: char('char', { length: 3 }).array().default(['abc', 'def']),
-			doublePrecision: doublePrecision('doublePrecision').array().default([100, 200]),
+			doublePrecision: doublePrecision('doublePrecision')
+				.array()
+				.default([100, 200]),
 			real: real('real').array().default([100, 200]),
-			json: json('json').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
-			jsonb: jsonb('jsonb').$type<{ attr: string }>().array().default([{ attr: 'value1' }, { attr: 'value2' }]),
-			jsonb1: jsonb('jsonb1').array().default(sql`'{}'`),
+			json: json('json')
+				.$type<{ attr: string }>()
+				.array()
+				.default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb: jsonb('jsonb')
+				.$type<{ attr: string }>()
+				.array()
+				.default([{ attr: 'value1' }, { attr: 'value2' }]),
+			jsonb1: jsonb('jsonb1')
+				.array()
+				.default(sql`'{}'`),
 			jsonb2: jsonb('jsonb2').array().default([]),
 			time: time('time').array().default(['00:00:00', '01:00:00']),
 			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
 				.array()
 				.default([new Date(), new Date()]),
 			date: date('date').array().default(['2024-01-01', '2024-01-02']),
-			uuid: uuid('uuid').array().default([
-				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
-			]),
+			uuid: uuid('uuid')
+				.array()
+				.default([
+					'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+					'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+				]),
 			inet: inet('inet').array().default(['127.0.0.1', '127.0.0.2']),
 			cidr: cidr('cidr').array().default(['127.0.0.1/32', '127.0.0.2/32']),
-			macaddr: macaddr('macaddr').array().default(['00:00:00:00:00:00', '00:00:00:00:00:01']),
-			macaddr8: macaddr8('macaddr8').array().default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
-			interval: interval('interval').array().default(['1 day 01:00:00', '1 day 02:00:00']),
+			macaddr: macaddr('macaddr')
+				.array()
+				.default(['00:00:00:00:00:00', '00:00:00:00:00:01']),
+			macaddr8: macaddr8('macaddr8')
+				.array()
+				.default(['00:00:00:ff:fe:00:00:00', '00:00:00:ff:fe:00:00:01']),
+			interval: interval('interval')
+				.array()
+				.default(['1 day 01:00:00', '1 day 02:00:00']),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-array-types',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-all-columns-array-types');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect columns with name with non-alphanumeric characters', async () => {
@@ -511,14 +621,21 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'introspect-column-with-name-with-non-alphanumeric-characters',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect enum from different schema', async () => {
@@ -532,15 +649,22 @@ test('introspect enum from different schema', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'introspect-enum-from-different-schema',
 		['public', 'schema2'],
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect enum with same names across different schema', async () => {
@@ -557,15 +681,22 @@ test('introspect enum with same names across different schema', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'introspect-enum-with-same-names-across-different-schema',
 		['public', 'schema2'],
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect enum with similar name to native type', async () => {
@@ -577,14 +708,21 @@ test('introspect enum with similar name to native type', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect strings with single quotes', async () => {
@@ -598,58 +736,83 @@ test('introspect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-strings-with-single-quotes',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-strings-with-single-quotes');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect checks', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: serial('id'),
-			name: varchar('name'),
-			age: integer('age'),
-		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
+		users: pgTable(
+			'users',
+			{
+				id: serial('id'),
+				name: varchar('name'),
+				age: integer('age'),
+			},
+			(table) => [check('some_check', sql`${table.age} > 21`)],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-checks',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-checks');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect checks from different schemas with same names', async () => {
 	const mySchema = pgSchema('schema2');
 	const schema = {
 		mySchema,
-		users: pgTable('users', {
-			id: serial('id'),
-			age: integer('age'),
-		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
-		usersInMySchema: mySchema.table('users', {
-			id: serial('id'),
-			age: integer('age'),
-		}, (table) => [check('some_check', sql`${table.age} < 1`)]),
+		users: pgTable(
+			'users',
+			{
+				id: serial('id'),
+				age: integer('age'),
+			},
+			(table) => [check('some_check', sql`${table.age} > 21`)],
+		),
+		usersInMySchema: mySchema.table(
+			'users',
+			{
+				id: serial('id'),
+				age: integer('age'),
+			},
+			(table) => [check('some_check', sql`${table.age} < 1`)],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'introspect-checks-diff-schema-same-names',
 		['public', 'schema2'],
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect view #1', async () => {
@@ -664,14 +827,17 @@ test('introspect view #1', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect view #2', async () => {
@@ -680,22 +846,25 @@ test('introspect view #2', async () => {
 		name: varchar('users'),
 	});
 
-	const view = pgView('some_view', { id: integer('asd') }).with({ checkOption: 'cascaded' }).as(
-		sql`SELECT * FROM ${users}`,
-	);
+	const view = pgView('some_view', { id: integer('asd') })
+		.with({ checkOption: 'cascaded' })
+		.as(sql`SELECT * FROM ${users}`);
 	const schema = {
 		view,
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-2',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view-2');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4764
@@ -706,14 +875,23 @@ test('introspect view #3', async () => {
 		column1: enum1().array(),
 		column2: enum1().array('[][]'),
 	});
-	const publicJobsWithCompanies = pgView('public_jobs_with_companies').as((qb) => qb.select().from(test));
+	const publicJobsWithCompanies = pgView('public_jobs_with_companies').as(
+		(qb) => qb.select().from(test),
+	);
 
 	const schema = { enum1, test, publicJobsWithCompanies };
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-3');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view-3');
 
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	// TODO: we need to check actual types generated;
 });
 
@@ -731,11 +909,18 @@ test.skipIf(Date.now() < +new Date('2026-04-05'))('introspect view #4', async ()
 
 	const schema = { table, myView };
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-4');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view-4');
 
 	throw Error('');
-	expect(statements).toStrictEqual([]);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	// TODO: we need to check actual types generated;
 });
 
@@ -756,8 +941,12 @@ test.skipIf(Date.now() < +new Date('2026-04-05'))('introspect view #5', async ()
 
 	const registrations = pgTable('registrations', {
 		registrationId: serial('registration_id').primaryKey(),
-		applicationId: integer('application_id').references(() => applications.applicationId),
-		departmentId: integer('department_id').references(() => departments.departmentId),
+		applicationId: integer('application_id').references(
+			() => applications.applicationId,
+		),
+		departmentId: integer('department_id').references(
+			() => departments.departmentId,
+		),
 		academicDegree: text('academic_degree'),
 	});
 
@@ -776,10 +965,21 @@ test.skipIf(Date.now() < +new Date('2026-04-05'))('introspect view #5', async ()
 		sql`SELECT a.application_id, s.full_name_ar AS student_name, r.academic_degree, d.title AS department, a.is_admin_accepted FROM applications a JOIN students s USING (student_id) JOIN registrations r USING (application_id) JOIN departments d ON d.department_id = r.department_id`,
 	);
 
-	const schema = { students, departments, applications, registrations, adminApplicationsList };
+	const schema = {
+		students,
+		departments,
+		applications,
+		registrations,
+		adminApplicationsList,
+	};
 
-	const { sqlStatements } = await diffIntrospect(db, schema, 'introspect-view-5');
-	expect(sqlStatements).toStrictEqual([]);
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-view-5',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	throw new Error();
 	// text('student_name') column in view should contain notNull constraint
 });
@@ -791,24 +991,29 @@ test('introspect view in other schema', async () => {
 		name: varchar('users'),
 	});
 
-	const view = newSchema.view('some_view', { id: integer('asd') }).with({ checkOption: 'cascaded' }).as(
-		sql`SELECT * FROM ${users}`,
-	);
+	const view = newSchema
+		.view('some_view', { id: integer('asd') })
+		.with({ checkOption: 'cascaded' })
+		.as(sql`SELECT * FROM ${users}`);
 	const schema = {
 		view,
 		users,
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-in-other-schema',
-		['new_schema'],
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-view-in-other-schema', [
+		'new_schema',
+	]);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect materialized view in other schema', async () => {
@@ -818,24 +1023,29 @@ test('introspect materialized view in other schema', async () => {
 		name: varchar('users'),
 	});
 
-	const view = newSchema.materializedView('some_view', { id: integer('asd') }).with({ autovacuumEnabled: true }).as(
-		sql`SELECT * FROM ${users}`,
-	);
+	const view = newSchema
+		.materializedView('some_view', { id: integer('asd') })
+		.with({ autovacuumEnabled: true })
+		.as(sql`SELECT * FROM ${users}`);
 	const schema = {
 		view,
 		users,
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-mat-view-in-other-schema',
-		['new_schema'],
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-mat-view-in-other-schema', [
+		'new_schema',
+	]);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect materialized view #1', async () => {
@@ -844,20 +1054,26 @@ test('introspect materialized view #1', async () => {
 		name: varchar('users'),
 	});
 
-	const view = pgMaterializedView('some_view').using('heap').withNoData().as((qb) => qb.select().from(users));
+	const view = pgMaterializedView('some_view')
+		.using('heap')
+		.withNoData()
+		.as((qb) => qb.select().from(users));
 	const schema = {
 		view,
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-materialized-view');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect materialized view #2', async () => {
@@ -866,153 +1082,224 @@ test('introspect materialized view #2', async () => {
 		name: varchar('users'),
 	});
 
-	const view = pgMaterializedView('some_view', { id: integer('asd') }).with({ autovacuumFreezeMinAge: 1 }).as(
-		sql`SELECT * FROM ${users}`,
-	);
+	const view = pgMaterializedView('some_view', { id: integer('asd') })
+		.with({ autovacuumFreezeMinAge: 1 })
+		.as(sql`SELECT * FROM ${users}`);
 	const schema = {
 		view,
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view-2',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-materialized-view-2');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic policy #1', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test')]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [pgPolicy('test')],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-#1',
-		['public'],
-		{ roles: { include: ['test'] } },
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-policy-#1', ['public'], {
+		roles: { include: ['test'] },
+	});
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic policy with "as"', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { as: 'permissive' })]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [pgPolicy('test', { as: 'permissive' })],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-as',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-policy-as');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic policy', async () => {
 	const schema = {
 		role: pgRole('test2'),
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { to: 'test2' })]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [pgPolicy('test', { to: 'test2' })],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy',
-		['public'],
-		{ roles: { include: ['test2'] } },
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-policy', ['public'], {
+		roles: { include: ['test2'] },
+	});
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic policy with all fields except "using" and "with"', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { as: 'permissive', for: 'all', to: ['postgres'] })]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [
+				pgPolicy('test', { as: 'permissive', for: 'all', to: ['postgres'] }),
+			],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-all-fields',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-policy-all-fields');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic policy with "using" and "with"', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` })]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` })],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-using-withcheck',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-policy-using-withcheck');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('multiple policies #1', async () => {
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [
+				pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				pgPolicy('newRls'),
+			],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'multiple-policies');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4407
 test('multiple policies #2', async () => {
-	const users = pgTable('users', {
-		id: integer(),
-	}, (table) => [
-		pgPolicy('insert_policy_for_users', { for: 'insert', withCheck: sql`true` }),
-		pgPolicy('update_policy_for_users', { for: 'update', using: sql`true`, withCheck: sql`true` }),
-	]);
+	const users = pgTable(
+		'users',
+		{
+			id: integer(),
+		},
+		(table) => [
+			pgPolicy('insert_policy_for_users', {
+				for: 'insert',
+				withCheck: sql`true`,
+			}),
+			pgPolicy('update_policy_for_users', {
+				for: 'update',
+				using: sql`true`,
+				withCheck: sql`true`,
+			}),
+		],
+	);
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [
+				pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				pgPolicy('newRls'),
+			],
+		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies-2',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'multiple-policies-2');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('multiple policies with roles', async () => {
@@ -1031,14 +1318,17 @@ test('multiple policies with roles', async () => {
 		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies-with-roles',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'multiple-policies-with-roles');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('basic roles', async () => {
@@ -1046,33 +1336,43 @@ test('basic roles', async () => {
 		usersRole: pgRole('user'),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-roles',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'basic-roles', ['public'], {
+		roles: { include: ['user'] },
+	});
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('role with properties', async () => {
 	const schema = {
-		usersRole: pgRole('user', { inherit: false, createDb: true, createRole: true }),
+		usersRole: pgRole('user', {
+			inherit: false,
+			createDb: true,
+			createRole: true,
+		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'roles-with-properties',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'roles-with-properties', ['public'], {
+		roles: { include: ['user'] },
+	});
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('role with a few properties', async () => {
@@ -1080,7 +1380,12 @@ test('role with a few properties', async () => {
 		usersRole: pgRole('user', { inherit: false, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'roles-with-few-properties',
@@ -1088,8 +1393,10 @@ test('role with a few properties', async () => {
 		{ roles: { include: ['user'] } },
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('multiple policies with roles from schema', async () => {
@@ -1109,7 +1416,12 @@ test('multiple policies with roles from schema', async () => {
 		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
 		db,
 		schema,
 		'multiple-policies-with-roles-from-schema',
@@ -1117,8 +1429,10 @@ test('multiple policies with roles from schema', async () => {
 		{ roles: { include: ['user_role'] } },
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('case sensitive schema name + identity column', async () => {
@@ -1131,28 +1445,35 @@ test('case sensitive schema name + identity column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'case-sensitive-schema-name',
-		['CaseSensitiveSchema'],
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'case-sensitive-schema-name', [
+		'CaseSensitiveSchema',
+	]);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect without any schema', async () => {
 	await db.query(`DROP SCHEMA "public" cascade`);
 	const schema = {};
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-without-any-schema',
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-without-any-schema');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect composite pk', async () => {
@@ -1167,13 +1488,14 @@ test('introspect composite pk', async () => {
 
 	const schema = { firstToSecondTable };
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'introspect-composite-pk',
 	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect foreign keys', async () => {
@@ -1187,65 +1509,88 @@ test('introspect foreign keys', async () => {
 		users,
 		posts: mySchema.table('posts', {
 			id: integer('id').primaryKey(),
-			userId: integer('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+			userId: integer('user_id').references(() => users.id, {
+				onDelete: 'set null',
+				onUpdate: 'cascade',
+			}),
 		}),
 	};
-	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-foreign-keys',
-		['my_schema', 'public'],
-	);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, schema, 'introspect-foreign-keys', [
+		'my_schema',
+		'public',
+	]);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-	expect(ddlAfterPull.fks.one({
-		schema: 'my_schema',
-		table: 'posts',
-		columns: ['user_id'],
-		schemaTo: 'public',
-		tableTo: 'users',
-		columnsTo: ['id'],
-	})).not.toBeNull();
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(
+		ddlAfterPull.fks.one({
+			schema: 'my_schema',
+			table: 'posts',
+			columns: ['user_id'],
+			schemaTo: 'public',
+			tableTo: 'users',
+			columnsTo: ['id'],
+		}),
+	).not.toBeNull();
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5082
 test('introspect foreign keys #2', async () => {
-	const test = pgTable('test', {
-		col1: integer(),
-		col2: integer(),
-		col3: integer(),
-	}, (table) => [
-		unique('composite_unique').on(table.col2, table.col3),
-		unique('test_col1_key').on(table.col1),
-	]);
-
-	const test1 = pgTable('test1', {
-		col1: integer().references(() => test.col1),
-		col2: integer(),
-		col3: integer(),
-	}, (table) => [
-		foreignKey({
-			columns: [table.col2, table.col3],
-			foreignColumns: [test.col2, test.col3],
-			name: 'composite_fk',
-		}),
-	]);
-
-	const schema = { test, test1 };
-	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-foreign-keys-2',
-		['public'],
+	const test = pgTable(
+		'test',
+		{
+			col1: integer(),
+			col2: integer(),
+			col3: integer(),
+		},
+		(table) => [
+			unique('composite_unique').on(table.col2, table.col3),
+			unique('test_col1_key').on(table.col1),
+		],
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	const test1 = pgTable(
+		'test1',
+		{
+			col1: integer().references(() => test.col1),
+			col2: integer(),
+			col3: integer(),
+		},
+		(table) => [
+			foreignKey({
+				columns: [table.col2, table.col3],
+				foreignColumns: [test.col2, test.col3],
+				name: 'composite_fk',
+			}),
+		],
+	);
+
+	const schema = { test, test1 };
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, schema, 'introspect-foreign-keys-2', ['public']);
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.fks.list({ schema: 'public' }).length).toBe(2);
-	const predicate = ddlAfterPull.fks.list({ schema: 'public' }).map((fk) =>
-		fk.columns.length !== 0 && fk.columnsTo.length !== 0
-	).every((val) => val === true);
+	const predicate = ddlAfterPull.fks
+		.list({ schema: 'public' })
+		.map((fk) => fk.columns.length !== 0 && fk.columnsTo.length !== 0)
+		.every((val) => val === true);
 	expect(predicate).toBe(true);
 });
 
@@ -1256,10 +1601,17 @@ test('introspect table with self reference', async () => {
 		invited_id: integer().references((): AnyPgColumn => users.id),
 	});
 	const schema = { users };
-	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, schema, 'introspect-self-ref');
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-self-ref');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect partitioned tables', async () => {
@@ -1280,7 +1632,7 @@ test('introspect partitioned tables', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
-		} satisfies typeof tables[number],
+		} satisfies (typeof tables)[number],
 	]);
 });
 
@@ -1295,20 +1647,29 @@ test('default sequence nextval', async () => {
 	});
 
 	const organizations = pgTable('organizations', {
-		code: bigint({ mode: 'number' }).default(sql`nextval('seq_org_code'::regclass)`).notNull(),
+		code: bigint({ mode: 'number' })
+			.default(sql`nextval('seq_org_code'::regclass)`)
+			.notNull(),
 	});
 
-	const { sqlStatements } = await diffIntrospect(db, { seqOrgCode, organizations }, 'default_sequence_nextval');
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{ seqOrgCode, organizations },
+		'default_sequence_nextval',
+	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('policy', async () => {
-	const organizationsInCore = pgTable('organizations', {
-		domain: text(),
-	}, (table) => [
-		unique('organizations_domain_key').on(table.domain),
-	]);
+	const organizationsInCore = pgTable(
+		'organizations',
+		{
+			domain: text(),
+		},
+		(table) => [unique('organizations_domain_key').on(table.domain)],
+	);
 
 	const policy = pgPolicy('new_policy', {
 		as: 'restrictive',
@@ -1317,8 +1678,13 @@ test('policy', async () => {
 		for: 'all',
 	}).link(organizationsInCore);
 
-	const { sqlStatements } = await diffIntrospect(db, { organizationsInCore, policy }, 'policy');
-	expect(sqlStatements).toStrictEqual([]);
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{ organizationsInCore, policy },
+		'policy',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // test('introspect foreign tables', async () => {
@@ -1352,30 +1718,33 @@ test('introspect view with table filter', async () => {
 	const table1 = pgTable('table1', {
 		column1: serial().primaryKey(),
 	});
-	const view1 = pgView('view1', { column1: serial() }).as(sql`select column1 from ${table1}`);
+	const view1 = pgView('view1', { column1: serial() }).as(
+		sql`select column1 from ${table1}`,
+	);
 	const table2 = pgTable('table2', {
 		column1: serial().primaryKey(),
 	});
-	const view2 = pgView('view2', { column1: serial() }).as(sql`select column1 from ${table2}`);
+	const view2 = pgView('view2', { column1: serial() }).as(
+		sql`select column1 from ${table2}`,
+	);
 	const schema1 = { table1, view1, table2, view2 };
 	await push({ db, to: schema1 });
 
 	let tables, views;
-	let filter = prepareEntityFilter('postgresql', {
-		tables: ['table1'],
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
-	({ tables, views } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
+	let filter = prepareEntityFilter(
+		'postgresql',
 		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
+			tables: ['table1'],
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
 		},
-	));
+		[],
+	);
+	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	}));
 	const expectedTables = [
 		{
 			entityType: 'tables',
@@ -1387,21 +1756,20 @@ test('introspect view with table filter', async () => {
 	expect(tables).toStrictEqual(expectedTables);
 	expect(views).toStrictEqual([]);
 
-	filter = prepareEntityFilter('postgresql', {
-		tables: ['table1', 'view1'],
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
-	({ tables, views } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
+	filter = prepareEntityFilter(
+		'postgresql',
 		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
+			tables: ['table1', 'view1'],
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
 		},
-	));
+		[],
+	);
+	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	}));
 	const expectedViews = [
 		{
 			entityType: 'views',
@@ -1438,12 +1806,16 @@ test.skipIf(Date.now() < +new Date('2026-04-05'))('introspect sequences with tab
 	const schema1 = { table1, table2 };
 	await push({ db, to: schema1 });
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: ['!prefix_*'],
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: ['!prefix_*'],
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
 	const { tables, sequences } = await fromDatabaseForDrizzle(
 		db,
 		filter,
@@ -1512,21 +1884,20 @@ test('introspect _{dataType} columns type as {dataType}[]', async () => {
 			inet_array             _inet
 	);`);
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
-	const { columns } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
+	const filter = prepareEntityFilter(
+		'postgresql',
 		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
 		},
+		[],
 	);
+	const { columns } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 
 	const columnTypes = columns.map((col) => col.type);
 	const columnDimensions = columns.map((col) => col.dimensions);
@@ -1561,27 +1932,39 @@ test('introspect _{dataType} columns type as {dataType}[]', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/5149
 test('jsonb default with boolean literals', async () => {
 	const JSONB = pgTable('organizations1', {
-		notifications: jsonb().default({ confirmed: true, not_received: true }).notNull(),
+		notifications: jsonb()
+			.default({ confirmed: true, not_received: true })
+			.notNull(),
 	});
 	const JSON = pgTable('organizations2', {
-		notifications: json().default({ confirmed: true, not_received: true }).notNull(),
+		notifications: json()
+			.default({ confirmed: true, not_received: true })
+			.notNull(),
 	});
 	const JSONBARRAY = pgTable('organizations3', {
-		notifications: jsonb().array().default([{ confirmed: true, not_received: true }]).notNull(),
+		notifications: jsonb()
+			.array()
+			.default([{ confirmed: true, not_received: true }])
+			.notNull(),
 	});
 	const JSONARRAY = pgTable('organizations4', {
-		notifications: json().array().default([{ confirmed: true, not_received: true }]).notNull(),
+		notifications: json()
+			.array()
+			.default([{ confirmed: true, not_received: true }])
+			.notNull(),
 	});
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		{ JSONB, JSONBARRAY, JSON, JSONARRAY },
 		'jsonb_default_with_boolean_literals',
 	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5356
 // https://github.com/drizzle-team/drizzle-orm/issues/5294
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
 test('single quote default', async () => {
@@ -1592,13 +1975,14 @@ test('single quote default', async () => {
 		display_name: text().default('').notNull(),
 	});
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		{ group },
 		'single_quote_default',
 	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3418
@@ -1613,12 +1997,16 @@ test('introspect enum within schema', async () => {
 	const schema = { mySchema, myEnum, myTable, myView, table1 };
 	await push({ db, to: schema });
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: ['!my_schema'],
-		entities: undefined,
-		extensions: undefined,
-	}, []);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: undefined,
+			schemas: ['!my_schema'],
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
 	const { tables, enums, views } = await fromDatabaseForDrizzle(
 		db,
 		filter,
@@ -1643,92 +2031,121 @@ test('introspect enum within schema', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5196
 test('index with option', async () => {
-	const table1 = pgTable('table1', {
-		column1: integer(),
-		column2: integer(),
-		column3: integer(),
-	}, (t) => [
-		index('book_author_id').using('btree', t.column1.asc().nullsLast()).with({ deduplicate_items: true }),
-		index('book_title_search').using('btree', t.column2.asc().nullsLast()),
-		index('created_at').using('brin', t.column3.asc().nullsLast()).with({ autosummarize: false }),
-	]);
+	const table1 = pgTable(
+		'table1',
+		{
+			column1: integer(),
+			column2: integer(),
+			column3: integer(),
+		},
+		(t) => [
+			index('book_author_id')
+				.using('btree', t.column1.asc().nullsLast())
+				.with({ deduplicate_items: true }),
+			index('book_title_search').using('btree', t.column2.asc().nullsLast()),
+			index('created_at')
+				.using('brin', t.column3.asc().nullsLast())
+				.with({ autosummarize: false }),
+		],
+	);
 
-	const { sqlStatements } = await diffIntrospect(db, { table1 }, 'index_with_option');
-	expect(sqlStatements).toStrictEqual([]);
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{ table1 },
+		'index_with_option',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5224
 test('functional index', async () => {
-	const table1 = pgTable('table1', {
-		normalized_address: text(),
-		state: text(),
-	}, (t) => [
-		uniqueIndex('idx_addresses_natural_key')
-			.using(
-				'btree',
-				sql.raw(`upper(normalized_address)`),
-				sql.raw(`upper((state)::text)`),
-			)
-			.where(sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`)),
-	]);
-
-	const { sqlStatements, schema2 } = await diffIntrospect(db, { table1 }, 'functional_index');
-	expect(sqlStatements).toStrictEqual([]);
-	expect(schema2.indexes).toStrictEqual([{
-		columns: [
-			{
-				asc: true,
-				isExpression: true,
-				nullsFirst: false,
-				opclass: null,
-				value: 'upper(normalized_address)',
-			},
-			{
-				asc: true,
-				isExpression: true,
-				nullsFirst: false,
-				opclass: null,
-				value: 'upper(state)',
-			},
+	const table1 = pgTable(
+		'table1',
+		{
+			normalized_address: text(),
+			state: text(),
+		},
+		(t) => [
+			uniqueIndex('idx_addresses_natural_key')
+				.using(
+					'btree',
+					sql.raw(`upper(normalized_address)`),
+					sql.raw(`upper((state)::text)`),
+				)
+				.where(
+					sql.raw(`((normalized_address IS NOT NULL) AND (state IS NOT NULL))`),
+				),
 		],
-		concurrently: false,
-		entityType: 'indexes',
-		forPK: false,
-		forUnique: false,
-		isUnique: true,
-		method: 'btree',
-		name: 'idx_addresses_natural_key',
-		nameExplicit: true,
-		schema: 'public',
-		table: 'table1',
-		where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
-		with: '',
-	}]);
+	);
+
+	const { pushSqlStatements, generateSqlStatements, schema2 } = await diffIntrospect(
+		db,
+		{ table1 },
+		'functional_index',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(schema2.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: true,
+					nullsFirst: false,
+					opclass: null,
+					value: 'upper(normalized_address)',
+				},
+				{
+					asc: true,
+					isExpression: true,
+					nullsFirst: false,
+					opclass: null,
+					value: 'upper(state)',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: true,
+			method: 'btree',
+			name: 'idx_addresses_natural_key',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'table1',
+			where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
+			with: '',
+		},
+	]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5193
 test('check definition', async () => {
-	const table1 = pgTable('table1', {
-		column1: serial().primaryKey(),
-	}, (t) => [check('check_positive', sql`${t.column1} > 0`)]);
+	const table1 = pgTable(
+		'table1',
+		{
+			column1: serial().primaryKey(),
+		},
+		(t) => [check('check_positive', sql`${t.column1} > 0`)],
+	);
 	const schema = { table1 };
 	await push({ db, to: schema });
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
-	const { checks } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
+	const filter = prepareEntityFilter(
+		'postgresql',
 		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
 		},
+		[],
 	);
+	const { checks } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 
 	expect(checks).toStrictEqual([
 		{
@@ -1758,12 +2175,16 @@ test('pull after migrate with custom migrations table #1', async () => {
 		);
 	`);
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
 	const { pks, columns, tables, schemas } = await fromDatabaseForDrizzle(
 		db,
 		filter,
@@ -1786,9 +2207,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 			schema: 'drizzle',
 		},
 		{
-			columns: [
-				'id',
-			],
+			columns: ['id'],
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
@@ -1815,12 +2234,16 @@ test('pull after migrate with custom migrations table #2', async () => {
 		);
 	`);
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
 	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
 		db,
 		filter,
@@ -1839,9 +2262,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			schema: 'public',
 		},
 		{
-			columns: [
-				'id',
-			],
+			columns: ['id'],
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
@@ -1874,12 +2295,16 @@ test('pull after migrate with custom migrations table #3', async () => {
 		);
 	`);
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
 	const { schemas, tables, pks } = await fromDatabaseForDrizzle(
 		db,
 		filter,
@@ -1908,9 +2333,7 @@ test('pull after migrate with custom migrations table #3', async () => {
 			schema: 'public',
 		},
 		{
-			columns: [
-				'id',
-			],
+			columns: ['id'],
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
@@ -1918,9 +2341,7 @@ test('pull after migrate with custom migrations table #3', async () => {
 			table: 'users',
 		},
 		{
-			columns: [
-				'id',
-			],
+			columns: ['id'],
 			entityType: 'pks',
 			name: 'users_pkey',
 			nameExplicit: true,
@@ -1942,21 +2363,20 @@ test('pscale_extensions schema', async () => {
 		);
 	`);
 
-	const filter = prepareEntityFilter('postgresql', {
-		tables: undefined,
-		schemas: undefined,
-		entities: undefined,
-		extensions: undefined,
-	}, []);
-	const { schemas } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
+	const filter = prepareEntityFilter(
+		'postgresql',
 		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
 		},
+		[],
 	);
+	const { schemas } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
 
 	expect(schemas).toStrictEqual([{ name: 'test', entityType: 'schemas' }]);
 });
@@ -1973,7 +2393,326 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 	);
 	`);
 
-	const { sqlStatements, statements } = await diffIntrospect(db, {}, 'problem-with-backslash-in-check-constraint');
-	expect(sqlStatements).toStrictEqual([]);
-	expect(statements).toStrictEqual([]);
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
+		db,
+		{},
+		'problem-with-backslash-in-check-constraint',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5329
+test('introspect policies with schemaFilter', async (t) => {
+	const role = pgRole('owner');
+	const schema1 = {
+		role,
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			(t) => [pgPolicy('test', { as: 'permissive' })],
+		),
+	};
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
+		db,
+		schema1,
+		'introspect-policies-with-schema-filter',
+		['public'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/5329
+test('introspect policies without schemaFilter', async (t) => {
+	const role = pgRole('owner');
+	const schema1 = {
+		role,
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			(t) => [pgPolicy('test', { as: 'permissive' })],
+		),
+	};
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(
+		db,
+		schema1,
+		'introspect-policies-without-schema-filter',
+		[],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5056
+test('#5056', async () => {
+	await db.query(`CREATE TABLE public.responses (
+    id          uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+    prompt_id   uuid            NOT NULL,
+    content     text            NOT NULL,
+    model       text,
+    created_at  timestamptz     NOT NULL DEFAULT now(),
+    updated_at  timestamptz     NOT NULL DEFAULT now()
+);`);
+	await db.query(`CREATE INDEX idx_responses_prompt_created
+    ON public.responses
+    USING btree (prompt_id uuid_ops, model text_pattern_ops, created_at timestamptz_ops DESC);`);
+
+	const fromDb = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: 'drizzle',
+		schema: '__drizzle_migrations',
+	});
+
+	await db.query(`DROP TABLE responses CASCADE`);
+
+	expect(fromDb.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'prompt_id',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'text_pattern_ops',
+					},
+					value: 'model',
+				},
+				{
+					asc: false,
+					isExpression: false,
+					nullsFirst: true,
+					opclass: null,
+					value: 'created_at',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'idx_responses_prompt_created',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'responses',
+			where: null,
+			with: '',
+		},
+	]);
+
+	const schema = {
+		responses: pgTable(
+			'responses',
+			{
+				id: uuid().primaryKey().defaultRandom(),
+				prompt_id: uuid().notNull(),
+				content: text().notNull(),
+				model: text(),
+				created_at: timestamp({ withTimezone: true }).defaultNow(),
+				updated_at: timestamp({ withTimezone: true }).defaultNow(),
+			},
+			(
+				t,
+			) => [
+				index('idx_responses_prompt_created').using(
+					'btree',
+					t.prompt_id.op('uuid_ops'),
+					t.model.op('text_pattern_ops'),
+					t.created_at.op('timestamptz_ops').desc(),
+				),
+			],
+		),
+	};
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(
+		db,
+		schema,
+		'#5056',
+		[],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect nextval defaults on integer columns in non-public schema', async () => {
+	const musicbrainz = pgSchema('musicbrainz');
+
+	const schema = {
+		musicbrainz,
+		usersIdSeq: musicbrainz.sequence('users_id_seq'),
+		users: musicbrainz.table('users', {
+			id: integer('id').notNull().default(sql`nextval('musicbrainz.users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-nextval-default-integer-non-public-schema',
+		['musicbrainz'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('introspect pg_catalog.nextval defaults on integer columns', async () => {
+	const schema = {
+		usersIdSeq: pgSequence('users_id_seq'),
+		users: pgTable('users', {
+			id: integer('id').notNull().default(sql`pg_catalog.nextval('users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-pg-catalog-nextval-default-integer',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5495
+test('access method issue', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable(
+			'table',
+			{
+				id: integer(),
+				name: vector({ dimensions: 1536 }),
+			},
+			(table) => [index('idx_claims_embedding').using('ivfflat', table.name.asc().nullsLast().op('vector_cosine_ops'))],
+		),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, ddlAfterPull } =
+		await diffIntrospect(
+			db,
+			schema,
+			'issue-5495',
+		);
+
+	expect(ddlAfterPull.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'vector_cosine_ops',
+					},
+					value: 'name',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'ivfflat',
+			name: 'idx_claims_embedding',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'table',
+			where: null,
+			with: '',
+		},
+	]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5493
+test('relations issue', async () => {
+	await db.query(`
+	CREATE TABLE customer (
+	customer_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY	
+);`);
+	await db.query(`CREATE TABLE billing_account (
+	billing_account_id int8 GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	customer_id int8 NOT NULL
+);`);
+	await db.query(
+		`ALTER TABLE billing_account ADD CONSTRAINT billing_account_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id);`,
+	);
+	await db.query(`CREATE TABLE contract (
+	contract_id int8 GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	customer_id int8 NOT NULL,
+	billing_account_id int8 NOT NULL
+);`);
+	await db.query(
+		`ALTER TABLE contract ADD CONSTRAINT contract_billing_account_id_fkey FOREIGN KEY (billing_account_id) REFERENCES billing_account(billing_account_id);`,
+	);
+	await db.query(
+		`ALTER TABLE contract ADD CONSTRAINT contract_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);`,
+	);
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, relationsError } =
+		await diffIntrospect(
+			db,
+			{},
+			'issue-5493',
+		);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(relationsError).toBeNull();
 });

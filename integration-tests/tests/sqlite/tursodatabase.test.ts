@@ -3,7 +3,7 @@ import { SQLiteCloudDatabase } from 'drizzle-orm/sqlite-cloud';
 import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
 import { migrate } from 'drizzle-orm/tursodatabase/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { tursoDatabaseTest as test } from './instrumentation';
 import relations from './relations';
@@ -154,7 +154,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 
 	// create migration directory
 	const migrationDir = './migrations/sqlite-cloud';
-	if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 	mkdirSync(migrationDir, { recursive: true });
 
 	// first branch
@@ -189,7 +189,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res1).toStrictEqual(expected);
 	expect(res2).toStrictEqual(expected);
 
-	rmdirSync(migrationDir, { recursive: true });
+	rmSync(migrationDir, { recursive: true });
 });
 
 const skip = [
@@ -199,6 +199,10 @@ const skip = [
 	'RQB v2 simple find first - with relation',
 	'RQB v2 transaction find first - with relation',
 	'RQB v2 simple find many - with text pks',
+
+	// Uses async versions
+	'sync transaction rollback',
+	'sync nested transaction rollback',
 
 	'$count',
 	'$count embedded',

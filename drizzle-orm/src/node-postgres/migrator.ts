@@ -9,5 +9,5 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	return await coreMigrate(migrations, db.session, config);
+	return await coreMigrate(migrations, db, config);
 }

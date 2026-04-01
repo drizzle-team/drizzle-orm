@@ -82,6 +82,7 @@ export interface MySqlSelectConfig {
 	useIndex?: string[];
 	forceIndex?: string[];
 	ignoreIndex?: string[];
+	comment?: SQL;
 }
 
 export type MySqlJoin<

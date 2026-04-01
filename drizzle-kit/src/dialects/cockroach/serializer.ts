@@ -1,6 +1,6 @@
 import type { CasingType } from '../../cli/validations/common';
 import { cockroachSchemaError, cockroachSchemaWarning } from '../../cli/views';
-import { prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { CockroachDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -9,33 +9,36 @@ import { drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
+	filenames: string[],
 	casing: CasingType | undefined,
-): Promise<
-	{
-		ddlPrev: CockroachDDL;
-		ddlCur: CockroachDDL;
-		snapshot: CockroachSnapshot;
-		snapshotPrev: CockroachSnapshot;
-		custom: CockroachSnapshot;
-	}
-> => {
+): Promise<{
+	ddlPrev: CockroachDDL;
+	ddlCur: CockroachDDL;
+	snapshot: CockroachSnapshot;
+	snapshotPrev: CockroachSnapshot;
+	custom: CockroachSnapshot;
+}> => {
 	const { readFileSync } = await import('fs');
 	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
-		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
+		: snapshotValidator.strict(
+			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
+		);
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
 
 	const res = await prepareFromSchemaFiles(filenames);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(res, casing, () => true);
+	const { schema, errors, warnings } = fromDrizzleSchema(
+		res,
+		casing,
+		() => true,
+	);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
@@ -54,7 +57,7 @@ export const prepareSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevIds = [prevSnapshot.id];
+	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
 
 	const snapshot = {
 		version: '1',
@@ -65,7 +68,11 @@ export const prepareSnapshot = async (
 		renames: [],
 	} satisfies CockroachSnapshot;
 
-	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
+	const {
+		id: _ignoredId,
+		prevIds: _ignoredPrevIds,
+		...prevRest
+	} = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: CockroachSnapshot = {

@@ -16,7 +16,15 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
+import {
+	type ColumnsSelection,
+	type Placeholder,
+	type Query,
+	SQL,
+	sql,
+	type SqlCommenterInput,
+	type SQLWrapper,
+} from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
@@ -49,6 +57,7 @@ export interface PgUpdateConfig {
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	comment?: SQL;
 }
 
 export type PgUpdateSetSource<
@@ -661,6 +670,14 @@ export class PgUpdateBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		return this as any;
+	}
+
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: SqlCommenterInput): PgUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 

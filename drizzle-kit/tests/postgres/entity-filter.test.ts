@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { pgSchema, pgView, serial } from 'drizzle-orm/pg-core';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;

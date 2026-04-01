@@ -383,7 +383,12 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 	const { index } = st;
 
 	const cascade = index.isUnique ? ' CASCADE' : '';
-	return `DROP INDEX "${st.index.name}"${cascade};`;
+
+	const key = index.schema !== 'public'
+		? `"${index.schema}".`
+		: '';
+
+	return `DROP INDEX ${key}"${st.index.name}"${cascade};`;
 });
 
 const recreateIndexConvertor = convertor('recreate_index', (st) => {

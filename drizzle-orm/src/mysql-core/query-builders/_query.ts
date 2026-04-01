@@ -1,7 +1,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { Query, QueryWithTypings, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type {
@@ -31,8 +31,10 @@ export class _RelationalQueryBuilder<
 		private mode: Mode,
 	) {}
 
-	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, V1.DBQueryConfig<'many', true, TSchema, TFields>>,
+	findMany<TConfig extends V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>> & {
+			comment?: SqlCommenterInput;
+		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
 			this.fullSchema,
@@ -42,14 +44,16 @@ export class _RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as V1.DBQueryConfig<'many', true>) : {},
+			config ? (config as V1.DBQueryConfigWithComment<'many', true>) : {},
 			'many',
 			this.mode,
 		);
 	}
 
-	findFirst<TSelection extends Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
+	findFirst<TSelection extends Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>>(
+		config?: KnownKeysOnly<TSelection, Omit<V1.DBQueryConfigWithComment<'many', true, TSchema, TFields>, 'limit'>> & {
+			comment?: SqlCommenterInput;
+		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, V1.BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
 			this.fullSchema,
@@ -59,7 +63,7 @@ export class _RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as V1.DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config ? { ...(config as V1.DBQueryConfigWithComment<'many', true> | undefined), limit: 1 } : { limit: 1 },
 			'first',
 			this.mode,
 		);
@@ -82,7 +86,7 @@ export class MySqlRelationalQuery<
 		private tableConfig: V1.TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
-		private config: V1.DBQueryConfig<'many', true> | true,
+		private config: V1.DBQueryConfigWithComment<'many', true> | true,
 		private queryMode: 'many' | 'first',
 		private mode?: Mode,
 	) {

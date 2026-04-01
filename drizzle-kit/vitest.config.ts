@@ -21,8 +21,6 @@ export default defineConfig({
 			'tests/singlestore/**/*.test.ts',
 			'tests/gel/**/*.test.ts',
 			// 'tests/cockroach/',
-			'tests/postgres/commutativity.test.ts',
-			'tests/postgres/commutativity.integration.test.ts',
 		],
 
 		typecheck: {

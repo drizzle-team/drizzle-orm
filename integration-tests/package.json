@@ -30,7 +30,7 @@
 		"@types/better-sqlite3": "^7.6.4",
 		"@types/dockerode": "^3.3.18",
 		"@types/mssql": "^9.1.4",
-		"@types/node": "^20.2.5",
+		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",
 		"@types/sql.js": "^1.4.4",
 		"@types/uuid": "^9.0.1",

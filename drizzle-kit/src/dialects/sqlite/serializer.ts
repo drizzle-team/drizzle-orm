@@ -1,6 +1,6 @@
 import type { CasingType } from 'src/cli/validations/common';
 import { sqliteSchemaError } from '../../cli/views';
-import { prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { SQLiteDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -9,28 +9,27 @@ import { drySqliteSnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSqliteSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
+	filenames: string[],
 	casing: CasingType | undefined,
-): Promise<
-	{
-		ddlPrev: SQLiteDDL;
-		ddlCur: SQLiteDDL;
-		snapshot: SqliteSnapshot;
-		snapshotPrev: SqliteSnapshot;
-		custom: SqliteSnapshot;
-	}
-> => {
+): Promise<{
+	ddlPrev: SQLiteDDL;
+	ddlCur: SQLiteDDL;
+	snapshot: SqliteSnapshot;
+	snapshotPrev: SqliteSnapshot;
+	custom: SqliteSnapshot;
+}> => {
 	const { readFileSync } = await import('fs');
 	const { randomUUID } = await import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySqliteSnapshot
-		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
+		: snapshotValidator.strict(
+			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
+		);
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
 
 	const { tables, views } = await prepareFromSchemaFiles(filenames);
 	const interim = fromDrizzleSchema(tables, views, casing);
@@ -43,7 +42,7 @@ export const prepareSqliteSnapshot = async (
 	}
 
 	const id = randomUUID();
-	const prevIds = [prevSnapshot.id];
+	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
 
 	const snapshot = {
 		version: '7',
@@ -54,7 +53,11 @@ export const prepareSqliteSnapshot = async (
 		renames: [],
 	} satisfies SqliteSnapshot;
 
-	const { id: _ignoredId, prevIds: _ignoredPrevIds, ...prevRest } = prevSnapshot;
+	const {
+		id: _ignoredId,
+		prevIds: _ignoredPrevIds,
+		...prevRest
+	} = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: SqliteSnapshot = {

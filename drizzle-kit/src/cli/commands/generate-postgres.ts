@@ -1,5 +1,5 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -21,14 +21,23 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { resolver } from '../prompts';
 import { explain, postgresSchemaError, postgresSchemaWarning } from '../views';
+import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, schema: schemaPath, casing } = config;
+export const handle = async (
+	config: GenerateConfig,
+	checkResult?: CheckHandlerResult,
+) => {
+	const { out: outFolder, filenames, casing } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+		snapshots,
+		filenames,
+		casing,
+		checkResult,
+	);
 
 	if (config.custom) {
 		writeResult({
@@ -79,10 +88,13 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(res, config.casing, () => true);
+	const { schema, errors, warnings } = fromDrizzleSchema(
+		res,
+		config.casing,
+		() => true,
+	);
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}

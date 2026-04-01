@@ -76,6 +76,7 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	comment?: SQL;
 }
 
 export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery

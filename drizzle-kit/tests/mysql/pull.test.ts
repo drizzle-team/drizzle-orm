@@ -3,6 +3,7 @@ import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
 	bigint,
+	binary,
 	blob,
 	boolean,
 	char,
@@ -806,15 +807,16 @@ test('datetime #2', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('introspect varbinary', async () => {
+test('introspect varbinary and binary', async () => {
 	const table1 = mysqlTable('table1', {
 		col1: varbinary({ length: 16 }),
+		col2: binary({ length: 16 }).default(''),
 	});
 
 	const { sqlStatements } = await diffIntrospect(
 		db,
 		{ table1 },
-		'varbinary',
+		'varbinary-and-binary',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -902,6 +904,28 @@ test('introspect cyclic foreign key', async () => {
 	});
 
 	const { statements, sqlStatements } = await diffIntrospect(db, { inviteCode, users }, 'cyclic-foreign-key');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('double-quote-issue', async () => {
+	const content = mysqlTable('content', {
+		id: int('id').notNull(),
+		virtualPath: varchar('virtual_path', { length: 255 }).notNull(),
+		pid: varchar('pid', { length: 750 }).notNull(),
+		pageTitle: varchar('page_title', { length: 75 }).default('Untitled Document').notNull(),
+		navTitle: varchar('nav_title', { length: 25 }).default('NULL'),
+		protected: mysqlEnum('protected', ['Y', 'N']).default('N').notNull(),
+		metaData: varchar('meta_data', { length: 750 }).default('NULL'),
+		content: longtext('content').notNull(),
+		navPlacement: longtext('navPlacement').default('NULL'),
+		weight: decimal('weight', { precision: 10, scale: 2 }).notNull(),
+		dateRecorded: datetime('date_recorded', { mode: 'string' }).notNull(),
+		lastModified: timestamp('last_modified', { mode: 'string' }).default(sql`current_timestamp()`),
+	});
+
+	const { statements, sqlStatements } = await diffIntrospect(db, { content }, 'double-quote-issue');
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);

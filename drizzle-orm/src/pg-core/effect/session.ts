@@ -265,8 +265,8 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 	yield* session.execute(migrationTableCreate);
 
-	const dbMigrations = yield* session.execute<{ id: number; hash: string; created_at: string }>(
-		sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+	const dbMigrations = yield* session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 
 	if (typeof config === 'object' && config.init) {
