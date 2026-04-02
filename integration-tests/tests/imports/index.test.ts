@@ -2,7 +2,7 @@ import { afterAll, expect, it } from 'vitest';
 import 'zx/globals';
 import * as fs from 'fs';
 import path from 'path';
-$.verbose = false;
+$.verbose = true;
 
 const IMPORTS_FOLDER = 'tests/imports/files';
 
