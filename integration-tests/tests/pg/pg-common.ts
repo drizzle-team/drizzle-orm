@@ -10,6 +10,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	eq,
 	Equal,
 	exists,
@@ -742,7 +743,8 @@ export function tests() {
 					name: sql`upper(${usersTable.name})`,
 				})
 				.from(usersTable)
-				.where(notInArray(usersTable.id, []));
+				.where(notInArray(usersTable.id, []))
+				.orderBy(usersTable.id);
 
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
@@ -942,7 +944,7 @@ export function tests() {
 			]);
 
 			await db.insert(usersTable).values({ name: 'Jane' });
-			const result2 = await db.select().from(usersTable);
+			const result2 = await db.select().from(usersTable).orderBy(usersTable.id);
 			expect(result2).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
@@ -1028,7 +1030,8 @@ export function tests() {
 					jsonb: usersTable.jsonb,
 					verified: usersTable.verified,
 				})
-				.from(usersTable);
+				.from(usersTable)
+				.orderBy(usersTable.id);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -1072,7 +1075,8 @@ export function tests() {
 			const result = await db
 				.select({ name: usersTable.name })
 				.from(usersTable)
-				.groupBy(usersTable.name);
+				.groupBy(usersTable.name)
+				.orderBy(usersTable.name);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 		});
@@ -1100,7 +1104,8 @@ export function tests() {
 			const result = await db
 				.select({ name: usersTable.name })
 				.from(usersTable)
-				.groupBy(sql`${usersTable.name}`);
+				.groupBy(sql`${usersTable.name}`)
+				.orderBy(usersTable.name);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 		});
@@ -1113,7 +1118,8 @@ export function tests() {
 			const result = await db
 				.select({ name: usersTable.name })
 				.from(usersTable)
-				.groupBy(sql`${usersTable.name}`, usersTable.id);
+				.groupBy(sql`${usersTable.name}`, usersTable.id)
+				.orderBy(usersTable.name, usersTable.id);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
 		});
@@ -1126,7 +1132,8 @@ export function tests() {
 			const result = await db
 				.select({ name: usersTable.name })
 				.from(usersTable)
-				.groupBy(usersTable.id, sql`${usersTable.name}`);
+				.groupBy(usersTable.id, sql`${usersTable.name}`)
+				.orderBy(usersTable.name, usersTable.id);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
 		});
@@ -1338,7 +1345,8 @@ export function tests() {
 					name: usersTable.name,
 					verified: usersTable.verified,
 				})
-				.from(usersTable);
+				.from(usersTable)
+				.orderBy(usersTable.id);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John 0', verified: true },
@@ -1513,7 +1521,7 @@ export function tests() {
 
 			await db.insert(users).values([{}, {}]);
 
-			const res = await db.select().from(users);
+			const res = await db.select().from(users).orderBy(users.id);
 
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 		});
@@ -1652,7 +1660,8 @@ export function tests() {
 					cityName: citiesTable.name,
 				})
 				.from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
 
 			expect(res).toEqual([
 				{ userId: 1, userName: 'John', cityId, cityName: 'Paris' },
@@ -1685,7 +1694,8 @@ export function tests() {
 					},
 				})
 				.from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
 
 			expect(res).toEqual([
 				{
@@ -1715,7 +1725,8 @@ export function tests() {
 			const res = await db
 				.select()
 				.from(users2Table)
-				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
 
 			expect(res).toEqual([
 				{
@@ -1760,7 +1771,7 @@ export function tests() {
 					'population',
 				),
 				name: citiesTable.name,
-			}).from(citiesTable);
+			}).from(citiesTable).orderBy(citiesTable.id);
 
 			expectTypeOf(res).toEqualTypeOf<{
 				population: number;
@@ -1794,7 +1805,7 @@ export function tests() {
 						'cityName',
 					),
 				name: users2Table.name,
-			}).from(users2Table);
+			}).from(users2Table).orderBy(users2Table.id);
 
 			expectTypeOf(res).toEqualTypeOf<{
 				cityName: string;
@@ -2117,7 +2128,7 @@ export function tests() {
 				.from(users2Table)
 				.as('sq');
 
-			const res = await db.select({ name: sq.name }).from(sq);
+			const res = await db.select({ name: sq.name }).from(sq).orderBy(sql`name desc`);
 
 			expect(res).toEqual([{ name: 'John modified' }, { name: 'Jane modified' }]);
 		});
@@ -2201,7 +2212,7 @@ export function tests() {
 
 			await db.insert(salEmp).values(values);
 
-			const res = await db.select().from(salEmp);
+			const res = await db.select().from(salEmp).orderBy(desc(salEmp.name));
 
 			expect(res).toEqual(values);
 		});
@@ -2326,7 +2337,7 @@ export function tests() {
 			]);
 
 			{
-				const result = await db.select().from(newYorkers1);
+				const result = await db.select().from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2334,7 +2345,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers2);
+				const result = await db.select().from(newYorkers2).orderBy(newYorkers2.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2342,7 +2353,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers3);
+				const result = await db.select().from(newYorkers3).orderBy(newYorkers3.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2350,7 +2361,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ name: 'John' },
 					{ name: 'Jane' },
@@ -2397,7 +2408,7 @@ export function tests() {
 			await db.refreshMaterializedView(newYorkers1);
 
 			{
-				const result = await db.select().from(newYorkers1);
+				const result = await db.select().from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2405,7 +2416,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers2);
+				const result = await db.select().from(newYorkers2).orderBy(newYorkers2.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2413,7 +2424,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers3);
+				const result = await db.select().from(newYorkers3).orderBy(newYorkers3.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -2421,7 +2432,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ name: 'John' },
 					{ name: 'Jane' },
@@ -3046,7 +3057,7 @@ export function tests() {
 			]);
 
 			// 2, Select and compare both dates
-			const result = await db.select().from(table);
+			const result = await db.select().from(table).orderBy(table.id);
 
 			expect(result[0]?.timestamp.getTime()).toBe(result[1]?.timestamp.getTime());
 
@@ -3141,7 +3152,7 @@ export function tests() {
 				createdAt: date,
 				updatedAt: date,
 			});
-			const users = await db.select().from(usersTableWithAndWithoutTimezone);
+			const users = await db.select().from(usersTableWithAndWithoutTimezone).orderBy(usersTableWithAndWithoutTimezone.id);
 
 			// check that the timestamps are set correctly for default times
 			expect(Math.abs(users[0]!.updatedAt.getTime() - Date.now())).toBeLessThan(2000);
@@ -3356,7 +3367,7 @@ export function tests() {
 			]);
 
 			const sq = db.$with('sq').as(db.select().from(newYorkers));
-			const result = await db.with(sq).select().from(sq);
+			const result = await db.with(sq).select().from(sq).orderBy(sql`id`);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John', cityId: 1 },
@@ -3395,7 +3406,7 @@ export function tests() {
 
 			const sq = db.select().from(newYorkers).as('new_yorkers_sq');
 
-			const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+			const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id)).orderBy(users.id);
 
 			expect(result).toEqual([
 				{
@@ -3539,16 +3550,16 @@ export function tests() {
 			}]);
 
 			const contains = await db.select({ id: posts.id }).from(posts)
-				.where(arrayContains(posts.tags, ['Typescript', 'ORM']));
+				.where(arrayContains(posts.tags, ['Typescript', 'ORM'])).orderBy(posts.id);
 			const contained = await db.select({ id: posts.id }).from(posts)
-				.where(arrayContained(posts.tags, ['Typescript', 'ORM']));
+				.where(arrayContained(posts.tags, ['Typescript', 'ORM'])).orderBy(posts.id);
 			const overlaps = await db.select({ id: posts.id }).from(posts)
-				.where(arrayOverlaps(posts.tags, ['Typescript', 'ORM']));
+				.where(arrayOverlaps(posts.tags, ['Typescript', 'ORM'])).orderBy(posts.id);
 			const withSubQuery = await db.select({ id: posts.id }).from(posts)
 				.where(arrayContains(
 					posts.tags,
 					db.select({ tags: posts.tags }).from(posts).where(eq(posts.id, 1)),
-				));
+				)).orderBy(posts.id);
 
 			expect(contains).toEqual([{ id: 3 }, { id: 5 }]);
 			expect(contained).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
@@ -3676,7 +3687,7 @@ export function tests() {
 				db
 					.select({ id: users2Table.id, name: users2Table.name })
 					.from(users2Table).where(eq(users2Table.id, 1)),
-			);
+			).orderBy(sql`name desc`);
 
 			expect(result).toHaveLength(3);
 
@@ -4309,7 +4320,7 @@ export function tests() {
 
 			const result3 = await db.select().from(users).where(
 				or(eq(users.id, 1).if(condition3), eq(users.id, 2).if(condition3)),
-			);
+			).orderBy(users.id);
 
 			expect(result3).toEqual([{ id: 1, name: 'John', age: 20, city: 'New York' }, {
 				id: 2,
@@ -4320,7 +4331,7 @@ export function tests() {
 
 			const condtition4 = false;
 
-			const result4 = await db.select().from(users).where(eq(users.id, 1).if(condtition4));
+			const result4 = await db.select().from(users).where(eq(users.id, 1).if(condtition4)).orderBy(users.id);
 
 			expect(result4).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4331,7 +4342,7 @@ export function tests() {
 
 			const condition5 = undefined;
 
-			const result5 = await db.select().from(users).where(sql`${users.id} = 1`.if(condition5));
+			const result5 = await db.select().from(users).where(sql`${users.id} = 1`.if(condition5)).orderBy(users.id);
 
 			expect(result5).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4344,7 +4355,7 @@ export function tests() {
 
 			const result6 = await db.select().from(users).where(
 				or(eq(users.id, 1).if(condition6), eq(users.id, 2).if(condition6)),
-			);
+			).orderBy(users.id);
 
 			expect(result6).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4360,7 +4371,7 @@ export function tests() {
 
 			const result7 = await db.select().from(users).where(
 				and(gt(users.age, 20).if(condition7.term1), eq(users.city, 'New York').if(condition7.term2)),
-			);
+			).orderBy(users.id);
 
 			expect(result7).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4374,7 +4385,7 @@ export function tests() {
 
 			const result8 = await db.select().from(users).where(
 				or(lt(users.age, 21).if(condition8.term1), eq(users.city, 'London').if(condition8.term2)),
-			);
+			).orderBy(users.id);
 
 			expect(result8).toEqual([
 				{ id: 3, name: 'Nick', age: 22, city: 'London' },
@@ -4407,7 +4418,7 @@ export function tests() {
 					sql`length(${users.name}) <= ${condition10.term1}`.if(condition10.term1),
 					gt(users.age, condition10.term2).if(condition10.term2 > 20),
 				),
-			);
+			).orderBy(users.id);
 
 			expect(result10).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4419,7 +4430,7 @@ export function tests() {
 
 			const result11 = await db.select().from(users).where(
 				or(eq(users.city, 'New York'), gte(users.age, 22))!.if(condition11),
-			);
+			).orderBy(users.id);
 
 			expect(result11).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4432,7 +4443,7 @@ export function tests() {
 
 			const result12 = await db.select().from(users).where(
 				and(eq(users.city, 'London'), gte(users.age, 23))!.if(condition12),
-			);
+			).orderBy(users.id);
 
 			expect(result12).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4443,7 +4454,7 @@ export function tests() {
 
 			const condition13 = true;
 
-			const result13 = await db.select().from(users).where(sql`(city = 'New York' or age >= 22)`.if(condition13));
+			const result13 = await db.select().from(users).where(sql`(city = 'New York' or age >= 22)`.if(condition13)).orderBy(users.id);
 
 			expect(result13).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4454,7 +4465,7 @@ export function tests() {
 
 			const condition14 = false;
 
-			const result14 = await db.select().from(users).where(sql`(city = 'London' and age >= 23)`.if(condition14));
+			const result14 = await db.select().from(users).where(sql`(city = 'London' and age >= 23)`.if(condition14)).orderBy(users.id);
 
 			expect(result14).toEqual([
 				{ id: 1, name: 'John', age: 20, city: 'New York' },
@@ -4598,7 +4609,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 
 			await db.insert(usersMySchemaTable).values({ name: 'Jane' });
-			const result2 = await db.select().from(usersMySchemaTable);
+			const result2 = await db.select().from(usersMySchemaTable).orderBy(usersMySchemaTable.id);
 			expect(result2).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
 				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
@@ -4628,7 +4639,7 @@ export function tests() {
 				name: usersMySchemaTable.name,
 				jsonb: usersMySchemaTable.jsonb,
 				verified: usersMySchemaTable.verified,
-			}).from(usersMySchemaTable);
+			}).from(usersMySchemaTable).orderBy(usersMySchemaTable.id);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -4644,7 +4655,7 @@ export function tests() {
 			await db.insert(usersMySchemaTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 			const result = await db.select({ name: usersMySchemaTable.name }).from(usersMySchemaTable)
-				.groupBy(usersMySchemaTable.name);
+				.groupBy(usersMySchemaTable.name).orderBy(usersMySchemaTable.name);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 		});
@@ -4655,7 +4666,7 @@ export function tests() {
 			await db.insert(usersMySchemaTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
 			const result = await db.select({ name: usersMySchemaTable.name }).from(usersMySchemaTable)
-				.groupBy(usersMySchemaTable.id, sql`${usersMySchemaTable.name}`);
+				.groupBy(usersMySchemaTable.id, sql`${usersMySchemaTable.name}`).orderBy(usersMySchemaTable.name);
 
 			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
 		});
@@ -4819,7 +4830,7 @@ export function tests() {
 			]);
 
 			{
-				const result = await db.select().from(newYorkers1);
+				const result = await db.select().from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4827,7 +4838,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers2);
+				const result = await db.select().from(newYorkers2).orderBy(newYorkers2.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4835,7 +4846,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers3);
+				const result = await db.select().from(newYorkers3).orderBy(newYorkers3.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4843,7 +4854,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ name: 'John' },
 					{ name: 'Jane' },
@@ -4889,7 +4900,7 @@ export function tests() {
 			await db.refreshMaterializedView(newYorkers1);
 
 			{
-				const result = await db.select().from(newYorkers1);
+				const result = await db.select().from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4897,7 +4908,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers2);
+				const result = await db.select().from(newYorkers2).orderBy(newYorkers2.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4905,7 +4916,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select().from(newYorkers3);
+				const result = await db.select().from(newYorkers3).orderBy(newYorkers3.id);
 				expect(result).toEqual([
 					{ id: 1, name: 'John', cityId: 1 },
 					{ id: 2, name: 'Jane', cityId: 1 },
@@ -4913,7 +4924,7 @@ export function tests() {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
+				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1).orderBy(newYorkers1.id);
 				expect(result).toEqual([
 					{ name: 'John' },
 					{ name: 'Jane' },
@@ -5630,7 +5641,7 @@ export function tests() {
 
 			const count = await db.select({
 				count: db.$count(countTestTable),
-			}).from(countTestTable);
+			}).from(countTestTable).orderBy(countTestTable.id);
 
 			await db.execute(sql`drop table ${countTestTable}`);
 
@@ -5699,7 +5710,7 @@ export function tests() {
 
 			const count = db.select({
 				count: db.$count(countTestTable),
-			}).from(countTestTable);
+			}).from(countTestTable).orderBy(countTestTable.id);
 
 			const count1 = await count;
 
@@ -5781,7 +5792,7 @@ export function tests() {
 
 			const count = await db.select({
 				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
-			}).from(countTestTable);
+			}).from(countTestTable).orderBy(countTestTable.id);
 
 			await db.execute(sql`drop table ${countTestTable}`);
 
@@ -6083,7 +6094,8 @@ export function tests() {
 					userName: sq.userName,
 				})
 				.from(citiesTable)
-				.leftJoinLateral(sq, sql`true`);
+				.leftJoinLateral(sq, sql`true`)
+				.orderBy(citiesTable.id);
 
 			expect(res).toStrictEqual([
 				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
