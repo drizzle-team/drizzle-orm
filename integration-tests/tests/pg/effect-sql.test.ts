@@ -101,7 +101,7 @@ const createDB = <S extends PostgresSchema, TConfig extends AnyRelationsBuilderC
 	cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 	useJitMappers?: boolean,
 ): Effect.Effect<
-	PgDrizzle.EffectPgDatabase<S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>,
+	PgDrizzle.EffectPgDatabase<ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>,
 	never,
 	PgClient.PgClient
 > =>

@@ -23,7 +23,7 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 {
 	static override readonly [entityKind]: string = 'PgEffectRelationalQueryV2';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(

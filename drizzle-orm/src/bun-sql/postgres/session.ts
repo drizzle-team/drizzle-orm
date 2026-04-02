@@ -1,7 +1,6 @@
 /// <reference types="bun-types" />
 
 import type { SavepointSQL, SQL, TransactionSQL } from 'bun';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -21,10 +20,8 @@ export interface BunSQLSessionOptions {
 
 export class BunSQLSession<
 	TSQL extends SQL,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<BunSQLQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunSQLSession';
 
 	logger: Logger;
@@ -34,7 +31,6 @@ export class BunSQLSession<
 		readonly client: TSQL,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: BunSQLSessionOptions = {},
 	) {
@@ -79,18 +75,17 @@ export class BunSQLSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new BunSQLSession<TransactionSQL, TFullSchema, TRelations, TSchema>(
+			const session = new BunSQLSession<TransactionSQL, TRelations>(
 				client,
 				this.dialect,
 				this.relations,
-				this.schema,
 				this.options,
 			);
-			const tx = new BunSQLTransaction(this.dialect, session, this.relations, this.schema);
+			const tx = new BunSQLTransaction(this.dialect, session, this.relations);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -100,10 +95,8 @@ export class BunSQLSession<
 }
 
 export class BunSQLTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<BunSQLQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunSQLTransaction';
 
 	constructor(
@@ -111,33 +104,28 @@ export class BunSQLTransaction<
 		/** @internal */
 		override readonly session: BunSQLSession<
 			TransactionSQL | SavepointSQL,
-			TFullSchema,
-			TRelations,
-			TSchema
+			TRelations
 		>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, relations, schema, nestedIndex, false);
+		super(dialect, session, relations, nestedIndex, false);
 	}
 
 	override transaction = <T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		return (this.session.client as TransactionSQL).savepoint((client) => {
-			const session = new BunSQLSession<SavepointSQL, TFullSchema, TRelations, TSchema>(
+			const session = new BunSQLSession<SavepointSQL, TRelations>(
 				client,
 				this.dialect,
 				this._.relations,
-				this.schema,
 				this.session.options,
 			);
-			const tx = new BunSQLTransaction<TFullSchema, TRelations, TSchema>(
+			const tx = new BunSQLTransaction<TRelations>(
 				this.dialect,
 				session,
 				this._.relations,
-				this.schema,
 			);
 			return transaction(tx);
 		}) as Promise<T>;

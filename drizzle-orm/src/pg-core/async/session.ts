@@ -1,4 +1,3 @@
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -141,9 +140,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 export abstract class PgAsyncSession<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > extends PgSession {
 	static override readonly [entityKind]: string = 'PgAsyncSession';
 
@@ -202,32 +199,25 @@ export abstract class PgAsyncSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T>;
 }
 
 export abstract class PgAsyncTransaction<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgAsyncDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncDatabase<TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'PgAsyncTransaction';
 
 	constructor(
 		dialect: PgDialect,
-		session: PgAsyncSession<any, any, any, any>,
+		session: PgAsyncSession<any, any>,
 		relations: TRelations,
-		schema: {
-			fullSchema: Record<string, unknown>;
-			schema: TSchema;
-			tableNamesMap: Record<string, string>;
-		} | undefined,
 		protected readonly nestedIndex = 0,
 		parseRqbJson: boolean | undefined,
 	) {
-		super(dialect, session, relations, schema, parseRqbJson);
+		super(dialect, session, relations, parseRqbJson);
 	}
 
 	rollback(): never {
@@ -254,13 +244,13 @@ export abstract class PgAsyncTransaction<
 	}
 
 	abstract override transaction: <T>(
-		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
 	) => Promise<T>;
 }
 
 export async function migrate(
 	migrations: MigrationMeta[],
-	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	config: string | MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrationsTable = typeof config === 'string'

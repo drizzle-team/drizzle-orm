@@ -20,7 +20,7 @@ export class PgEffectRefreshMaterializedView<
 {
 	static override readonly [entityKind]: string = 'PgEffectRefreshMaterializedView';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectPreparedQuery<

@@ -85,7 +85,7 @@ export class PgEffectInsertBase<
 > implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectInsert';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {

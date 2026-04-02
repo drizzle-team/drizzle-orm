@@ -15,14 +15,14 @@ export interface PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = Qu
 export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgCountBuilder {
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
 
-	protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	constructor(
 		{ source, dialect, filters, session }: {
 			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: PgDialect;
-			session: PgEffectSession<TEffectHKT, any, any, any, any>;
+			session: PgEffectSession<TEffectHKT, any, any>;
 		},
 	) {
 		super({ source, dialect, filters });

@@ -1,7 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { SqlError } from '@effect/sql/SqlError';
 import * as Effect from 'effect/Effect';
-import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -23,6 +22,7 @@ export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 	type: readonly Assume<this['row'], object>[];
 }
+
 export interface EffectPgSessionOptions {
 	logger: EffectLogger;
 	cache: EffectCache;
@@ -31,17 +31,14 @@ export interface EffectPgSessionOptions {
 
 export class EffectPgSession<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgEffectSession<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectSession<EffectPgQueryEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgSession';
 
 	constructor(
 		private client: PgClient,
 		dialect: PgDialect,
 		protected relations: TRelations,
-		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: EffectPgSessionOptions,
 	) {
 		super(dialect);
@@ -79,22 +76,16 @@ export class EffectPgSession<
 
 	override transaction<A, E, R>(
 		transaction: (
-			tx: EffectPgTransaction<
-				TQueryResult,
-				TFullSchema,
-				TRelations,
-				TSchema
-			>,
+			tx: EffectPgTransaction<TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
-		const { dialect, relations, schema } = this;
+		const { dialect, relations } = this;
 
 		return this.client.withTransaction(Effect.gen(this, function*() {
-			const tx = new EffectPgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>(
+			const tx = new EffectPgTransaction<TQueryResult, TRelations>(
 				dialect,
 				this,
 				relations,
-				schema,
 			);
 
 			return yield* transaction(tx);
@@ -104,15 +95,13 @@ export class EffectPgSession<
 
 export class EffectPgTransaction<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgTransaction';
 
 	override transaction: <A, E, R>(
 		transaction: (
-			tx: PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
+			tx: PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	) => Effect.Effect<A, SqlError | E, R> = (tx) => this.session.transaction(tx);
 }

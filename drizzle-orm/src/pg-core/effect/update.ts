@@ -113,7 +113,7 @@ export class PgEffectUpdateBase<
 > implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectUpdate';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {

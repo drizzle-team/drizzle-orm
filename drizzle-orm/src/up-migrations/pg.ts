@@ -28,7 +28,7 @@ const upgradeFunctions: Record<
 	(
 		migrationsSchema: string,
 		migrationsTable: string,
-		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+		db: PgAsyncDatabase<PgQueryResultHKT, any>,
 		localMigrations: MigrationMeta[],
 		mode: 'transaction' | 'execute' | 'batch',
 	) => Promise<void>
@@ -122,7 +122,7 @@ const upgradeFunctions: Record<
 		// execute -> proxy, http drivers
 		// transaction -> other
 		if (mode === 'transaction') {
-			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
+			await db.transaction(async (tx: PgAsyncTransaction<any, any>) => {
 				for (const sql of sqls) {
 					await tx.execute(sql);
 				}
@@ -150,7 +150,7 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	localMigrations: MigrationMeta[],
 	mode: 'transaction' | 'execute' | 'batch' = 'transaction',
 ): Promise<UpgradeResult> {

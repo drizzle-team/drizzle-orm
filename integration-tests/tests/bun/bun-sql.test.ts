@@ -361,7 +361,7 @@ afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
 });
 
-let db: BunSQLDatabase<never, typeof relations>;
+let db: BunSQLDatabase<typeof relations>;
 
 beforeAll(async () => {
 	const connectionString = process.env['PG_CONNECTION_STRING']!;
@@ -511,7 +511,7 @@ afterEach(async () => {
 	await db.execute(sql`drop schema if exists custom_migrations cascade`);
 });
 
-async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
+async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any>) {
 	await db.execute(sql`drop table if exists users2`);
 	await db.execute(sql`drop table if exists cities`);
 	await db.execute(
@@ -550,7 +550,7 @@ async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any, 
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
+async function setupAggregateFunctionsTest(db: PgAsyncDatabase<PgQueryResultHKT, any>) {
 	await db.execute(sql`drop table if exists "aggregate_table"`);
 	await db.execute(
 		sql`

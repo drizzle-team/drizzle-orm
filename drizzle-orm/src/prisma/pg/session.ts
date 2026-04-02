@@ -46,12 +46,7 @@ export class PrismaPgSession extends PgAsyncSession {
 
 	override transaction<T>(
 		_transaction: (
-			tx: PgAsyncTransaction<
-				PgQueryResultHKT,
-				Record<string, never>,
-				EmptyRelations,
-				Record<string, never>
-			>,
+			tx: PgAsyncTransaction<PgQueryResultHKT, EmptyRelations>,
 		) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {

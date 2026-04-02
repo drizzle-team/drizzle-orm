@@ -18,7 +18,7 @@ import { cities, users } from './tables.ts';
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient }, never, PgClient>
+			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient }, never, PgClient>
 		>
 	>;
 }
@@ -31,7 +31,7 @@ import { cities, users } from './tables.ts';
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient },
+				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
 				never,
 				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
 			>

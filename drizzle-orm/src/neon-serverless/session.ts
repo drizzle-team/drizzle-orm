@@ -7,7 +7,6 @@ import {
 	type QueryResultRow,
 	types,
 } from '@neondatabase/serverless';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -62,11 +61,7 @@ export interface NeonSessionOptions {
 	useJitMapper?: boolean;
 }
 
-export class NeonSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession<NeonQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
@@ -76,7 +71,6 @@ export class NeonSession<
 		private client: NeonClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: NeonSessionOptions = {},
 	) {
 		super(dialect);
@@ -123,17 +117,16 @@ export class NeonSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NeonTransaction<TRelations>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
 		const session = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
-			? new NeonSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
+			? new NeonSession(await this.client.connect(), this.dialect, this.relations, this.options)
 			: this;
-		const tx = new NeonTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new NeonTransaction<TRelations>(
 			this.dialect,
 			session,
 			this.relations,
-			this.schema,
 			undefined,
 			false,
 		);
@@ -154,21 +147,18 @@ export class NeonSession<
 }
 
 export class NeonTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<NeonQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<NeonQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NeonTransaction';
 
 	override transaction = async <T>(
-		transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NeonTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NeonTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new NeonTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this._.relations,
-			this.schema,
 			this.nestedIndex + 1,
 			false,
 		);

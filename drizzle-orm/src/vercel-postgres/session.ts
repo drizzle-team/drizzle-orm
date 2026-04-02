@@ -7,7 +7,6 @@ import {
 	type VercelPoolClient,
 } from '@vercel/postgres';
 import type { CustomTypesConfig } from 'pg';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -63,10 +62,8 @@ const typeConfig: CustomTypesConfig = {
 };
 
 export class VercelPgSession<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<VercelPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
@@ -76,7 +73,6 @@ export class VercelPgSession<
 		private client: VercelPgClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: VercelPgSessionOptions = {},
 	) {
 		super(dialect);
@@ -123,17 +119,16 @@ export class VercelPgSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.schema, this.options)
+			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.options)
 			: this;
-		const tx = new VercelPgTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new VercelPgTransaction<TRelations>(
 			this.dialect,
 			session,
 			this.relations,
-			this.schema,
 			undefined,
 			false,
 		);
@@ -154,21 +149,18 @@ export class VercelPgSession<
 }
 
 export class VercelPgTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<VercelPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<VercelPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override transaction = async <T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new VercelPgTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new VercelPgTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this._.relations,
-			this.schema,
 			this.nestedIndex + 1,
 			false,
 		);
