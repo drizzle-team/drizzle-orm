@@ -8,11 +8,8 @@ import type { PgRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<
-	TSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
->(
-	db: PgRemoteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: PgRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 ) {

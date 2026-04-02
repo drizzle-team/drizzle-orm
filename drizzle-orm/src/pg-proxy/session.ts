@@ -1,4 +1,3 @@
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -19,10 +18,8 @@ export interface PgRemoteSessionOptions {
 }
 
 export class PgRemoteSession<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<PgRemoteQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
@@ -32,7 +29,6 @@ export class PgRemoteSession<
 		private client: RemoteCallback,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PgRemoteSessionOptions = {},
 	) {
 		super(dialect);
@@ -70,7 +66,7 @@ export class PgRemoteSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: PgAsyncTransaction<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: PgAsyncTransaction<PgRemoteQueryResultHKT, TRelations>) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the Postgres Proxy driver');

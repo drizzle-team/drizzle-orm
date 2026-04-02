@@ -81,7 +81,6 @@ export const preparePostgresDB = async (
 				rdsClient,
 				new PgDialect(),
 				{},
-				undefined,
 				config,
 				undefined,
 			);

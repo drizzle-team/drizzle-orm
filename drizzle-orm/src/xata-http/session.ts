@@ -1,5 +1,4 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -28,15 +27,9 @@ export interface XataHttpSessionOptions {
 	useJitMapper?: boolean;
 }
 
-export class XataHttpSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<
+export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSession<
 	XataHttpQueryResultHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'XataHttpSession';
 
@@ -47,7 +40,6 @@ export class XataHttpSession<
 		private client: XataHttpClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: XataHttpSessionOptions = {},
 	) {
 		super(dialect);
@@ -98,7 +90,7 @@ export class XataHttpSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: PgAsyncTransaction<XataHttpQueryResultHKT, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: PgAsyncTransaction<XataHttpQueryResultHKT, TRelations>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		_config: PgTransactionConfig = {},
 	): Promise<T> {

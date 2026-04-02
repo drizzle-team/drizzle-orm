@@ -1,5 +1,4 @@
 import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
-import type * as V1 from '~/_relations.ts';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -22,11 +21,9 @@ export interface NeonHttpSessionOptions {
 	authToken?: NeonAuthToken;
 }
 
-export class NeonHttpSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class NeonHttpSession<TRelations extends AnyRelations>
+	extends PgAsyncSession<NeonHttpQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
@@ -38,7 +35,6 @@ export class NeonHttpSession<
 		client: NeonHttpClient,
 		dialect: PgDialect,
 		private relations: AnyRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		readonly options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
@@ -111,7 +107,7 @@ export class NeonHttpSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: PgAsyncTransaction<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: PgAsyncTransaction<NeonHttpQueryResultHKT, TRelations>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		_config: PgTransactionConfig = {},
 	): Promise<T> {

@@ -561,9 +561,6 @@ describe('$withAuth tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
-		schema: {
-			usersTable,
-		},
 		relations: defineRelations({ usersTable }),
 	});
 
@@ -628,12 +625,6 @@ describe('$withAuth tests', (it) => {
 		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'with' });
 	});
 
-	it('rqb', async () => {
-		await db.$withAuth('rqb')._query.usersTable.findFirst().catch(() => null);
-
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqb' });
-	});
-
 	it('rqbV2', async () => {
 		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
 
@@ -672,9 +663,6 @@ describe('$withAuth callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
-		schema: {
-			usersTable,
-		},
 		relations: defineRelations({ usersTable }),
 	});
 	const auth = (token: string) => () => token;
@@ -734,12 +722,6 @@ describe('$withAuth callback tests', (it) => {
 		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
 	});
 
-	it('rqb', async () => {
-		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
-
-		expect(client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
-	});
-
 	it('rqbV2', async () => {
 		await db.$withAuth(auth('rqbV2')).query.usersTable.findFirst().catch(() => null);
 
@@ -774,9 +756,6 @@ describe('$withAuth async callback tests', (it) => {
 	const client = vi.fn();
 	const db = drizzle({
 		client: client as any as NeonQueryFunction<any, any>,
-		schema: {
-			usersTable,
-		},
 		relations: defineRelations({ usersTable }),
 	});
 	const auth = (token: string) => async () => token;
@@ -842,13 +821,6 @@ describe('$withAuth async callback tests', (it) => {
 
 		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
 		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('with');
-	});
-
-	it('rqb', async () => {
-		await db.$withAuth(auth('rqb'))._query.usersTable.findFirst().catch(() => null);
-
-		expect(client.mock.lastCall?.[2]['authToken']()).toBeInstanceOf(Promise);
-		expect(await client.mock.lastCall?.[2]['authToken']()).toStrictEqual('rqb');
 	});
 
 	it('rqbV2', async () => {

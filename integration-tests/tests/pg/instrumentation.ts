@@ -481,18 +481,18 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 			batch: (statements: string[]) => Promise<any>;
 		};
 		client: any;
-		db: PgAsyncDatabase<any, any, typeof relations>;
+		db: PgAsyncDatabase<any, typeof relations>;
 		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
 		createDB: {
-			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, S, ReturnType<typeof defineRelations<S>>>;
+			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, ReturnType<typeof defineRelations<S>>>;
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				casing?: NonNullable<DrizzleConfig['casing']>,
 				useJitMappers?: boolean,
-			): PgAsyncDatabase<any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
-		caches: { all: PgAsyncDatabase<any, any, typeof relations>; explicit: PgAsyncDatabase<any, any, typeof relations> };
+		caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
 	}>({
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
@@ -591,19 +591,19 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, schema, casing, useJitMappers });
+						return drizzleNeonHttp({ client: kit.client, relations, casing, useJitMappers });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, schema, casing, useJitMappers });
+						return drizzleNeonWs({ client: kit.client as any, relations, casing, useJitMappers });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, schema, casing, useJitMappers });
+						return drizzlePglite({ client: kit.client as any, relations, casing, useJitMappers });
 					}
 					if (vendor === 'node-postgres') {
-						return drizzleNodePostgres({ client: kit.client as any, relations, schema, casing, useJitMappers });
+						return drizzleNodePostgres({ client: kit.client as any, relations, casing, useJitMappers });
 					}
 					if (vendor === 'postgresjs') {
-						return drizzlePostgresjs({ client: kit.client as any, relations, schema, casing, useJitMappers });
+						return drizzlePostgresjs({ client: kit.client as any, relations, casing, useJitMappers });
 					}
 
 					if (vendor === 'proxy') {
@@ -622,7 +622,7 @@ const testFor = (vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-post
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, schema, casing, codecs: nodePgCodecs, useJitMappers });
+						return drizzleProxy(proxyHandler, { relations, casing, codecs: nodePgCodecs, useJitMappers });
 					}
 					throw new Error();
 				};

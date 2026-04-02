@@ -1,5 +1,4 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -19,12 +18,9 @@ export interface PostgresJsSessionOptions {
 	useJitMapper?: boolean;
 }
 
-export class PostgresJsSession<
-	TSQL extends Sql,
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations>
+	extends PgAsyncSession<PostgresJsQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
@@ -34,7 +30,6 @@ export class PostgresJsSession<
 		public client: TSQL,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: PostgresJsSessionOptions = {},
 	) {
@@ -74,18 +69,17 @@ export class PostgresJsSession<
 		);
 	}
 	override transaction<T>(
-		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>(
+			const session = new PostgresJsSession<TransactionSql, TRelations>(
 				client,
 				this.dialect,
 				this.relations,
-				this.schema,
 				this.options,
 			);
-			const tx = new PostgresJsTransaction(this.dialect, session, this.schema, this.relations);
+			const tx = new PostgresJsTransaction(this.dialect, session, this.relations);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -95,38 +89,33 @@ export class PostgresJsSession<
 }
 
 export class PostgresJsTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<PostgresJsQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PostgresJsTransaction';
 
 	constructor(
 		dialect: PgDialect,
 		/** @internal */
-		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		override readonly session: PostgresJsSession<TransactionSql, TRelations>,
 		relations: TRelations,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, relations, schema, nestedIndex, false);
+		super(dialect, session, relations, nestedIndex, false);
 	}
 
 	override transaction = <T>(
-		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		return this.session.client.savepoint((client) => {
-			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>(
+			const session = new PostgresJsSession<TransactionSql, TRelations>(
 				client,
 				this.dialect,
 				this._.relations,
-				this.schema,
 				this.session.options,
 			);
-			const tx = new PostgresJsTransaction<TFullSchema, TRelations, TSchema>(
+			const tx = new PostgresJsTransaction<TRelations>(
 				this.dialect,
 				session,
-				this.schema,
 				this._.relations,
 			);
 			return transaction(tx);

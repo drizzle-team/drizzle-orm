@@ -6,7 +6,7 @@ import { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
 
 export function normalizeDataWithDbCodecs(
 	cfg: {
-		db: PgAsyncDatabase<any, any, any, any> | PgEffectDatabase<any, any, any, any, any>;
+		db: PgAsyncDatabase<any, any> | PgEffectDatabase<any, any, any>;
 		data: Record<string, unknown>[] | string;
 		columns: Record<string, Column>;
 		mode: 'json' | 'query';

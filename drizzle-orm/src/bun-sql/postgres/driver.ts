@@ -1,21 +1,13 @@
 /// <reference types="bun-types" />
 
 import { SQL } from 'bun';
-import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import {
-	arrayCompatNormalize,
-	castToText,
-	castToTextArr,
-	type PgCodecs,
-	refineGenericPgCodecs,
-} from '~/pg-core/codecs.ts';
+import { arrayCompatNormalize, castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { makePgArray } from '~/pg-core/utils/array.ts';
+import { type DrizzlePgConfig, makePgArray } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
 import type { BunSQLQueryResultHKT } from './session.ts';
 import { BunSQLSession } from './session.ts';
 
@@ -287,19 +279,17 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 });
 
 export class BunSQLDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<BunSQLQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<BunSQLQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunSQLDatabase';
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: SQL,
-	config: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs } = {},
-): BunSQLDatabase<TSchema, TRelations> & {
+	config: DrizzlePgConfig<TRelations> = {},
+): BunSQLDatabase<TRelations> & {
 	$client: SQL;
 } {
 	const dialect = new PgDialect({
@@ -314,29 +304,13 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunSQLSession(client, dialect, relations, schema, {
+	const session = new BunSQLSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
 		useJitMapper: config.useJitMappers,
 	});
-	const db = new BunSQLDatabase(dialect, session, relations, schema as any) as BunSQLDatabase<
-		TSchema,
-		TRelations
-	>;
+	const db = new BunSQLDatabase(dialect, session, relations) as BunSQLDatabase<TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -347,7 +321,6 @@ function construct<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
 >(
@@ -355,11 +328,10 @@ export function drizzle<
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
+		DrizzlePgConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema, TRelations>
-			& { codecs?: PgCodecs }
+			& DrizzlePgConfig<TRelations>
 			& ({
 				connection: string | ({ url?: string } & SQL.Options);
 			} | {
@@ -367,7 +339,7 @@ export function drizzle<
 			})
 		),
 	]
-): BunSQLDatabase<TSchema, TRelations> & {
+): BunSQLDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -376,34 +348,32 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...drizzleConfig } = params[0] as
+	const { connection, client, ...DrizzlePgConfig } = params[0] as
 		& {
 			connection?: { url?: string } & SQL.Options;
 			client?: TClient;
 		}
-		& DrizzleConfig<TSchema, TRelations>
-		& { codecs?: PgCodecs };
+		& DrizzlePgConfig<TRelations>;
 
-	if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, DrizzlePgConfig) as any;
 
 	if (typeof connection === 'object' && connection.url !== undefined) {
 		const { url, ...config } = connection;
 
 		const instance = new SQL({ url, ...config });
-		return construct(instance, drizzleConfig) as any;
+		return construct(instance, DrizzlePgConfig) as any;
 	}
 
 	const instance = new SQL(connection);
-	return construct(instance, drizzleConfig) as any;
+	return construct(instance, DrizzlePgConfig) as any;
 }
 
 export namespace drizzle {
 	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations> & { codecs?: PgCodecs },
-	): BunSQLDatabase<TSchema, TRelations> & {
+		config?: DrizzlePgConfig<TRelations>,
+	): BunSQLDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({

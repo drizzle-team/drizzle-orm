@@ -1,6 +1,5 @@
 import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -59,10 +58,8 @@ export interface NodePgSessionOptions {
 }
 
 export class NodePgSession<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncSession<NodePgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
@@ -72,7 +69,6 @@ export class NodePgSession<
 		private client: NodePgClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: NodePgSessionOptions = {},
 	) {
 		super(dialect);
@@ -119,7 +115,7 @@ export class NodePgSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NodePgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // oxlint-disable-line drizzle-internal/no-instanceof
@@ -128,15 +124,13 @@ export class NodePgSession<
 				await (<pg.Pool> this.client).connect(),
 				this.dialect,
 				this.relations,
-				this.schema,
 				this.options,
 			)
 			: this;
-		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new NodePgTransaction<TRelations>(
 			this.dialect,
 			session,
 			this.relations,
-			this.schema,
 			undefined,
 			false,
 		);
@@ -155,21 +149,18 @@ export class NodePgSession<
 }
 
 export class NodePgTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<NodePgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<NodePgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgTransaction';
 
 	override transaction = async <T>(
-		transaction: (tx: NodePgTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NodePgTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NodePgTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new NodePgTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this._.relations,
-			this.schema,
 			this.nestedIndex + 1,
 			false,
 		);

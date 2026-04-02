@@ -1,7 +1,6 @@
 import type { SqlError } from '@effect/sql/SqlError';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import type * as V1 from '~/_relations.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -140,9 +139,7 @@ export class PgEffectPreparedQuery<
 export abstract class PgEffectSession<
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > extends PgSession {
 	static override readonly [entityKind]: string = 'PgEffectSession';
 
@@ -194,7 +191,7 @@ export abstract class PgEffectSession<
 
 	abstract transaction<A, E, R>(
 		transaction: (
-			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
+			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R>;
 }
@@ -202,25 +199,18 @@ export abstract class PgEffectSession<
 export abstract class PgEffectTransaction<
 	TEffectHKT extends QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgEffectDatabase<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectDatabase<TEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'PgEffectTransaction';
 
 	constructor(
 		dialect: PgDialect,
-		session: PgEffectSession<TEffectHKT, any, any, any, any>,
+		session: PgEffectSession<TEffectHKT, any, any>,
 		protected relations: TRelations,
-		protected schema: {
-			fullSchema: Record<string, unknown>;
-			schema: TSchema;
-			tableNamesMap: Record<string, string>;
-		} | undefined,
 		protected readonly nestedIndex = 0,
 		parseRqbJson?: boolean,
 	) {
-		super(dialect, session, relations, schema, parseRqbJson);
+		super(dialect, session, relations, parseRqbJson);
 	}
 
 	rollback() {

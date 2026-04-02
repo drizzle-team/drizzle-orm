@@ -1,6 +1,5 @@
 import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
 import { types } from '@electric-sql/pglite';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -38,11 +37,7 @@ export interface PgliteSessionOptions {
 	useJitMapper?: boolean;
 }
 
-export class PgliteSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSession<PgliteQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
@@ -52,7 +47,6 @@ export class PgliteSession<
 		private client: PgliteClient | Transaction,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PgliteSessionOptions = {},
 	) {
 		super(dialect);
@@ -91,22 +85,20 @@ export class PgliteSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: PgliteTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgliteTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		return (this.client as PgliteClient).transaction(async (client) => {
-			const session = new PgliteSession<TFullSchema, TRelations, TSchema>(
+			const session = new PgliteSession<TRelations>(
 				client,
 				this.dialect,
 				this.relations,
-				this.schema,
 				this.options,
 			);
-			const tx = new PgliteTransaction<TFullSchema, TRelations, TSchema>(
+			const tx = new PgliteTransaction<TRelations>(
 				this.dialect,
 				session,
 				this.relations,
-				this.schema,
 				undefined,
 				false,
 			);
@@ -119,21 +111,18 @@ export class PgliteSession<
 }
 
 export class PgliteTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<PgliteQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<PgliteQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PgliteTransaction';
 
 	override transaction = async <T>(
-		transaction: (tx: PgliteTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgliteTransaction<TRelations>) => Promise<T>,
 	): Promise<T> => {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PgliteTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new PgliteTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this._.relations,
-			this.schema,
 			this.nestedIndex + 1,
 			false,
 		);

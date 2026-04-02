@@ -567,32 +567,12 @@ export type DBQueryConfigWithComment<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> =
-	& (TTableConfig['relations'] extends Record<string, never> ? {}
-		: {
-			with?:
-				| DBQueryConfigWith<TSchema, TTableConfig['relations']>
-				| undefined;
-		})
-	& {
-		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
-		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
-		extras?:
-			| DBQueryConfigExtras<TTableConfig['table']>
-			| undefined;
-		orderBy?:
-			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
-			| undefined;
-		offset?: number | Placeholder | undefined;
-		/**
-		 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
-		 */
-		comment?: CommentInput | undefined;
-	}
-	& (TRelationType extends 'many' ? {
-			limit?: number | Placeholder | undefined;
-		}
-		: {});
+> = DBQueryConfig<TRelationType, TSchema, TTableConfig> & {
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment?: CommentInput | undefined;
+};
 
 export type AnyDBQueryConfig = {
 	columns?:

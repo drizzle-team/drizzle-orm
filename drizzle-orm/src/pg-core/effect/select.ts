@@ -105,7 +105,7 @@ export class PgEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {

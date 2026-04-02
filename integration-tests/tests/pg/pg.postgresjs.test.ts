@@ -33,14 +33,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgjsDbV2: PostgresJsDatabase<never, typeof relations>;
+		pgjsDbV2: PostgresJsDatabase<typeof relations>;
 		pgjsClient: postgres.Sql<{}>;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<typeof relations>;
 let client: postgres.Sql<{}>;
 
 async function createDockerDB(): Promise<string> {

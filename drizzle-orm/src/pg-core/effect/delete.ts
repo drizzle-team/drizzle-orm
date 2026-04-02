@@ -90,7 +90,7 @@ export class PgEffectDeleteBase<
 {
 	static override readonly [entityKind]: string = 'PgEffectDelete';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {

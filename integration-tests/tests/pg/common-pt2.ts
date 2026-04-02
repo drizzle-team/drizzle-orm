@@ -4809,19 +4809,6 @@ export function tests(test: Test) {
 				`select "d0"."id" as "id" from "comments_test" as "d0" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
 			);
 
-			const rqbv1Q = db._query.ctbl.findFirst({
-				columns: {
-					name: true,
-				},
-				comment: {
-					fieldOne: '_valueOne',
-					_fieldTwo: 'value two',
-				},
-			});
-			expect(rqbv1Q.toSQL().sql).toStrictEqual(
-				`select "name" from "comments_test" "ctbl" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
-			);
-
 			const selectQPrepared = db
 				.select()
 				.from(ctbl)
@@ -4837,10 +4824,9 @@ export function tests(test: Test) {
 			await updateQ;
 			await deleteQ;
 
-			const [res1, res2, res3, res4] = [
+			const [res1, res2, res3] = [
 				await selectQ,
 				await rqbQ,
-				await rqbv1Q,
 				await selectQPrepared.execute(),
 			];
 
@@ -4850,17 +4836,10 @@ export function tests(test: Test) {
 				}
 				| undefined
 			>();
-			expectTypeOf(res3).toEqualTypeOf<
-				| {
-					name: string;
-				}
-				| undefined
-			>();
 
 			expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
 			expect(res2).toStrictEqual({ id: 1 });
-			expect(res3).toStrictEqual({ name: 'Updated' });
-			expect(res4).toStrictEqual([{ id: 1, name: 'Updated' }]);
+			expect(res3).toStrictEqual([{ id: 1, name: 'Updated' }]);
 		});
 
 		test.concurrent('Mappers: - correct mappers enabled', async ({ createDB, db }) => {

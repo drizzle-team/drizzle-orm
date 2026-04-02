@@ -4,7 +4,7 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { type PostgresColumnType, type PostgresType, resolvePgType } from '../codecs.ts';
-import { parsePgArray } from '../utils/array.ts';
+import { parsePgArray } from '../utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =

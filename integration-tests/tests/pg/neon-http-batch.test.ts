@@ -116,14 +116,14 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
-const test = base.extend<{ db: NeonHttpDatabase<typeof schema, typeof relations> }>({
+const test = base.extend<{ db: NeonHttpDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
 			const { client, query } = await prepareNeonHttpClient('db6');
 			await _push(query, schema);
 
-			const db = drizzle({ client: client, relations: relations, schema });
+			const db = drizzle({ client, relations });
 			await use(db);
 		},
 		{ scope: 'file' },
@@ -181,7 +181,6 @@ describe('batch', () => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 			db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-			db._query.usersTable.findMany({}),
 			db.query.usersTable.findMany({}),
 		]);
 
@@ -190,12 +189,6 @@ describe('batch', () => {
 				id: number;
 			}[],
 			NeonHttpQueryResult<never>,
-			{
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			}[],
 			{
 				id: number;
 				name: string;
@@ -216,11 +209,6 @@ describe('batch', () => {
 			{ id: 1, name: 'John', verified: 0, invitedBy: null },
 			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 		]);
-
-		expect(batchResponse[3]).toEqual([
-			{ id: 1, name: 'John', verified: 0, invitedBy: null },
-			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-		]);
 	});
 
 	// batch api relational many + one
@@ -228,9 +216,7 @@ describe('batch', () => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 			db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-			db._query.usersTable.findMany({}),
 			db.query.usersTable.findMany({}),
-			db._query.usersTable.findFirst({}),
 			db.query.usersTable.findFirst({}),
 		]);
 
@@ -245,18 +231,6 @@ describe('batch', () => {
 				verified: number;
 				invitedBy: number | null;
 			}[],
-			{
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			}[],
-			{
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			} | undefined,
 			{
 				id: number;
 				name: string;
@@ -278,16 +252,7 @@ describe('batch', () => {
 			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 		]);
 
-		expect(batchResponse[3]).toEqual([
-			{ id: 1, name: 'John', verified: 0, invitedBy: null },
-			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-		]);
-
-		expect(batchResponse[4]).toEqual(
-			{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		);
-
-		expect(batchResponse[5]).toEqual(
+		expect(batchResponse[3]).toEqual(
 			{ id: 1, name: 'John', verified: 0, invitedBy: null },
 		);
 	});
@@ -319,7 +284,6 @@ describe('batch', () => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 			db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-			db._query.usersTable.findMany({}),
 			db.query.usersTable.findMany({}),
 			db.execute<typeof usersTable.$inferSelect>(sql`select * from users`),
 		]);
@@ -329,12 +293,6 @@ describe('batch', () => {
 				id: number;
 			}[],
 			NeonHttpQueryResult<never>,
-			{
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			}[],
 			{
 				id: number;
 				name: string;
@@ -362,12 +320,7 @@ describe('batch', () => {
 			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 		]);
 
-		expect(batchResponse[3]).toEqual([
-			{ id: 1, name: 'John', verified: 0, invitedBy: null },
-			{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-		]);
-
-		expect(batchResponse[4]).toMatchObject({
+		expect(batchResponse[3]).toMatchObject({
 			rows: [
 				{ id: 1, name: 'John', verified: 0, invited_by: null },
 				{ id: 2, name: 'Dan', verified: 0, invited_by: null },
@@ -380,7 +333,6 @@ describe('batch', () => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 			db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-			db._query.usersTable.findMany({}),
 			db.query.usersTable.findMany({}),
 			db.select().from(usersTable).where(eq(usersTable.id, 1)),
 			db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
@@ -391,12 +343,6 @@ describe('batch', () => {
 				id: number;
 			}[],
 			NeonHttpQueryResult<never>,
-			{
-				id: number;
-				name: string;
-				verified: number;
-				invitedBy: number | null;
-			}[],
 			{
 				id: number;
 				name: string;
@@ -432,10 +378,6 @@ describe('batch', () => {
 		]);
 
 		expect(batchResponse[4]).toEqual([
-			{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
-		]);
-
-		expect(batchResponse[5]).toEqual([
 			{ id: 1, invitedBy: null },
 		]);
 	});
@@ -448,12 +390,6 @@ describe('batch', () => {
 			db.delete(usersTable).where(eq(usersTable.id, 1)).returning({
 				id: usersTable.id,
 				invitedBy: usersTable.invitedBy,
-			}),
-			db._query.usersTable.findFirst({
-				columns: {
-					id: true,
-					invitedBy: true,
-				},
 			}),
 			db.query.usersTable.findFirst({
 				columns: {
@@ -476,10 +412,6 @@ describe('batch', () => {
 				id: number;
 				invitedBy: number | null;
 			} | undefined,
-			{
-				id: number;
-				invitedBy: number | null;
-			} | undefined,
 		]>();
 
 		expect(batchResponse.length).eq(5);
@@ -495,10 +427,6 @@ describe('batch', () => {
 		]);
 
 		expect(batchResponse[3]).toEqual(
-			{ id: 2, invitedBy: null },
-		);
-
-		expect(batchResponse[4]).toEqual(
 			{ id: 2, invitedBy: null },
 		);
 	});
